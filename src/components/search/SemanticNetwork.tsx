@@ -4,6 +4,8 @@ import { relatedWords } from '../../services/searchService'
 import { stripGlossExamples } from '../../lib/wordnetParse'
 import type { RelatedWords, RelatedGroup } from '../../providers/wordnet'
 import { useViewStore } from '../../stores/viewStore'
+import { useWordStore } from '../../stores/wordStore'
+import { isWordCollected } from '../../lib/collected'
 
 const LABELS: Record<keyof RelatedWords['groups'], string> = {
   synonyms: '同义词', hypernyms: '上位词', hyponyms: '下位词',
@@ -28,6 +30,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
   // 每组是否展开显示全部（默认折叠，只显示前 9 个）；按组标签 key
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const showDict = useViewStore(s => s.showDict)
+  const collectedWords = useWordStore(s => s.words)
 
   // 换词取消过期请求；数据就绪后上报徽章计数（全组词条总数）；失败进入 error 态（如 wordnet.db 未生成）
   useEffect(() => {
@@ -97,6 +100,9 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
           >
             {w}
           </button>
+          {isWordCollected(w, collectedWords) && (
+            <span aria-label="已收录" title="已收录" style={{ color: 'var(--color-brand)', fontSize: 10, fontWeight: 700 }}>✓</span>
+          )}
         </span>
       ))}
     </span>

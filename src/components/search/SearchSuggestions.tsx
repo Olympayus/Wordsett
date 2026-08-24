@@ -1,9 +1,13 @@
+import type { Word } from '../../types/word'
+import { isWordCollected } from '../../lib/collected'
+
 interface Props {
   suggestions: string[]
   selectedIndex: number
   onSelect: (word: string) => void
   onHover: (index: number) => void
   query: string
+  collectedWords?: Pick<Word, 'normalizedLemma'>[]
 }
 
 function highlightText(text: string, query: string): React.ReactNode {
@@ -17,7 +21,7 @@ function highlightText(text: string, query: string): React.ReactNode {
   )
 }
 
-export default function SearchSuggestions({ suggestions, selectedIndex, onSelect, onHover, query }: Props) {
+export default function SearchSuggestions({ suggestions, selectedIndex, onSelect, onHover, query, collectedWords = [] }: Props) {
   if (suggestions.length === 0) return null
 
   return (
@@ -61,6 +65,9 @@ export default function SearchSuggestions({ suggestions, selectedIndex, onSelect
           }}
         >
           {highlightText(word, query)}
+          {isWordCollected(word, collectedWords) && (
+            <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-brand)', fontWeight: 500, fontFamily: 'var(--font-sans)' }}>✓ 已收录</span>
+          )}
         </button>
       ))}
     </div>

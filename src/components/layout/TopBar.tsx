@@ -6,6 +6,7 @@ import { isChineseQuery } from '../../lib/chineseSearch'
 import { useViewStore } from '../../stores/viewStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useUpdaterStore } from '../../stores/updaterStore'
+import { useWordStore } from '../../stores/wordStore'
 import { useClickOutside } from '../../lib/useClickOutside'
 import { SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
 import Icon from '../icons'
@@ -28,6 +29,7 @@ export default function TopBar() {
   const hasUpdate = useUpdaterStore(s => s.hasUpdateBadge)
   const badgeVersion = useUpdaterStore(s => s.badgeVersion)
   const openDialog = useUpdaterStore(s => s.openDialog)
+  const words = useWordStore(s => s.words)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // 建议下拉点外关闭：用 document 级 pointerdown 监听（既有 useClickOutside 模式）。
@@ -178,6 +180,7 @@ export default function TopBar() {
               onSelect={handleSelectWord}
               onHover={i => setSelectedIndex(i)}
               query={query}
+              collectedWords={words}
             />
           )}
           {searchError && !showSuggestions && (
