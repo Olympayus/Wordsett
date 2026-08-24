@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { posDisplay, buildWordnetFields } from './wordnetParse'
+import { posDisplay, buildWordnetFields, stripGlossExamples } from './wordnetParse'
 
 describe('posDisplay', () => {
   it('n/v/a/s/r 显示映射', () => {
@@ -50,5 +50,19 @@ describe('buildWordnetFields', () => {
     const pos = fields[0]
     const syn = pos.children!.find(c => c.key === 'synonyms')!
     expect(syn.children!.map(s => s.value)).toEqual(['alt'])
+  })
+})
+
+describe('stripGlossExamples', () => {
+  it('剔除尾部一个或多个「; 引号例句」段', () => {
+    expect(stripGlossExamples('capable of arousing and holding the attention; "a fascinating story"; "films should be entertaining"'))
+      .toBe('capable of arousing and holding the attention')
+  })
+  it('无例句时原文不变', () => {
+    expect(stripGlossExamples('agreeably diverting')).toBe('agreeably diverting')
+  })
+  it('例句夹在分号释义之间时只剔除引号部分', () => {
+    expect(stripGlossExamples('providing enjoyment; pleasantly entertaining; "an amusing speaker"; "a diverting story"'))
+      .toBe('providing enjoyment; pleasantly entertaining')
   })
 })

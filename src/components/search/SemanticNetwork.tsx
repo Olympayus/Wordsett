@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { relatedWords } from '../../services/searchService'
+import { stripGlossExamples } from '../../lib/wordnetParse'
 import type { RelatedWords, RelatedGroup } from '../../providers/wordnet'
 import { useViewStore } from '../../stores/viewStore'
 
@@ -51,6 +53,18 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
 
   if (!data) {
     return <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', padding: '20px 0' }}>加载中…</div>
+  }
+
+  // 相似词组簇释义常驻 caption（两行截断，hover 看完整 gloss）
+  const CAPTION_STYLE: CSSProperties = {
+    fontSize: 12,
+    color: 'var(--color-text-tertiary)',
+    lineHeight: 1.45,
+    maxWidth: '100%',
+    display: '-webkit-box',
+    WebkitLineClamp: 2,
+    WebkitBoxOrient: 'vertical',
+    overflow: 'hidden',
   }
 
   // 胶囊保留整组视觉，但每个单词是独立可点的 token（v0.4.3 §7：单击该词跳转到对应词面板）
@@ -117,8 +131,21 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
               {LABELS[key]} <span style={{ fontWeight: 400, color: 'var(--color-text-tertiary)', marginLeft: 4 }}>{items.length}</span>
             </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-              {shown.map(chip)}
+            <div style={
+              key === 'similarTo'
+                ? { display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }
+                : { display: 'flex', flexWrap: 'wrap', gap: 6 }
+            }>
+              {shown.map(g => key === 'similarTo'
+                ? (
+                  <div key={g.words.join('·')} style={{ maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                    {chip(g)}
+                    {g.definition && (
+                      <span title={g.definition} style={CAPTION_STYLE}>{stripGlossExamples(g.definition)}</span>
+                    )}
+                  </div>
+                )
+                : chip(g))}
               {items.length > 9 && (
                 <button
                   type="button"

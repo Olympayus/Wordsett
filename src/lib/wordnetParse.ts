@@ -6,6 +6,11 @@ export function posDisplay(code: string): string {
   return POS_DISPLAY[code] || code
 }
 
+// WordNet gloss 结尾常带引号例句段（如 '; "a fascinating story"'），语义网络 caption 只需释义主干
+export function stripGlossExamples(gloss: string): string {
+  return gloss.replace(/\s*;?\s*"[^"]*"/g, '').trim()
+}
+
 export interface SynsetInput {
   pos: string
   definition: string
