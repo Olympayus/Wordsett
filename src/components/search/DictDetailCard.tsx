@@ -222,7 +222,7 @@ export default function DictDetailCard({
   )
 
   // 递归渲染 flat 树：容器/词性行整棵勾选、行点击或 chevron 折叠；叶子与带值容器「标题+值」同行；
-  // 子级 16px 缩进、无分割线；词性组默认折叠（collapsedKeys）。
+  // 子级 16px 缩进、无分割线；词性组默认展开（collapsedKeys）。
   const renderFlat = (nodes: FlatNode[]): ReactNode => {
     const seen = new Map<string, number>()
     const seenIndex = (key: string) => {
