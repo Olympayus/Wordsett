@@ -121,15 +121,11 @@ export default function DictDetailCard({
     setSelected(all)
   }, [word_, source_, flat])
 
-  // 卡片整体折叠；词性组默认折叠（换词时首次将所有容器 key 加入 collapsedKeys）
+  // 卡片整体折叠；词性组默认全部展开（v0.4.4：默认展开，用户可「全部收起」），换词时重置为空
   const [collapsed, setCollapsed] = useState(false)
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
   useEffect(() => {
-    const keys = new Set<string>()
-    const walk = (nodes: FlatNode[]) => { for (const n of nodes) { if (n.children.length) { keys.add(n.key); walk(n.children) } } }
-    walk(flat)
-    setCollapsedKeys(keys)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setCollapsedKeys(new Set())
   }, [word_, source_])
 
   const toggleCollapse = (key: string) =>
