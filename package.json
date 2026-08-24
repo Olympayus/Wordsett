@@ -2,7 +2,7 @@
   "name": "lexiloom",
   "private": true,
   "license": "MIT",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "type": "module",
   "scripts": {
     "build:ecdict": "node scripts/build-ecdict.mjs",
