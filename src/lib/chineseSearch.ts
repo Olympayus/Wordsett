@@ -1,4 +1,4 @@
-const CJK_RE = /[㐀-䶿一-鿿㐀-䶿一-鿿豈-﫿]/
+const CJK_RE = /[㐀-䶿一-鿿豈-﫿]/
 
 export function isChineseQuery(query: string): boolean {
   return CJK_RE.test(query)
