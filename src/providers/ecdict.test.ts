@@ -29,3 +29,24 @@ describe('EcdictProvider.searchLemmas', () => {
     expect(select).not.toHaveBeenCalled()
   })
 })
+
+describe('EcdictProvider.searchByChinese', () => {
+  const select = vi.fn()
+  beforeEach(() => {
+    select.mockReset()
+    getCachedDbMock.mockResolvedValue({ select })
+  })
+
+  it('中文搜索：多取词频列、按常用度预排序、LIMIT 300（v0.4.4）', async () => {
+    select.mockResolvedValue([{ word: 'interesting', translation: 'a. 有趣的', collins: 3, frq: 1072 }])
+    const results = await new EcdictProvider().searchByChinese('有趣的')
+    expect(results).toEqual([{ word: 'interesting', translation: 'a. 有趣的', collins: 3, frq: 1072 }])
+    const [sql, params] = select.mock.calls[0]
+    expect(sql).toContain('collins')
+    expect(sql).toContain('frq')
+    expect(sql).toContain('ORDER BY collins DESC, frq ASC')
+    expect(sql).toContain('LIMIT 300')
+    expect(sql).toContain('WHERE translation LIKE ?1')
+    expect(params).toEqual(['%有趣的%'])
+  })
+})

@@ -54,4 +54,38 @@ describe('rankChineseResults', () => {
     const many = Array.from({ length: 25 }, (_, i) => ({ word: `w${i}`, translation: '苹果' }))
     expect(rankChineseResults(many, '苹果').length).toBe(20)
   })
+
+  describe('词频排序（v0.4.4）', () => {
+    it('有词频的常用词稳压「位置更靠前但无词频」的冷僻词（interesting vs brain-teaser）', () => {
+      const result = rankChineseResults([
+        { word: 'brain-teaser', translation: '有趣的难题', collins: 0, frq: 0 },
+        { word: 'interesting', translation: 'a. 有趣的', collins: 3, frq: 1072 },
+        { word: 'rorty', translation: 'a. 有趣的', collins: 0, frq: 0 },
+      ], '有趣的')
+      expect(result[0]).toBe('interesting')
+      expect(result[1]).toBe('brain-teaser') // 均无词频，回退位置键：idx 0 < 3
+      expect(result[2]).toBe('rorty')
+    })
+    it('同有词频时按 frq 升序（COCA 词频越低越常用）', () => {
+      const result = rankChineseResults([
+        { word: 'amusing', translation: 'a. 有趣的, 引人发笑的', collins: 2, frq: 9042 },
+        { word: 'funny', translation: 'a. 好笑的, 有趣的', collins: 3, frq: 1789 },
+      ], '有趣的')
+      expect(result[0]).toBe('funny')
+    })
+    it('exact 匹配仍压过有词频但不 exact 的词（exact 是第一键）', () => {
+      const result = rankChineseResults([
+        { word: 'interesting', translation: 'a. 有趣的', collins: 3, frq: 1072 },
+        { word: 'exactword', translation: '有趣的', collins: 0, frq: 0 },
+      ], '有趣的')
+      expect(result[0]).toBe('exactword')
+    })
+    it('无 frq 但有 collins 时按 collins 降序兜底', () => {
+      const result = rankChineseResults([
+        { word: 'lowstar', translation: 'x有趣的', collins: 1, frq: 0 },
+        { word: 'highstar', translation: 'x有趣的', collins: 4, frq: 0 },
+      ], '有趣的')
+      expect(result[0]).toBe('highstar')
+    })
+  })
 })

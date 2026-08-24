@@ -48,12 +48,13 @@ export class EcdictProvider implements DictionaryProvider {
     }]
   }
 
-  async searchByChinese(query: string): Promise<Array<{ word: string; translation: string }>> {
+  async searchByChinese(query: string): Promise<Array<{ word: string; translation: string; collins: number; frq: number }>> {
     if (!query.trim()) return []
     const db = await getCachedDb(toSqliteUrl(await dbPath))
     const q = `%${query.trim()}%`
-    const rows = await db.select<{ word: string; translation: string }[]>(
-      'SELECT word, translation FROM entries WHERE translation LIKE ?1 LIMIT 50',
+    // v0.4.4：多取词频列；SQL 内先按常用度粗排再 LIMIT，避免常用词被插入序截断丢掉（各取数上限放宽到 300）
+    const rows = await db.select<{ word: string; translation: string; collins: number; frq: number }[]>(
+      'SELECT word, translation, collins, frq FROM entries WHERE translation LIKE ?1 ORDER BY collins DESC, frq ASC LIMIT 300',
       [q]
     )
     return rows
