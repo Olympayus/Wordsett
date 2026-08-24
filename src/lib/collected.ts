@@ -1,6 +1,6 @@
 import type { Word } from '../types/word'
 
-// 词典详情与语义网络中「已收录」判定：单词是否已在个人词库（normalizedLemma 精确匹配）
+// 搜索下拉与语义网络中「已收录」判定：单词是否已在个人词库（normalizedLemma 精确匹配）
 export function isWordCollected(
   word: string,
   collectedWords: Pick<Word, 'normalizedLemma'>[]
