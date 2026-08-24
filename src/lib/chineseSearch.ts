@@ -33,7 +33,7 @@ export function rankChineseResults(rows: ChineseSearchRow[], query: string): str
       }))
       .sort((a, b) =>
         (b.exact ? 1 : 0) - (a.exact ? 1 : 0) ||
-        Number(b.freq) - Number(a.freq) ||
+        (b.freq ? 1 : 0) - (a.freq ? 1 : 0) ||
         a.frq - b.frq ||
         b.collins - a.collins ||
         a.idx - b.idx ||

@@ -16,6 +16,18 @@ const LABELS: Record<keyof RelatedWords['groups'], string> = {
 // 词源相关词组的小字说明（v0.4.3 §6：WordNet 词源相关形式 ≠ 构词派生）
 const DERIVATIVES_NOTE = '源自 WordNet 词源相关形式，含同义集合成员，并非全部构词派生'
 
+// 相似词组簇释义常驻 caption（两行截断，hover 看完整 gloss）
+const CAPTION_STYLE: CSSProperties = {
+  fontSize: 12,
+  color: 'var(--color-text-tertiary)',
+  lineHeight: 1.45,
+  maxWidth: '100%',
+  display: '-webkit-box',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
+}
+
 interface Props {
   word: string
   // 语义网络徽章计数（Task 4 裁定：真实 relatedWords 计数替换静态 24），数据加载后上报
@@ -56,18 +68,6 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
 
   if (!data) {
     return <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', padding: '20px 0' }}>加载中…</div>
-  }
-
-  // 相似词组簇释义常驻 caption（两行截断，hover 看完整 gloss）
-  const CAPTION_STYLE: CSSProperties = {
-    fontSize: 12,
-    color: 'var(--color-text-tertiary)',
-    lineHeight: 1.45,
-    maxWidth: '100%',
-    display: '-webkit-box',
-    WebkitLineClamp: 2,
-    WebkitBoxOrient: 'vertical',
-    overflow: 'hidden',
   }
 
   // 胶囊保留整组视觉，但每个单词是独立可点的 token（v0.4.3 §7：单击该词跳转到对应词面板）
