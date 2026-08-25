@@ -17,22 +17,36 @@ const hasFrequency = (r: ChineseSearchRow) => (r.collins ?? 0) > 0 || (r.frq ?? 
 // COCA 词频序：越低越常用；frq=0（不在 COCA 前若干位）视作不提供排序依据 → 排到同桶尾部
 const frqKey = (r: ChineseSearchRow) => (r.frq ?? 0) > 0 ? (r.frq ?? 0) : Number.MAX_SAFE_INTEGER
 
+// 释义分隔符：匹配到的查询词若紧跟这些字符（或结尾），视为「独立义项」匹配；
+// 反之查询词是更长复合词的前缀（如「有趣的事件」里的「有趣」），匹配质量更低。
+const GLOSS_TERMINATORS = new Set([',', '，', ';', '；', '、', ' ', '\\'])
+
+function isStandaloneGloss(translation: string, idx: number, qLen: number): boolean {
+  const after = translation[idx + qLen]
+  return after === undefined || GLOSS_TERMINATORS.has(after)
+}
+
 export function rankChineseResults(rows: ChineseSearchRow[], query: string): string[] {
   const q = query.trim()
   if (!q) return []
   return [...new Set(
     rows
       .filter(r => r.translation.includes(q))
-      .map(r => ({
-        word: r.word,
-        idx: r.translation.indexOf(q),
-        exact: r.translation.trim() === q,
-        freq: hasFrequency(r),
-        frq: frqKey(r),
-        collins: r.collins ?? 0,
-      }))
+      .map(r => {
+        const idx = r.translation.indexOf(q)
+        return {
+          word: r.word,
+          idx,
+          exact: r.translation.trim() === q,
+          standalone: isStandaloneGloss(r.translation, idx, q.length),
+          freq: hasFrequency(r),
+          frq: frqKey(r),
+          collins: r.collins ?? 0,
+        }
+      })
       .sort((a, b) =>
         (b.exact ? 1 : 0) - (a.exact ? 1 : 0) ||
+        (b.standalone ? 1 : 0) - (a.standalone ? 1 : 0) ||
         (b.freq ? 1 : 0) - (a.freq ? 1 : 0) ||
         a.frq - b.frq ||
         b.collins - a.collins ||

@@ -34,12 +34,12 @@ describe('rankChineseResults', () => {
     ], '苹果')
     expect(result[0]).toBe('exactmatch') // translation.trim() === query 的精确匹配排在仅包含之上
   })
-  it('ranks earlier match position higher', () => {
-    const early = rankChineseResults(
-      [{ word: 'early', translation: '苹果在开头' }, { word: 'late', translation: '结尾才有苹果' }],
+  it('独立义项匹配优先于复合词匹配，即使位置更靠后', () => {
+    const result = rankChineseResults(
+      [{ word: 'compound', translation: '苹果在开头' }, { word: 'standalone', translation: '结尾才有苹果' }],
       '苹果'
     )
-    expect(early[0]).toBe('early')
+    expect(result[0]).toBe('standalone') // 「结尾才有苹果」的「苹果」是独立义项；「苹果在开头」的「苹果」是复合词前缀
   })
   it('prefers shorter word when positions tie', () => {
     const result = rankChineseResults(
@@ -63,8 +63,10 @@ describe('rankChineseResults', () => {
         { word: 'rorty', translation: 'a. 有趣的', collins: 0, frq: 0 },
       ], '有趣的')
       expect(result[0]).toBe('interesting')
-      expect(result[1]).toBe('brain-teaser') // 均无词频，回退位置键：idx 0 < 3
-      expect(result[2]).toBe('rorty')
+      // rorty 与 brain-teaser 均无词频：rorty 的「有趣的」是独立义项（句尾），
+      // brain-teaser 的「有趣的」是复合词前缀，standalone 键压过位置键 → rorty 在前
+      expect(result[1]).toBe('rorty')
+      expect(result[2]).toBe('brain-teaser')
     })
     it('同有词频时按 frq 升序（COCA 词频越低越常用）', () => {
       const result = rankChineseResults([
@@ -87,5 +89,22 @@ describe('rankChineseResults', () => {
       ], '有趣的')
       expect(result[0]).toBe('highstar')
     })
+  })
+
+  it('独立义项优先于复合词（lovely 应排在 episode 之前）', () => {
+    const result = rankChineseResults([
+      { word: 'episode', translation: 'n. 插曲, 插话, 有趣的事件, 一段情节', collins: 2, frq: 2846 },
+      { word: 'lovely', translation: 'a. 可爱的, 有趣的', collins: 3, frq: 3284 },
+    ], '有趣的')
+    expect(result[0]).toBe('lovely')
+    expect(result[1]).toBe('episode')
+  })
+
+  it('同为独立义项时仍按词频排序（interesting 在 lovely 之前）', () => {
+    const result = rankChineseResults([
+      { word: 'lovely', translation: 'a. 可爱的, 有趣的', collins: 3, frq: 3284 },
+      { word: 'interesting', translation: 'a. 有趣的', collins: 3, frq: 1072 },
+    ], '有趣的')
+    expect(result[0]).toBe('interesting')
   })
 })
