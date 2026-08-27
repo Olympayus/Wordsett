@@ -54,6 +54,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
     let cancelled = false
     setData(null)
     setError(false)
+    setGlossPop(null)
     relatedWords(word)
       .then(d => {
         if (cancelled) return
