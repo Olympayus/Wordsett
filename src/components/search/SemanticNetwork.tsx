@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
+import { createPortal } from 'react-dom'
 import { relatedWords } from '../../services/searchService'
-import { stripGlossExamples } from '../../lib/wordnetParse'
+import { stripGlossExamples, splitGlossLines } from '../../lib/wordnetParse'
 import type { RelatedWords, RelatedGroup } from '../../providers/wordnet'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
 import { isWordCollected } from '../../lib/collected'
+import { clampMenuPosition } from '../../lib/menuPosition'
 
 const LABELS: Record<keyof RelatedWords['groups'], string> = {
   synonyms: '同义词', hypernyms: '上位词', hyponyms: '下位词',
@@ -21,7 +23,8 @@ const CAPTION_STYLE: CSSProperties = {
   fontSize: 12,
   color: 'var(--color-text-tertiary)',
   lineHeight: 1.45,
-  maxWidth: '100%',
+  maxWidth: 320,
+  wordBreak: 'break-word',
   display: '-webkit-box',
   WebkitLineClamp: 2,
   WebkitBoxOrient: 'vertical',
@@ -41,6 +44,8 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
   const [error, setError] = useState(false)
   // 每组是否展开显示全部（默认折叠，只显示前 9 个）；按组标签 key
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  // 相似词释义悬浮小窗：{x,y} 为鼠标位置，lines 为全 gloss 按分号拆行
+  const [glossPop, setGlossPop] = useState<{ x: number; y: number; lines: string[] } | null>(null)
   const showDict = useViewStore(s => s.showDict)
   const collectedWords = useWordStore(s => s.words)
 
@@ -62,6 +67,13 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
     return () => { cancelled = true }
   }, [word, onCountChange])
 
+  // 滚动时收起释义小窗（避免 fixed 定位的浮层错位）
+  useEffect(() => {
+    const onScroll = () => setGlossPop(null)
+    window.addEventListener('scroll', onScroll, true)
+    return () => window.removeEventListener('scroll', onScroll, true)
+  }, [])
+
   if (error) {
     return <div style={{ fontSize: 13, color: 'var(--color-danger)', padding: '20px 0' }}>语义网络数据加载失败，请先构建本地词典库（npm run build:dictionaries）</div>
   }
@@ -71,12 +83,13 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
   }
 
   // 胶囊保留整组视觉，但每个单词是独立可点的 token（v0.4.3 §7：单击该词跳转到对应词面板）
-  const chip = (g: RelatedGroup) => (
+  // withGlossTitle=false：相似词组走 styled popover，去掉原生 title 悬浮
+  const chip = (g: RelatedGroup, withGlossTitle = true) => (
     <span
       key={g.words.join('·')}
-      title={g.definition}
+      title={withGlossTitle ? g.definition : undefined}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6,
+        display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', maxWidth: '100%',
         fontSize: 13, padding: '3px 11px', borderRadius: 'var(--radius-full)',
         border: '1px solid var(--color-border-strong)', background: 'var(--color-surface)',
         color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
@@ -144,10 +157,15 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
             }>
               {shown.map(g => key === 'similarTo'
                 ? (
-                  <div key={g.words.join('·')} style={{ maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    {chip(g)}
+                  <div
+                    key={g.words.join('·')}
+                    style={{ maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}
+                    onMouseEnter={e => { if (g.definition) setGlossPop({ x: e.clientX, y: e.clientY, lines: splitGlossLines(g.definition) }) }}
+                    onMouseLeave={() => setGlossPop(null)}
+                  >
+                    {chip(g, false)}
                     {g.definition && (
-                      <span title={g.definition} style={CAPTION_STYLE}>{stripGlossExamples(g.definition)}</span>
+                      <span style={CAPTION_STYLE}>{stripGlossExamples(g.definition)}</span>
                     )}
                   </div>
                 )
@@ -174,6 +192,22 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
       <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', borderTop: '1px dashed var(--color-border)', marginTop: 12, paddingTop: 9 }}>
         点胶囊 → <b style={{ color: 'var(--color-brand)' }}>重新查询该词</b>，网络随词刷新
       </div>
+
+      {glossPop && (() => {
+        const pos = clampMenuPosition(glossPop.x + 14, glossPop.y + 16, 340, glossPop.lines.length * 20 + 24)
+        return createPortal(
+          <div style={{
+            position: 'fixed', left: pos.x, top: pos.y, zIndex: 'var(--z-dropdown)',
+            maxWidth: 340, padding: '10px 12px',
+            background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-overlay)',
+            fontSize: 12, lineHeight: 1.6, color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
+          }}>
+            {glossPop.lines.map((line, i) => <div key={i}>{line}</div>)}
+          </div>,
+          document.body
+        )
+      })()}
     </div>
   )
 }

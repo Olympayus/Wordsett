@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { posDisplay, buildWordnetFields, stripGlossExamples } from './wordnetParse'
+import { posDisplay, buildWordnetFields, stripGlossExamples, splitGlossLines } from './wordnetParse'
 
 describe('posDisplay', () => {
   it('n/v/a/s/r 显示映射', () => {
@@ -64,5 +64,15 @@ describe('stripGlossExamples', () => {
   it('例句夹在分号释义之间时只剔除引号部分', () => {
     expect(stripGlossExamples('providing enjoyment; pleasantly entertaining; "an amusing speaker"; "a diverting story"'))
       .toBe('providing enjoyment; pleasantly entertaining')
+  })
+})
+
+describe('splitGlossLines', () => {
+  it('按分号拆成一句一行（释义 + 引号例句各自成行）', () => {
+    expect(splitGlossLines('capable of arousing and holding the attention; "a fascinating story"; "films should be entertaining"'))
+      .toEqual(['capable of arousing and holding the attention', '"a fascinating story"', '"films should be entertaining"'])
+  })
+  it('无分号时单行', () => {
+    expect(splitGlossLines('agreeably diverting')).toEqual(['agreeably diverting'])
   })
 })

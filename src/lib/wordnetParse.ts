@@ -11,6 +11,11 @@ export function stripGlossExamples(gloss: string): string {
   return gloss.replace(/\s*;?\s*"[^"]*"/g, '').trim()
 }
 
+// WordNet gloss 拆成「一句话一行」：按分号分段（释义与引号例句各自成行），供悬浮小窗逐行渲染
+export function splitGlossLines(gloss: string): string[] {
+  return gloss.split(';').map(s => s.trim()).filter(Boolean)
+}
+
 export interface SynsetInput {
   pos: string
   definition: string
