@@ -1,11 +1,11 @@
 {
-  "version": "0.4.3",
-  "notes": "v0.4.3 — 搜索设置新增「词典」开关（ECDICT / WordNet，仅影响词典详情数据、语义网络不受影响）与「词源相关词」返回开关；搜索建议过滤无详情的孤儿词（如 applejacks）；右键全局禁止浏览器菜单、输入框自定义复制/粘贴菜单；合并添加后侧边栏音标/词性即时刷新、卡片 hover 按钮横向移出即消失、合并添加按钮贴底；语义网络多词胶囊内单词独立可点、单击跳转对应词；编者模式单行容器添加/删除按钮内联行尾；WordNet 派生词改名「词源相关词」并加说明。",
-  "pub_date": "2026-08-15T12:05:39.259Z",
+  "version": "0.4.4",
+  "notes": "",
+  "pub_date": "2026-08-27T05:22:01.044Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFh6UEhVU29kK1g4R0s4SXBXOTFXY24yaDdWNEZ2WnEyOXJaSng1NlZtdW1qL0xhZkVnQ1d4QzM2dk5rL3BpZlZQOGd4NUxxd21FdDZNTmdXMkY5UXdVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg2Nzk1NDQ3CWZpbGU6TGV4aWxvb21fMC40LjNfeDY0LXNldHVwLmV4ZQowOC9RQVhXb2FsLzdKOERRQ1VuOVR0N0s5WjYyUlBmaDltQWRuN1U2RXoyN3QrblFUdG0yaWNPNWt3U293em5KdWpuU3ZCYU4wdXpFdFJXS2FXVWZCUT09Cg==",
-      "url": "https://github.com/Olympayus/Lexiloom/releases/download/v0.4.3/Lexiloom_0.4.3_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFhoMDRBcEVQdmNvMnZCUzU2WC9JWXlXbnNFdE92V05mUFVuQTByMExzU2dVS01pMzRPME5COS9OR2hkc01BL0hPLzQrbXlYTldiSXlXNklwR2FTTVEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3ODA4MDY4CWZpbGU6TGV4aWxvb21fMC40LjRfeDY0LXNldHVwLmV4ZQpLd1lxcHpNdmRpN0VERmxVNVJsOVNKbjQ5eEhtdVQwRlc0OXYvTjNXdjNiTUJONDhEWWVnZTZYL3RHYnZYamF6b1gwUmlpaEhia1ovamtCUnh5NTlCQT09Cg==",
+      "url": "https://github.com/Olympayus/Lexiloom/releases/download/v0.4.4/Lexiloom_0.4.4_x64-setup.exe"
     }
   }
 }
