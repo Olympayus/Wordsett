@@ -65,7 +65,7 @@ npm run tauri dev
 
 - `CLAUDE.md` 顶部 `Status:` 行：更新版本号与进度；
 - `README.md`：徽章 `version-<v>`、安装表文件名；若功能/截图变化则同步「特色 / 截图」段；
-- 内置字段计数：若 `BUILTIN_FIELDS` 增减，同步 README / CLAUDE.md 的「17 个内置字段」；
+- 内置字段计数：若 `BUILTIN_FIELDS` 增减，同步 README / CLAUDE.md 的「19 个内置字段」；
 - 词典集变化：更新 `src-tauri/tauri.conf.json` 的 `resources` 白名单。
 
 ### 第 4 步 · 重新打包安装包

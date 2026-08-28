@@ -2,14 +2,14 @@ import type { FieldValue } from '../types/field'
 
 // 各层级字段类型位次（spec §4.1）
 const ROOT_RANK: Record<string, number> = {
-  phonetic: 0, part_of_speech: 1, supplementary: 2, phrase: 3, exchange: 4, derivatives: 5,
+  phonetic: 0, part_of_speech: 1, supplementary: 2, phrase: 3, exchange: 4, derivatives: 5, word_root: 6,
 }
 const POS_CHILD_RANK: Record<string, number> = { chinese_definition: 0, english_definition: 1 }
 const DEFINITION_CHILD_RANK: Record<string, number> = {
   usage_scenario: 0, example_sentence: 1, synonyms: 2,
 }
 
-export const ROOT_FIELD_KEYS = ['phonetic', 'part_of_speech', 'supplementary', 'phrase', 'exchange', 'derivatives']
+export const ROOT_FIELD_KEYS = ['phonetic', 'part_of_speech', 'supplementary', 'phrase', 'exchange', 'derivatives', 'word_root']
 
 // 字段归属（spec §3.2）：每层允许出现的子字段类型
 export const ALLOWED_CHILD_KEYS: Record<string, string[]> = {
@@ -20,6 +20,7 @@ export const ALLOWED_CHILD_KEYS: Record<string, string[]> = {
   phrase: ['phrase_item'],
   exchange: ['exchange_item'],
   derivatives: ['derivatives_item'],
+  word_root: ['word_root_item'],
   example_sentence: ['example'],
   synonyms: ['synonym_item'],
 }

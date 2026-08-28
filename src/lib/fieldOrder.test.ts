@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { templateRank, compareSiblings, sortTreeByTemplate, ALLOWED_CHILD_KEYS, ROOT_FIELD_KEYS } from './fieldOrder'
+import { BUILTIN_FIELDS } from '../types/field'
 import type { FieldValue } from '../types/field'
 
 const fv = (id: string, key: string, displayOrder: number): FieldValue => ({
@@ -60,8 +61,8 @@ describe('sortTreeByTemplate', () => {
 })
 
 describe('字段归属', () => {
-  it('ROOT_FIELD_KEYS 为 6 个根级字段', () => {
-    expect(ROOT_FIELD_KEYS).toEqual(['phonetic', 'part_of_speech', 'supplementary', 'phrase', 'exchange', 'derivatives'])
+  it('ROOT_FIELD_KEYS 为 7 个根级字段', () => {
+    expect(ROOT_FIELD_KEYS).toEqual(['phonetic', 'part_of_speech', 'supplementary', 'phrase', 'exchange', 'derivatives', 'word_root'])
   })
   it('词性下仅允许中/英释义', () => {
     expect(ALLOWED_CHILD_KEYS.part_of_speech).toEqual(['chinese_definition', 'english_definition'])
@@ -69,4 +70,21 @@ describe('字段归属', () => {
   it('释义下允许场景/例句/近义词', () => {
     expect(ALLOWED_CHILD_KEYS.chinese_definition).toEqual(['usage_scenario', 'example_sentence', 'synonyms'])
   })
+})
+
+it('word_root 是根级字段，位次 6，位于 derivatives(5) 之后', () => {
+  expect(templateRank(null, 'word_root')).toBe(6)
+  expect(templateRank(null, 'derivatives')).toBe(5)
+  expect(ROOT_FIELD_KEYS).toContain('word_root')
+})
+
+it('word_root 允许直接子级 word_root_item', () => {
+  expect(ALLOWED_CHILD_KEYS.word_root).toEqual(['word_root_item'])
+  expect(templateRank('word_root', 'word_root_item')).toBe(0)
+})
+
+it('word_root 内建字段已注册（BUILTIN_FIELDS 计数 19）', () => {
+  expect(BUILTIN_FIELDS.word_root).toEqual({ name: '词根', fieldType: 'text', displayOrder: 18 })
+  expect(BUILTIN_FIELDS.word_root_item).toEqual({ name: '词根项', fieldType: 'text', displayOrder: 19 })
+  expect(Object.keys(BUILTIN_FIELDS)).toHaveLength(19)
 })

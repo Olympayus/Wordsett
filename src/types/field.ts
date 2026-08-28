@@ -16,6 +16,8 @@ export type FieldKey =
   | 'supplementary_item'
   | 'phrase'
   | 'phrase_item'
+  | 'word_root'
+  | 'word_root_item'
 
 export const BUILTIN_FIELDS: Record<FieldKey, {
   name: string
@@ -39,6 +41,8 @@ export const BUILTIN_FIELDS: Record<FieldKey, {
   phrase_item:        { name: '短语项',   fieldType: 'text', displayOrder: 15 },
   derivatives_item:   { name: '词源相关词项', fieldType: 'text', displayOrder: 16 },
   synonym_item:       { name: '近义词项', fieldType: 'text', displayOrder: 17 },
+  word_root:      { name: '词根',     fieldType: 'text', displayOrder: 18 },
+  word_root_item: { name: '词根项',   fieldType: 'text', displayOrder: 19 },
 }
 
 export interface FieldDefinition {
