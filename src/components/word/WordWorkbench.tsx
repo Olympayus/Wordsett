@@ -19,6 +19,7 @@ import EmptyState from '../ui/EmptyState'
 import Icon from '../icons'
 import CategoryCapsule from './CategoryCapsule'
 import PhoneticArea from './PhoneticArea'
+import WordRootArea from './WordRootArea'
 import TabBar from './TabBar'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useUiStore } from '../../stores/uiStore'
@@ -35,9 +36,9 @@ const FIELD_STYLES: Record<FieldState, CSSProperties> = {
 }
 
 // 容器字段（#5 键判定，取代「有子级且无值」推断：刚建的空容器立即按容器渲染）
-const CONTAINER_FIELD_KEYS = ['part_of_speech', 'supplementary', 'phrase', 'exchange', 'derivatives', 'example_sentence', 'synonyms']
+const CONTAINER_FIELD_KEYS = ['part_of_speech', 'supplementary', 'phrase', 'exchange', 'derivatives', 'example_sentence', 'synonyms', 'word_root']
 // 项类型字段（#4）：标签列不渲染字段名，值占满整行
-const ITEM_FIELD_KEYS = ['exchange_item', 'supplementary_item', 'phrase_item', 'derivatives_item', 'synonym_item', 'example']
+const ITEM_FIELD_KEYS = ['exchange_item', 'supplementary_item', 'phrase_item', 'derivatives_item', 'synonym_item', 'example', 'word_root_item']
 
 // 「更多操作」菜单项统一样式（#6）
 const menuItemStyle: CSSProperties = {
@@ -977,7 +978,11 @@ export default function WordWorkbench() {
   // 根级字段拆分：音标 → 标题区；其余 → 标签页
   const rootValues = fieldValues.filter(fv => !fv.parentId)
   const phoneticValues = rootValues.filter(fv => defKeyByFieldId.get(fv.fieldId) === 'phonetic')
-  const contentRoots = rootValues.filter(fv => defKeyByFieldId.get(fv.fieldId) !== 'phonetic')
+  const wordRootValues = rootValues.filter(fv => defKeyByFieldId.get(fv.fieldId) === 'word_root')
+  const contentRoots = rootValues.filter(fv => {
+    const k = defKeyByFieldId.get(fv.fieldId)
+    return k !== 'phonetic' && k !== 'word_root'
+  })
   const keyOfFv = (fv: FieldValue) => defKeyByFieldId.get(fv.fieldId) ?? fv.fieldId
 
   const tabs = visibleTabs(contentRoots, keyOfFv)
@@ -1213,6 +1218,18 @@ export default function WordWorkbench() {
               </button>
             </div>
           </div>
+          <WordRootArea
+            values={wordRootValues.filter(fv => fv.id === editingId || (fv.children?.length ?? 0) > 0 || editorMode)}
+            editorMode={editorMode}
+            editingId={editingId}
+            editValue={editValue}
+            onEditValueChange={setEditValue}
+            onStartEdit={handleStartEdit}
+            onSave={handleSave}
+            onCancelEdit={() => setEditingId(null)}
+            onAdd={() => handleAddField(defs.find(d => d.key === 'word_root')!)}
+            onDelete={handleDeleteField}
+          />
         </div>
 
         {/* 标签页条带（Task 3 TabBar）：标题区之下、内容区之上 */}
