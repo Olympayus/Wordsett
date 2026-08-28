@@ -3,6 +3,7 @@ import type { DictionaryEntry, DictionaryField } from '../types/dictionary'
 import { getCachedDb } from './dbCache'
 import { buildWordnetFields } from '../lib/wordnetParse'
 import { resolveDictPath, toSqliteUrl } from './dictPath'
+import { RELATED_LABEL } from '../lib/wordnetRelations'
 
 const dbPath = resolveDictPath('wordnet.db')
 
@@ -13,16 +14,13 @@ export interface RelatedGroup {
 
 export interface RelatedWords {
   path: string[]
-  groups: Record<'synonyms' | 'hypernyms' | 'hyponyms' | 'antonyms' | 'partWhole' | 'similarTo' | 'alsoSee' | 'derivatives', RelatedGroup[]>
+  groups: Record<'synonyms' | 'hypernyms' | 'hyponyms' | 'antonyms' | 'partWhole' | 'similarTo' | 'alsoSee' | 'derivatives' | 'entailments' | 'causes' | 'pertainyms' | 'attributes' | 'verbGroups', RelatedGroup[]>
 }
 
-const RELATED_LABEL: Record<string, keyof RelatedWords['groups']> = {
-  '@': 'hypernyms', '@i': 'hypernyms',
-  '~': 'hyponyms', '~i': 'hyponyms',
-  '!': 'antonyms',
-  '&': 'similarTo', '^': 'alsoSee', '+': 'derivatives',
-  '#m': 'partWhole', '#p': 'partWhole', '#s': 'partWhole',
-  '%m': 'partWhole', '%p': 'partWhole', '%s': 'partWhole',
+const emptyGroups = {
+  synonyms: [], hypernyms: [], hyponyms: [], antonyms: [], partWhole: [],
+  similarTo: [], alsoSee: [], derivatives: [], entailments: [], causes: [],
+  pertainyms: [], attributes: [], verbGroups: [],
 }
 
 export class WordNetProvider implements DictionaryProvider {
@@ -95,7 +93,7 @@ export class WordNetProvider implements DictionaryProvider {
   }
 
   async relatedWords(word: string): Promise<RelatedWords> {
-    const empty = () => ({ path: [], groups: { synonyms: [], hypernyms: [], hyponyms: [], antonyms: [], partWhole: [], similarTo: [], alsoSee: [], derivatives: [] } })
+    const empty = () => ({ path: [], groups: { ...emptyGroups } })
     if (!word.trim()) return empty()
     const normalized = word.toLowerCase().trim()
     const db = await getCachedDb(toSqliteUrl(await dbPath))
@@ -118,7 +116,7 @@ export class WordNetProvider implements DictionaryProvider {
       return { words: ws, definition: rows[0].definition ?? undefined }
     }
 
-    const groups: Record<string, RelatedGroup[]> = { synonyms: [], hypernyms: [], hyponyms: [], antonyms: [], partWhole: [], similarTo: [], alsoSee: [], derivatives: [] }
+    const groups: Record<string, RelatedGroup[]> = { ...emptyGroups }
     const seen = new Set<string>()
 
     for (const s of synsetRows) {

@@ -13,6 +13,8 @@ const LABELS: Record<keyof RelatedWords['groups'], string> = {
   synonyms: '同义词', hypernyms: '上位词', hyponyms: '下位词',
   antonyms: '反义词', partWhole: '整体 · 部分',
   similarTo: '相似词（相近但不同）', alsoSee: '参见', derivatives: '词源相关词',
+  entailments: '蕴含', causes: '致使', pertainyms: '派生来源',
+  attributes: '属性', verbGroups: '动词组',
 }
 
 // 词源相关词组的小字说明（v0.4.3 §6：WordNet 词源相关形式 ≠ 构词派生）
