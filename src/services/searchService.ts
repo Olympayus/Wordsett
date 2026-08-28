@@ -5,6 +5,9 @@ import { sortLemmasByRelevance } from '../lib/lemmaSort'
 import { rankChineseResults } from '../lib/chineseSearch'
 import type { DictionaryEntry } from '../types/dictionary'
 import type { RelatedWords } from '../providers/wordnet'
+import { getCachedDb } from '../providers/dbCache'
+import { resolveDictPath, toSqliteUrl } from '../providers/dictPath'
+import { fetchEcdictTitleMeta, fetchWordnetDomains, type TitleMeta } from '../providers/titleMeta'
 
 const ecdict = new EcdictProvider()
 const wordnet = new WordNetProvider()
@@ -50,4 +53,21 @@ export async function searchChinese(query: string): Promise<string[]> {
 // 阶段三·语义网络：WordNet 关系网络（上位词路径 + 同义/上位/下位/反义/整体·部分分组）
 export async function relatedWords(word: string): Promise<RelatedWords> {
   return wordnet.relatedWords(word)
+}
+
+// 标题信息（徽标/音标/词根/领域）：独立于 dictionaries 开关直查两库
+export async function lookupTitleMeta(word: string): Promise<TitleMeta> {
+  if (!word.trim()) {
+    return { phonetic: null, badges: null, wordRoots: [], domains: { categories: [], regions: [], usages: [] } }
+  }
+  const normalized = word.toLowerCase().trim()
+  const [ecdb, wndb] = await Promise.all([
+    getCachedDb(toSqliteUrl(await resolveDictPath('ecdict.db'))),
+    getCachedDb(toSqliteUrl(await resolveDictPath('wordnet.db'))),
+  ])
+  const [ec, domains] = await Promise.all([
+    fetchEcdictTitleMeta(ecdb, normalized),
+    fetchWordnetDomains(wndb, normalized),
+  ])
+  return { ...ec, domains }
 }
