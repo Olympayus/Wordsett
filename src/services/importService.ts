@@ -27,7 +27,7 @@ async function readCurrentSnapshot(): Promise<LibrarySnapshot> {
 
 export async function pickAndPlanImport(): Promise<{ ok: boolean; error?: string; plan?: ImportPlan; path?: string }> {
   try {
-    const path = await open({ multiple: false, filters: [{ name: 'Lexiloom 备份', extensions: ['json'] }] })
+    const path = await open({ multiple: false, filters: [{ name: 'Wordsett 备份', extensions: ['json'] }] })
     if (!path) return { ok: false }
     const json = await readTextFile(path)
     const incoming = decodeLibrary(json)

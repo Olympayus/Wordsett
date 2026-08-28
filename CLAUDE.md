@@ -1,4 +1,4 @@
-# Lexiloom
+# Wordsett
 
 Personal vocabulary knowledge management desktop app.
 Tauri 2 + React + TypeScript + SQLite.
@@ -10,7 +10,7 @@ Tauri 2 + React + TypeScript + SQLite.
 ## 快速开始 Quick Start
 
 ```bash
-cd /e/Workspace/Projects/Lexiloom
+cd /e/Workspace/Projects/Wordsett
 npm install
 npm run build:dictionaries  # build local dictionary DBs (ecdict.db / wordnet.db) — gitignored, required on fresh clone
 npm run tauri dev
@@ -27,35 +27,6 @@ npm run tauri dev
 | `npm test` | 单元测试（Vitest） |
 | `npm run lint` | 代码检查（oxlint） |
 | `npm run build:dictionaries` | 构建本地词典库（`ecdict.db` / `wordnet.db`） |
-
-## 架构 Architecture
-
-- `src/types/` — 共享 TypeScript 类型（项目数据契约）
-- `src/db/` — 数据库访问层（words / fields / dictionary queries）
-- `src/providers/` — 词典数据源，实现 `DictionaryProvider`
-- `src/stores/` — Zustand UI 状态
-- `src/routes/` — 页面组件
-- `src/components/` — UI 组件
-
-### 关键类型 Key Types
-
-- `Word` (`src/types/word.ts`) — 单词身份
-- `FieldKey` (`src/types/field.ts`) — 17 个内置字段键（联合字面量类型）
-- `BUILTIN_FIELDS` (`src/types/field.ts`) — 字段元数据常量
-- `FieldValue` (`src/types/field.ts`) — 单词 + 字段值对
-- `DictionaryEntry` (`src/types/dictionary.ts`)
-- `DictionaryProvider` (`src/providers/types.ts`) — 必须实现 `lookup(query)`
-
-### 数据库 Database
-
-5 张表，经 tauri-plugin-sql（纯 TS，无 Rust CRUD）：
-`words`、`field_definitions`、`field_values`、`categories`、`word_categories`
-
-词典查询读取打包的 `ecdict.db` / `wordnet.db`，由 `npm run build:dictionaries` 生成。
-
-### 布局 Layout
-
-AppShell 三区：TopBar（48px，常驻）/ 侧边栏（300px，可收起 120–240px）/ 右侧（词编辑视图 ↔ 词典详情视图）。
 
 ## 开发约定 Conventions
 
@@ -102,19 +73,19 @@ AppShell 三区：TopBar（48px，常驻）/ 侧边栏（300px，可收起 120�
 > **签名要求（v0.3.4+ 自更新）**：每次打包都会为更新产物签名，构建前需先设置签名密钥环境变量（私钥为加密的 rsign 密钥，需密码）：
 >
 > ```bash
-> export TAURI_SIGNING_PRIVATE_KEY="$(cat Lexiloom.key)"
+> export TAURI_SIGNING_PRIVATE_KEY="$(cat Wordsett.key)"
 > export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="<密钥密码>"
 > ```
-> PowerShell 终端：`$env:TAURI_SIGNING_PRIVATE_KEY = (Get-Content Lexiloom.key -Raw).Trim()` + `$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<密钥密码>"`（bash `export` 在 PowerShell 不可用）。
+> PowerShell 终端：`$env:TAURI_SIGNING_PRIVATE_KEY = (Get-Content Wordsett.key -Raw).Trim()` + `$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<密钥密码>"`（bash `export` 在 PowerShell 不可用）。
 >
-> 私钥 `Lexiloom.key` 与公钥 `Lexiloom.key.pub` 不入 git（见 .gitignore）；公钥已内嵌 `src-tauri/tauri.conf.json` 的 `updater.pubkey`。忘记密码需重新生成密钥对并同步更新 pubkey。
+> 私钥 `Wordsett.key` 与公钥 `Wordsett.key.pub` 不入 git（见 .gitignore）；公钥已内嵌 `src-tauri/tauri.conf.json` 的 `updater.pubkey`。忘记密码需重新生成密钥对并同步更新 pubkey。
 
 ```bash
 npm run tauri build          # 完整打包（MSI + NSIS）
 npm run tauri build -- --bundles nsis   # 网络受限时只打 NSIS（MSI 需联网下载 WiX，可能失败）
 ```
 
-产物：`src-tauri/target/release/bundle/nsis/Lexiloom_<version>_x64-setup.exe`（Windows 用户主用此安装包）。
+产物：`src-tauri/target/release/bundle/nsis/Wordsett_<version>_x64-setup.exe`（Windows 用户主用此安装包）。
 
 > 注意：`tauri.conf.json` 改动需**完全重启** `npm run tauri dev` 才生效（热更新不读配置）。
 
@@ -126,17 +97,17 @@ npm run tauri build -- --bundles nsis   # 网络受限时只打 NSIS（MSI 需�
    # 手工填写 latest.json 的 notes 字段
    git add latest.json && git commit -m "chore: update latest.json for v<version>"
    ```
-2. 发布（**全部单行命令**，PowerShell 可直接执行；勿用 bash 的 `\` 续行）：
+2. 发布（全部单行命令）：
    ```bash
    git push origin main
    git tag v<version> && git push origin refs/tags/v<version>
-   gh release create v<version> "src-tauri/target/release/bundle/nsis/Lexiloom_<version>_x64-setup.exe" "src-tauri/target/release/bundle/nsis/Lexiloom_<version>_x64-setup.exe.sig" --title "Lexiloom v<version>" --notes-file <changelog>
+   gh release create v<version> "src-tauri/target/release/bundle/nsis/Wordsett_<version>_x64-setup.exe" "src-tauri/target/release/bundle/nsis/Wordsett_<version>_x64-setup.exe.sig" --title "Wordsett v<version>" --notes-file <changelog>
    ```
 
-### 第 5b 步 · macOS 发布（Mac 上执行，仅需发布 macOS 更新时）
+### 第 5b 步 · macOS 发布（Mac 上执行）
 
-1. Mac 上 `TAURI_SIGNING_PRIVATE_KEY="$(cat Lexiloom.key)" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=<密码> npm run tauri build`；
-2. 核对 `bundle/dmg/Lexiloom_<v>_aarch64.dmg.sig` / `Lexiloom_<v>_x64.dmg.sig` 命名与 `write-latest-json.mjs` 的假设一致（不一致则调整脚本模式匹配）；
+1. Mac 上 `TAURI_SIGNING_PRIVATE_KEY="$(cat Wordsett.key)" TAURI_SIGNING_PRIVATE_KEY_PASSWORD=<密码> npm run tauri build`；
+2. 核对 `bundle/dmg/Wordsett_<v>_aarch64.dmg.sig` / `Wordsett_<v>_x64.dmg.sig` 命名与 `write-latest-json.mjs` 的假设一致（不一致则调整脚本模式匹配）；
 3. Mac 上 `node scripts/write-latest-json.mjs` 重新生成 latest.json（含 darwin 条目）并 commit；
 4. Apple 代码签名 + 公证 dmg（Gatekeeper）；
 5. 上传 dmg 到 GitHub Release；
@@ -149,7 +120,7 @@ npm run tauri build -- --bundles nsis   # 网络受限时只打 NSIS（MSI 需�
 
 ### 发布常见坑（速查）
 
-- **打包签名**：命令见第 4 步；私钥 `Lexiloom.key`，配对公钥 `750F2CC78F7AF104`。
+- **打包签名**：命令见第 4 步；私钥 `Wordsett.key`，配对公钥 `750F2CC78F7AF104`。
 - **push 标签**：分支与标签同名时用 `git push origin tag vX.Y.Z`（或 `git push origin refs/tags/vX.Y.Z`）。
 - **gh release**：changelog 先写文件再 `--notes-file` 引用；`.exe` 与 `.exe.sig` 分条上传。
 
@@ -157,5 +128,5 @@ npm run tauri build -- --bundles nsis   # 网络受限时只打 NSIS（MSI 需�
 
 ## 备注 Notes
 
-- `docs/v0.2.x-work.md` 状态更新随各版本任务进行，属一次性工作，**不入**发布清单。
+- `docs/` 状态更新随各版本任务进行，属一次性工作，**不入**发布清单。
 - README 面向用户（安装/使用/卸载），开发者细节（构建、打包、发布）以本文件为准。

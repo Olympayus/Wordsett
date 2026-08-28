@@ -8,8 +8,8 @@ import { toSqliteUrl, resolveDictPath, resetDictPathCache } from './dictPath'
 
 describe('toSqliteUrl', () => {
   it('拼接 sqlite: 前缀', () => {
-    expect(toSqliteUrl('C:\\Program Files\\Lexiloom\\ecdict.db'))
-      .toBe('sqlite:C:\\Program Files\\Lexiloom\\ecdict.db')
+    expect(toSqliteUrl('C:\\Program Files\\Wordsett\\ecdict.db'))
+      .toBe('sqlite:C:\\Program Files\\Wordsett\\ecdict.db')
   })
 })
 
@@ -20,8 +20,8 @@ describe('resolveDictPath', () => {
   })
 
   it('调用 dict_resource_path 命令', async () => {
-    invokeMock.mockResolvedValue('D:\\Apps\\Lexiloom\\wordnet.db')
-    await expect(resolveDictPath('wordnet.db')).resolves.toBe('D:\\Apps\\Lexiloom\\wordnet.db')
+    invokeMock.mockResolvedValue('D:\\Apps\\Wordsett\\wordnet.db')
+    await expect(resolveDictPath('wordnet.db')).resolves.toBe('D:\\Apps\\Wordsett\\wordnet.db')
     expect(invokeMock).toHaveBeenCalledWith('dict_resource_path', { name: 'wordnet.db' })
   })
 

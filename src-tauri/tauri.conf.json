@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "Lexiloom",
+  "productName": "Wordsett",
   "version": "0.4.4",
   "identifier": "com.lexiloom.app",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Lexiloom",
+        "title": "Wordsett",
         "width": 1080,
         "height": 720,
         "resizable": true,
@@ -47,7 +47,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc1MEYyQ0M3OEY3QUYxMDQKUldRRThYcVB4eXdQZFNXZElWRlc5NGZ1RThwQnBkajE3VVgvVnl0OG9CV0VrdDZGbWhrS3owUHIK",
       "endpoints": [
-        "https://raw.githubusercontent.com/Olympayus/Lexiloom/main/latest.json"
+        "https://raw.githubusercontent.com/Olympayus/Wordsett/main/latest.json"
       ]
     }
   }

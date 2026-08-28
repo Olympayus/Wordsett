@@ -47,7 +47,7 @@ lerna-debug.log*
 # --- Signing keys ---
 *.key
 *.key.pub
-Lexiloom
+Wordsett
 
 # --- Docs (local planning notes, not committed) ---
 docs/

@@ -90,7 +90,7 @@ export default function UpdateDialog() {
               <div style={{ height: 6, borderRadius: 3, background: 'var(--color-surface-sunken)', overflow: 'hidden' }}>
                 <div style={{ height: '100%', width: '100%', background: 'var(--color-brand)', borderRadius: 3, opacity: 0.5, animation: 'weave-pulse 1.2s ease-in-out infinite' }} />
               </div>
-              <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 6 }}>安装完成后将自动重启 Lexiloom</div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 6 }}>安装完成后将自动重启 Wordsett</div>
             </>
           )}
 

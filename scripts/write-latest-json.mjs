@@ -3,7 +3,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
-const repo = 'Olympayus/Lexiloom'
+const repo = 'Olympayus/Wordsett'
 const pkg = JSON.parse(readFileSync('./package.json', 'utf8'))
 const version = pkg.version
 const releaseUrl = (asset) => `https://github.com/${repo}/releases/download/v${version}/${asset}`
@@ -22,9 +22,9 @@ function addPlatform(key, asset) {
   console.warn(`skip ${key}: no .sig for ${asset}`)
 }
 
-addPlatform('windows-x86_64', `Lexiloom_${version}_x64-setup.exe`)
-addPlatform('darwin-aarch64', `Lexiloom_${version}_aarch64.dmg`)
-addPlatform('darwin-x86_64', `Lexiloom_${version}_x64.dmg`)
+addPlatform('windows-x86_64', `Wordsett_${version}_x64-setup.exe`)
+addPlatform('darwin-aarch64', `Wordsett_${version}_aarch64.dmg`)
+addPlatform('darwin-x86_64', `Wordsett_${version}_x64.dmg`)
 
 if (Object.keys(platforms).length === 0) {
   console.error('No updater .sig artifacts found — build with createUpdaterArtifacts first.')

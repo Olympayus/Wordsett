@@ -21,8 +21,8 @@ async function readSnapshot(): Promise<LibrarySnapshot> {
 export async function exportLibrary(): Promise<{ ok: boolean; error?: string; path?: string }> {
   try {
     const path = await save({
-      defaultPath: `lexiloom-backup-v${pkg.version}.json`,
-      filters: [{ name: 'Lexiloom 备份', extensions: ['json'] }],
+      defaultPath: `wordsett-backup-v${pkg.version}.json`,
+      filters: [{ name: 'Wordsett 备份', extensions: ['json'] }],
     })
     if (!path) return { ok: false } // 用户取消
     const snapshot = await readSnapshot()

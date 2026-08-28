@@ -1,8 +1,8 @@
-# Lexiloom
+# Wordsett
 
 > 离线优先的个人词汇知识库 —— 在本地构建、管理、不断充实属于你自己的词库。
 
-Lexiloom 是一款个人词汇知识管理桌面应用。它把**离线词典查询**、**词汇语义网络**与**结构化词汇管理**合二为一：搜索并合并 ECDICT / WordNet 的权威释义，借助 WordNet 语义关系构建词汇网络，再用分层字段、分类系统把你自己的理解沉淀成长期可复用的知识。
+Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查询**、**词汇语义网络**与**结构化词汇管理**合二为一：搜索并合并 ECDICT / WordNet 的权威释义，借助 WordNet 语义关系构建词汇网络，再用分层字段、分类系统把你自己的理解沉淀成长期可复用的知识。
 
 ![version](https://img.shields.io/badge/version-0.4.4-4A6FA5)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
@@ -11,7 +11,7 @@ Lexiloom 是一款个人词汇知识管理桌面应用。它把**离线词典查
 
 ## 简介
 
-背单词容易，沉淀单词难。Lexiloom 把每一个词当作一条「知识条目」来经营：
+背单词容易，沉淀单词难。Wordsett 把每一个词当作一条「知识条目」来经营：
 
 - 从本地词典一键导入权威释义，再补上你自己的理解（例句、近义词、派生词、使用场景……）；
 - 用**分类**组织词汇，用**分层字段**承载细节；
@@ -83,15 +83,15 @@ Lexiloom 是一款个人词汇知识管理桌面应用。它把**离线词典查
 
 ### 安装
 
-前往 [GitHub Releases](https://github.com/Olympayus/Lexiloom/releases) 下载对应系统的安装包：
+前往 [GitHub Releases](https://github.com/Olympayus/Wordsett/releases) 下载对应系统的安装包：
 
 | 系统 | 安装包 |
 |------|--------|
-| **Windows** | `Lexiloom_0.4.4_x64-setup.exe`（当前发布提供；MSI 暂未随包） |
-| **macOS** | `Lexiloom_0.4.4_x64.dmg`（在 macOS 上构建） |
-| **Linux** | `Lexiloom_0.4.4_x86_64.AppImage` / `.deb`（在 Linux 上构建；暂未提供） |
+| **Windows** | `Wordsett_0.4.4_x64-setup.exe`（当前发布提供；MSI 暂未随包） |
+| **macOS** | `Wordsett_0.4.4_x64.dmg`（在 macOS 上构建） |
+| **Linux** | `Wordsett_0.4.4_x86_64.AppImage` / `.deb`（在 Linux 上构建；暂未提供） |
 
-下载后**双击运行安装程序**，跟随向导即可完成安装；开始菜单会出现 **Lexiloom** 图标。
+下载后**双击运行安装程序**，跟随向导即可完成安装；开始菜单会出现 **Wordsett** 图标。
 
 ### 应用内更新
 
@@ -115,11 +115,11 @@ Lexiloom 是一款个人词汇知识管理桌面应用。它把**离线词典查
 
 **Windows**
 
-- 方式一：`设置 → 应用 → 已安装的应用 → Lexiloom → 卸载`；
-- 方式二：`控制面板 → 程序 → 程序和功能 → Lexiloom → 卸载`；
-- 方式三：从开始菜单运行「卸载 Lexiloom」。
+- 方式一：`设置 → 应用 → 已安装的应用 → Wordsett → 卸载`；
+- 方式二：`控制面板 → 程序 → 程序和功能 → Wordsett → 卸载`；
+- 方式三：从开始菜单运行「卸载 Wordsett」。
 
-**macOS**：将 `Lexiloom.app` 拖入废纸篓。
+**macOS**：将 `Wordsett.app` 拖入废纸篓。
 
 **Linux**：使用发行版的软件包管理器移除（如 `sudo apt remove lexiloom`）。
 

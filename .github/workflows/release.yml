@@ -7,7 +7,7 @@ name: Build macOS installer
 # CI 构建的包签名不同，若同时挂 Windows 会破坏自更新签名校验。
 #
 # 需要的仓库 Secrets：
-#   TAURI_SIGNING_PRIVATE_KEY         — Lexiloom.key 的内容（更新签名私钥）
+#   TAURI_SIGNING_PRIVATE_KEY         — Wordsett.key 的内容（更新签名私钥）
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD— 私钥密码（生成时设定）
 # Apple 代码签名未配置（需 Apple Developer 证书）：macOS 用户首次需 右键→打开 绕过 Gatekeeper。
 
@@ -47,7 +47,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: lexiloom-macos
+          name: wordsett-macos
           path: |
             src-tauri/target/release/bundle/**/*.dmg
             src-tauri/target/release/bundle/**/*.sig

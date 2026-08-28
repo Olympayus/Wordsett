@@ -57,16 +57,16 @@ mod tests {
     #[test]
     fn strips_verbatim_drive_prefix() {
         assert_eq!(
-            to_loadable_path(Path::new(r"\\?\E:\Workspace\Lexiloom\wordnet.db")),
-            r"E:\Workspace\Lexiloom\wordnet.db"
+            to_loadable_path(Path::new(r"\\?\E:\Workspace\Wordsett\wordnet.db")),
+            r"E:\Workspace\Wordsett\wordnet.db"
         );
     }
 
     #[test]
     fn leaves_normal_path_unchanged() {
         assert_eq!(
-            to_loadable_path(Path::new(r"E:\Workspace\Lexiloom\wordnet.db")),
-            r"E:\Workspace\Lexiloom\wordnet.db"
+            to_loadable_path(Path::new(r"E:\Workspace\Wordsett\wordnet.db")),
+            r"E:\Workspace\Wordsett\wordnet.db"
         );
     }
 

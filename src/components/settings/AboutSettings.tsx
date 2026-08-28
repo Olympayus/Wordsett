@@ -6,7 +6,7 @@ export default function AboutSettings() {
   const checking = useUpdaterStore(s => s.phase === 'checking')
   return (
     <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
-      <div style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--color-text-primary)' }}>Lexiloom</div>
+      <div style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--color-text-primary)' }}>Wordsett</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span>版本：v{pkg.version}</span>
         <button

@@ -118,8 +118,8 @@ export default function TopBar() {
       <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
         <button
           type="button"
-          aria-label="Lexiloom 首页"
-          title="Lexiloom"
+          aria-label="Wordsett 首页"
+          title="Wordsett"
           onClick={showWorkbench}
           style={{
             width: '32px', height: '32px', flexShrink: 0, cursor: 'pointer', border: 'none',
