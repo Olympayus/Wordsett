@@ -33,8 +33,11 @@ export default function WordTitleExtras({ meta, onInputsChange }: Props) {
   // 单词不变（DictDetailPanel 换词卸载重建），重算并上报合并输入
   useEffect(() => {
     if (!meta) { onInputsChange([]); return }
-    onInputsChange(buildTitleMetaInputs(meta, sel))
-  }, [meta, sel, onInputsChange])
+    onInputsChange(buildTitleMetaInputs(meta, {
+      phonetic: titleInfo.showPhonetic && sel.phonetic,
+      wordRoot: titleInfo.showWordRoot && sel.wordRoot,
+    }))
+  }, [meta, sel, titleInfo.showPhonetic, titleInfo.showWordRoot, onInputsChange])
 
   if (!meta) return null
 
