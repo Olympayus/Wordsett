@@ -39,7 +39,6 @@ const SOURCE_ACCENTS: Record<string, { color: string }> = {
 // 字段类型 → 展示标签（词性节点用胶囊，故此处不映射）
 function fieldLabel(key: string): string {
   switch (key) {
-    case 'phonetic': return '音标'
     case 'chinese_definition': return '中文释义'
     case 'english_definition': return '英文释义'
     case 'synonyms': return '近义词'
@@ -76,7 +75,7 @@ export default function DictDetailCard({
   const visible = useMemo(() => {
     const keyAllowed = (key: string) => {
       const control: Record<string, DisplayFieldKey> = {
-        phonetic: 'phonetic', part_of_speech: 'part_of_speech',
+        part_of_speech: 'part_of_speech',
         chinese_definition: 'chinese_definition', english_definition: 'english_definition',
         example: 'example', example_sentence: 'example',
         synonyms: 'synonyms', synonym_item: 'synonyms',
@@ -88,6 +87,7 @@ export default function DictDetailCard({
     }
     const filter = (nodes: DictionaryField[]): DictionaryField[] =>
       nodes
+        .filter(n => n.key !== 'phonetic') // 音标独立条（WordTitleExtras）接管：卡内彻底隐藏、不进勾选
         .filter(n => keyAllowed(n.key))
         .map(n => ({ ...n, children: n.children ? filter(n.children) : n.children }))
         .filter(n => !(n.value === '' && !(n.children && n.children.length > 0))) // 隐藏子字段后变空的容器无意义，丢弃
@@ -192,8 +192,6 @@ export default function DictDetailCard({
   const renderValue = (node: FlatNode): ReactNode => {
     const key = node.field.key
     switch (key) {
-      case 'phonetic':
-        return <div style={{ fontFamily: 'var(--font-phonetic)' }}>{node.field.value}</div>
       case 'example':
         return <div style={{ color: 'var(--color-text-secondary)', fontSize: '13px', fontStyle: 'italic' }}>"{node.field.value}"</div>
       case 'exchange_item': {
