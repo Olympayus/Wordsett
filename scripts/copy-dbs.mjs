@@ -2,7 +2,7 @@ import { cpSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import { platform, homedir } from 'os'
 
-const BUNBLE_ID = 'com.lexiloom.app'
+const BUNBLE_ID = 'com.wordsett.app'
 
 function getAppDataDir() {
   if (platform() === 'win32') {

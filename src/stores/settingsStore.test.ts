@@ -71,7 +71,7 @@ describe('settingsStore（规格 §7）', () => {
   it('持久化：修改写入 localStorage，且不含瞬时字段 settingsOpen', () => {
     useSettingsStore.getState().setSidebarMode('category')
     useSettingsStore.getState().setDisplayField('phonetic', false)
-    const raw = localStorage.getItem('lexiloom-settings')
+    const raw = localStorage.getItem('wordsett-settings')
     expect(raw).not.toBeNull()
     const parsed = JSON.parse(raw!)
     expect(parsed.state.sidebarMode).toBe('category')
@@ -80,7 +80,7 @@ describe('settingsStore（规格 §7）', () => {
   })
 
   it('恢复：localStorage v1 数据 rehydrate 并迁移（剔除 etymology、补齐 synonyms、派生词与词典开关默认开）', async () => {
-    localStorage.setItem('lexiloom-settings', JSON.stringify({
+    localStorage.setItem('wordsett-settings', JSON.stringify({
       state: {
         displayFields: { phonetic: false, part_of_speech: true, chinese_definition: true, english_definition: true, example: true, exchange: true, etymology: true },
         onlineDictEnabled: true, onlineSources: { oxford: true, longman: true, collins: true, merriam: true },

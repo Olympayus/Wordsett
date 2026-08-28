@@ -56,7 +56,7 @@ export const useSettingsStore = create<SettingsStore>()(
       setSidebarMode: (mode) => set({ sidebarMode: mode }),
     }),
     {
-      name: 'lexiloom-settings',
+      name: 'wordsett-settings',
       version: 3,
       storage: createJSONStorage(() => localStorage),
       migrate: (persisted) => {
