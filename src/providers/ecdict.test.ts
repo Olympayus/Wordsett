@@ -22,6 +22,8 @@ describe('EcdictProvider.searchLemmas', () => {
     expect(results).toEqual(['apple', 'applejacks'])
     const [sql] = select.mock.calls[0]
     expect(sql).toContain('EXISTS (SELECT 1 FROM entries WHERE entries.word = lemmas.word)')
+    expect(sql).toContain('ORDER BY frequency DESC')
+    expect(sql).toContain('LIMIT 50')
   })
 
   it('空查询直接返回空数组，不访问数据库', async () => {
