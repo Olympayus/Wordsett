@@ -1,6 +1,6 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useSettingsStore, type OnlineSourceKey } from '../../stores/settingsStore'
+import { useSettingsStore, type OnlineSourceKey, type TitleInfoKey } from '../../stores/settingsStore'
 import { Toggle } from '../ui/Toggle'
 import Icon from '../icons'
 import { tooltipPosition } from '../../lib/tooltipPosition'
@@ -12,6 +12,16 @@ const ONLINE_SOURCES: { key: OnlineSourceKey; name: string; url: string }[] = [
   { key: 'longman', name: '朗文当代', url: 'ldoceonline.com' },
   { key: 'collins', name: '柯林斯', url: 'collinsdictionary.com' },
   { key: 'merriam', name: '韦氏词典', url: 'merriam-webster.com' },
+]
+
+// 标题信息开关（v0.5：词条标题行下的信息展示）
+const TITLE_ROWS: { key: TitleInfoKey; label: string }[] = [
+  { key: 'showBadges',         label: '词源徽标（柯林斯星级 · 牛津3000 · 考试标签）' },
+  { key: 'showPhonetic',       label: '音标' },
+  { key: 'showWordRoot',       label: '词根' },
+  { key: 'showDomainCategory', label: '领域·范畴' },
+  { key: 'showDomainRegion',   label: '地理区域' },
+  { key: 'showDomainUsage',    label: '用法域' },
 ]
 
 // 词典字段覆盖说明（规格 §7.3 悬浮框内容；v0.4.3 补词源相关词）
@@ -162,6 +172,8 @@ export default function SearchSettings() {
   const setOnlineSource = useSettingsStore(s => s.setOnlineSource)
   const dictionaries = useSettingsStore(s => s.dictionaries)
   const setDictionary = useSettingsStore(s => s.setDictionary)
+  const titleInfo = useSettingsStore(s => s.titleInfo)
+  const setTitleInfo = useSettingsStore(s => s.setTitleInfo)
 
   return (
     <>
@@ -187,6 +199,18 @@ export default function SearchSettings() {
           } />
         </div>
         {FIELD_TREE.map(node => <FieldRow key={node.key} node={node} />)}
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '16px', marginBottom: '24px' }}>
+        <div style={{ ...SECTION_TITLE, marginBottom: '12px' }}>标题信息</div>
+        {TITLE_ROWS.map(r => (
+          <DictRow
+            key={r.key}
+            label={r.label}
+            checked={titleInfo[r.key]}
+            onChange={on => setTitleInfo(r.key, on)}
+          />
+        ))}
       </div>
 
       {/* 词典（本地词典开关）：置于「词典返回词条」之下、「在线词典查询」之上（v0.4.3 §7） */}

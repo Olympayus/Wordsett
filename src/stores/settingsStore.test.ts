@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useSettingsStore } from './settingsStore'
+import { useSettingsStore, type TitleInfoKey } from './settingsStore'
 
 const DEFAULT = {
   settingsOpen: false,
@@ -99,4 +99,29 @@ describe('settingsStore（规格 §7）', () => {
     expect(s.dictionaries.wordnet).toBe(true)
     expect('etymology' in s.displayFields).toBe(false)
   })
+})
+
+const TITLE_KEYS: TitleInfoKey[] = ['showBadges', 'showPhonetic', 'showWordRoot', 'showDomainCategory', 'showDomainRegion', 'showDomainUsage']
+
+it('titleInfo 默认全 true', () => {
+  const t = useSettingsStore.getState().titleInfo
+  for (const k of TITLE_KEYS) expect(t[k]).toBe(true)
+})
+
+it('setTitleInfo 写入并持久化到 wordsett-settings / titleInfo', () => {
+  useSettingsStore.getState().setTitleInfo('showPhonetic', false)
+  const raw = localStorage.getItem('wordsett-settings')
+  const parsed = JSON.parse(raw!)
+  expect(parsed.state.titleInfo.showPhonetic).toBe(false)
+})
+
+it('迁移：v3 无 titleInfo 的旧数据补齐默认 true 并升 version 4', async () => {
+  localStorage.setItem('wordsett-settings', JSON.stringify({
+    state: { sidebarMode: 'category' },
+    version: 3,
+  }))
+  await useSettingsStore.persist.rehydrate()
+  const s = useSettingsStore.getState()
+  expect(s.sidebarMode).toBe('category')
+  for (const k of TITLE_KEYS) expect(s.titleInfo[k]).toBe(true)
 })

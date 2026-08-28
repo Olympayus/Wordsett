@@ -11,6 +11,10 @@ export type OnlineSourceKey = 'oxford' | 'longman' | 'collins' | 'merriam'
 
 export type DictionaryKey = 'ecdict' | 'wordnet'
 
+export type TitleInfoKey =
+  | 'showBadges' | 'showPhonetic' | 'showWordRoot'
+  | 'showDomainCategory' | 'showDomainRegion' | 'showDomainUsage'
+
 export interface SettingsStore {
   settingsOpen: boolean
   displayFields: Record<DisplayFieldKey, boolean>
@@ -18,6 +22,7 @@ export interface SettingsStore {
   onlineDictEnabled: boolean
   onlineSources: Record<OnlineSourceKey, boolean>
   sidebarMode: SidebarMode
+  titleInfo: Record<TitleInfoKey, boolean>
   openSettings: () => void
   closeSettings: () => void
   setDisplayField: (key: DisplayFieldKey, on: boolean) => void
@@ -25,6 +30,7 @@ export interface SettingsStore {
   setOnlineDictEnabled: (on: boolean) => void
   setOnlineSource: (key: OnlineSourceKey, checked: boolean) => void
   setSidebarMode: (mode: SidebarMode) => void
+  setTitleInfo: (key: TitleInfoKey, on: boolean) => void
 }
 
 // 默认（规格 §7）：词典返回词条全开（含词源相关词）、本地词典全开、在线词典关闭（来源全选）、字母模式、抽屉关闭
@@ -37,6 +43,10 @@ const DEFAULT_DICTIONARIES: Record<DictionaryKey, boolean> = { ecdict: true, wor
 const DEFAULT_ONLINE_SOURCES: Record<OnlineSourceKey, boolean> = {
   oxford: true, longman: true, collins: true, merriam: true,
 }
+const DEFAULT_TITLE_INFO: Record<TitleInfoKey, boolean> = {
+  showBadges: true, showPhonetic: true, showWordRoot: true,
+  showDomainCategory: true, showDomainRegion: true, showDomainUsage: true,
+}
 
 export const useSettingsStore = create<SettingsStore>()(
   persist(
@@ -47,6 +57,7 @@ export const useSettingsStore = create<SettingsStore>()(
       onlineDictEnabled: false,
       onlineSources: DEFAULT_ONLINE_SOURCES,
       sidebarMode: 'alphabet',
+      titleInfo: DEFAULT_TITLE_INFO,
       openSettings: () => set({ settingsOpen: true }),
       closeSettings: () => set({ settingsOpen: false }),
       setDisplayField: (key, on) => set(s => ({ displayFields: { ...s.displayFields, [key]: on } })),
@@ -54,10 +65,11 @@ export const useSettingsStore = create<SettingsStore>()(
       setOnlineDictEnabled: (on) => set({ onlineDictEnabled: on }),
       setOnlineSource: (key, checked) => set(s => ({ onlineSources: { ...s.onlineSources, [key]: checked } })),
       setSidebarMode: (mode) => set({ sidebarMode: mode }),
+      setTitleInfo: (key, on) => set(s => ({ titleInfo: { ...s.titleInfo, [key]: on } })),
     }),
     {
       name: 'wordsett-settings',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => localStorage),
       migrate: (persisted) => {
         const state = (persisted ?? {}) as Partial<SettingsStore> & { displayFields?: Record<string, boolean> }
@@ -65,7 +77,8 @@ export const useSettingsStore = create<SettingsStore>()(
         delete fields.etymology
         if (fields.synonyms === undefined) fields.synonyms = true
         const dictionaries: Record<DictionaryKey, boolean> = { ...DEFAULT_DICTIONARIES, ...(state.dictionaries) }
-        return { ...state, displayFields: fields, dictionaries } as SettingsStore
+        const titleInfo: Record<TitleInfoKey, boolean> = { ...DEFAULT_TITLE_INFO, ...((state as any).titleInfo ?? {}) }
+        return { ...state, displayFields: fields, dictionaries, titleInfo } as SettingsStore
       },
       onRehydrateStorage: () => (_, error) => {
         if (error) {
@@ -76,6 +89,7 @@ export const useSettingsStore = create<SettingsStore>()(
             onlineDictEnabled: false,
             onlineSources: DEFAULT_ONLINE_SOURCES,
             sidebarMode: 'alphabet',
+            titleInfo: DEFAULT_TITLE_INFO,
           })
         }
       },
@@ -85,6 +99,7 @@ export const useSettingsStore = create<SettingsStore>()(
         onlineDictEnabled: s.onlineDictEnabled,
         onlineSources: s.onlineSources,
         sidebarMode: s.sidebarMode,
+        titleInfo: s.titleInfo,
       }),
     }
   )
