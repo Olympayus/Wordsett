@@ -40,6 +40,6 @@ describe('fetchWordnetDomains', () => {
     const d = await fetchWordnetDomains(db, 'cell')
     expect(d.categories).toEqual(['生物'])
     expect(d.regions).toEqual(['英国'])
-    expect(d.usages).toEqual(['trope'])
+    expect(d.usages).toEqual(['比喻'])
   })
 })

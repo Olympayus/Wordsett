@@ -40,7 +40,7 @@ export async function fetchWordnetDomains(db: SqlDb, word: string): Promise<Titl
     `SELECT wr.rel_type, ws.words
      FROM wn_relations wr
      JOIN wn_words ww ON ww.synset_offset = wr.from_offset AND ww.pos = wr.from_pos
-     JOIN wn_synsets ws ON ws.synset_offset = wr.to_offset AND ws.pos = wr.to_pos
+     JOIN wn_synsets ws ON ws.synset_offset = wr.to_offset AND ws.pos = CASE WHEN wr.to_pos = 's' THEN 'a' ELSE wr.to_pos END
      WHERE ww.lemma = ?1 AND wr.rel_type IN (';c',';r',';u')`,
     [word]
   )

@@ -188,7 +188,7 @@ export default function DictDetailCard({
     }
   }
 
-  // 叶子值渲染（音标/例句/词形变化项等特殊排版）
+  // 叶子值渲染（例句/词形变化项等特殊排版）
   const renderValue = (node: FlatNode): ReactNode => {
     const key = node.field.key
     switch (key) {

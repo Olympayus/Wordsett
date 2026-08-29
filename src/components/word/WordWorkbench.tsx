@@ -876,6 +876,28 @@ export default function WordWorkbench() {
     setEntryValue('')
   }
 
+  // 添加词根项：挂到首个/当前 word_root 容器下（无则先建空容器）→ 自动进入编辑态。
+  // 与其它容器子项新增同机制（supplementary→supplementary_item、phrase→phrase_item…）：叶子 word_root_item 非容器，进入编辑态
+  const handleAddWordRoot = async () => {
+    setChildMenuId(null)
+    setMenuOpenId(null)
+    const rootItemDef = defs.find(d => d.key === 'word_root_item')
+    if (!rootItemDef) return
+    let container: FieldValue | null = wordRootValues[0] ?? null
+    if (!container) {
+      const containerDef = defs.find(d => d.key === 'word_root')
+      if (!containerDef) return
+      container = await addFieldValue(containerDef.id)
+      if (!container) return
+    }
+    const fv = await addFieldValue(rootItemDef.id, container.id)
+    if (!fv) return
+    // 叶子项：与其它叶子新增一致，自动进入编辑态（空输入）
+    setEditingId(fv.id)
+    setEditValue('')
+    setEntryValue('')
+  }
+
   // 加号添加标签页：为其首个根字段创建空容器记录（空容器不进入编辑态）
   const handleAddTab = async (tab: TabKey) => {
     const def = defs.find(d => d.key === TAB_GROUPS[tab].roots[0])
@@ -1227,7 +1249,7 @@ export default function WordWorkbench() {
             onStartEdit={handleStartEdit}
             onSave={handleSave}
             onCancelEdit={() => setEditingId(null)}
-            onAdd={() => handleAddField(defs.find(d => d.key === 'word_root')!)}
+            onAdd={handleAddWordRoot}
             onDelete={handleDeleteField}
           />
         </div>
