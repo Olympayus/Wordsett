@@ -131,16 +131,16 @@ v0.5 起应用更名为 **Wordsett**，应用数据目录随标识符变更（`c
 
 **macOS**：将 `Wordsett.app` 拖入废纸篓。
 
-**Linux**：使用发行版的软件包管理器移除（如 `sudo apt remove lexiloom`）。
+**Linux**：使用发行版的软件包管理器移除（如 `sudo apt remove wordsett`）。
 
-> **注意**：卸载时勾选框可让你选择**是否同时删除个人数据**（词库数据库与设置）。默认不勾选，个人数据会保留，重装后仍可读回；勾选后彻底删除。备份只需复制 `lexiloom.db`。
+> **注意**：卸载时勾选框可让你选择**是否同时删除个人数据**（词库数据库与设置）。默认不勾选，个人数据会保留，重装后仍可读回；勾选后彻底删除。备份只需复制 `wordsett.db`。
 
 ## 数据与隐私
 
 - **全部数据保存在本机**，无账号、无云端、无遥测。
-- 词库数据库：`%APPDATA%\com.lexiloom.app\lexiloom.db`（Windows，macOS/Linux 位于对应的应用数据目录）。
+- 词库数据库：`%APPDATA%\com.wordsett.app\wordsett.db`（Windows，macOS/Linux 位于对应的应用数据目录）。
 - 应用设置：通过本地存储保存在应用数据目录中。
-- 备份：直接复制 `lexiloom.db` 即可备份整个词库。
+- 备份：直接复制 `wordsett.db` 即可备份整个词库。
 
 ## 许可
 

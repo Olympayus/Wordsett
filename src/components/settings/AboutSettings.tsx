@@ -22,7 +22,7 @@ export default function AboutSettings() {
           检查更新
         </button>
       </div>
-      <div>数据存储：本地（sqlite:lexiloom.db）</div>
+      <div>数据存储：本地（sqlite:wordsett.db）</div>
     </div>
   )
 }
