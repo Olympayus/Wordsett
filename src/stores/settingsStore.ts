@@ -77,7 +77,7 @@ export const useSettingsStore = create<SettingsStore>()(
         delete fields.etymology
         if (fields.synonyms === undefined) fields.synonyms = true
         const dictionaries: Record<DictionaryKey, boolean> = { ...DEFAULT_DICTIONARIES, ...(state.dictionaries) }
-        const titleInfo: Record<TitleInfoKey, boolean> = { ...DEFAULT_TITLE_INFO, ...((state as any).titleInfo ?? {}) }
+        const titleInfo: Record<TitleInfoKey, boolean> = { ...DEFAULT_TITLE_INFO, ...state.titleInfo }
         return { ...state, displayFields: fields, dictionaries, titleInfo } as SettingsStore
       },
       onRehydrateStorage: () => (_, error) => {
