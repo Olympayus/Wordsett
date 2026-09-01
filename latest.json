@@ -1,11 +1,11 @@
 {
-  "version": "0.4.4",
-  "notes": "",
-  "pub_date": "2026-08-27T05:22:01.044Z",
+  "version": "0.5.0",
+  "notes": "v0.5 起应用更名为 Wordsett，应用数据目录随标识符变更（com.lexiloom.app →com.wordsett.app）。如需保留已收录词库，请升级后手动复制：- Windows：%APPDATA%\\com.lexiloom.app\\lexiloom.db → %APPDATA%\\com.wordsett.app\\wordsett.db- macOS：~/Library/Application Support/com.lexiloom.app/lexiloom.db → …/com.wordsett.app/wordsett.db复制后重启应用。设置项将恢复默认。",
+  "pub_date": "2026-09-01T13:28:24.747Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFhoMDRBcEVQdmNvMnZCUzU2WC9JWXlXbnNFdE92V05mUFVuQTByMExzU2dVS01pMzRPME5COS9OR2hkc01BL0hPLzQrbXlYTldiSXlXNklwR2FTTVEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg3ODA4MDY4CWZpbGU6TGV4aWxvb21fMC40LjRfeDY0LXNldHVwLmV4ZQpLd1lxcHpNdmRpN0VERmxVNVJsOVNKbjQ5eEhtdVQwRlc0OXYvTjNXdjNiTUJONDhEWWVnZTZYL3RHYnZYamF6b1gwUmlpaEhia1ovamtCUnh5NTlCQT09Cg==",
-      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.4.4/Lexiloom_0.4.4_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZGNLYURCZll2VmRLSnk3UXNlNmZ6RXJtbDRyTnV6Nk5LK2hFdldxS3RyakhqQTRBelFXbytCNm5CZWtUM3JaSVFxUWhUazErWGVwaURtMmNXTE5YcmdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjY5MTY4CWZpbGU6V29yZHNldHRfMC41LjBfeDY0LXNldHVwLmV4ZQo4cWVMaS9SY0tCejNZamJxcFloQk1KSDI4YkhtN3BRM3R3U0FpbEJPUEVvdnJTWEFOTUo5ODkxNEtNdzVaTkdSdDlrQ2twdTFuSGdZZFhrbnhOTDJBUT09Cg==",
+      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.5.0/Wordsett_0.5.0_x64-setup.exe"
     }
   }
 }
