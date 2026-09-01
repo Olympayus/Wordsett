@@ -1,18 +1,10 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useSettingsStore, type OnlineSourceKey, type TitleInfoKey } from '../../stores/settingsStore'
+import { useSettingsStore, type TitleInfoKey } from '../../stores/settingsStore'
 import { Toggle } from '../ui/Toggle'
 import Icon from '../icons'
 import { tooltipPosition } from '../../lib/tooltipPosition'
 import { FIELD_TREE, isAncestorOff, type FieldTreeNode } from '../../lib/fieldTree'
-
-// 在线词典来源（规格 §7.3）
-const ONLINE_SOURCES: { key: OnlineSourceKey; name: string; url: string }[] = [
-  { key: 'oxford', name: '牛津高阶', url: 'oxfordlearnersdictionaries.com' },
-  { key: 'longman', name: '朗文当代', url: 'ldoceonline.com' },
-  { key: 'collins', name: '柯林斯', url: 'collinsdictionary.com' },
-  { key: 'merriam', name: '韦氏词典', url: 'merriam-webster.com' },
-]
 
 // 标题信息开关（v0.5：词条标题行下的信息展示）
 const TITLE_ROWS: { key: TitleInfoKey; label: string }[] = [
@@ -166,10 +158,6 @@ function DictRow({ label, sub, checked, onChange }: {
 }
 
 export default function SearchSettings() {
-  const onlineDictEnabled = useSettingsStore(s => s.onlineDictEnabled)
-  const setOnlineDictEnabled = useSettingsStore(s => s.setOnlineDictEnabled)
-  const onlineSources = useSettingsStore(s => s.onlineSources)
-  const setOnlineSource = useSettingsStore(s => s.setOnlineSource)
   const dictionaries = useSettingsStore(s => s.dictionaries)
   const setDictionary = useSettingsStore(s => s.setDictionary)
   const titleInfo = useSettingsStore(s => s.titleInfo)
@@ -213,7 +201,7 @@ export default function SearchSettings() {
         ))}
       </div>
 
-      {/* 词典（本地词典开关）：置于「词典返回词条」之下、「在线词典查询」之上（v0.4.3 §7） */}
+      {/* 词典（本地词典开关）：置于「词典返回词条」之下 */}
       <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '16px', marginBottom: '24px' }}>
         <div style={{ ...SECTION_TITLE, marginBottom: '12px' }}>
           词典
@@ -221,25 +209,6 @@ export default function SearchSettings() {
         </div>
         <DictRow label="ECDICT" sub="常用英汉词典" checked={dictionaries.ecdict} onChange={on => setDictionary('ecdict', on)} />
         <DictRow label="WordNet" sub="词义网络词典" checked={dictionaries.wordnet} onChange={on => setDictionary('wordnet', on)} />
-      </div>
-
-      {/* 在线词典查询：与「词典返回词条」同级标题（规格 §7.3 勘误） */}
-      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-          <span style={SECTION_TITLE}>在线词典查询</span>
-          <Toggle checked={onlineDictEnabled} onChange={setOnlineDictEnabled} aria-label="在线词典查询开关" />
-        </div>
-        {onlineDictEnabled && (
-          <div style={{ marginTop: '8px' }}>
-            {ONLINE_SOURCES.map(s => (
-              <label key={s.key} style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 0', cursor: 'pointer' }}>
-                <input type="checkbox" checked={onlineSources[s.key]} onChange={e => setOnlineSource(s.key, e.target.checked)} />
-                <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{s.name}</span>
-                <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{s.url}</span>
-              </label>
-            ))}
-          </div>
-        )}
       </div>
     </>
   )

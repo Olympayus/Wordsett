@@ -7,8 +7,6 @@ export type DisplayFieldKey =
   | 'english_definition' | 'example' | 'exchange' | 'synonyms'
   | 'derivatives'
 
-export type OnlineSourceKey = 'oxford' | 'longman' | 'collins' | 'merriam'
-
 export type DictionaryKey = 'ecdict' | 'wordnet'
 
 export type TitleInfoKey =
@@ -19,30 +17,23 @@ export interface SettingsStore {
   settingsOpen: boolean
   displayFields: Record<DisplayFieldKey, boolean>
   dictionaries: Record<DictionaryKey, boolean>
-  onlineDictEnabled: boolean
-  onlineSources: Record<OnlineSourceKey, boolean>
   sidebarMode: SidebarMode
   titleInfo: Record<TitleInfoKey, boolean>
   openSettings: () => void
   closeSettings: () => void
   setDisplayField: (key: DisplayFieldKey, on: boolean) => void
   setDictionary: (key: DictionaryKey, on: boolean) => void
-  setOnlineDictEnabled: (on: boolean) => void
-  setOnlineSource: (key: OnlineSourceKey, checked: boolean) => void
   setSidebarMode: (mode: SidebarMode) => void
   setTitleInfo: (key: TitleInfoKey, on: boolean) => void
 }
 
-// 默认（规格 §7）：词典返回词条全开（含词源相关词）、本地词典全开、在线词典关闭（来源全选）、字母模式、抽屉关闭
+// 默认（规格 §7）：词典返回词条全开（含词源相关词）、本地词典全开、字母模式、抽屉关闭
 const DEFAULT_DISPLAY_FIELDS: Record<DisplayFieldKey, boolean> = {
   phonetic: true, part_of_speech: true, chinese_definition: true,
   english_definition: true, example: true, exchange: true, synonyms: true,
   derivatives: true,
 }
 const DEFAULT_DICTIONARIES: Record<DictionaryKey, boolean> = { ecdict: true, wordnet: true }
-const DEFAULT_ONLINE_SOURCES: Record<OnlineSourceKey, boolean> = {
-  oxford: true, longman: true, collins: true, merriam: true,
-}
 const DEFAULT_TITLE_INFO: Record<TitleInfoKey, boolean> = {
   showBadges: true, showPhonetic: true, showWordRoot: true,
   showDomainCategory: true, showDomainRegion: true, showDomainUsage: true,
@@ -54,16 +45,12 @@ export const useSettingsStore = create<SettingsStore>()(
       settingsOpen: false,
       displayFields: DEFAULT_DISPLAY_FIELDS,
       dictionaries: DEFAULT_DICTIONARIES,
-      onlineDictEnabled: false,
-      onlineSources: DEFAULT_ONLINE_SOURCES,
       sidebarMode: 'alphabet',
       titleInfo: DEFAULT_TITLE_INFO,
       openSettings: () => set({ settingsOpen: true }),
       closeSettings: () => set({ settingsOpen: false }),
       setDisplayField: (key, on) => set(s => ({ displayFields: { ...s.displayFields, [key]: on } })),
       setDictionary: (key, on) => set(s => ({ dictionaries: { ...s.dictionaries, [key]: on } })),
-      setOnlineDictEnabled: (on) => set({ onlineDictEnabled: on }),
-      setOnlineSource: (key, checked) => set(s => ({ onlineSources: { ...s.onlineSources, [key]: checked } })),
       setSidebarMode: (mode) => set({ sidebarMode: mode }),
       setTitleInfo: (key, on) => set(s => ({ titleInfo: { ...s.titleInfo, [key]: on } })),
     }),
@@ -86,8 +73,6 @@ export const useSettingsStore = create<SettingsStore>()(
           useSettingsStore.setState({
             displayFields: DEFAULT_DISPLAY_FIELDS,
             dictionaries: DEFAULT_DICTIONARIES,
-            onlineDictEnabled: false,
-            onlineSources: DEFAULT_ONLINE_SOURCES,
             sidebarMode: 'alphabet',
             titleInfo: DEFAULT_TITLE_INFO,
           })
@@ -96,8 +81,6 @@ export const useSettingsStore = create<SettingsStore>()(
       partialize: (s) => ({
         displayFields: s.displayFields,
         dictionaries: s.dictionaries,
-        onlineDictEnabled: s.onlineDictEnabled,
-        onlineSources: s.onlineSources,
         sidebarMode: s.sidebarMode,
         titleInfo: s.titleInfo,
       }),

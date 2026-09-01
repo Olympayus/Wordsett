@@ -9,8 +9,6 @@ const DEFAULT = {
     derivatives: true,
   },
   dictionaries: { ecdict: true, wordnet: true },
-  onlineDictEnabled: false,
-  onlineSources: { oxford: true, longman: true, collins: true, merriam: true },
   sidebarMode: 'alphabet',
 }
 
@@ -19,16 +17,14 @@ describe('settingsStore（规格 §7）', () => {
     useSettingsStore.setState(JSON.parse(JSON.stringify(DEFAULT)))
   })
 
-  it('默认值：字段开关全开（含词源相关词）、词典开关全开、在线词典关闭、字母模式、抽屉关闭', () => {
+  it('默认值：字段开关全开（含词源相关词）、词典开关全开、字母模式、抽屉关闭', () => {
     const s = useSettingsStore.getState()
     expect(s.settingsOpen).toBe(false)
-    expect(s.onlineDictEnabled).toBe(false)
     expect(s.sidebarMode).toBe('alphabet')
     expect(Object.values(s.displayFields).every(Boolean)).toBe(true)
     expect(s.displayFields.derivatives).toBe(true)
     expect(s.dictionaries.ecdict).toBe(true)
     expect(s.dictionaries.wordnet).toBe(true)
-    expect(Object.values(s.onlineSources).every(Boolean)).toBe(true)
   })
 
   it('setDictionary 切换单词典开关', () => {
@@ -54,15 +50,6 @@ describe('settingsStore（规格 §7）', () => {
     expect(s.displayFields.chinese_definition).toBe(true)
   })
 
-  it('setOnlineDictEnabled 与 setOnlineSource', () => {
-    useSettingsStore.getState().setOnlineDictEnabled(true)
-    useSettingsStore.getState().setOnlineSource('collins', false)
-    const s = useSettingsStore.getState()
-    expect(s.onlineDictEnabled).toBe(true)
-    expect(s.onlineSources.collins).toBe(false)
-    expect(s.onlineSources.oxford).toBe(true)
-  })
-
   it('setSidebarMode 切换模式', () => {
     useSettingsStore.getState().setSidebarMode('category')
     expect(useSettingsStore.getState().sidebarMode).toBe('category')
@@ -83,7 +70,6 @@ describe('settingsStore（规格 §7）', () => {
     localStorage.setItem('wordsett-settings', JSON.stringify({
       state: {
         displayFields: { phonetic: false, part_of_speech: true, chinese_definition: true, english_definition: true, example: true, exchange: true, etymology: true },
-        onlineDictEnabled: true, onlineSources: { oxford: true, longman: true, collins: true, merriam: true },
         sidebarMode: 'category',
       },
       version: 1,
@@ -91,7 +77,6 @@ describe('settingsStore（规格 §7）', () => {
     await useSettingsStore.persist.rehydrate()
     const s = useSettingsStore.getState()
     expect(s.sidebarMode).toBe('category')
-    expect(s.onlineDictEnabled).toBe(true)
     expect(s.displayFields.phonetic).toBe(false)
     expect(s.displayFields.synonyms).toBe(true)
     expect(s.displayFields.derivatives).toBe(true)
