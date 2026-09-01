@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import DictDetailCard, { type DictDetailCardHandle } from './DictDetailCard'
 import WordTitleExtras from './WordTitleExtras'
 import SemanticNetwork from './SemanticNetwork'
+import TitleChips from './TitleChips'
 import { lookupTitleMeta, lookupWord } from '../../services/searchService'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
@@ -148,12 +149,17 @@ export default function DictDetailPanel({ word }: Props) {
           <span style={{
             fontFamily: 'var(--font-serif)', fontSize: 'var(--text-xl)',
             fontWeight: 'var(--weight-semibold)', color: 'var(--color-text-primary)',
+            whiteSpace: 'nowrap',
           }}>
             {word}
           </span>
+          {/* 徽标/领域标签：标题右侧展示（不勾选、不入库） */}
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+            <TitleChips meta={meta} />
+          </div>
         </div>
 
-        {/* 标题信息区：徽标/领域/音标行/词根行（独立条接管音标渲染；key={word} 换词 remount 重置勾选） */}
+        {/* 标题独立条：音标行/词根行（可勾选合并；徽标/领域在标题行右侧，见 TitleChips；key={word} 换词 remount 重置勾选） */}
         <WordTitleExtras key={word} meta={meta} onInputsChange={setStripInputs} />
 
         {/* Tab 栏：词典 | 语义网络（语义网络徽章为 relatedWords 真实计数） */}
