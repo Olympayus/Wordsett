@@ -4,6 +4,7 @@ import { getCachedDb } from './dbCache'
 import { buildWordnetFields } from '../lib/wordnetParse'
 import { resolveDictPath, toSqliteUrl } from './dictPath'
 import { RELATED_LABEL } from '../lib/wordnetRelations'
+import { freshGroups } from '../lib/wordnetGroups'
 
 const dbPath = resolveDictPath('wordnet.db')
 
@@ -15,12 +16,6 @@ export interface RelatedGroup {
 export interface RelatedWords {
   path: string[]
   groups: Record<'synonyms' | 'hypernyms' | 'hyponyms' | 'antonyms' | 'partWhole' | 'similarTo' | 'alsoSee' | 'derivatives' | 'entailments' | 'causes' | 'pertainyms' | 'attributes' | 'verbGroups', RelatedGroup[]>
-}
-
-const emptyGroups = {
-  synonyms: [], hypernyms: [], hyponyms: [], antonyms: [], partWhole: [],
-  similarTo: [], alsoSee: [], derivatives: [], entailments: [], causes: [],
-  pertainyms: [], attributes: [], verbGroups: [],
 }
 
 export class WordNetProvider implements DictionaryProvider {
@@ -93,7 +88,7 @@ export class WordNetProvider implements DictionaryProvider {
   }
 
   async relatedWords(word: string): Promise<RelatedWords> {
-    const empty = () => ({ path: [], groups: { ...emptyGroups } })
+    const empty = () => ({ path: [], groups: freshGroups() })
     if (!word.trim()) return empty()
     const normalized = word.toLowerCase().trim()
     const db = await getCachedDb(toSqliteUrl(await dbPath))
@@ -116,7 +111,7 @@ export class WordNetProvider implements DictionaryProvider {
       return { words: ws, definition: rows[0].definition ?? undefined }
     }
 
-    const groups: Record<string, RelatedGroup[]> = { ...emptyGroups }
+    const groups: Record<string, RelatedGroup[]> = freshGroups()
     const seen = new Set<string>()
 
     for (const s of synsetRows) {
