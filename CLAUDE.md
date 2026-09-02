@@ -5,6 +5,8 @@ Tauri 2 + React + TypeScript + SQLite.
 
 > **Status: v0.5.0** — 开发中。v0.5 更新清单：词典标题信息区（词源徽标/音标/词根/领域标签三开关）独立于词典开关显示并可勾选合并；英文建议按 lemmas.frequency 排序；语义网络新增 蕴含/致使/派生来源/属性/动词组；项目更名 Wordsett（机器层 identifier 与库名一并变更，数据靠更新公告手动迁移）。
 
+> **编码前置要求**：任何编码 / 调试 / 重构 / 评审 / 修改仓库的操作前，先调用 `agent-core-behavior` 技能（工作区根 `Projects\.claude\skills\agent-core-behavior`）：以仓库代码为准、不猜测、先读后改、最小改动、越界问题只报不改、能复用不新造。
+
 ---
 
 ## 快速开始 Quick Start
