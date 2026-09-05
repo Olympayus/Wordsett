@@ -101,4 +101,27 @@ describe('buildEcdictFields', () => {
     expect(pos[0].value).toBe('adj.')
     expect(pos[0].children!.map(c => c.value)).toEqual(['快乐的', '幸福的'])
   })
+  it('yuppy：全角括号内的半角逗号不拆（一条释义）', () => {
+    const fields = buildEcdictFields({
+      word: 'yuppy',
+      translation: 'n. 雅皮士（特指肆意挥霍, 追赶时髦的年轻人）',
+      definition: null, phonetic: null, exchange: null,
+    })
+    const pos = fields.find(f => f.key === 'part_of_speech')
+    expect(pos?.children?.map(c => c.value)).toEqual(['雅皮士（特指肆意挥霍, 追赶时髦的年轻人）'])
+  })
+  it('普通多义项仍按逗号拆', () => {
+    const fields = buildEcdictFields({
+      word: 'cap', translation: 'n. 罩, 风帽, 布质面罩', definition: null, phonetic: null, exchange: null,
+    })
+    const pos = fields.find(f => f.key === 'part_of_speech')
+    expect(pos?.children?.map(c => c.value)).toEqual(['罩', '风帽', '布质面罩'])
+  })
+  it('括号不配对兜底：括号内逗号不拆', () => {
+    const fields = buildEcdictFields({
+      word: 'x', translation: 'n. 罩（风帽，帆布罩', definition: null, phonetic: null, exchange: null,
+    })
+    const pos = fields.find(f => f.key === 'part_of_speech')
+    expect(pos?.children?.map(c => c.value)).toEqual(['罩（风帽，帆布罩'])
+  })
 })

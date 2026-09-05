@@ -18,6 +18,21 @@ const normalizePos = (raw: string): string => {
 // 含 's'（wordnet 形容词卫星码）：definition 列大量 's ...' 英文释义此前误入 supplementary，现归 adj.（translation 列无 's ' 行，无误匹配风险）。
 const POS_RE = /^(vt|vi|adj|adv|aux|prep|conj|pron|abbr|num|art|int|ad|n|v|a|s)\.?/i
 
+// 只按顶层逗号拆（忽略 全角（） 与 半角() 内的逗号）
+function splitTopLevelCommas(text: string): string[] {
+  const parts: string[] = []
+  let depth = 0
+  let start = 0
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (ch === '（' || ch === '(') depth++
+    else if (ch === '）' || ch === ')') depth = Math.max(0, depth - 1)
+    else if (ch === ',' && depth === 0) { parts.push(text.slice(start, i)); start = i + 1 }
+  }
+  parts.push(text.slice(start))
+  return parts.map(s => s.trim()).filter(Boolean)
+}
+
 // exchange 前缀 → 中文标注（修正后，spec §5.3）
 const EXCHANGE_LABELS: Record<string, string> = {
   p: '过去式', d: '过去分词', i: '现在分词',
@@ -83,7 +98,7 @@ export function buildEcdictFields(input: {
         const rest = line.slice(m[0].length).replace(/^[,，:：\s]+/, '')
         if (rest) {
           const pos = getPos(normalizePos(m[0]))
-          for (const part of rest.split(',').map(s => s.trim()).filter(Boolean)) {
+          for (const part of splitTopLevelCommas(rest)) {
             pos.children!.push({ key: 'chinese_definition', value: part })
           }
         }
