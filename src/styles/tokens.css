@@ -116,3 +116,6 @@
   --shadow-raised: 0 2px 8px rgba(28, 24, 20, 0.06);
   --shadow-overlay: 0 8px 24px rgba(28, 24, 20, 0.08);
 }
+
+/* 统一页内查找命中高亮（spec §4b，FindBar.tsx 的 CSS Custom Highlight API） */
+::highlight(wordsett-find) { background-color: rgba(240, 200, 60, .45); color: inherit; }

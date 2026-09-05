@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import TopBar from './TopBar'
 import WordList from './WordList'
 import SidebarFooter from './SidebarFooter'
@@ -13,6 +13,7 @@ import CategoryAssignModal from '../word/CategoryAssignModal'
 import CategoryEditorModal from '../word/CategoryEditorModal'
 import UpdateDialog from '../ui/UpdateDialog'
 import ConfirmDialog from '../ui/ConfirmDialog'
+import FindBar, { registerFindKeyHandler } from '../ui/FindBar'
 import { fitCollapsedWidth, measureMaxWordWidth, resolveSidebarWordFont, COLLAPSED_CHROME_ALPHABET, COLLAPSED_CHROME_CATEGORY, SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
 
 export default function AppShell() {
@@ -30,6 +31,9 @@ export default function AppShell() {
     const max = measureMaxWordWidth(words.map(w => w.lemma), resolveSidebarWordFont())  // 与渲染同一字体
     return fitCollapsedWidth(max, chrome)
   }, [collapsed, words, mode])
+
+  // 统一页内查找：注册全局 Ctrl+F（spec §4b，FindBar 单实例）
+  useEffect(() => registerFindKeyHandler(), [])
 
   return (
     <div className="h-screen flex flex-col" style={{ background: 'var(--color-canvas)' }}>
@@ -86,6 +90,7 @@ export default function AppShell() {
 
       <UpdateDialog />
       <ConfirmDialog />
+      <FindBar />
     </div>
   )
 }
