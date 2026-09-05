@@ -46,6 +46,7 @@ function fieldLabel(key: string): string {
     case 'exchange': return '词形变化'
     case 'derivatives': return '词源相关词'
     case 'supplementary': return '补充'
+    case 'synonym_discrimination': return '近义词辨析'
     default: return ''
   }
 }
@@ -200,6 +201,18 @@ export default function DictDetailCard({
         }
         return <div style={{ fontSize: '13px' }}>{node.field.value}</div>
       }
+      case 'synonym_discrimination_item': {
+        const colonIdx = node.field.value.indexOf(':')
+        if (colonIdx > 0) {
+          return (
+            <div style={{ fontSize: '13px' }}>
+              <span style={{ color: 'var(--color-text-secondary)' }}>{node.field.value.substring(0, colonIdx)}:</span>{' '}
+              <span style={{ fontFamily: 'var(--font-serif)' }}>{node.field.value.substring(colonIdx + 1).trim()}</span>
+            </div>
+          )
+        }
+        return <div style={{ fontSize: '13px' }}>{node.field.value}</div>
+      }
       default:
         return <div>{node.field.value}</div>
     }
@@ -267,7 +280,14 @@ export default function DictDetailCard({
             )}
           </div>
           {isContainer && !collapsed && (
-            <div style={{ paddingLeft: 16 }}>{renderFlat(node.children)}</div>
+            <div style={{ paddingLeft: 16 }}>
+              {node.field.key === 'synonym_discrimination' && node.field.value && (
+                <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1.5, marginBottom: 4 }}>
+                  {node.field.value}
+                </div>
+              )}
+              {renderFlat(node.children)}
+            </div>
           )}
         </div>
       )

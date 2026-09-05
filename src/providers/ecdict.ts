@@ -1,6 +1,7 @@
 import type { DictionaryProvider } from './types'
-import type { DictionaryEntry } from '../types/dictionary'
+import type { DictionaryEntry, DictionaryField } from '../types/dictionary'
 import { buildEcdictFields } from '../lib/ecdictParse'
+import { buildSynonymDiscriminationFields, type SynonymMember } from '../lib/synonymDisc'
 import { getCachedDb } from './dbCache'
 import { resolveDictPath, toSqliteUrl } from './dictPath'
 
@@ -40,6 +41,20 @@ export class EcdictProvider implements DictionaryProvider {
       phonetic: entry.phonetic ?? null,
       exchange: entry.exchange ?? null,
     })
+
+    // 近义词辨析（resemble.json 数据）：缺表/无行静默跳过（spec §7.6），容器置于字段末尾
+    let disc: DictionaryField[] = []
+    try {
+      const groupRows = await db.select<{ description: string; items: string }[]>(
+        'SELECT description, items FROM synonym_groups WHERE word = ?1', [normalized]
+      )
+      disc = buildSynonymDiscriminationFields(groupRows.map(r => ({
+        description: r.description,
+        items: JSON.parse(r.items) as SynonymMember[],
+      })))
+    } catch { /* old built db without table: ignore */ }
+    fields.push(...disc)
+
     return [{
       word: entry.word,
       normalizedWord: normalized,
