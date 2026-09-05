@@ -119,9 +119,9 @@ describe('buildEcdictFields', () => {
   })
   it('括号不配对兜底：括号内逗号不拆', () => {
     const fields = buildEcdictFields({
-      word: 'x', translation: 'n. 罩（风帽，帆布罩', definition: null, phonetic: null, exchange: null,
+      word: 'x', translation: 'n. 罩（风帽, 帆布罩', definition: null, phonetic: null, exchange: null,
     })
     const pos = fields.find(f => f.key === 'part_of_speech')
-    expect(pos?.children?.map(c => c.value)).toEqual(['罩（风帽，帆布罩'])
+    expect(pos?.children?.map(c => c.value)).toEqual(['罩（风帽, 帆布罩'])
   })
 })
