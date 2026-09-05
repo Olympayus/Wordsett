@@ -144,7 +144,7 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
         )
       })}
 
-      {(editorMode || rowHover) && (
+      {rowHover && (
         <span style={{ ...addChip, ...reveal(editorMode || rowHover) }} onClick={onAdd}>+ 添加音标</span>
       )}
     </div>

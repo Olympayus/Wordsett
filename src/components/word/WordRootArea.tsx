@@ -18,13 +18,16 @@ interface WordRootAreaProps {
 export default function WordRootArea(props: WordRootAreaProps) {
   const { values, editorMode, editValue, onEditValueChange, onStartEdit, onSave, onCancelEdit, onAdd, onDelete } = props
   const [rowHover, setRowHover] = useState(false)
+  const [itemHover, setItemHover] = useState<string | null>(null)
 
   if (!editorMode && values.length === 0) return null
 
   const item = (fv: FieldValue) => {
     const isEditing = fv.id === props.editingId
     return (
-      <span key={fv.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}>
+      <span key={fv.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13 }}
+        onMouseEnter={() => setItemHover(fv.id)}
+        onMouseLeave={() => setItemHover(null)}>
         {isEditing ? (
           <input autoFocus value={editValue} onChange={e => onEditValueChange(e.target.value)}
             onKeyDown={e => { if (e.nativeEvent.isComposing) return; if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancelEdit() }}
@@ -40,7 +43,7 @@ export default function WordRootArea(props: WordRootAreaProps) {
           <button type="button" title="保存" onClick={onSave} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-brand)' }}>✓</button>
           <button type="button" title="取消" onClick={onCancelEdit} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-tertiary)' }}>✕</button>
         </>}
-        {!isEditing && editorMode && (
+        {!isEditing && editorMode && itemHover === fv.id && (
           <span style={{ display: 'inline-flex', gap: 2 }}>
             <button type="button" title="编辑" onClick={() => onStartEdit(fv)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-tertiary)' }}><Icon name="edit" size={12} /></button>
             <button type="button" title="删除" onClick={() => onDelete(fv)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-tertiary)' }}><Icon name="trash" size={12} /></button>
@@ -61,7 +64,7 @@ export default function WordRootArea(props: WordRootAreaProps) {
             (container.children ?? []).map(c => item(c))
           )}
         </span>
-        {(editorMode || rowHover) && (
+        {rowHover && (
           <button type="button" onClick={onAdd}
             style={{ fontSize: 13, color: 'var(--color-text-tertiary)', cursor: 'pointer', border: '1px dashed var(--color-border-strong)', borderRadius: 9999, padding: '1px 8px', background: 'transparent', fontFamily: 'var(--font-sans)' }}>
             + 添加词根
