@@ -102,3 +102,27 @@ export function toggleSubtreeSelection(selected: Set<string>, allKeys: string[],
   }
   return next
 }
+
+// 词性窗格统计：只数直属中/英释义（例句/变形/近义词等不混算，spec §6）
+export function countZhEn(node: FlatNode): { cn: number; en: number } {
+  let cn = 0, en = 0
+  for (const c of node.children) {
+    if (c.field.key === 'chinese_definition') cn++
+    else if (c.field.key === 'english_definition') en++
+  }
+  return { cn, en }
+}
+
+// 整棵字段树累计中+英释义总数（词典徽章口径）
+export function countAllDefinitions(fields: DictionaryField[]): { cn: number; en: number } {
+  let cn = 0, en = 0
+  const walk = (ns: DictionaryField[]) => {
+    for (const n of ns) {
+      if (n.key === 'chinese_definition') cn++
+      else if (n.key === 'english_definition') en++
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(fields ?? [])
+  return { cn, en }
+}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mergeEntryFields, flattenTree, buildMergeInputs, toggleSubtreeSelection, shouldNumberField, shouldFlattenChildren } from './dictPlan'
+import { mergeEntryFields, flattenTree, buildMergeInputs, toggleSubtreeSelection, shouldNumberField, shouldFlattenChildren, countZhEn, countAllDefinitions } from './dictPlan'
 import type { DictionaryField } from '../types/dictionary'
 
 const fields: DictionaryField[] = [
@@ -100,5 +100,28 @@ describe('toggleSubtreeSelection', () => {
     const next = toggleSubtreeSelection(all, keys, '0-1')
     // 0-1 子树 = {0-1, 0-1-0} 被清空；兄弟 0-10 保留
     expect([...next].sort()).toEqual(['0', '0-10'])
+  })
+})
+
+describe('countZhEn / countAllDefinitions', () => {
+  it('词性节点：只数直属中/英释义', () => {
+    const node = { key: '0', parentKey: null, field: { key: 'part_of_speech', value: 'n.' },
+      children: [
+        { key: '0-0', parentKey: '0', field: { key: 'chinese_definition', value: '苹果' }, children: [] },
+        { key: '0-1', parentKey: '0', field: { key: 'chinese_definition', value: '苹果树' }, children: [] },
+        { key: '0-2', parentKey: '0', field: { key: 'english_definition', value: 'apple' }, children: [] },
+        { key: '0-3', parentKey: '0', field: { key: 'example_sentence', value: '' }, children: [] },
+      ] } as any
+    expect(countZhEn(node)).toEqual({ cn: 2, en: 1 })
+  })
+  it('countAllDefinitions 全树累计中+英', () => {
+    const fields = [
+      { key: 'part_of_speech', value: 'n.', children: [
+        { key: 'chinese_definition', value: 'a' }, { key: 'english_definition', value: 'b' } ] },
+      { key: 'part_of_speech', value: 'v.', children: [
+        { key: 'chinese_definition', value: 'c' }, { key: 'chinese_definition', value: 'd' } ] },
+      { key: 'exchange', value: '', children: [{ key: 'exchange_item', value: 'p:ran' }] },
+    ] as any
+    expect(countAllDefinitions(fields)).toEqual({ cn: 3, en: 1 })
   })
 })

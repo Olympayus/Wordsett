@@ -9,7 +9,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { isFieldVisible } from '../../lib/fieldTree'
 import type { DisplayFieldKey } from '../../stores/settingsStore'
 import { ensureWord } from '../../lib/ensureWord'
-import { mergeEntryFields, flattenTree, buildMergeInputs, toggleSubtreeSelection, shouldNumberField } from '../../lib/dictPlan'
+import { mergeEntryFields, flattenTree, buildMergeInputs, toggleSubtreeSelection, shouldNumberField, countZhEn, countAllDefinitions } from '../../lib/dictPlan'
 import type { FlatNode } from '../../lib/dictPlan'
 import PosTag from '../ui/PosTag'
 
@@ -48,12 +48,6 @@ function fieldLabel(key: string): string {
     case 'supplementary': return '补充'
     default: return ''
   }
-}
-
-// 子树叶子计数（词性窗格胶囊数字）
-function countItems(node: FlatNode): number {
-  if (node.children.length === 0) return 1
-  return node.children.reduce((sum, c) => sum + countItems(c), 0)
 }
 
 export default function DictDetailCard({
@@ -233,6 +227,7 @@ export default function DictDetailCard({
       const isContainer = node.children.length > 0
       const isPos = node.field.key === 'part_of_speech'
       const isDefinition = shouldNumberField(node.field.key)
+      const z = countZhEn(node)
       const collapsed = isContainer && collapsedKeys.has(node.key)
       const label = fieldLabel(node.field.key) + (isDefinition ? `(${seenIndex(node.field.key) + 1})` : '')
       // 复选框可访问名：词性用「词性 <tag>」，其余优先字段标签、其次字段值、最后字段 key
@@ -254,7 +249,12 @@ export default function DictDetailCard({
               style={{ marginTop: 3 }}
             />
             {isPos
-              ? <div className="flex items-center gap-1.5"><PosTag value={node.field.value} /><span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>{countItems(node)} 项</span></div>
+              ? <div className="flex items-center gap-1.5">
+                  <PosTag value={node.field.value} />
+                  <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
+                    中 <b style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{z.cn}</b> · 英 <b style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{z.en}</b>
+                  </span>
+                </div>
               : inlineContent(node, label)}
             {isContainer && (
               <button
@@ -291,9 +291,11 @@ export default function DictDetailCard({
           {sourceLabel[0]}
         </span>
         <span className="text-sm font-semibold" style={{ letterSpacing: '0.02em' }}>{sourceLabel}</span>
-        <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-surface-sunken)', padding: '1px 8px', borderRadius: 'var(--radius-full)' }}>
-          {flat.length} 条
-        </span>
+        {(() => { const t = countAllDefinitions(merged); return t.cn + t.en })() > 0 && (
+          <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-surface-sunken)', padding: '1px 8px', borderRadius: 'var(--radius-full)' }}>
+            共 <b style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{countAllDefinitions(merged).cn + countAllDefinitions(merged).en}</b> 条释义
+          </span>
+        )}
         {containerKeys.size > 0 && (
           <button
             type="button"
