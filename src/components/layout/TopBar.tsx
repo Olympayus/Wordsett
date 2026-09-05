@@ -21,6 +21,7 @@ export default function TopBar() {
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [searchError, setSearchError] = useState(false)
+  const [zhGlosses, setZhGlosses] = useState<Record<string, string>>({})
   const [focused, setFocused] = useState(false)
   const [isComposing, setIsComposing] = useState(false)
   const showDict = useViewStore(s => s.showDict)
@@ -57,6 +58,7 @@ export default function TopBar() {
     if (!query.trim()) {
       setSuggestions([])
       setShowSuggestions(false)
+      setZhGlosses({})
       setSearchError(false)
       return
     }
@@ -64,9 +66,21 @@ export default function TopBar() {
     clearTimeout(timer.current)
     timer.current = setTimeout(async () => {
       try {
-        const result = isChineseQuery(query) ? await searchChinese(query) : await searchLemmas(query)
-        setSuggestions(result)
-        setShowSuggestions(result.length > 0)
+        // 中文路径取 hits（单词 + 释义）；英文路径仅单词。分开取而非共用三元：
+        // TS 不会在 if(isChineseQuery) 内收窄 ChineseSearchHit[] | string[] 联合
+        let words: string[]
+        let glosses: Record<string, string>
+        if (isChineseQuery(query)) {
+          const hits = await searchChinese(query)
+          words = hits.map(h => h.word)
+          glosses = Object.fromEntries(hits.map(h => [h.word, h.translation]))
+        } else {
+          words = await searchLemmas(query)
+          glosses = {}
+        }
+        setSuggestions(words)
+        setZhGlosses(glosses)
+        setShowSuggestions(words.length > 0)
         setSelectedIndex(-1)
         setSearchError(false)
       } catch (e) {
@@ -181,6 +195,7 @@ export default function TopBar() {
               onHover={i => setSelectedIndex(i)}
               query={query}
               collectedWords={words}
+              glosses={zhGlosses}
             />
           )}
           {searchError && !showSuggestions && (

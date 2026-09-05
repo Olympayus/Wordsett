@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isChineseQuery, rankChineseResults } from './chineseSearch'
+import { isChineseQuery, rankChineseHits, rankChineseResults } from './chineseSearch'
 
 describe('isChineseQuery', () => {
   it('detects CJK characters', () => {
@@ -106,5 +106,19 @@ describe('rankChineseResults', () => {
       { word: 'interesting', translation: 'a. 有趣的', collins: 3, frq: 1072 },
     ], '有趣的')
     expect(result[0]).toBe('interesting')
+  })
+})
+
+describe('rankChineseHits', () => {
+  it('返回去重单词 + 首个命中行 translation', () => {
+    const rows = [
+      { word: 'apple', translation: '苹果；苹果树' },
+      { word: 'apply', translation: '苹果应用' },
+      { word: 'apple', translation: '苹果汁' },
+    ]
+    expect(rankChineseHits(rows, '苹果')).toEqual([
+      { word: 'apple', translation: '苹果；苹果树' },
+      { word: 'apply', translation: '苹果应用' },
+    ])
   })
 })

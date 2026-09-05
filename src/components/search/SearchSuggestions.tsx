@@ -8,6 +8,7 @@ interface Props {
   onHover: (index: number) => void
   query: string
   collectedWords?: Pick<Word, 'normalizedLemma'>[]
+  glosses?: Record<string, string>
 }
 
 function highlightText(text: string, query: string): React.ReactNode {
@@ -21,7 +22,7 @@ function highlightText(text: string, query: string): React.ReactNode {
   )
 }
 
-export default function SearchSuggestions({ suggestions, selectedIndex, onSelect, onHover, query, collectedWords = [] }: Props) {
+export default function SearchSuggestions({ suggestions, selectedIndex, onSelect, onHover, query, collectedWords = [], glosses = {} }: Props) {
   if (suggestions.length === 0) return null
 
   return (
@@ -64,7 +65,17 @@ export default function SearchSuggestions({ suggestions, selectedIndex, onSelect
             transition: 'background-color var(--duration-fast) var(--ease-smooth)',
           }}
         >
-          {highlightText(word, query)}
+          <span style={{ flex: 1, minWidth: 0 }}>
+            {highlightText(word, query)}
+            {(glosses[word] ?? '') && (
+              <span style={{
+                display: 'block', marginTop: 2, fontSize: 12, color: 'var(--color-text-tertiary)',
+                fontFamily: 'var(--font-sans)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {highlightText(glosses[word]!, query)}
+              </span>
+            )}
+          </span>
           {isWordCollected(word, collectedWords) && (
             <span title="已收录" style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-brand)', fontWeight: 500, fontFamily: 'var(--font-sans)' }}>✓ 已收录</span>
           )}

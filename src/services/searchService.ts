@@ -2,7 +2,8 @@ import { EcdictProvider } from '../providers/ecdict'
 import { WordNetProvider } from '../providers/wordnet'
 import { useSettingsStore } from '../stores/settingsStore'
 import { sortLemmasByRelevance } from '../lib/lemmaSort'
-import { rankChineseResults } from '../lib/chineseSearch'
+import { rankChineseHits } from '../lib/chineseSearch'
+import type { ChineseSearchHit } from '../lib/chineseSearch'
 import type { DictionaryEntry } from '../types/dictionary'
 import type { RelatedWords } from '../providers/wordnet'
 import { getCachedDb } from '../providers/dbCache'
@@ -43,11 +44,11 @@ export async function lookupWord(word: string): Promise<{ source: string; entrie
   return results
 }
 
-// 阶段一·中文：查询 ECDICT 中文释义，返回匹配的英文单词建议
-export async function searchChinese(query: string): Promise<string[]> {
+// 阶段一·中文：查询 ECDICT 中文释义，返回匹配的英文单词 + 首个命中行释义（供下拉补显）
+export async function searchChinese(query: string): Promise<ChineseSearchHit[]> {
   if (!query.trim()) return []
   const rows = await ecdict.searchByChinese(query)
-  return rankChineseResults(rows, query)
+  return rankChineseHits(rows, query)
 }
 
 // 阶段三·语义网络：WordNet 关系网络（上位词路径 + 同义/上位/下位/反义/整体·部分分组）

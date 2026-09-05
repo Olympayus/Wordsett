@@ -26,34 +26,47 @@ function isStandaloneGloss(translation: string, idx: number, qLen: number): bool
   return after === undefined || GLOSS_TERMINATORS.has(after)
 }
 
-export function rankChineseResults(rows: ChineseSearchRow[], query: string): string[] {
+// 中文搜索命中行：单词 + 该词首个命中行的中文释义（供下拉补显）
+export interface ChineseSearchHit { word: string; translation: string }
+
+export function rankChineseHits(rows: ChineseSearchRow[], query: string): ChineseSearchHit[] {
   const q = query.trim()
   if (!q) return []
-  return [...new Set(
-    rows
-      .filter(r => r.translation.includes(q))
-      .map(r => {
-        const idx = r.translation.indexOf(q)
-        return {
-          word: r.word,
-          idx,
-          exact: r.translation.trim() === q,
-          standalone: isStandaloneGloss(r.translation, idx, q.length),
-          freq: hasFrequency(r),
-          frq: frqKey(r),
-          collins: r.collins ?? 0,
-        }
-      })
-      .sort((a, b) =>
-        (b.exact ? 1 : 0) - (a.exact ? 1 : 0) ||
-        (b.standalone ? 1 : 0) - (a.standalone ? 1 : 0) ||
-        (b.freq ? 1 : 0) - (a.freq ? 1 : 0) ||
-        a.frq - b.frq ||
-        b.collins - a.collins ||
-        a.idx - b.idx ||
-        a.word.length - b.word.length ||
-        a.word.localeCompare(b.word)
-      )
-      .map(s => s.word)
-  )].slice(0, 20)
+  const seen = new Set<string>()
+  return rows
+    .filter(r => r.translation.includes(q))
+    .map(r => {
+      const idx = r.translation.indexOf(q)
+      return {
+        word: r.word,
+        idx,
+        exact: r.translation.trim() === q,
+        standalone: isStandaloneGloss(r.translation, idx, q.length),
+        freq: hasFrequency(r),
+        frq: frqKey(r),
+        collins: r.collins ?? 0,
+        translation: r.translation,
+      }
+    })
+    .sort((a, b) =>
+      (b.exact ? 1 : 0) - (a.exact ? 1 : 0) ||
+      (b.standalone ? 1 : 0) - (a.standalone ? 1 : 0) ||
+      (b.freq ? 1 : 0) - (a.freq ? 1 : 0) ||
+      a.frq - b.frq ||
+      b.collins - a.collins ||
+      a.idx - b.idx ||
+      a.word.length - b.word.length ||
+      a.word.localeCompare(b.word)
+    )
+    .filter(s => {
+      if (seen.has(s.word)) return false
+      seen.add(s.word)
+      return true
+    })
+    .slice(0, 20)
+    .map(s => ({ word: s.word, translation: s.translation }))
+}
+
+export function rankChineseResults(rows: ChineseSearchRow[], query: string): string[] {
+  return rankChineseHits(rows, query).map(h => h.word)
 }
