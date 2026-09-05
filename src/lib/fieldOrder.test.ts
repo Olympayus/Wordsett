@@ -61,8 +61,8 @@ describe('sortTreeByTemplate', () => {
 })
 
 describe('字段归属', () => {
-  it('ROOT_FIELD_KEYS 为 7 个根级字段', () => {
-    expect(ROOT_FIELD_KEYS).toEqual(['phonetic', 'part_of_speech', 'supplementary', 'phrase', 'exchange', 'derivatives', 'word_root'])
+  it('ROOT_FIELD_KEYS 为 8 个根级字段', () => {
+    expect(ROOT_FIELD_KEYS).toEqual(['phonetic', 'part_of_speech', 'supplementary', 'phrase', 'exchange', 'derivatives', 'word_root', 'synonym_discrimination'])
   })
   it('词性下仅允许中/英释义', () => {
     expect(ALLOWED_CHILD_KEYS.part_of_speech).toEqual(['chinese_definition', 'english_definition'])
@@ -83,8 +83,13 @@ it('word_root 允许直接子级 word_root_item', () => {
   expect(templateRank('word_root', 'word_root_item')).toBe(0)
 })
 
-it('word_root 内建字段已注册（BUILTIN_FIELDS 计数 19）', () => {
+it('synonym_discrimination 是根级字段位次 7，允许直接子级 synonym_discrimination_item', () => {
+  expect(ALLOWED_CHILD_KEYS.synonym_discrimination).toEqual(['synonym_discrimination_item'])
+  expect(templateRank(null, 'synonym_discrimination')).toBe(7)
+})
+
+it('word_root 内建字段已注册（BUILTIN_FIELDS 计数 21）', () => {
   expect(BUILTIN_FIELDS.word_root).toEqual({ name: '词根', fieldType: 'text', displayOrder: 18 })
   expect(BUILTIN_FIELDS.word_root_item).toEqual({ name: '词根项', fieldType: 'text', displayOrder: 19 })
-  expect(Object.keys(BUILTIN_FIELDS)).toHaveLength(19)
+  expect(Object.keys(BUILTIN_FIELDS)).toHaveLength(21)
 })

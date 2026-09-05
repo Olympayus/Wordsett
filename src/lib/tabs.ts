@@ -1,15 +1,16 @@
 import type { FieldValue } from '../types/field'
 
-export type TabKey = 'main' | 'phrase' | 'exchange' | 'derivatives'
+export type TabKey = 'main' | 'phrase' | 'exchange' | 'derivatives' | 'discrimination'
 
 export const TAB_GROUPS: Record<TabKey, { roots: string[]; label: string }> = {
-  main:        { roots: ['part_of_speech', 'supplementary'], label: '词性' },
-  phrase:      { roots: ['phrase'],      label: '短语' },
-  exchange:    { roots: ['exchange'],    label: '词形变化' },
-  derivatives: { roots: ['derivatives'], label: '词源相关词' },
+  main:           { roots: ['part_of_speech', 'supplementary'], label: '词性' },
+  phrase:         { roots: ['phrase'],      label: '短语' },
+  exchange:       { roots: ['exchange'],    label: '词形变化' },
+  derivatives:    { roots: ['derivatives'], label: '词源相关词' },
+  discrimination: { roots: ['synonym_discrimination'], label: '近义词辨析' },
 }
 
-export const TAB_ORDER: TabKey[] = ['main', 'phrase', 'exchange', 'derivatives']
+export const TAB_ORDER: TabKey[] = ['main', 'phrase', 'exchange', 'derivatives', 'discrimination']
 
 function tabHasContent(tab: TabKey, roots: FieldValue[], keyOf: (fv: FieldValue) => string): boolean {
   return roots.some(fv => TAB_GROUPS[tab].roots.includes(keyOf(fv)))
@@ -39,10 +40,11 @@ export function groupRootsByTab(roots: FieldValue[], keyOf: (fv: FieldValue) => 
 }
 
 // 单独标签页的直接内容项 key（主标签页的"内容"就是根容器本身）
-export const TAB_ITEM_KEYS: Record<'phrase' | 'exchange' | 'derivatives', string> = {
-  phrase: 'phrase_item',
-  exchange: 'exchange_item',
-  derivatives: 'derivatives_item',
+export const TAB_ITEM_KEYS: Record<'phrase' | 'exchange' | 'derivatives' | 'discrimination', string> = {
+  phrase:         'phrase_item',
+  exchange:       'exchange_item',
+  derivatives:    'derivatives_item',
+  discrimination: 'synonym_discrimination_item',
 }
 
 // 标签页「添加」直接添加的目标字段 key：主标签页=根容器（词性/补充）；单独标签页=项

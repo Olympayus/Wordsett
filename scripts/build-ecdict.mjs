@@ -37,6 +37,12 @@ async function main() {
     frq INTEGER DEFAULT 0,
     exchange TEXT
   )`)
+  db.run(`CREATE TABLE synonym_groups (
+    word TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    items TEXT NOT NULL
+  )`)
+  db.run(`CREATE INDEX idx_synonym_groups_word ON synonym_groups(word)`)
 
   // 导入 lemma.json
   console.log('Loading lemma.json...')
@@ -100,6 +106,21 @@ async function main() {
   }
   rootStmt.free()
   console.log(`  → ${rootCount} word→root rows loaded`)
+
+  // 近义词辨析：resemble.json 每个成员词一行（成员含自身），items 为该组全量成员
+  console.log('Loading resemble.json...')
+  const resembleData = JSON.parse(readFileSync(join(ECDICT_DATA, 'resemble.json'), 'utf-8'))
+  const sgStmt = db.prepare('INSERT INTO synonym_groups VALUES (?, ?, ?)')
+  let sgCount = 0
+  for (const group of resembleData) {
+    const items = (group.dict || []).filter(w => w && w.word)
+    if (items.length === 0) continue
+    const json = JSON.stringify(items.map(w => ({ word: w.word, definition: (w.definition || '').trim() })))
+    for (const w of items) sgStmt.run([w.word.trim().toLowerCase(), (group.description || '').trim(), json])
+    sgCount += items.length
+  }
+  sgStmt.free()
+  console.log(`  → ${sgCount} word→group rows loaded`)
 
   // 创建索引
   db.run('CREATE INDEX idx_lemmas_word ON lemmas(word)')
