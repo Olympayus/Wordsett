@@ -1,13 +1,12 @@
 import { useEffect, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { createPortal } from 'react-dom'
 import { relatedWords } from '../../services/searchService'
-import { stripGlossExamples, splitGlossLines } from '../../lib/wordnetParse'
+import { stripGlossExamples } from '../../lib/wordnetParse'
 import type { RelatedWords, RelatedGroup } from '../../providers/wordnet'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
 import { isWordCollected } from '../../lib/collected'
-import { clampMenuPosition } from '../../lib/menuPosition'
+import Tooltip from '../ui/Tooltip'
 
 const LABELS: Record<keyof RelatedWords['groups'], string> = {
   synonyms: '同义词', hypernyms: '上位词', hyponyms: '下位词',
@@ -15,6 +14,23 @@ const LABELS: Record<keyof RelatedWords['groups'], string> = {
   similarTo: '相似词（相近但不同）', alsoSee: '参见', derivatives: '词源相关词',
   entailments: '蕴含', causes: '致使', pertainyms: '派生来源',
   attributes: '属性', verbGroups: '动词组',
+}
+
+// 各组关系的 WordNet 官方语义说明（spec §3；全部 13 组都加 ℹ）
+const RELATION_DESCRIPTIONS: Record<keyof RelatedWords['groups'], string> = {
+  synonyms: '同义词：与该词含义相同或近似的另一组词（WordNet Synset 集合成员），可互换查对释义',
+  hypernyms: '上位词：含义更宽泛的类别词（如「苹果」的上位词是「水果」）',
+  hyponyms: '下位词：含义更具体的下义词（如「水果」的下位词含「苹果」「香蕉」）',
+  antonyms: '反义词：含义相对或相反的词',
+  partWhole: '整体 · 部分：整体与部分的组成关系（整体词 ↔ 组成部分词）',
+  similarTo: '相似词（相近但不同）：形容词之间相似却不完全同义的近邻',
+  alsoSee: '参见：需对照查看的关联词',
+  derivatives: '词源相关形式：源自 WordNet 的形态变化词，含同义集合成员，并非全部构词派生',
+  entailments: '蕴含：由该动作可必然推断出的动作（如「打鼾」蕴含「睡觉」）',
+  causes: '致使：因果对应关系（X 引起 Y 发生）',
+  pertainyms: '派生来源：形容/副词所派生的名词来源',
+  attributes: '属性：名词属性与描述该属性的形容词之间的对应',
+  verbGroups: '动词组：含义相近、可互换而不改变句子真值的动词分组',
 }
 
 // 词源相关词组的小字说明（v0.4.3 §6：WordNet 词源相关形式 ≠ 构词派生）
@@ -46,8 +62,6 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
   const [error, setError] = useState(false)
   // 每组是否展开显示全部（默认折叠，只显示前 9 个）；按组标签 key
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  // 相似词释义悬浮小窗：{x,y} 为鼠标位置，lines 为全 gloss 按分号拆行
-  const [glossPop, setGlossPop] = useState<{ x: number; y: number; lines: string[] } | null>(null)
   const showDict = useViewStore(s => s.showDict)
   const collectedWords = useWordStore(s => s.words)
 
@@ -56,7 +70,6 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
     let cancelled = false
     setData(null)
     setError(false)
-    setGlossPop(null)
     relatedWords(word)
       .then(d => {
         if (cancelled) return
@@ -70,13 +83,6 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
     return () => { cancelled = true }
   }, [word, onCountChange])
 
-  // 滚动时收起释义小窗（避免 fixed 定位的浮层错位）
-  useEffect(() => {
-    const onScroll = () => setGlossPop(null)
-    window.addEventListener('scroll', onScroll, true)
-    return () => window.removeEventListener('scroll', onScroll, true)
-  }, [])
-
   if (error) {
     return <div style={{ fontSize: 13, color: 'var(--color-danger)', padding: '20px 0' }}>语义网络数据加载失败，请先构建本地词典库（npm run build:dictionaries）</div>
   }
@@ -86,42 +92,41 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
   }
 
   // 胶囊保留整组视觉，但每个单词是独立可点的 token（v0.4.3 §7：单击该词跳转到对应词面板）
-  // withGlossTitle=false：相似词组走 styled popover，去掉原生 title 悬浮
-  const chip = (g: RelatedGroup, withGlossTitle = true) => (
-    <span
-      key={g.words.join('·')}
-      title={withGlossTitle ? g.definition : undefined}
-      style={{
+  // 外层 Tooltip 承载组 gloss，单词按钮 Tooltip 承载「查询…」提示
+  const chip = (g: RelatedGroup) => (
+    <Tooltip key={g.words.join('·')} content={g.definition} width={340}>
+      <span style={{
         display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', maxWidth: '100%',
         fontSize: 13, padding: '3px 11px', borderRadius: 'var(--radius-full)',
         border: '1px solid var(--color-border-strong)', background: 'var(--color-surface)',
         color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
-      }}
-    >
-      {g.words.map((w, i) => (
-        <span key={w} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          {i > 0 && <span style={{ color: 'var(--color-text-tertiary)', opacity: 0.7 }}>·</span>}
-          <button
-            type="button"
-            title={`查询「${w}」`}
-            onClick={() => showDict(w)}
-            style={{
-              border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
-              fontSize: 13, color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
-              borderRadius: 'var(--radius-sm)',
-              transition: 'color var(--duration-fast) var(--ease-smooth), text-decoration-color var(--duration-fast) var(--ease-smooth)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-brand)'; e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.textUnderlineOffset = '2px' }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.textDecoration = 'none' }}
-          >
-            {w}
-          </button>
-          {isWordCollected(w, collectedWords) && (
-            <span aria-label="已收录" title="已收录" style={{ color: 'var(--color-brand)', fontSize: 10, fontWeight: 700 }}>✓</span>
-          )}
-        </span>
-      ))}
-    </span>
+      }}>
+        {g.words.map((w, i) => (
+          <span key={w} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {i > 0 && <span style={{ color: 'var(--color-text-tertiary)', opacity: 0.7 }}>·</span>}
+            <Tooltip content={`查询「${w}」`} width={220}>
+              <button
+                type="button"
+                onClick={() => showDict(w)}
+                style={{
+                  border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+                  fontSize: 13, color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
+                  borderRadius: 'var(--radius-sm)',
+                  transition: 'color var(--duration-fast) var(--ease-smooth), text-decoration-color var(--duration-fast) var(--ease-smooth)',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-brand)'; e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.textUnderlineOffset = '2px' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.textDecoration = 'none' }}
+              >
+                {w}
+              </button>
+            </Tooltip>
+            {isWordCollected(w, collectedWords) && (
+              <span aria-label="已收录" title="已收录" style={{ color: 'var(--color-brand)', fontSize: 10, fontWeight: 700 }}>✓</span>
+            )}
+          </span>
+        ))}
+      </span>
+    </Tooltip>
   )
 
   const entries = Object.entries(data.groups) as Array<[keyof RelatedWords['groups'], RelatedGroup[]]>
@@ -150,8 +155,12 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
         const shown = isExpanded ? items : items.slice(0, 9)
         return (
           <div key={key} style={{ marginBottom: 13 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6 }}>
-              {LABELS[key]} <span style={{ fontWeight: 400, color: 'var(--color-text-tertiary)', marginLeft: 4 }}>{items.length}</span>
+            <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+              {LABELS[key]}
+              <span style={{ fontWeight: 400, color: 'var(--color-text-tertiary)', marginLeft: 2 }}>{items.length}</span>
+              <Tooltip content={RELATION_DESCRIPTIONS[key]} width={300}>
+                <span role="img" aria-label="说明" style={{ fontSize: 11, color: 'var(--color-text-tertiary)', cursor: 'help' }}>ℹ</span>
+              </Tooltip>
             </div>
             <div style={
               key === 'similarTo'
@@ -163,10 +172,8 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
                   <div
                     key={g.words.join('·')}
                     style={{ maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}
-                    onMouseEnter={e => { if (g.definition) setGlossPop({ x: e.clientX, y: e.clientY, lines: splitGlossLines(g.definition) }) }}
-                    onMouseLeave={() => setGlossPop(null)}
                   >
-                    {chip(g, false)}
+                    {chip(g)}
                     {g.definition && (
                       <span style={CAPTION_STYLE}>{stripGlossExamples(g.definition)}</span>
                     )}
@@ -195,22 +202,6 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
       <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', borderTop: '1px dashed var(--color-border)', marginTop: 12, paddingTop: 9 }}>
         点胶囊 → <b style={{ color: 'var(--color-brand)' }}>重新查询该词</b>，网络随词刷新
       </div>
-
-      {glossPop && (() => {
-        const pos = clampMenuPosition(glossPop.x + 14, glossPop.y + 16, 340, glossPop.lines.length * 20 + 24)
-        return createPortal(
-          <div style={{
-            position: 'fixed', left: pos.x, top: pos.y, zIndex: 'var(--z-dropdown)',
-            maxWidth: 340, padding: '10px 12px',
-            background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-            borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-overlay)',
-            fontSize: 12, lineHeight: 1.6, color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
-          }}>
-            {glossPop.lines.map((line, i) => <div key={i}>{line}</div>)}
-          </div>,
-          document.body
-        )
-      })()}
     </div>
   )
 }
