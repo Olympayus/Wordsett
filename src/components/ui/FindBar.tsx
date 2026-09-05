@@ -1,6 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { countMatches } from '../../lib/findText'
 
 // 统一页内查找（spec §4b）：挂 AppShell，工作台与词典详情共用；CSS Custom Highlight API 高亮
 const HIGHLIGHT_NAME = 'wordsett-find'
@@ -22,15 +21,13 @@ export default function FindBar() {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [index, setIndex] = useState(0)
+  const [matches, setMatches] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { current = new FindBarController(() => { setQuery(q => q || ''); setOpen(true); requestAnimationFrame(() => inputRef.current?.focus()) }); return () => { current = null } }, [])
 
-  const matches = useMemo(() => countMatches(document.body.innerText, query), [query])
-  const total = Math.max(matches, 0)
-
   useEffect(() => {
-    // 命中节点高亮 + 索引导航
-    if (!open || !query.trim()) { CSS.highlights?.delete(HIGHLIGHT_NAME); return }
+    // 命中节点高亮 + 索引导航（计数器与高亮同源：均遍历 <main> 的文本节点）
+    if (!open || !query.trim()) { CSS.highlights?.delete(HIGHLIGHT_NAME); setMatches(0); return }
     const hl = new Highlight()
     const walker = document.createTreeWalker(document.querySelector('main') ?? document.body, NodeFilter.SHOW_TEXT)
     const ranges: Range[] = []
@@ -49,6 +46,7 @@ export default function FindBar() {
         i = lower.indexOf(q, i + q.length)
       }
     }
+    setMatches(n)
     ranges.forEach(r => hl.add(r))
     CSS.highlights?.set(HIGHLIGHT_NAME, hl)
     if (target) { const el = target.startContainer.parentElement; el?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }
@@ -65,8 +63,8 @@ export default function FindBar() {
         onKeyDown={e => { if (e.key === 'Escape') setOpen(false) }}
         placeholder="在页面内查找…" autoFocus
         style={{ width: 200, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--color-text-primary)' }} />
-      <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{Math.min(index + 1, total)}/{total}</span>
-      <button type="button" onClick={() => setIndex(i => Math.min(i + 1, total - 1))} style={btnStyle}>↓</button>
+      <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{Math.min(index + 1, matches)}/{matches}</span>
+      <button type="button" onClick={() => matches > 0 && setIndex(i => Math.min(i + 1, matches - 1))} style={btnStyle}>↓</button>
       <button type="button" onClick={() => setIndex(i => Math.max(i - 1, 0))} style={btnStyle}>↑</button>
       <button type="button" onClick={() => setOpen(false)} style={btnStyle}>×</button>
     </div>,
