@@ -73,7 +73,7 @@ export default function TopBar() {
         if (isChineseQuery(query)) {
           const hits = await searchChinese(query)
           words = hits.map(h => h.word)
-          glosses = Object.fromEntries(hits.map(h => [h.word, h.translation]))
+          glosses = Object.fromEntries(hits.map(h => [h.word, h.translation] as const))
         } else {
           words = await searchLemmas(query)
           glosses = {}

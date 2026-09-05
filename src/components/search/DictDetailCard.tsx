@@ -294,6 +294,8 @@ export default function DictDetailCard({
     })
   }
 
+  const totalDefs = countAllDefinitions(merged)
+
   return (
     <div className="rounded-lg border overflow-hidden"
       style={{
@@ -311,9 +313,9 @@ export default function DictDetailCard({
           {sourceLabel[0]}
         </span>
         <span className="text-sm font-semibold" style={{ letterSpacing: '0.02em' }}>{sourceLabel}</span>
-        {(() => { const t = countAllDefinitions(merged); return t.cn + t.en })() > 0 && (
+        {totalDefs.cn + totalDefs.en > 0 && (
           <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-surface-sunken)', padding: '1px 8px', borderRadius: 'var(--radius-full)' }}>
-            共 <b style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{countAllDefinitions(merged).cn + countAllDefinitions(merged).en}</b> 条释义
+            共 <b style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{totalDefs.cn + totalDefs.en}</b> 条释义
           </span>
         )}
         {containerKeys.size > 0 && (

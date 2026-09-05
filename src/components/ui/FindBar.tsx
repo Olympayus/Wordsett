@@ -2,13 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
 // 统一页内查找（spec §4b）：挂 AppShell，工作台与词典详情共用；CSS Custom Highlight API 高亮
+// CSS Custom Highlight API 由 lib.dom（TS ≥6）/ WebView2 提供，无需 shim 文件
 const HIGHLIGHT_NAME = 'wordsett-find'
 let current: FindBarController | null = null   // 单实例
 
 export function registerFindKeyHandler() {
-  window.addEventListener('keydown', e => {
-    if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); current?.open() }
-  })
+  const handler = (e: KeyboardEvent) => { if (e.ctrlKey && (e.key === 'f' || e.key === 'F')) { e.preventDefault(); current?.open() } }
+  window.addEventListener('keydown', handler)
+  return () => window.removeEventListener('keydown', handler)
 }
 
 class FindBarController {
@@ -28,6 +29,7 @@ export default function FindBar() {
   useEffect(() => {
     // 命中节点高亮 + 索引导航（计数器与高亮同源：均遍历 <main> 的文本节点）
     if (!open || !query.trim()) { CSS.highlights?.delete(HIGHLIGHT_NAME); setMatches(0); return }
+    if (typeof Highlight === 'undefined' || !CSS.highlights) { setMatches(0); return }
     const hl = new Highlight()
     const walker = document.createTreeWalker(document.querySelector('main') ?? document.body, NodeFilter.SHOW_TEXT)
     const ranges: Range[] = []
