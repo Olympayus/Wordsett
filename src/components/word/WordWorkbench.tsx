@@ -35,7 +35,7 @@ const FIELD_STYLES: Record<FieldState, CSSProperties> = {
 }
 
 // 容器字段（#5 键判定，取代「有子级且无值」推断：刚建的空容器立即按容器渲染）
-const CONTAINER_FIELD_KEYS = ['part_of_speech', 'supplementary', 'phrase', 'exchange', 'derivatives', 'example_sentence', 'synonyms', 'word_root']
+const CONTAINER_FIELD_KEYS = ['part_of_speech', 'supplementary', 'phrase', 'exchange', 'derivatives', 'example_sentence', 'synonyms', 'word_root', 'synonym_discrimination', 'synonym_discrimination_group']
 // 项类型字段（#4）：标签列不渲染字段名，值占满整行
 const ITEM_FIELD_KEYS = ['exchange_item', 'supplementary_item', 'phrase_item', 'derivatives_item', 'synonym_item', 'example', 'word_root_item', 'synonym_discrimination_item']
 
@@ -930,8 +930,9 @@ export default function WordWorkbench() {
     setMenuOpenId(null)
     const fv = await addFieldValue(childDef.id, parentFv.id)
     if (!fv) return
-    // 子容器（如 definition 下的 example_sentence/synonyms）无值格可编辑：不进入幻影编辑态
-    if (CONTAINER_FIELD_KEYS.includes(childDef.key)) return
+    // 子容器（如 definition 下的 example_sentence/synonyms）无值格可编辑：不进入幻影编辑态。
+    // 近义词辨析组是带描述值（组小标题）的容器：加入后直接填描述
+    if (CONTAINER_FIELD_KEYS.includes(childDef.key) && childDef.key !== 'synonym_discrimination_group') return
     setEditingId(fv.id)
     setEditValue('')
     setEntryValue('')

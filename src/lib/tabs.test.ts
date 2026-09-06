@@ -40,7 +40,7 @@ describe('tabs 派生', () => {
     expect(addableLeafKeys('phrase')).toEqual(['phrase_item'])
     expect(addableLeafKeys('exchange')).toEqual(['exchange_item'])
     expect(addableLeafKeys('derivatives')).toEqual(['derivatives_item'])
-    expect(addableLeafKeys('discrimination')).toEqual(['synonym_discrimination_item'])
+    expect(addableLeafKeys('discrimination')).toEqual(['synonym_discrimination_group'])
   })
 
   it('groupRootsByTab 正确分组并丢弃未知根字段', () => {
@@ -53,9 +53,9 @@ describe('tabs 派生', () => {
     expect(g.discrimination).toHaveLength(0)
   })
 
-  it('discrimination 标签页：位于 TAB_ORDER 末尾，label=近义词辨析，item=近义词辨析项', () => {
+  it('discrimination 标签页：位于 TAB_ORDER 末尾，label=近义词辨析，直接项=近义词辨析组', () => {
     expect(TAB_ORDER[TAB_ORDER.length - 1]).toBe('discrimination')
     expect(TAB_GROUPS.discrimination.label).toBe('近义词辨析')
-    expect(TAB_ITEM_KEYS.discrimination).toBe('synonym_discrimination_item')
+    expect(TAB_ITEM_KEYS.discrimination).toBe('synonym_discrimination_group')
   })
 })

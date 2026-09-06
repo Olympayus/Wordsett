@@ -39,12 +39,13 @@ export function groupRootsByTab(roots: FieldValue[], keyOf: (fv: FieldValue) => 
   return groups
 }
 
-// 单独标签页的直接内容项 key（主标签页的"内容"就是根容器本身）
+// 单独标签页的直接内容项 key（主标签页的"内容"就是根容器本身）；
+// 近义词辨析根的直属内容是「组」（组下挂辨析项，组小标题=描述），故 tab 底部可直接添加组
 export const TAB_ITEM_KEYS: Record<'phrase' | 'exchange' | 'derivatives' | 'discrimination', string> = {
   phrase:         'phrase_item',
   exchange:       'exchange_item',
   derivatives:    'derivatives_item',
-  discrimination: 'synonym_discrimination_item',
+  discrimination: 'synonym_discrimination_group',
 }
 
 // 标签页「添加」直接添加的目标字段 key：主标签页=根容器（词性/补充）；单独标签页=项
