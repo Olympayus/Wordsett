@@ -238,7 +238,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
             <div style={{ position: 'relative' }}>
               <button
                 type="button"
-                onClick={() => onToggleChildMenu(fv.id)}
+                onClick={() => childDefs.length === 1 ? onAddChild(fv, childDefs[0]) : onToggleChildMenu(fv.id)}
                 style={menuItemStyle}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-brand)' }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
@@ -273,12 +273,13 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
     </>
   )
 
-  // 「+ 添加子词条/释义」控件：按钮 + 选项浮层（编者模式容器可用）。多行容器换行显示、单行容器内联于行尾（v0.4.3 §2）
+  // 「+ 添加子词条/释义」控件：按钮 + 选项浮层（编者模式容器可用）。多行容器换行显示、单行容器内联于行尾（v0.4.3 §2）。
+  // 仅一种可加子词条时（如 近义词辨析组→辨析项）直接添加，不再弹选项（spec：唯一子类型免两步）。
   const addChildControl = (
     <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
       <button
         type="button"
-        onClick={() => onToggleChildMenu(fv.id)}
+        onClick={() => childDefs.length === 1 ? onAddChild(fv, childDefs[0]) : onToggleChildMenu(fv.id)}
         style={{
           display: 'inline-flex',
           alignItems: 'center',
