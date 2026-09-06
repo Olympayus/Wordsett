@@ -1,11 +1,11 @@
 {
-  "version": "0.5.0",
-  "notes": "v0.5 起应用更名为 Wordsett，应用数据目录随标识符变更（com.lexiloom.app →com.wordsett.app）。如需保留已收录词库，请升级后手动复制：- Windows：%APPDATA%\\com.lexiloom.app\\lexiloom.db → %APPDATA%\\com.wordsett.app\\wordsett.db- macOS：~/Library/Application Support/com.lexiloom.app/lexiloom.db → …/com.wordsett.app/wordsett.db复制后重启应用。设置项将恢复默认。",
-  "pub_date": "2026-09-01T13:28:24.747Z",
+  "version": "0.5.1",
+  "notes": "v0.5.1 更新： 新增 · 中文搜索建议下拉补显释义（命中行，含高亮） · 语义网络各组 ℹ 官方说明 释义误拆（如 yuppy）\n· 中文搜索排序（完整命中优先于括号注命中）\n· wordnet 释义剥离引用例句\n· 词根 hover不再引发页面跳动，编辑体验与音标统一\n· 近义词辨析项编辑框与词形变化一致",
+  "pub_date": "2026-09-06T07:42:53.256Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZGNLYURCZll2VmRLSnk3UXNlNmZ6RXJtbDRyTnV6Nk5LK2hFdldxS3RyakhqQTRBelFXbytCNm5CZWtUM3JaSVFxUWhUazErWGVwaURtMmNXTE5YcmdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4MjY5MTY4CWZpbGU6V29yZHNldHRfMC41LjBfeDY0LXNldHVwLmV4ZQo4cWVMaS9SY0tCejNZamJxcFloQk1KSDI4YkhtN3BRM3R3U0FpbEJPUEVvdnJTWEFOTUo5ODkxNEtNdzVaTkdSdDlrQ2twdTFuSGdZZFhrbnhOTDJBUT09Cg==",
-      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.5.0/Wordsett_0.5.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZGJIY2FZYjkvWEpra0dZalJ0QUVPQ0ZoaWI0MGlWdTlpSkVpZ24raUxvcjVHZ1lib0tlanNXelkxU3V3R012SWtBc2ZiYzc4d2ZTbzRSVFZXakx0SUFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjgwNTU3CWZpbGU6V29yZHNldHRfMC41LjFfeDY0LXNldHVwLmV4ZQp5QjR5SnY4Vk14bWFuU0JkcXRUNEFNMEFyMGxFQ2I1Z1Q5akVZOHZYVHdOSGlqNmdYQVZHVzVzOXpITnlwaWdKTlZOUS94RWFpZ3lISUxBeHZYSGdDZz09Cg==",
+      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.5.1/Wordsett_0.5.1_x64-setup.exe"
     }
   }
 }
