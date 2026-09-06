@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { isChineseQuery, rankChineseHits, rankChineseResults } from './chineseSearch'
+import { isChineseQuery, rankChineseHits, rankChineseResults, suggestionGloss } from './chineseSearch'
 
 describe('isChineseQuery', () => {
   it('detects CJK characters', () => {
@@ -120,5 +120,31 @@ describe('rankChineseHits', () => {
       { word: 'apple', translation: '苹果；苹果树' },
       { word: 'apply', translation: '苹果应用' },
     ])
+  })
+})
+
+describe('suggestionGloss', () => {
+  it('字面 \\n 截断：只显示命中查询的那一行', () => {
+    expect(suggestionGloss('n. 恐怖，害怕，担心\\nv. 害怕，恐惧，为···担心，敬畏', '恐怖')).toBe('n. 恐怖，害怕，担心')
+  })
+  it('命中在第二行时取第二行', () => {
+    expect(suggestionGloss('n. 其他释义\\nv. 恐怖，害怕', '恐怖')).toBe('v. 恐怖，害怕')
+  })
+  it('无命中行时取首行', () => {
+    expect(suggestionGloss('n. 甲\\nv. 乙', '丙')).toBe('n. 甲')
+  })
+  it('原文不含\\n分隔符时原样返回', () => {
+    expect(suggestionGloss('苹果；苹果树', '苹果')).toBe('苹果；苹果树')
+  })
+})
+
+describe('rankChineseHits 括号内命中', () => {
+  it('括号注内的命中不算独立义项：fear 排在高词频的 oh 之前', () => {
+    const rows = [
+      { word: 'oh', translation: '(表示惊讶、恐怖、赞叹)哦', collins: 3, frq: 20 },
+      { word: 'fear', translation: 'n. 恐怖，害怕，担心\\nv. 害怕，恐惧' },
+    ]
+    expect(rankChineseResults(rows, '恐怖')).toEqual(['fear', 'oh'])
+    expect(rankChineseHits(rows, '恐怖')[0].translation).toBe('n. 恐怖，害怕，担心')
   })
 })

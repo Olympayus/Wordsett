@@ -37,7 +37,8 @@ export function buildWordnetFields(word: string, synsets: SynsetInput[]): Dictio
   }
 
   for (const synset of synsets) {
-    const defText = (synset.definition ?? '').trim()
+    // definition 列内嵌的引号例句段剥离（例句只由 examples 列承载为 example_sentence）
+    const defText = stripGlossExamples((synset.definition ?? '').trim())
     const wordsList = synset.words
       ? synset.words.split('\n').map(w => w.trim()).filter(w => w && w.toLowerCase() !== word.toLowerCase())
       : []

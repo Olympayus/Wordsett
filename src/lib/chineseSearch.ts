@@ -26,7 +26,29 @@ function isStandaloneGloss(translation: string, idx: number, qLen: number): bool
   return after === undefined || GLOSS_TERMINATORS.has(after)
 }
 
-// 中文搜索命中行：单词 + 该词首个命中行的中文释义（供下拉补显）
+// 括号层级（全角（）/ 半角()）：命中处于括号注内（如「(表示惊讶、恐怖、赞叹)哦」）不算独立义项
+function parenDepthAt(text: string, idx: number): number {
+  let depth = 0
+  for (let i = 0; i < idx; i++) {
+    const ch = text[i]
+    if (ch === '（' || ch === '(') depth++
+    else if (ch === '）' || ch === ')') depth = Math.max(0, depth - 1)
+  }
+  return depth
+}
+
+// ecdict translation 行分隔符：字面反斜杠 n（字符码 92,110），非真实换行
+const GLOSS_SEP = String.fromCharCode(92, 110)
+
+// 下拉补显释义：只取命中查询的那一行（字面 \n 截断），无命中行时取首行，供建议下拉展示
+export function suggestionGloss(translation: string, query: string): string {
+  const q = query.trim().toLowerCase()
+  const lines = translation.split(GLOSS_SEP).map(s => s.trim()).filter(Boolean)
+  if (lines.length === 0) return ''
+  return lines.find(l => l.toLowerCase().includes(q)) ?? lines[0]
+}
+
+// 中文搜索命中行：单词 + 该词命中行的中文释义（供下拉补显）
 export interface ChineseSearchHit { word: string; translation: string }
 
 export function rankChineseHits(rows: ChineseSearchRow[], query: string): ChineseSearchHit[] {
@@ -41,7 +63,7 @@ export function rankChineseHits(rows: ChineseSearchRow[], query: string): Chines
         word: r.word,
         idx,
         exact: r.translation.trim() === q,
-        standalone: isStandaloneGloss(r.translation, idx, q.length),
+        standalone: isStandaloneGloss(r.translation, idx, q.length) && parenDepthAt(r.translation, idx) === 0,
         freq: hasFrequency(r),
         frq: frqKey(r),
         collins: r.collins ?? 0,
@@ -64,7 +86,7 @@ export function rankChineseHits(rows: ChineseSearchRow[], query: string): Chines
       return true
     })
     .slice(0, 20)
-    .map(s => ({ word: s.word, translation: s.translation }))
+    .map(s => ({ word: s.word, translation: suggestionGloss(s.translation, q) }))
 }
 
 export function rankChineseResults(rows: ChineseSearchRow[], query: string): string[] {

@@ -7,6 +7,7 @@ import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
 import { isWordCollected } from '../../lib/collected'
 import Tooltip from '../ui/Tooltip'
+import Icon from '../icons'
 
 const LABELS: Record<keyof RelatedWords['groups'], string> = {
   synonyms: '同义词', hypernyms: '上位词', hyponyms: '下位词',
@@ -159,7 +160,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
               {LABELS[key]}
               <span style={{ fontWeight: 400, color: 'var(--color-text-tertiary)', marginLeft: 2 }}>{items.length}</span>
               <Tooltip content={RELATION_DESCRIPTIONS[key]} width={300}>
-                <span role="img" aria-label="说明" style={{ fontSize: 11, color: 'var(--color-text-tertiary)', cursor: 'help' }}>ℹ</span>
+                <span role="img" aria-label="说明" style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'help' }}><Icon name="info" size={13} /></span>
               </Tooltip>
             </div>
             <div style={

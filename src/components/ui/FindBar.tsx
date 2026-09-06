@@ -57,14 +57,15 @@ export default function FindBar() {
   if (!open) return null
   return createPortal(
     <div style={{
-      position: 'fixed', top: 8, right: 8, zIndex: 5000, display: 'flex', alignItems: 'center', gap: 8,
+      // 置于内容区右上角（header 高 48，避开右上角窗口控制），右对齐贴合内容区与右边距
+      position: 'fixed', top: 56, right: 12, zIndex: 5000, display: 'flex', alignItems: 'center', gap: 8,
       padding: '6px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)',
       borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-overlay)',
     }}>
       <input ref={inputRef} value={query} onChange={e => { setQuery(e.target.value); setIndex(0) }}
         onKeyDown={e => { if (e.key === 'Escape') setOpen(false) }}
         placeholder="在页面内查找…" autoFocus
-        style={{ width: 200, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--color-text-primary)' }} />
+        style={{ width: 150, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--color-text-primary)' }} />
       <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{Math.min(index + 1, matches)}/{matches}</span>
       <button type="button" onClick={() => matches > 0 && setIndex(i => Math.min(i + 1, matches - 1))} style={btnStyle}>↓</button>
       <button type="button" onClick={() => setIndex(i => Math.max(i - 1, 0))} style={btnStyle}>↑</button>

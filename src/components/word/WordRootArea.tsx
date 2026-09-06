@@ -43,8 +43,10 @@ export default function WordRootArea(props: WordRootAreaProps) {
           <button type="button" title="保存" onClick={onSave} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-brand)' }}>✓</button>
           <button type="button" title="取消" onClick={onCancelEdit} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-tertiary)' }}>✕</button>
         </>}
-        {!isEditing && editorMode && itemHover === fv.id && (
-          <span style={{ display: 'inline-flex', gap: 2 }}>
+        {!isEditing && editorMode && (
+          // 常驻占位 + opacity 显隐，避免 hover 时按钮进出 DOM 引起行重排/页面跳动（spec §5）
+          <span style={{ display: 'inline-flex', gap: 2, transition: 'opacity 150ms var(--ease-smooth)',
+            opacity: itemHover === fv.id ? 1 : 0, pointerEvents: itemHover === fv.id ? 'auto' : 'none' }}>
             <button type="button" title="编辑" onClick={() => onStartEdit(fv)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-tertiary)' }}><Icon name="edit" size={12} /></button>
             <button type="button" title="删除" onClick={() => onDelete(fv)} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-tertiary)' }}><Icon name="trash" size={12} /></button>
           </span>
@@ -64,12 +66,10 @@ export default function WordRootArea(props: WordRootAreaProps) {
             (container.children ?? []).map(c => item(c))
           )}
         </span>
-        {rowHover && (
-          <button type="button" onClick={onAdd}
-            style={{ fontSize: 13, color: 'var(--color-text-tertiary)', cursor: 'pointer', border: '1px dashed var(--color-border-strong)', borderRadius: 9999, padding: '1px 8px', background: 'transparent', fontFamily: 'var(--font-sans)' }}>
-            + 添加词根
-          </button>
-        )}
+        <button type="button" onClick={onAdd}
+          style={{ fontSize: 13, color: 'var(--color-text-tertiary)', cursor: 'pointer', border: '1px dashed var(--color-border-strong)', borderRadius: 9999, padding: '1px 8px', background: 'transparent', fontFamily: 'var(--font-sans)', transition: 'opacity 150ms var(--ease-smooth)', opacity: rowHover ? 1 : 0, pointerEvents: rowHover ? 'auto' : 'none' }}>
+          + 添加词根
+        </button>
       </div>
     </div>
   )

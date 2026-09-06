@@ -51,6 +51,15 @@ describe('buildWordnetFields', () => {
     const syn = pos.children!.find(c => c.key === 'synonyms')!
     expect(syn.children!.map(s => s.value)).toEqual(['alt'])
   })
+  it('definition 内嵌引号例句时剥离，例句由 examples 列承载为 example_sentence', () => {
+    const fields = buildWordnetFields('fear', [
+      { pos: 'v', definition: 'be afraid or scared of; be frightened of; "I fear the winters in Moscow"; "We should not fear the Communists!"', examples: 'I fear the winters in Moscow\nWe should not fear the Communists!' },
+    ])
+    const def = fields[0].children!.find(c => c.key === 'english_definition')!
+    expect(def.value).toBe('be afraid or scared of; be frightened of')
+    const ex = def.children!.find(c => c.key === 'example_sentence')!
+    expect(ex.children!.map(e => e.value)).toEqual(['I fear the winters in Moscow', 'We should not fear the Communists!'])
+  })
 })
 
 describe('stripGlossExamples', () => {
