@@ -16,6 +16,7 @@ import { hasFieldChanges } from '../../lib/fieldChanges'
 import { shouldFlattenChildren } from '../../lib/dictPlan'
 import { Button } from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
+import AutoSizeTextarea from '../ui/AutoSizeTextarea'
 import Icon from '../icons'
 import CategoryCapsule from './CategoryCapsule'
 import PhoneticArea from './PhoneticArea'
@@ -525,8 +526,8 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
             {isEditing ? (
               <div className="space-y-2">
                 {def.fieldType === 'multiline' ? (
-                  <textarea
-                    className="w-full px-3 py-2 rounded text-sm resize-none min-h-[60px]"
+                  <AutoSizeTextarea
+                    className="px-3 py-2 rounded text-sm resize-none block"
                     style={{
                       border: '1px solid var(--color-brand)',
                       color: 'var(--color-text-primary)',
