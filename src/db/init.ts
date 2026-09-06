@@ -20,4 +20,6 @@ export async function ensureSchema(db: DbHandle): Promise<void> {
   // v0.4.3 §6：派生词 → 词源相关词 字段名迁移（幂等；新库种子已是新名，此处兼容老库）
   await db.execute("UPDATE field_definitions SET name = '词源相关词' WHERE key = 'derivatives'")
   await db.execute("UPDATE field_definitions SET name = '词源相关词项' WHERE key = 'derivatives_item'")
+  // 近义词辨析项为单行「word: 辨析」内容，编辑框用 text（幂等，兼容已建库的 multiline 旧值）
+  await db.execute("UPDATE field_definitions SET field_type = 'text' WHERE key = 'synonym_discrimination_item'")
 }
