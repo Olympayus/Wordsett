@@ -84,12 +84,13 @@ it('word_root 允许直接子级 word_root_item', () => {
 })
 
 it('synonym_discrimination 是根级字段位次 7，允许直接子级 synonym_discrimination_item', () => {
-  expect(ALLOWED_CHILD_KEYS.synonym_discrimination).toEqual(['synonym_discrimination_item'])
+  expect(ALLOWED_CHILD_KEYS.synonym_discrimination).toEqual(['synonym_discrimination_item', 'synonym_discrimination_group'])
+  expect(ALLOWED_CHILD_KEYS.synonym_discrimination_group).toEqual(['synonym_discrimination_item'])
   expect(templateRank(null, 'synonym_discrimination')).toBe(7)
 })
 
 it('word_root 内建字段已注册（BUILTIN_FIELDS 计数 21）', () => {
   expect(BUILTIN_FIELDS.word_root).toEqual({ name: '词根', fieldType: 'text', displayOrder: 18 })
   expect(BUILTIN_FIELDS.word_root_item).toEqual({ name: '词根项', fieldType: 'text', displayOrder: 19 })
-  expect(Object.keys(BUILTIN_FIELDS)).toHaveLength(21)
+  expect(Object.keys(BUILTIN_FIELDS)).toHaveLength(22)
 })

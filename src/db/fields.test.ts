@@ -18,10 +18,10 @@ beforeAll(async () => {
 })
 
 describe('db/fields', () => {
-  it('getFieldDefinitions 返回 21 个内置字段且按 display_order 排序', async () => {
+  it('getFieldDefinitions 返回 22 个内置字段且按 display_order 排序', async () => {
     const r = await fieldsDb.getFieldDefinitions()
     if (!r.ok) throw new Error('getFieldDefinitions failed')
-    expect(r.data.length).toBe(21)
+    expect(r.data.length).toBe(22)
     expect(r.data[0].key).toBe('chinese_definition')
   })
 

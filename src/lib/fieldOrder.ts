@@ -21,7 +21,8 @@ export const ALLOWED_CHILD_KEYS: Record<string, string[]> = {
   exchange: ['exchange_item'],
   derivatives: ['derivatives_item'],
   word_root: ['word_root_item'],
-  synonym_discrimination: ['synonym_discrimination_item'],
+  synonym_discrimination: ['synonym_discrimination_item', 'synonym_discrimination_group'],
+  synonym_discrimination_group: ['synonym_discrimination_item'],
   example_sentence: ['example'],
   synonyms: ['synonym_item'],
 }

@@ -16,11 +16,9 @@ import { hasFieldChanges } from '../../lib/fieldChanges'
 import { shouldFlattenChildren } from '../../lib/dictPlan'
 import { Button } from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
-import AutoSizeTextarea from '../ui/AutoSizeTextarea'
 import Icon from '../icons'
 import CategoryCapsule from './CategoryCapsule'
 import PhoneticArea from './PhoneticArea'
-import WordRootArea from './WordRootArea'
 import TabBar from './TabBar'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useUiStore } from '../../stores/uiStore'
@@ -165,6 +163,9 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
             if (isPosPane) {
               if (cKey === 'chinese_definition') { zhNum += 1; labelOverride = `中文释义(${zhNum})` }
               else if (cKey === 'english_definition') { enNum += 1; labelOverride = `英文释义(${enNum})` }
+            } else if (cKey === 'synonym_discrimination_group') {
+              // 近义词辨析组：小标题 = 组描述（spec：注释小字改小标题）
+              labelOverride = child.value
             }
             return (
               <div key={child.id} style={{ position: 'relative' }}>
@@ -526,8 +527,8 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
             {isEditing ? (
               <div className="space-y-2">
                 {def.fieldType === 'multiline' ? (
-                  <AutoSizeTextarea
-                    className="px-3 py-2 rounded text-sm resize-none block"
+                  <textarea
+                    className="w-full px-3 py-2 rounded text-sm resize-none min-h-[60px]"
                     style={{
                       border: '1px solid var(--color-brand)',
                       color: 'var(--color-text-primary)',
@@ -1241,8 +1242,11 @@ export default function WordWorkbench() {
               </button>
             </div>
           </div>
-          <WordRootArea
-            values={wordRootValues.filter(fv => fv.id === editingId || (fv.children?.length ?? 0) > 0 || editorMode)}
+          <PhoneticArea
+            values={wordRootValues
+              .filter(fv => fv.id === editingId || (fv.children?.length ?? 0) > 0 || editorMode)
+              .flatMap(fv => fv.children ?? [])
+              .filter(item => item.id === editingId || item.value.trim() || editorMode)}
             editorMode={editorMode}
             editingId={editingId}
             editValue={editValue}
@@ -1252,6 +1256,9 @@ export default function WordWorkbench() {
             onCancelEdit={() => setEditingId(null)}
             onAdd={handleAddWordRoot}
             onDelete={handleDeleteField}
+            label="词根"
+            addLabel="+ 添加词根"
+            plain
           />
         </div>
 

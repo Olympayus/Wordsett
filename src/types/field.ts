@@ -19,6 +19,7 @@ export type FieldKey =
   | 'word_root'
   | 'word_root_item'
   | 'synonym_discrimination'
+  | 'synonym_discrimination_group'
   | 'synonym_discrimination_item'
 
 export const BUILTIN_FIELDS: Record<FieldKey, {
@@ -46,7 +47,8 @@ export const BUILTIN_FIELDS: Record<FieldKey, {
   word_root:      { name: '词根',     fieldType: 'text', displayOrder: 18 },
   word_root_item: { name: '词根项',   fieldType: 'text', displayOrder: 19 },
   synonym_discrimination:      { name: '近义词辨析', fieldType: 'text',     displayOrder: 20 },
-  synonym_discrimination_item: { name: '近义词辨析项', fieldType: 'text', displayOrder: 21 },
+  synonym_discrimination_group: { name: '近义词辨析组', fieldType: 'text',     displayOrder: 21 },
+  synonym_discrimination_item: { name: '近义词辨析项', fieldType: 'text', displayOrder: 22 },
 }
 
 export interface FieldDefinition {

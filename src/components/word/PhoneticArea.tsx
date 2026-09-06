@@ -15,6 +15,10 @@ interface PhoneticAreaProps {
   onCancelEdit: () => void
   onAdd: () => void
   onDelete: (fv: FieldValue) => void
+  // 复用参数（词根等同类型复用本组件）：仅标题文案 / 添加文案 / 正文与音标字体不同
+  label?: string
+  addLabel?: string
+  plain?: boolean
 }
 
 const chipBase: CSSProperties = {
@@ -36,12 +40,15 @@ const addChip: CSSProperties = {
 }
 
 export default function PhoneticArea(props: PhoneticAreaProps) {
-  const { values, editorMode, editingId, editValue, onEditValueChange, onStartEdit, onSave, onCancelEdit, onAdd, onDelete } = props
+  const {
+    values, editorMode, editingId, editValue, onEditValueChange, onStartEdit, onSave, onCancelEdit, onAdd, onDelete,
+    label = '音标', addLabel = '+ 添加音标', plain = false,
+  } = props
   const [rowHover, setRowHover] = useState(false)
   const [chipHover, setChipHover] = useState<string | null>(null)
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
 
-  // 普通模式无音标 → 隐藏整区
+  // 普通模式无内容 → 隐藏整区
   if (!editorMode && values.length === 0) return null
 
   const reveal = (on: boolean): CSSProperties => ({
@@ -49,13 +56,18 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
     transition: 'opacity 150ms var(--ease-smooth)',
   })
 
+  // 音标 chip 用音标字体/格式化；词根等纯文本模式用正文字体（避免不同字号造成行内布局跳动）
+  const displayFont: CSSProperties = plain
+    ? { fontFamily: 'var(--font-sans)', fontSize: 13 }
+    : { fontFamily: 'var(--font-phonetic)', fontSize: 15 }
+
   return (
     <div
       style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
       onMouseEnter={() => setRowHover(true)}
       onMouseLeave={() => { setRowHover(false); setMenuOpenId(null); setChipHover(null) }}
     >
-      <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.5px', color: 'var(--color-text-secondary)' }}>音标</span>
+      <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.5px', color: 'var(--color-text-secondary)' }}>{label}</span>
 
       {values.map(fv => {
         const isEditing = editingId === fv.id
@@ -65,6 +77,7 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
             key={fv.id}
             style={{
               ...chipBase,
+              ...displayFont,
               background: isEditing ? 'var(--color-brand-soft)' : editorMode
                 ? (hovered ? '#DCE5F1' : '#E8EEF6')
                 : (rowHover ? '#F4F1EC' : 'transparent'),
@@ -79,7 +92,7 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
                 onChange={e => onEditValueChange(e.target.value)}
                 onKeyDown={e => { if (e.nativeEvent.isComposing) return; if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancelEdit() }}
                 style={{
-                  fontFamily: 'var(--font-phonetic)', fontSize: 15, color: 'var(--color-text-primary)',
+                  fontFamily: displayFont.fontFamily, fontSize: displayFont.fontSize, color: 'var(--color-text-primary)',
                   border: '1px solid var(--color-brand)', borderRadius: 4, padding: '1px 6px',
                   background: 'var(--color-surface)', outline: 'none', width: 140,
                 }}
@@ -93,7 +106,7 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
                 title={editorMode ? '点击编辑' : '双击编辑'}
                 style={{ cursor: 'pointer' }}
               >
-                {formatPhonetic(fv.value)}
+                {plain ? fv.value : formatPhonetic(fv.value)}
               </span>
             )}
 
@@ -144,9 +157,8 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
         )
       })}
 
-      {rowHover && (
-        <span style={{ ...addChip, ...reveal(editorMode || rowHover) }} onClick={onAdd}>+ 添加音标</span>
-      )}
+      {/* 常驻占位 + opacity 显隐：避免 hover 出入 DOM 引起行重排/页面跳动 */}
+      <span style={{ ...addChip, ...reveal(editorMode || rowHover) }} onClick={onAdd}>{addLabel}</span>
     </div>
   )
 }

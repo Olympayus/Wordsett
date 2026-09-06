@@ -207,7 +207,7 @@ export default function DictDetailCard({
           return (
             <div style={{ fontSize: '13px' }}>
               <span style={{ color: 'var(--color-text-secondary)' }}>{node.field.value.substring(0, colonIdx)}:</span>{' '}
-              <span style={{ fontFamily: 'var(--font-serif)' }}>{node.field.value.substring(colonIdx + 1).trim()}</span>
+              <span>{node.field.value.substring(colonIdx + 1).trim()}</span>
             </div>
           )
         }
@@ -242,7 +242,10 @@ export default function DictDetailCard({
       const isDefinition = shouldNumberField(node.field.key)
       const z = countZhEn(node)
       const collapsed = isContainer && collapsedKeys.has(node.key)
-      const label = fieldLabel(node.field.key) + (isDefinition ? `(${seenIndex(node.field.key) + 1})` : '')
+      // 近义词辨析组的"小标题"=组描述（spec：注释小字改小标题，组为父级、成员为叶子）
+      const label = node.field.key === 'synonym_discrimination_group'
+        ? node.field.value
+        : (fieldLabel(node.field.key) + (isDefinition ? `(${seenIndex(node.field.key) + 1})` : ''))
       // 复选框可访问名：词性用「词性 <tag>」，其余优先字段标签、其次字段值、最后字段 key
       const checkboxLabel = isPos ? `词性 ${node.field.value}` : (label || node.field.value || node.field.key)
 
@@ -281,11 +284,6 @@ export default function DictDetailCard({
           </div>
           {isContainer && !collapsed && (
             <div style={{ paddingLeft: 16 }}>
-              {node.field.key === 'synonym_discrimination' && node.field.value && (
-                <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', lineHeight: 1.5, marginBottom: 4 }}>
-                  {node.field.value}
-                </div>
-              )}
               {renderFlat(node.children)}
             </div>
           )}
