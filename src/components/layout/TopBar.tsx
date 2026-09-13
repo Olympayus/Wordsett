@@ -4,7 +4,6 @@ import SearchSuggestions from '../search/SearchSuggestions'
 import { searchLemmas, searchChinese } from '../../services/searchService'
 import { isChineseQuery } from '../../lib/chineseSearch'
 import { useViewStore } from '../../stores/viewStore'
-import { useSettingsStore } from '../../stores/settingsStore'
 import { useUpdaterStore } from '../../stores/updaterStore'
 import { useWordStore } from '../../stores/wordStore'
 import { useClickOutside } from '../../lib/useClickOutside'
@@ -26,7 +25,6 @@ export default function TopBar() {
   const [isComposing, setIsComposing] = useState(false)
   const showDict = useViewStore(s => s.showDict)
   const showWorkbench = useViewStore(s => s.showWorkbench)
-  const openSettings = useSettingsStore(s => s.openSettings)
   const hasUpdate = useUpdaterStore(s => s.hasUpdateBadge)
   const badgeVersion = useUpdaterStore(s => s.badgeVersion)
   const openDialog = useUpdaterStore(s => s.openDialog)
@@ -211,7 +209,7 @@ export default function TopBar() {
         </div>
       </div>
 
-      {/* 右：设置齿轮 + 窗口控制（最小化 / 最大化⇄还原 / 关闭） */}
+      {/* 右：更新徽标 + 窗口控制（最小化 / 最大化⇄还原 / 关闭） */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
         {/* 更新徽标：静默检查发现新版时点亮，点击打开更新弹窗 */}
         {hasUpdate && (
@@ -228,32 +226,6 @@ export default function TopBar() {
             有更新{badgeVersion ? ` v${badgeVersion}` : ''}
           </button>
         )}
-
-        {/* 设置按钮：齿轮 20px，点击打开设置面板（规格 §3、§7.1） */}
-        <button
-          type="button"
-          id="settings-trigger"
-          aria-label="设置"
-          title="设置"
-          onClick={openSettings}
-          style={{
-            width: '32px', height: '32px', flexShrink: 0, marginRight: '4px', outline: 'none',
-            border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-            color: 'var(--color-text-secondary)',
-            transition: 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.background = 'var(--color-surface-hover)'
-            e.currentTarget.style.color = 'var(--color-text-primary)'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.background = 'transparent'
-            e.currentTarget.style.color = 'var(--color-text-secondary)'
-          }}
-        >
-          <Icon name="settings" size={20} />
-        </button>
 
         <button type="button" title="最小化" aria-label="最小化" onClick={() => void appWindow.minimize()}
           style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}

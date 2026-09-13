@@ -14,20 +14,17 @@ export type TitleInfoKey =
   | 'showDomainCategory' | 'showDomainRegion' | 'showDomainUsage'
 
 export interface SettingsStore {
-  settingsOpen: boolean
   displayFields: Record<DisplayFieldKey, boolean>
   dictionaries: Record<DictionaryKey, boolean>
   sidebarMode: SidebarMode
   titleInfo: Record<TitleInfoKey, boolean>
-  openSettings: () => void
-  closeSettings: () => void
   setDisplayField: (key: DisplayFieldKey, on: boolean) => void
   setDictionary: (key: DictionaryKey, on: boolean) => void
   setSidebarMode: (mode: SidebarMode) => void
   setTitleInfo: (key: TitleInfoKey, on: boolean) => void
 }
 
-// 默认（规格 §7）：词典返回词条全开（含词源相关词）、本地词典全开、字母模式、抽屉关闭
+// 默认（规格 §7）：词典返回词条全开（含词源相关词）、本地词典全开、字母模式
 const DEFAULT_DISPLAY_FIELDS: Record<DisplayFieldKey, boolean> = {
   phonetic: true, part_of_speech: true, chinese_definition: true,
   english_definition: true, example: true, exchange: true, synonyms: true,
@@ -42,13 +39,10 @@ const DEFAULT_TITLE_INFO: Record<TitleInfoKey, boolean> = {
 export const useSettingsStore = create<SettingsStore>()(
   persist(
     (set) => ({
-      settingsOpen: false,
       displayFields: DEFAULT_DISPLAY_FIELDS,
       dictionaries: DEFAULT_DICTIONARIES,
       sidebarMode: 'alphabet',
       titleInfo: DEFAULT_TITLE_INFO,
-      openSettings: () => set({ settingsOpen: true }),
-      closeSettings: () => set({ settingsOpen: false }),
       setDisplayField: (key, on) => set(s => ({ displayFields: { ...s.displayFields, [key]: on } })),
       setDictionary: (key, on) => set(s => ({ dictionaries: { ...s.dictionaries, [key]: on } })),
       setSidebarMode: (mode) => set({ sidebarMode: mode }),

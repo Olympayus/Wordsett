@@ -3,7 +3,7 @@ import { useViewStore } from './viewStore'
 
 describe('viewStore 双视图切换（D2）', () => {
   beforeEach(() => {
-    useViewStore.setState({ activeView: 'workbench', dictWord: null })
+    useViewStore.setState({ activeView: 'workbench', dictWord: null, activeModule: 'workbench' })
   })
 
   it('初始为词编辑视图', () => {
@@ -39,5 +39,14 @@ describe('viewStore 双视图切换（D2）', () => {
     expect(useViewStore.getState().editorMode).toBe(true)
     useViewStore.getState().setEditorMode(false)
     expect(useViewStore.getState().editorMode).toBe(false)
+  })
+
+  it('activeModule 初始为 workbench，showModule 切换模块', () => {
+    useViewStore.setState({ activeModule: 'workbench' })
+    expect(useViewStore.getState().activeModule).toBe('workbench')
+    useViewStore.getState().showModule('settings')
+    expect(useViewStore.getState().activeModule).toBe('settings')
+    useViewStore.getState().showModule('workbench')
+    expect(useViewStore.getState().activeModule).toBe('workbench')
   })
 })

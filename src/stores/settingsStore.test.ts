@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { useSettingsStore, type TitleInfoKey } from './settingsStore'
 
 const DEFAULT = {
-  settingsOpen: false,
   displayFields: {
     phonetic: true, part_of_speech: true, chinese_definition: true,
     english_definition: true, example: true, exchange: true, synonyms: true,
@@ -19,7 +18,6 @@ describe('settingsStore（规格 §7）', () => {
 
   it('默认值：字段开关全开（含词源相关词）、词典开关全开、字母模式、抽屉关闭', () => {
     const s = useSettingsStore.getState()
-    expect(s.settingsOpen).toBe(false)
     expect(s.sidebarMode).toBe('alphabet')
     expect(Object.values(s.displayFields).every(Boolean)).toBe(true)
     expect(s.displayFields.derivatives).toBe(true)
@@ -36,13 +34,6 @@ describe('settingsStore（规格 §7）', () => {
     expect(useSettingsStore.getState().dictionaries.ecdict).toBe(false)
   })
 
-  it('openSettings/closeSettings 切换抽屉', () => {
-    useSettingsStore.getState().openSettings()
-    expect(useSettingsStore.getState().settingsOpen).toBe(true)
-    useSettingsStore.getState().closeSettings()
-    expect(useSettingsStore.getState().settingsOpen).toBe(false)
-  })
-
   it('setDisplayField 只改单个字段', () => {
     useSettingsStore.getState().setDisplayField('phonetic', false)
     const s = useSettingsStore.getState()
@@ -55,7 +46,7 @@ describe('settingsStore（规格 §7）', () => {
     expect(useSettingsStore.getState().sidebarMode).toBe('category')
   })
 
-  it('持久化：修改写入 localStorage，且不含瞬时字段 settingsOpen', () => {
+  it('持久化：修改写入 localStorage，且不含瞬时字段', () => {
     useSettingsStore.getState().setSidebarMode('category')
     useSettingsStore.getState().setDisplayField('phonetic', false)
     const raw = localStorage.getItem('wordsett-settings')
@@ -63,7 +54,9 @@ describe('settingsStore（规格 §7）', () => {
     const parsed = JSON.parse(raw!)
     expect(parsed.state.sidebarMode).toBe('category')
     expect(parsed.state.displayFields.phonetic).toBe(false)
-    expect(parsed.state.settingsOpen).toBeUndefined()
+    expect(Object.keys(parsed.state).sort()).toEqual(
+      ['dictionaries', 'displayFields', 'sidebarMode', 'titleInfo']
+    )
   })
 
   it('恢复：localStorage v1 数据 rehydrate 并迁移（剔除 etymology、补齐 synonyms、派生词与词典开关默认开）', async () => {
