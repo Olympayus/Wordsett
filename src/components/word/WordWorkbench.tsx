@@ -1068,11 +1068,10 @@ export default function WordWorkbench() {
           onClick={() => { setMenuOpenId(null); setChildMenuId(null); setAddFieldOpen(false) }}
         />
       )}
-      {/* 内容列：左对齐而非居中（v0.5.2 修订）。原先 margin:0 auto 让 720px 的列在大窗口里居中，
-          居中留白 =（main 宽 − 720）/ 2，窗口越宽越大——1400px 窗口下就是 167px，
-          标题与字段标签被一起推远。左对齐后这一段的偏移恒为 0。
-          列内边距左右 32 → 16，进一步把正文与右缘的空白收窄。 */}
-      <div style={{ maxWidth: '720px', margin: 0, padding: '24px 16px 48px' }}>
+      {/* 内容列：保持居中（v0.5.2 修订②）——先前的居中留白 (main 宽 − 720)/2 被去掉过一次，
+          但左对齐会让右侧空出一大片，观感更差，故恢复 margin:0 auto。
+          列内边距左右仍为 16（原 32）：同一居中盒子里正文因此左移 16px、且宽出 32px。 */}
+      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '24px 16px 48px' }}>
         {/* 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区 */}
         <WorkbenchNavBar
           onDeleteWord={handleDelete}
