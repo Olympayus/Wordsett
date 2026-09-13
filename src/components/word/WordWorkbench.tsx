@@ -30,12 +30,6 @@ type FieldState = 'original' | 'edited' | 'personal'
 const fieldState = (fv: FieldValue): FieldState =>
   fv.edited ? 'edited' : (fv.source === 'user' ? 'personal' : 'original')
 
-const FIELD_STYLES: Record<FieldState, CSSProperties> = {
-  original: { background: 'var(--color-surface-sunken)', border: '1px solid var(--color-border)', borderLeft: '3px solid var(--color-weave-original)' },
-  edited:   { background: 'var(--color-brand-softer)',  border: '1px solid var(--color-brand-soft)',  borderLeft: '3px solid var(--color-weave-edited)' },
-  personal: { background: 'var(--color-accent-soft)',   border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)',      borderLeft: '3px solid var(--color-weave-personal)' },
-}
-
 // 字段行左端固定 gutter（v0.5.2 §2 §3）：拖拽把手 + ⋯ 菜单 + 垃圾桶收纳于此。
 // 宽度写死 → 内部控件即使条件渲染也不影响文字区宽度，hover 不再引发折行 / 行高变化。
 const GUTTER_WIDTH = 64
@@ -119,7 +113,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
   const isContainer = CONTAINER_FIELD_KEYS.includes(def.key)
   // 标签列文本（#4）：项类型字段不渲染字段名，值占满整行；词性子级用 override
   const labelText = labelOverride ?? (ITEM_FIELD_KEYS.includes(def.key) ? '' : def.name)
-  // 词性父：规则线块状窗格（spec §6.1）；词性父不使用 FIELD_STYLES/isLevel1 普通卡样式，窗格样式优先
+  // 词性父：规则线块状窗格（spec §6.1）；词性父不使用普通卡样式，窗格样式优先
   const isPosPane = def.key === 'part_of_speech'
   const posChildren = fv.children ?? []
   const childKey = (c: FieldValue) => defs.find(d => d.id === c.fieldId)?.key ?? ''
@@ -128,18 +122,19 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
   // 词性窗格样式（#1）：两种模式统一中性色，品牌蓝仅保留给「已编辑」字段状态语义
   const paneStyle: CSSProperties = isPosPane
     ? {
+        // 词性窗格是这一层唯一保留边界的容器（v0.5.2 §3）：
+        // 它承载「词性」这个结构节点，需要与释义列表区分开。
         background: 'var(--color-surface-raised)',
         border: '1px solid var(--color-border)',
         borderLeft: '3px solid var(--color-border-strong)',
         borderRadius: 'var(--radius-md)',
-        padding: '8px 12px',
+        padding: '4px 10px',
         marginBottom: '6px',
         position: 'relative',
         transition: 'background-color 200ms var(--ease-smooth), border-color 200ms var(--ease-smooth)',
       }
     : {}
   const isEditing = editingId === fv.id
-  const isLevel1 = depth === 0
   const isPhonetic = def.key === 'phonetic'
   // 子词条菜单（Task 10 §Step 2）：依据 ALLOWED_CHILD_KEYS 过滤可选子字段（spec §3.2）
   const allowedChildKeys = ALLOWED_CHILD_KEYS[def.key] ?? []
@@ -181,13 +176,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
               labelOverride = child.value
             }
             return (
-              <div key={child.id} style={{ position: 'relative' }}>
-                <div
-                  style={{
-                    position: 'absolute', left: '-8px', top: '12px', width: '8px',
-                    borderTop: '1px solid var(--color-border)', pointerEvents: 'none',
-                  }}
-                />
+              <div key={child.id}>
                 <FieldCard fv={child} depth={depth + 1} {...rest} labelOverride={labelOverride} />
               </div>
             )
@@ -384,26 +373,16 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
       style={
         isPosPane
           ? { ...paneStyle, ...draggingStyle }
-          : editorMode
-            ? {
-                ...FIELD_STYLES[state],
-                borderRadius: 'var(--radius-md)',
-                padding: isLevel1 ? '8px' : '6px 12px',
-                marginBottom: '2px',
-                transition: 'background-color 200ms var(--ease-smooth), border-color 200ms var(--ease-smooth)',
-                position: 'relative',
-                ...draggingStyle,
-              }
-            : {
-                background: isLevel1 ? 'var(--color-surface-raised)' : 'transparent',
-                border: isLevel1 ? '1px solid var(--color-border)' : 'none',
-                borderRadius: 'var(--radius-md)',
-                padding: isLevel1 ? '8px' : '6px 12px',
-                marginBottom: isLevel1 ? '2px' : '0',
-                transition: 'background-color 200ms var(--ease-smooth), border-color 200ms var(--ease-smooth)',
-                position: 'relative',
-                ...draggingStyle,
-              }
+          : {
+              // 文本流（v0.5.2 §3）：无背景、无边框、无圆角、无上下内边距。
+              // 层级不再靠盒子，靠缩进 + 组间留白。
+              position: 'relative',
+              padding: '1px 0',
+              background: showsButtons ? 'var(--color-surface-hover)' : 'transparent',
+              borderRadius: 'var(--radius-sm)',
+              transition: 'background-color var(--duration-fast) var(--ease-smooth)',
+              ...draggingStyle,
+            }
       }
     >
       {insertIndicator && insertIndicator.overId === fv.id && (
@@ -633,8 +612,8 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
               <span
                 style={{
                   flexShrink: 0,
-                  fontSize: 'var(--text-xs)',
-                  padding: '2px 8px',
+                  fontSize: 10.5,
+                  padding: '0 5px',
                   borderRadius: 'var(--radius-sm)',
                   background: state === 'edited' ? 'var(--color-brand-soft)' : 'color-mix(in srgb, var(--color-accent) 15%, transparent)',
                   color: state === 'edited' ? 'var(--color-brand)' : 'var(--color-accent)',
@@ -649,8 +628,15 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
       </div>
       {hasChildren && (
         <div style={hasTerminalChildren
-          ? { marginTop: '4px' }
-          : { marginLeft: '6px', paddingLeft: '8px', borderLeft: '1px solid var(--color-border)', marginTop: '8px' }}>
+          ? { marginTop: '3px' }
+          : {
+              // 缩进一次即封顶（v0.5.2 §3）：第 2 层起不再增加缩进，
+              // 否则三层嵌套后正文起点会被推到内容列中部。
+              marginLeft: depth <= 0 ? '2px' : '0',
+              paddingLeft: depth <= 0 ? '11px' : '0',
+              borderLeft: depth <= 0 ? '1px solid var(--color-border)' : 'none',
+              marginTop: '3px',
+            }}>
           {renderedChildren}
         </div>
       )}
@@ -1167,7 +1153,7 @@ export default function WordWorkbench() {
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          <div style={{ marginTop: '8px' }}>
+          <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '7px' }}>
             {isFlatTab && renderValues.length > 0 && (
               /* 单独标签页：子项平铺进容器卡片（保留容器抬升底色 + 边框 + 柔和阴影，去掉标题框） */
               <div style={{ background: 'var(--color-surface-raised)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-raised)', padding: '4px 10px' }}>
