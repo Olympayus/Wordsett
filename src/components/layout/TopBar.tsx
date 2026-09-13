@@ -122,7 +122,10 @@ export default function TopBar() {
       style={{
         height: '48px', display: 'flex', alignItems: 'center', gap: '12px',
         padding: '0 8px 0 16px',
-        position: 'relative', zIndex: 'var(--z-sticky)',
+        // 顶栏必须浮在页面内容之上：搜索建议下拉会垂出 48px 的 header 进入内容行，
+        // 而工作台的吸顶导航条同为 --z-sticky（20）、且在 DOM 中更靠后，等值并列时后者胜出会盖住下拉。
+        // 故顶栏取 --z-overlay（30）：高于页内吸顶条（20）与页内下拉（10），仍低于模态（40）与 FindBar。
+        position: 'relative', zIndex: 'var(--z-overlay)',
         background: 'var(--color-canvas)', borderBottom: '1px solid var(--color-border)',
       }}
     >

@@ -446,30 +446,31 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
             </div>
           )}
 
-          {/* 删除：合并原三处入口（叶子行尾、单行容器行尾、容器右下）。此处对所有卡片无条件渲染：
-              原三处渲染条件取并集并非恒为真——普通模式且「词性窗格无子项」时原本没有删除入口；
-              现按每张卡都可删处理（空卡也是真实卡片，属行内 affordance 的严格增量），
-              且 gutter 宽度写死，控件的增减不影响文字区宽度。 */}
-          <button
-            type="button"
-            title="删除"
-            aria-label="删除"
-            onClick={() => onDelete(fv)}
-            style={{
-              width: '24px', height: '24px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: 'none', background: 'transparent',
-              borderRadius: 'var(--radius-sm)',
-              cursor: 'pointer',
-              color: 'var(--color-text-tertiary)',
-              flexShrink: 0, alignSelf: 'center',
-              ...reveal(showsButtons),
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)' }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
-          >
-            <Icon name="trash" size={16} />
-          </button>
+          {/* 删除：仅编者模式渲染（v0.5.2 修订）。普通模式下条目的删除入口是 ⋯ 菜单里的「删除」，
+              与 spec §6「⋯ 更多操作（普通模式可见）」一致；编者模式下没有 ⋯，故由垃圾桶承担。
+              两模式下 gutter 始终是「把手 + 一个操作」，宽度写死，控件增减不影响文字区宽度。 */}
+          {editorMode && (
+            <button
+              type="button"
+              title="删除"
+              aria-label="删除"
+              onClick={() => onDelete(fv)}
+              style={{
+                width: '24px', height: '24px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                border: 'none', background: 'transparent',
+                borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer',
+                color: 'var(--color-text-tertiary)',
+                flexShrink: 0, alignSelf: 'center',
+                ...reveal(showsButtons),
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)' }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+            >
+              <Icon name="trash" size={16} />
+            </button>
+          )}
         </div>
         {isPosPane ? (
           isEditing ? (
@@ -1010,9 +1011,7 @@ export default function WordWorkbench() {
       <div style={{ maxWidth: '720px', margin: '0 auto', padding: '24px 32px 48px' }}>
         {/* 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区 */}
         <WorkbenchNavBar
-          onAddTab={handleAddTab}
           onDeleteWord={handleDelete}
-          missingTabs={missingTabs(contentRoots, keyOfFv)}
         />
         {/* 单词标题区（规格 §5.1） */}
         <div style={{ marginBottom: '12px' }}>
