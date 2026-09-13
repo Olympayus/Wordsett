@@ -38,7 +38,9 @@ const FIELD_STYLES: Record<FieldState, CSSProperties> = {
 
 // 字段行左端固定 gutter（v0.5.2 §2 §3）：拖拽把手 + ⋯ 菜单 + 垃圾桶收纳于此。
 // 宽度写死 → 内部控件即使条件渲染也不影响文字区宽度，hover 不再引发折行 / 行高变化。
-const GUTTER_WIDTH = 64
+// 左端 gutter 宽度（v0.5.2 修订）：只放 12px 的拖拽手柄，留 4px 余量。
+// 宽度写死的意义是「手柄显隐不改变文字区宽度」；操作控件移到右侧后不再需要为它们留 64px。
+const GUTTER_WIDTH = 16
 
 // 字段标签列宽度（v0.5.2 修订）：各层统一，不再分「第 0 层 100px / 更深层 80px 起」两档——
 // 两档既让深层多丢宽度，又让「例句」这类二字标签空掉大半列。
@@ -131,6 +133,9 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
   const labelText = labelOverride ?? (ITEM_FIELD_KEYS.includes(def.key) ? '' : def.name)
   // 词性父：规则线块状窗格（spec §6.1）；词性父不使用 FIELD_STYLES/isLevel1 普通卡样式，窗格样式优先
   const isPosPane = def.key === 'part_of_speech'
+  // 多行容器（有子项或词性窗格）：内容占多行，⋯ / 垃圾桶走卡片角落绝对定位（不占正文宽度）。
+  // 其余（叶子、单行容器）内容只有一行，控件走行右端行内簇（常驻占位，见下方）。
+  const isMultiLine = Boolean(hasChildren) || isPosPane
   const posChildren = fv.children ?? []
   const childKey = (c: FieldValue) => defs.find(d => d.id === c.fieldId)?.key ?? ''
   const zhCount = posChildren.filter(c => childKey(c) === 'chinese_definition').length
@@ -234,8 +239,9 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
         <div
           style={{
             position: 'absolute',
-            left: 0,
-            right: 'auto',
+            // 右对齐：⋯ 的两个落点（行右端、卡片右上角）都在右侧，下拉向左展开才不会越出卡片右缘
+            right: 0,
+            left: 'auto',
             top: 'calc(100% + 4px)',
             minWidth: '120px',
             padding: '4px',
@@ -431,14 +437,10 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
         />
       )}
       <div style={{ display: 'flex', alignItems: isPosPane ? 'center' : 'baseline', gap: '4px' }}>
-        {/* 左端 gutter：宽度写死，故内部控件如何显隐都不改变文字区宽度 → 零重排。
-            space-between：拖拽手柄贴行左缘，操作控件（⋯ / 垃圾桶）贴 gutter 右缘，
-            两者之间的空白留在中间，手柄不再被推到离左缘 26px 处。 */}
+        {/* 左端 gutter：只放拖拽手柄（v0.5.2 修订）。操作控件（⋯ / 垃圾桶）已移到行右端与卡片角落，
+            故 gutter 从 64px 收到 16px，正文净增约 48px。宽度仍写死 → 手柄显隐不改文字区宽度（零重排）。 */}
         <div
-          style={{
-            width: GUTTER_WIDTH, flexShrink: 0, alignSelf: 'center',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2px',
-          }}
+          style={{ width: GUTTER_WIDTH, flexShrink: 0, alignSelf: 'center', display: 'flex', alignItems: 'center' }}
         >
           <button
             type="button"
@@ -461,41 +463,6 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
           >
             <Icon name="grip" size={11} />
           </button>
-
-          {/* ⋯ 菜单：普通模式渲染（叶子与容器都有——原行尾 + 卡片右上角两处合并到此）；
-              编者模式不渲染，沿用原行为。position:relative 包裹 → 下拉锚定按钮自身盒而非卡片，
-              避免高容器卡的下拉跑到整卡下方甚至出屏 */}
-          {!editorMode && (
-            <div style={{ position: 'relative', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-              {threeDotMenu}
-            </div>
-          )}
-
-          {/* 删除：仅编者模式渲染（v0.5.2 修订）。普通模式下条目的删除入口是 ⋯ 菜单里的「删除」，
-              与 spec §6「⋯ 更多操作（普通模式可见）」一致；编者模式下没有 ⋯，故由垃圾桶承担。
-              两模式下 gutter 始终是「把手 + 一个操作」，宽度写死，控件增减不影响文字区宽度。 */}
-          {editorMode && (
-            <button
-              type="button"
-              title="删除"
-              aria-label="删除"
-              onClick={() => onDelete(fv)}
-              style={{
-                width: '24px', height: '24px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                border: 'none', background: 'transparent',
-                borderRadius: 'var(--radius-sm)',
-                cursor: 'pointer',
-                color: 'var(--color-text-tertiary)',
-                flexShrink: 0, alignSelf: 'center',
-                ...reveal(showsButtons),
-              }}
-              onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)' }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
-            >
-              <Icon name="trash" size={16} />
-            </button>
-          )}
         </div>
         {isPosPane ? (
           isEditing ? (
@@ -669,7 +636,64 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
             )}
           </>
         )}
+
+        {/* 行内右侧操作簇（叶子 / 单行容器）：⋯ 普通模式、垃圾桶编者模式，右对齐贴行右端。
+            常驻挂载 + reveal → 宽度始终保留，hover 不改变正文宽度（spec §2 布局恒定）。
+            多行容器不走这里，改走下方卡片角落的绝对定位簇（不占正文宽度）。 */}
+        {!isMultiLine && (editorMode ? (
+          <button
+            type="button"
+            title="删除"
+            aria-label="删除"
+            onClick={() => onDelete(fv)}
+            style={{
+              width: '24px', height: '24px', flexShrink: 0, alignSelf: 'center',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', background: 'transparent',
+              borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+              color: 'var(--color-text-tertiary)',
+              ...reveal(showsButtons),
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+          >
+            <Icon name="trash" size={16} />
+          </button>
+        ) : (
+          <div style={{ position: 'relative', flexShrink: 0, alignSelf: 'center', display: 'flex', alignItems: 'center', ...reveal(showsButtons) }}>
+            {threeDotMenu}
+          </div>
+        ))}
       </div>
+
+      {/* 多行容器（有子项或词性窗格）的角落控件：绝对定位，不参与排版，故连宽度都无需保留。
+          ⋯ 在卡片右上角（普通模式）；垃圾桶在卡片右下角（编者模式）——
+          卡片根为 position:relative，故绝对定位锚定卡片自身的 padding box。 */}
+      {isMultiLine && (!editorMode ? (
+        <div style={{ position: 'absolute', top: 4, right: 6, ...reveal(showsButtons) }}>
+          {threeDotMenu}
+        </div>
+      ) : (
+        <button
+          type="button"
+          title="删除"
+          aria-label="删除"
+          onClick={() => onDelete(fv)}
+          style={{
+            position: 'absolute', bottom: 4, right: 6,
+            width: '24px', height: '24px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: 'none', background: 'transparent',
+            borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+            color: 'var(--color-text-tertiary)',
+            ...reveal(showsButtons),
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)' }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+        >
+          <Icon name="trash" size={16} />
+        </button>
+      ))}
       {hasChildren && (
         <div style={hasTerminalChildren
           ? { marginTop: '4px' }
