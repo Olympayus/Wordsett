@@ -1,9 +1,9 @@
-import { useRef, useState, type ReactNode } from 'react'
+import { useRef, useState, useLayoutEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useSettingsStore, type TitleInfoKey } from '../../stores/settingsStore'
 import { Toggle } from '../ui/Toggle'
 import Icon from '../icons'
-import { tooltipPosition } from '../../lib/tooltipPosition'
+import { tooltipPosition, clampTooltipY } from '../../lib/tooltipPosition'
 import { FIELD_TREE, isAncestorOff, type FieldTreeNode } from '../../lib/fieldTree'
 
 // 标题信息开关（v0.5：词条标题行下的信息展示）
@@ -36,28 +36,45 @@ const DICT_SECTION_TOOLTIP = (
 
 const SECTION_TITLE: React.CSSProperties = { fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)', color: 'var(--color-text-primary)' }
 
+// 悬浮框几何：宽度固定，与锚点留 8px 间隙。两处（定位与纵向修正）都要用，故提到模块级。
+const PANEL_WIDTH = 320
+const PANEL_GAP = 8
+
 // 信息悬浮框：Hover 300ms 显示、100ms 消失（规格 §7.3）；多处以 info 图标触发，独立管理自身状态
 function HoverInfo({ content }: { content: ReactNode }) {
-  const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number }>({ visible: false, x: 0, y: 0 })
+  const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number; anchorTop: number }>(
+    { visible: false, x: 0, y: 0, anchorTop: 0 }
+  )
   const showTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const infoRef = useRef<HTMLSpanElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
 
   const handleEnter = () => {
     clearTimeout(hideTimer.current)
     showTimer.current = setTimeout(() => {
       const rect = infoRef.current?.getBoundingClientRect()
       if (!rect) return
-      const panelWidth = 320
-      const gap = 8
-      const pos = tooltipPosition({ left: rect.left, right: rect.right, top: rect.top }, panelWidth, gap, window.innerWidth)
-      setTooltip({ visible: true, x: pos.x, y: pos.y })
+      const pos = tooltipPosition({ left: rect.left, right: rect.right, top: rect.top }, PANEL_WIDTH, PANEL_GAP, window.innerWidth)
+      setTooltip({ visible: true, x: pos.x, y: pos.y, anchorTop: rect.top })
     }, 300)
   }
   const handleLeave = () => {
     clearTimeout(showTimer.current)
     hideTimer.current = setTimeout(() => setTooltip(t => ({ ...t, visible: false })), 100)
   }
+
+  // 纵向修正：tooltipPosition 只按锚点给起点 y，面板高度要渲染后才量得到。
+  // 用 useLayoutEffect 在绘制前同步量并改，用户看不到中间态；y 已被修正时提前返回，不会来回抖动。
+  useLayoutEffect(() => {
+    const el = panelRef.current
+    if (!tooltip.visible || !el) return
+    const height = el.getBoundingClientRect().height
+    const vh = window.innerHeight
+    if (tooltip.y + height + PANEL_GAP <= vh) return
+    const nextY = clampTooltipY(tooltip.anchorTop, tooltip.y, height, vh, PANEL_GAP)
+    if (nextY !== tooltip.y) setTooltip(t => ({ ...t, y: nextY }))
+  }, [tooltip.visible, tooltip.y, tooltip.anchorTop])
 
   return (
     <>
@@ -71,11 +88,11 @@ function HoverInfo({ content }: { content: ReactNode }) {
       </span>
       {/* 悬浮框：createPortal 到 body，脱离抽屉 transform 容器（§7.3） */}
       {tooltip.visible && createPortal(
-        <div style={{
+        <div ref={panelRef} style={{
           position: 'fixed', left: tooltip.x, top: tooltip.y, zIndex: 'var(--z-toast)',
           background: 'var(--color-surface)', border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-overlay)',
-          padding: '16px', width: '320px', fontSize: 'var(--text-sm)',
+          padding: '16px', width: `${PANEL_WIDTH}px`, fontSize: 'var(--text-sm)',
         }}>
           {content}
         </div>,
