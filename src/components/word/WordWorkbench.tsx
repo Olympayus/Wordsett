@@ -40,6 +40,12 @@ const FIELD_STYLES: Record<FieldState, CSSProperties> = {
 // 宽度写死 → 内部控件即使条件渲染也不影响文字区宽度，hover 不再引发折行 / 行高变化。
 const GUTTER_WIDTH = 64
 
+// 字段标签列宽度（v0.5.2 修订）：各层统一，不再分「第 0 层 100px / 更深层 80px 起」两档——
+// 两档既让深层多丢宽度，又让「例句」这类二字标签空掉大半列。
+// 取 minWidth 而非固定 width：12–13px 下「中文释义(1)」约 71px，恰好卡在 72px，
+// 「中文释义(10)」会溢出；minWidth 下 ≤72px 的标签仍对齐到同一条 x，长标签只推开自己那一行。
+const LABEL_COLUMN_WIDTH = 72
+
 // 常驻占位 + opacity 显隐（照搬 PhoneticArea.tsx:54-57 的 reveal 模式）
 // visibility 而非仅 opacity（v0.5.2 任务 6 回归修复）：常驻挂载后仅靠 opacity，
 // 不可见控件仍在 Tab 序列与无障碍树中，Tab+Enter 会误触删除/加子词条；
@@ -185,13 +191,9 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
               labelOverride = child.value
             }
             return (
-              <div key={child.id} style={{ position: 'relative' }}>
-                <div
-                  style={{
-                    position: 'absolute', left: '-8px', top: '12px', width: '8px',
-                    borderTop: '1px solid var(--color-border)', pointerEvents: 'none',
-                  }}
-                />
+              // 连接横线已去掉（v0.5.2 修订）：每个子项一条 8px 横线在多层级下会连成网格，
+              // 归属关系由组左侧那一条竖线表达即可。
+              <div key={child.id}>
                 <FieldCard fv={child} depth={depth + 1} {...rest} labelOverride={labelOverride} />
               </div>
             )
@@ -560,8 +562,8 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
             {labelText && (
               <span
                 style={{
-                  width: isLevel1 ? '100px' : 'auto',
-                  minWidth: isLevel1 ? undefined : '80px',
+                  width: 'auto',
+                  minWidth: LABEL_COLUMN_WIDTH,
                   flexShrink: 0,
                   fontSize: isLevel1 ? 'var(--text-sm)' : 'var(--text-xs)',
                   fontWeight: 700,
@@ -660,7 +662,14 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
       {hasChildren && (
         <div style={hasTerminalChildren
           ? { marginTop: '4px' }
-          : { marginLeft: '6px', paddingLeft: '8px', borderLeft: '1px solid var(--color-border)', marginTop: '8px' }}>
+          : {
+              // 缩进一次即封顶（v0.5.2 修订）：只有第 0 层的子级缩进并画引导竖线，
+              // 第 2 层起不再累加——否则三层嵌套后正文被推到内容列中部，且每层各画一条竖线。
+              marginLeft: depth <= 0 ? '6px' : '0',
+              paddingLeft: depth <= 0 ? '8px' : '0',
+              borderLeft: depth <= 0 ? '1px solid var(--color-border)' : 'none',
+              marginTop: '8px',
+            }}>
           {renderedChildren}
         </div>
       )}
