@@ -51,10 +51,10 @@ export default function WorkbenchNavBar({ onDeleteWord }: WorkbenchNavBarProps) 
   return (
     <div
       style={{
-        // 吸顶（spec §6）+ 圆角描边浮条（V8 .ed-toolbar）
+        // 吸顶（spec §6）+ 圆角描边浮条（V8 .ed-toolbar 的形态，底色取主题暖色而非纯白）
         position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
         display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap',
-        background: 'var(--color-surface)',
+        background: 'var(--color-canvas)',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-lg)',
         padding: '6px 8px', marginBottom: '18px',
