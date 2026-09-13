@@ -15,6 +15,7 @@ import { visibleTabs, defaultTab, missingTabs, groupRootsByTab, addableLeafKeys,
 import { hasFieldChanges } from '../../lib/fieldChanges'
 import { shouldFlattenChildren } from '../../lib/dictPlan'
 import { selectWordRootItems } from '../../lib/phonetic'
+import { fieldState, FIELD_STATE_BG, type FieldState } from '../../lib/fieldState'
 import { Button } from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
 import Icon from '../icons'
@@ -26,19 +27,15 @@ import { useCategoryStore } from '../../stores/categoryStore'
 import { useUiStore } from '../../stores/uiStore'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
-type FieldState = 'original' | 'edited' | 'personal'
-const fieldState = (fv: FieldValue): FieldState =>
-  fv.edited ? 'edited' : (fv.source === 'user' ? 'personal' : 'original')
-
+// 三态与三态底色来自 lib（v0.5.2 修订）：音标 / 词根 chip 也按同一套来源三态上色，
+// 故抽到 src/lib/fieldState.ts 作唯一真相；这里只在其上补齐边框与左边条。
 const FIELD_STYLES: Record<FieldState, CSSProperties> = {
-  original: { background: 'var(--color-surface-sunken)', border: '1px solid var(--color-border)', borderLeft: '3px solid var(--color-weave-original)' },
-  edited:   { background: 'var(--color-brand-softer)',  border: '1px solid var(--color-brand-soft)',  borderLeft: '3px solid var(--color-weave-edited)' },
-  personal: { background: 'var(--color-accent-soft)',   border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)',      borderLeft: '3px solid var(--color-weave-personal)' },
+  original: { background: FIELD_STATE_BG.original, border: '1px solid var(--color-border)', borderLeft: '3px solid var(--color-weave-original)' },
+  edited:   { background: FIELD_STATE_BG.edited,   border: '1px solid var(--color-brand-soft)',  borderLeft: '3px solid var(--color-weave-edited)' },
+  personal: { background: FIELD_STATE_BG.personal, border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)',      borderLeft: '3px solid var(--color-weave-personal)' },
 }
 
-// 字段行左端固定 gutter（v0.5.2 §2 §3）：拖拽把手 + ⋯ 菜单 + 垃圾桶收纳于此。
-// 宽度写死 → 内部控件即使条件渲染也不影响文字区宽度，hover 不再引发折行 / 行高变化。
-// 左端 gutter 宽度（v0.5.2 修订）：只放 12px 的拖拽手柄，留 4px 余量。
+// 字段行左端固定 gutter（v0.5.2 修订）：只放 12px 的拖拽手柄，留 4px 余量。
 // 宽度写死的意义是「手柄显隐不改变文字区宽度」；操作控件移到右侧后不再需要为它们留 64px。
 const GUTTER_WIDTH = 16
 
@@ -147,7 +144,9 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
         border: '1px solid var(--color-border)',
         borderLeft: '3px solid var(--color-border-strong)',
         borderRadius: 'var(--radius-md)',
-        padding: '8px 12px',
+        // 左右内边距收到 6px（v0.5.2 修订）：标签离卡片左缘的距离里，这一项每层都要付一次，
+        // 词性窗格又是有边框的盒子，收窄后整体正文起点明显左移。
+        padding: '8px 6px',
         marginBottom: '6px',
         position: 'relative',
         transition: 'background-color 200ms var(--ease-smooth), border-color 200ms var(--ease-smooth)',
@@ -403,7 +402,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
             ? {
                 ...FIELD_STYLES[state],
                 borderRadius: 'var(--radius-md)',
-                padding: isLevel1 ? '8px' : '6px 12px',
+                padding: isLevel1 ? '8px 6px' : '6px',
                 marginBottom: '2px',
                 transition: 'background-color 200ms var(--ease-smooth), border-color 200ms var(--ease-smooth)',
                 position: 'relative',
@@ -413,7 +412,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
                 background: isLevel1 ? 'var(--color-surface-raised)' : 'transparent',
                 border: isLevel1 ? '1px solid var(--color-border)' : 'none',
                 borderRadius: 'var(--radius-md)',
-                padding: isLevel1 ? '8px' : '6px 12px',
+                padding: isLevel1 ? '8px 6px' : '6px',
                 marginBottom: isLevel1 ? '2px' : '0',
                 transition: 'background-color 200ms var(--ease-smooth), border-color 200ms var(--ease-smooth)',
                 position: 'relative',
@@ -1069,7 +1068,11 @@ export default function WordWorkbench() {
           onClick={() => { setMenuOpenId(null); setChildMenuId(null); setAddFieldOpen(false) }}
         />
       )}
-      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '24px 32px 48px' }}>
+      {/* 内容列：左对齐而非居中（v0.5.2 修订）。原先 margin:0 auto 让 720px 的列在大窗口里居中，
+          居中留白 =（main 宽 − 720）/ 2，窗口越宽越大——1400px 窗口下就是 167px，
+          标题与字段标签被一起推远。左对齐后这一段的偏移恒为 0。
+          列内边距左右 32 → 16，进一步把正文与右缘的空白收窄。 */}
+      <div style={{ maxWidth: '720px', margin: 0, padding: '24px 16px 48px' }}>
         {/* 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区 */}
         <WorkbenchNavBar
           onDeleteWord={handleDelete}

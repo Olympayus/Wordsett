@@ -52,7 +52,9 @@ export default function SettingsPage() {
           </button>
         ))}
       </nav>
-      <div style={{ flex: 1, overflowY: 'auto', minWidth: 0 }}>
+      {/* 右侧内容列用白底，与工作台正文区同一底色（v0.5.2 修订）；左侧 160px 分区导航保留 canvas 暖底，
+          两者形成分区，整个窗口的设计语言统一为「暖底导航 + 白底内容」 */}
+      <div style={{ flex: 1, overflowY: 'auto', minWidth: 0, background: 'var(--color-surface)' }}>
         {/* 内容列限宽（与工作台内容列同一 720px 量级）：开关行是「标签 … flex spacer … 开关」结构，
             不限宽时窗口越宽、标签与它的开关之间离得越远，两侧留白也随之失控。 */}
         <div style={{ borderBottom: '1px solid var(--color-border)' }}>
