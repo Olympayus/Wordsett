@@ -552,13 +552,11 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
             {labelText && (
               <span
                 style={{
-                  width: isLevel1 ? '100px' : 'auto',
-                  minWidth: isLevel1 ? undefined : '80px',
                   flexShrink: 0,
-                  fontSize: isLevel1 ? 'var(--text-sm)' : 'var(--text-xs)',
-                  fontWeight: 700,
-                  letterSpacing: '0.5px',
+                  fontSize: 11.5,
                   color: 'var(--color-text-secondary)',
+                  letterSpacing: '0.2px',
+                  whiteSpace: 'nowrap',
                 }}
               >
                 {labelText}
@@ -568,9 +566,9 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
           <div
             style={{
               flex: 1,
-              fontSize: 'var(--text-sm)',
+              fontSize: 13.5,
+              lineHeight: 1.45,
               color: editorMode && state === 'original' ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
-              lineHeight: isLevel1 ? 'var(--leading-relaxed)' : undefined,
               fontFamily: isPhonetic ? 'var(--font-phonetic)' : undefined,
             }}
           >
