@@ -14,6 +14,7 @@ import { sortTreeByTemplate, ALLOWED_CHILD_KEYS } from '../../lib/fieldOrder'
 import { visibleTabs, defaultTab, missingTabs, groupRootsByTab, addableLeafKeys, TAB_GROUPS, type TabKey } from '../../lib/tabs'
 import { hasFieldChanges } from '../../lib/fieldChanges'
 import { shouldFlattenChildren } from '../../lib/dictPlan'
+import { selectWordRootItems } from '../../lib/phonetic'
 import { Button } from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
 import Icon from '../icons'
@@ -1173,36 +1174,39 @@ export default function WordWorkbench() {
               </button>
             </div>
           </div>
-          <PhoneticArea
-            values={phoneticValues.filter(fv => fv.id === editingId || fv.value.trim())}
-            editorMode={editorMode}
-            editingId={editingId}
-            editValue={editValue}
-            onEditValueChange={setEditValue}
-            onStartEdit={handleStartEdit}
-            onSave={handleSave}
-            onCancelEdit={() => setEditingId(null)}
-            onAdd={() => handleAddField(defs.find(d => d.key === 'phonetic')!)}
-            onDelete={handleDeleteField}
-          />
-          <PhoneticArea
-            values={wordRootValues
-              .filter(fv => fv.id === editingId || (fv.children?.length ?? 0) > 0 || editorMode)
-              .flatMap(fv => fv.children ?? [])
-              .filter(item => item.id === editingId || item.value.trim() || editorMode)}
-            editorMode={editorMode}
-            editingId={editingId}
-            editValue={editValue}
-            onEditValueChange={setEditValue}
-            onStartEdit={handleStartEdit}
-            onSave={handleSave}
-            onCancelEdit={() => setEditingId(null)}
-            onAdd={handleAddWordRoot}
-            onDelete={handleDeleteField}
-            label="词根"
-            addLabel="+ 添加词根"
-            plain
-          />
+          <div style={{ marginTop: '10px' }}>
+            <PhoneticArea
+              values={phoneticValues.filter(fv => fv.id === editingId || fv.value.trim())}
+              editorMode={editorMode}
+              editingId={editingId}
+              editValue={editValue}
+              onEditValueChange={setEditValue}
+              onStartEdit={handleStartEdit}
+              onSave={handleSave}
+              onCancelEdit={() => setEditingId(null)}
+              onAdd={() => handleAddField(defs.find(d => d.key === 'phonetic')!)}
+              onDelete={handleDeleteField}
+              label="音标"
+            />
+          </div>
+          <div style={{ marginTop: '12px' }}>
+            <PhoneticArea
+              values={selectWordRootItems(wordRootValues, editingId, editorMode)}
+              editorMode={editorMode}
+              editingId={editingId}
+              editValue={editValue}
+              onEditValueChange={setEditValue}
+              onStartEdit={handleStartEdit}
+              onSave={handleSave}
+              onCancelEdit={() => setEditingId(null)}
+              onAdd={handleAddWordRoot}
+              onDelete={handleDeleteField}
+              label="词根"
+              addLabel="+ 添加词根"
+              plain
+              stacked
+            />
+          </div>
         </div>
 
         {/* 标签页条带（Task 3 TabBar）：标题区之下、内容区之上 */}

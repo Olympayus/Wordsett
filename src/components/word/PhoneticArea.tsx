@@ -19,6 +19,8 @@ interface PhoneticAreaProps {
   label?: string
   addLabel?: string
   plain?: boolean
+  /** true = 每个条目占一行（词根多条目用）；false = 同行换行排列（音标用） */
+  stacked?: boolean
 }
 
 const chipBase: CSSProperties = {
@@ -42,7 +44,7 @@ const addChip: CSSProperties = {
 export default function PhoneticArea(props: PhoneticAreaProps) {
   const {
     values, editorMode, editingId, editValue, onEditValueChange, onStartEdit, onSave, onCancelEdit, onAdd, onDelete,
-    label = '音标', addLabel = '+ 添加音标', plain = false,
+    label = '音标', addLabel = '+ 添加音标', plain = false, stacked = false,
   } = props
   const [rowHover, setRowHover] = useState(false)
   const [chipHover, setChipHover] = useState<string | null>(null)
@@ -63,102 +65,119 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
 
   return (
     <div
-      style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+      style={{
+        display: 'flex',
+        alignItems: stacked ? 'flex-start' : 'center',
+        gap: 8,
+        flexWrap: stacked ? 'nowrap' : 'wrap',
+      }}
       onMouseEnter={() => setRowHover(true)}
       onMouseLeave={() => { setRowHover(false); setMenuOpenId(null); setChipHover(null) }}
     >
-      <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.5px', color: 'var(--color-text-secondary)' }}>{label}</span>
+      <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.5px', color: 'var(--color-text-secondary)', flexShrink: 0, paddingTop: stacked ? 3 : 0 }}>
+        {label}
+      </span>
 
-      {values.map(fv => {
-        const isEditing = editingId === fv.id
-        const hovered = chipHover === fv.id
-        return (
-          <span
-            key={fv.id}
-            style={{
-              ...chipBase,
-              ...displayFont,
-              background: isEditing ? 'var(--color-brand-soft)' : editorMode
-                ? (hovered ? '#DCE5F1' : '#E8EEF6')
-                : (rowHover ? '#F4F1EC' : 'transparent'),
-            }}
-            onMouseEnter={() => setChipHover(fv.id)}
-            onMouseLeave={() => setChipHover(null)}
-          >
-            {isEditing ? (
-              <input
-                autoFocus
-                value={editValue}
-                onChange={e => onEditValueChange(e.target.value)}
-                onKeyDown={e => { if (e.nativeEvent.isComposing) return; if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancelEdit() }}
-                style={{
-                  fontFamily: displayFont.fontFamily, fontSize: displayFont.fontSize, color: 'var(--color-text-primary)',
-                  border: '1px solid var(--color-brand)', borderRadius: 4, padding: '1px 6px',
-                  background: 'var(--color-surface)', outline: 'none', width: 140,
-                }}
-              />
-            ) : (
-              <span
-                role="button" tabIndex={0}
-                onClick={() => editorMode && onStartEdit(fv)}
-                onDoubleClick={() => !editorMode && onStartEdit(fv)}
-                onKeyDown={e => { if (e.key === 'Enter') onStartEdit(fv) }}
-                title={editorMode ? '点击编辑' : '双击编辑'}
-                style={{ cursor: 'pointer' }}
-              >
-                {plain ? fv.value : formatPhonetic(fv.value)}
-              </span>
-            )}
-
-            {isEditing && (
-              <>
-                <button type="button" title="保存" onClick={onSave} style={iconBtn}>✓</button>
-                <button type="button" title="取消" onClick={onCancelEdit} style={iconBtn}>✕</button>
-              </>
-            )}
-
-            {!isEditing && editorMode && (
-              <span style={reveal(hovered)}>
-                <button type="button" title="编辑" onClick={() => onStartEdit(fv)} style={iconBtn}><Icon name="edit" size={12} /></button>
-                <button type="button" title="删除" onClick={() => onDelete(fv)} style={iconBtn}><Icon name="trash" size={12} /></button>
-              </span>
-            )}
-
-            {!isEditing && !editorMode && (
-              <span style={{ ...reveal(rowHover), position: 'relative', display: 'inline-flex' }}>
-                <button
-                  type="button" title="更多操作"
-                  onClick={() => setMenuOpenId(menuOpenId === fv.id ? null : fv.id)}
-                  style={iconBtn}
+      <div style={{
+        display: 'flex',
+        flexDirection: stacked ? 'column' : 'row',
+        alignItems: stacked ? 'flex-start' : 'center',
+        flexWrap: stacked ? 'nowrap' : 'wrap',
+        gap: 8,
+        minWidth: 0,
+      }}>
+        {/* 原 values.map(...) 与常驻 addChip 原样搬进这里，不改内部样式 */}
+        {values.map(fv => {
+          const isEditing = editingId === fv.id
+          const hovered = chipHover === fv.id
+          return (
+            <span
+              key={fv.id}
+              style={{
+                ...chipBase,
+                ...displayFont,
+                background: isEditing ? 'var(--color-brand-soft)' : editorMode
+                  ? (hovered ? '#DCE5F1' : '#E8EEF6')
+                  : (rowHover ? '#F4F1EC' : 'transparent'),
+              }}
+              onMouseEnter={() => setChipHover(fv.id)}
+              onMouseLeave={() => setChipHover(null)}
+            >
+              {isEditing ? (
+                <input
+                  autoFocus
+                  value={editValue}
+                  onChange={e => onEditValueChange(e.target.value)}
+                  onKeyDown={e => { if (e.nativeEvent.isComposing) return; if (e.key === 'Enter') onSave(); if (e.key === 'Escape') onCancelEdit() }}
+                  style={{
+                    fontFamily: displayFont.fontFamily, fontSize: displayFont.fontSize, color: 'var(--color-text-primary)',
+                    border: '1px solid var(--color-brand)', borderRadius: 4, padding: '1px 6px',
+                    background: 'var(--color-surface)', outline: 'none', width: 140,
+                  }}
+                />
+              ) : (
+                <span
+                  role="button" tabIndex={0}
+                  onClick={() => editorMode && onStartEdit(fv)}
+                  onDoubleClick={() => !editorMode && onStartEdit(fv)}
+                  onKeyDown={e => { if (e.key === 'Enter') onStartEdit(fv) }}
+                  title={editorMode ? '点击编辑' : '双击编辑'}
+                  style={{ cursor: 'pointer' }}
                 >
-                  <Icon name="more" size={12} />
-                </button>
-                {menuOpenId === fv.id && (
-                  <span
-                    style={{
-                      position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 'var(--z-dropdown)',
-                      background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-                      borderRadius: 6, boxShadow: 'var(--shadow-overlay)', padding: 4, minWidth: 96,
-                    }}
-                  >
-                    <button
-                      type="button" onClick={() => { setMenuOpenId(null); onStartEdit(fv) }}
-                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', border: 'none', background: 'transparent', borderRadius: 4, fontSize: 13, color: 'var(--color-text-primary)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-                    >编辑</button>
-                    <button
-                      type="button" onClick={() => { setMenuOpenId(null); onDelete(fv) }}
-                      style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', border: 'none', background: 'transparent', borderRadius: 4, fontSize: 13, color: 'var(--color-danger)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
-                    >删除</button>
-                  </span>
-                )}
-              </span>
-            )}
-          </span>
-        )
-      })}
+                  {plain ? fv.value : formatPhonetic(fv.value)}
+                </span>
+              )}
 
-      {/* 常驻占位 + opacity 显隐：避免 hover 出入 DOM 引起行重排/页面跳动 */}
-      <span style={{ ...addChip, ...reveal(editorMode || rowHover) }} onClick={onAdd}>{addLabel}</span>
+              {isEditing && (
+                <>
+                  <button type="button" title="保存" onClick={onSave} style={iconBtn}>✓</button>
+                  <button type="button" title="取消" onClick={onCancelEdit} style={iconBtn}>✕</button>
+                </>
+              )}
+
+              {!isEditing && editorMode && (
+                <span style={reveal(hovered)}>
+                  <button type="button" title="编辑" onClick={() => onStartEdit(fv)} style={iconBtn}><Icon name="edit" size={12} /></button>
+                  <button type="button" title="删除" onClick={() => onDelete(fv)} style={iconBtn}><Icon name="trash" size={12} /></button>
+                </span>
+              )}
+
+              {!isEditing && !editorMode && (
+                <span style={{ ...reveal(rowHover), position: 'relative', display: 'inline-flex' }}>
+                  <button
+                    type="button" title="更多操作"
+                    onClick={() => setMenuOpenId(menuOpenId === fv.id ? null : fv.id)}
+                    style={iconBtn}
+                  >
+                    <Icon name="more" size={12} />
+                  </button>
+                  {menuOpenId === fv.id && (
+                    <span
+                      style={{
+                        position: 'absolute', right: 0, top: 'calc(100% + 4px)', zIndex: 'var(--z-dropdown)',
+                        background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                        borderRadius: 6, boxShadow: 'var(--shadow-overlay)', padding: 4, minWidth: 96,
+                      }}
+                    >
+                      <button
+                        type="button" onClick={() => { setMenuOpenId(null); onStartEdit(fv) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', border: 'none', background: 'transparent', borderRadius: 4, fontSize: 13, color: 'var(--color-text-primary)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                      >编辑</button>
+                      <button
+                        type="button" onClick={() => { setMenuOpenId(null); onDelete(fv) }}
+                        style={{ display: 'block', width: '100%', textAlign: 'left', padding: '5px 8px', border: 'none', background: 'transparent', borderRadius: 4, fontSize: 13, color: 'var(--color-danger)', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                      >删除</button>
+                    </span>
+                  )}
+                </span>
+              )}
+            </span>
+          )
+        })}
+
+        {/* 常驻占位 + opacity 显隐：避免 hover 出入 DOM 引起行重排/页面跳动 */}
+        <span style={{ ...addChip, ...reveal(editorMode || rowHover) }} onClick={onAdd}>{addLabel}</span>
+      </div>
     </div>
   )
 }
