@@ -35,6 +35,10 @@ const FIELD_STYLES: Record<FieldState, CSSProperties> = {
   personal: { background: FIELD_STATE_BG.personal, border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)',      borderLeft: '3px solid var(--color-weave-personal)' },
 }
 
+// 左端 gutter 宽度（v0.5.2 修订）：手柄宽 10px，不额外留余量。
+// 宽度写死的意义是「手柄显隐不改变文字区宽度」→ 零重排。
+const GUTTER_WIDTH = 10
+
 // 字段标签列宽度（v0.5.2 修订）：各层统一，不再分「第 0 层 100px / 更深层 80px 起」两档——
 // 两档既让深层多丢宽度，又让「例句」这类二字标签空掉大半列。
 // 取 minWidth 而非固定 width：12–13px 下「中文释义(1)」约 71px，恰好卡在 72px，
@@ -140,9 +144,9 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
         border: '1px solid var(--color-border)',
         borderLeft: '3px solid var(--color-border-strong)',
         borderRadius: 'var(--radius-md)',
-        // 左右内边距收到 6px（v0.5.2 修订）：标签离卡片左缘的距离里，这一项每层都要付一次，
+        // 左右内边距收到 4px（v0.5.2 修订）：标签离卡片左缘的距离里，这一项每层都要付一次，
         // 词性窗格又是有边框的盒子，收窄后整体正文起点明显左移。
-        padding: '8px 6px',
+        padding: '8px 4px',
         marginBottom: '6px',
         position: 'relative',
         transition: 'background-color 200ms var(--ease-smooth), border-color 200ms var(--ease-smooth)',
@@ -398,7 +402,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
             ? {
                 ...FIELD_STYLES[state],
                 borderRadius: 'var(--radius-md)',
-                padding: isLevel1 ? '8px 6px' : '6px',
+                padding: isLevel1 ? '8px 4px' : '6px 4px',
                 marginBottom: '2px',
                 transition: 'background-color 200ms var(--ease-smooth), border-color 200ms var(--ease-smooth)',
                 position: 'relative',
@@ -408,7 +412,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
                 background: isLevel1 ? 'var(--color-surface-raised)' : 'transparent',
                 border: isLevel1 ? '1px solid var(--color-border)' : 'none',
                 borderRadius: 'var(--radius-md)',
-                padding: isLevel1 ? '8px 6px' : '6px',
+                padding: isLevel1 ? '8px 4px' : '6px 4px',
                 marginBottom: isLevel1 ? '2px' : '0',
                 transition: 'background-color 200ms var(--ease-smooth), border-color 200ms var(--ease-smooth)',
                 position: 'relative',
@@ -431,33 +435,35 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
           }}
         />
       )}
-      <div style={{ position: 'relative', display: 'flex', alignItems: isPosPane ? 'center' : 'baseline', gap: '4px' }}>
-        {/* 拖拽手柄改为绝对定位（v0.5.2 修订）：原先它独占行左端 16px 的 gutter，再加行距 4px，
-            与卡片内边距合起来构成「第一个字离卡片左缘 26px」。绝对定位后不参与排版，
-            正文起点只剩卡片自身内边距（6px），手柄 hover 时浮在卡片左缘外侧（左 14px 处，
-            落在列内边距 / 子级缩进里，不与文字重叠）。
-            仍常驻挂载 + reveal 显隐：绝对定位本就不影响行宽，故零重排不变。 */}
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          {...listeners}
-          {...attributes}
-          title="拖动排序"
-          aria-label="拖动排序"
-          style={{
-            position: 'absolute', left: '-14px', top: '50%', transform: 'translateY(-50%)',
-            width: '12px', height: '14px',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: 'none', background: 'transparent',
-            borderRadius: 'var(--radius-sm)',
-            cursor: isDragging ? 'grabbing' : 'grab',
-            color: 'var(--color-text-tertiary)',
-            touchAction: 'none',
-            ...reveal(showsButtons),
-          }}
+      <div style={{ display: 'flex', alignItems: isPosPane ? 'center' : 'baseline', gap: '4px' }}>
+        {/* 左端 gutter：手柄的落点（v0.5.2 修订）。手柄收在卡片内、宽度固定 10px；
+            加上卡片内边距 4px 与行距 4px，「第一个字离卡片左缘」为 18px（原 26px）。
+            宽度写死的意义不变：手柄显隐不改变文字区宽度 → 零重排。 */}
+        <div
+          style={{ width: GUTTER_WIDTH, flexShrink: 0, alignSelf: 'center', display: 'flex', alignItems: 'center' }}
         >
-          <Icon name="grip" size={11} />
-        </button>
+          <button
+            type="button"
+            ref={setActivatorNodeRef}
+            {...listeners}
+            {...attributes}
+            title="拖动排序"
+            aria-label="拖动排序"
+            style={{
+              width: '10px', height: '14px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', background: 'transparent',
+              borderRadius: 'var(--radius-sm)',
+              cursor: isDragging ? 'grabbing' : 'grab',
+              color: 'var(--color-text-tertiary)',
+              flexShrink: 0, alignSelf: 'center',
+              touchAction: 'none',
+              ...reveal(showsButtons),
+            }}
+          >
+            <Icon name="grip" size={10} />
+          </button>
+        </div>
         {isPosPane ? (
           isEditing ? (
             <div className="space-y-2" style={{ flex: 1 }}>
