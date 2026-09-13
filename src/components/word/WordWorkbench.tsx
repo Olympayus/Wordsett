@@ -36,6 +36,17 @@ const FIELD_STYLES: Record<FieldState, CSSProperties> = {
   personal: { background: 'var(--color-accent-soft)',   border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)',      borderLeft: '3px solid var(--color-weave-personal)' },
 }
 
+// 字段行左端固定 gutter（v0.5.2 §2 §3）：拖拽把手 + ⋯ 菜单 + 垃圾桶收纳于此。
+// 宽度写死 → 内部控件即使条件渲染也不影响文字区宽度，hover 不再引发折行 / 行高变化。
+const GUTTER_WIDTH = 64
+
+// 常驻占位 + opacity 显隐（照搬 PhoneticArea.tsx:54-57 的 reveal 模式）
+const reveal = (on: boolean): CSSProperties => ({
+  opacity: on ? 1 : 0,
+  pointerEvents: on ? 'auto' : 'none',
+  transition: 'opacity 150ms var(--ease-smooth)',
+})
+
 // 容器字段（#5 键判定，取代「有子级且无值」推断：刚建的空容器立即按容器渲染）
 const CONTAINER_FIELD_KEYS = ['part_of_speech', 'supplementary', 'phrase', 'exchange', 'derivatives', 'example_sentence', 'synonyms', 'word_root', 'synonym_discrimination', 'synonym_discrimination_group']
 // 项类型字段（#4）：标签列不渲染字段名，值占满整行
@@ -410,34 +421,64 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
         />
       )}
       <div style={{ display: 'flex', alignItems: isPosPane ? 'center' : 'baseline', gap: '4px' }}>
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          {...listeners}
-          {...attributes}
-          title="拖动排序"
-          aria-label="拖动排序"
+        {/* 左端 gutter：宽度写死，故内部控件如何显隐都不改变文字区宽度 → 零重排 */}
+        <div
           style={{
-            width: '12px',
-            height: '14px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            opacity: showsButtons ? 1 : 0,
-            pointerEvents: showsButtons ? 'auto' : 'none',
-            border: 'none',
-            background: 'transparent',
-            borderRadius: 'var(--radius-sm)',
-            cursor: isDragging ? 'grabbing' : 'grab',
-            color: 'var(--color-text-tertiary)',
-            flexShrink: 0,
-            alignSelf: 'center',
-            touchAction: 'none',
-            transition: 'opacity var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
+            width: GUTTER_WIDTH, flexShrink: 0, alignSelf: 'center',
+            display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '2px',
           }}
         >
-          <Icon name="grip" size={11} />
-        </button>
+          <button
+            type="button"
+            ref={setActivatorNodeRef}
+            {...listeners}
+            {...attributes}
+            title="拖动排序"
+            aria-label="拖动排序"
+            style={{
+              width: '12px', height: '14px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', background: 'transparent',
+              borderRadius: 'var(--radius-sm)',
+              cursor: isDragging ? 'grabbing' : 'grab',
+              color: 'var(--color-text-tertiary)',
+              flexShrink: 0, alignSelf: 'center',
+              touchAction: 'none',
+              ...reveal(showsButtons),
+            }}
+          >
+            <Icon name="grip" size={11} />
+          </button>
+
+          {/* ⋯ 菜单：普通模式渲染（叶子与容器都有——原行尾 + 卡片右上角两处合并到此）；
+              编者模式不渲染，沿用原行为 */}
+          {!editorMode && threeDotMenu}
+
+          {/* 删除：合并原三处入口（叶子行尾、单行容器行尾、容器右下）。此处对所有卡片无条件渲染：
+              原三处渲染条件取并集并非恒为真——普通模式且「词性窗格无子项」时原本没有删除入口；
+              现按每张卡都可删处理（空卡也是真实卡片，属行内 affordance 的严格增量），
+              且 gutter 宽度写死，控件的增减不影响文字区宽度。 */}
+          <button
+            type="button"
+            title="删除"
+            aria-label="删除"
+            onClick={() => onDelete(fv)}
+            style={{
+              width: '24px', height: '24px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', background: 'transparent',
+              borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer',
+              color: 'var(--color-text-tertiary)',
+              flexShrink: 0, alignSelf: 'center',
+              ...reveal(showsButtons),
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+          >
+            <Icon name="trash" size={16} />
+          </button>
+        </div>
         {isPosPane ? (
           isEditing ? (
             <div className="space-y-2" style={{ flex: 1 }}>
@@ -582,7 +623,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
             )}
           </>
         )}
-        {editorMode ? (
+        {editorMode && (
           <>
             {state !== 'original' && (
               <span
@@ -599,115 +640,9 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
                 {state === 'edited' ? '已编辑' : '个人'}
               </span>
             )}
-            {/* 叶子节点垃圾桶：flex 行末、角标之后（容器节点垃圾桶为卡片右下绝对定位） */}
-            {childDefs.length === 0 && showsButtons && (
-              <button
-                type="button"
-                title="删除"
-                aria-label="删除"
-                onClick={() => onDelete(fv)}
-                style={{
-                  width: '24px',
-                  height: '24px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  border: 'none',
-                  background: 'transparent',
-                  borderRadius: 'var(--radius-sm)',
-                  cursor: 'pointer',
-                  color: 'var(--color-text-tertiary)',
-                  flexShrink: 0,
-                  alignSelf: 'center',
-                  transition: 'color var(--duration-fast) var(--ease-smooth)',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)' }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
-              >
-                <Icon name="trash" size={16} />
-              </button>
-            )}
-            {/* 单行容器（无子项、非词性）：添加 + 删除内联该行右端，删除在最右、添加在删除左侧，不再另起一行（v0.4.3 §2） */}
-            {!hasChildren && !isPosPane && childDefs.length > 0 && showsButtons && (
-              <>
-                {/* 容器键字段无值格，需 spacer 把操作推到行尾；非容器字段的值格 flex:1 已起同样作用，
-                    再加 spacer 会平分宽度导致值格内容被挤换行（v0.4.3 修复） */}
-                {isContainer && <span style={{ flex: 1 }} />}
-                {addChildControl}
-                <button
-                  type="button"
-                  title="删除"
-                  aria-label="删除"
-                  onClick={() => onDelete(fv)}
-                  style={{
-                    width: '24px',
-                    height: '24px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    border: 'none',
-                    background: 'transparent',
-                    borderRadius: 'var(--radius-sm)',
-                    cursor: 'pointer',
-                    color: 'var(--color-text-tertiary)',
-                    flexShrink: 0,
-                    alignSelf: 'center',
-                    transition: 'color var(--duration-fast) var(--ease-smooth)',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)' }}
-                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
-                >
-                  <Icon name="trash" size={16} />
-                </button>
-              </>
-            )}
           </>
-        ) : (
-          // 普通模式三点：叶子节点保留 flex 行内最右；容器节点移到卡片右上角（见下方卡片直接子级）
-          childDefs.length === 0 && (
-            <div style={{ position: 'relative', flexShrink: 0, alignSelf: 'center' }}>
-              {threeDotMenu}
-            </div>
-          )
         )}
       </div>
-      {/* 容器节点三点：普通模式，卡片直接子级，绝对定位锚定卡片（卡片恒 position: relative）右上角 */}
-      {!editorMode && childDefs.length > 0 && showsButtons && (
-        <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 'var(--z-dropdown)' }}>
-          {threeDotMenu}
-        </div>
-      )}
-      {/* 容器节点垃圾桶：卡片直接子级，绝对定位锚定卡片（卡片恒 position: relative）右下角，与左下「+ 添加」按钮对侧。
-          仅多行容器（有子项或词性）使用；单行容器改为内联行尾（见上方头部行内联簇） */}
-      {editorMode && childDefs.length > 0 && (hasChildren || isPosPane) && showsButtons && (
-        <button
-          type="button"
-          title="删除"
-          aria-label="删除"
-          onClick={() => onDelete(fv)}
-          style={{
-            position: 'absolute',
-            right: '8px',
-            bottom: '8px',
-            width: '24px',
-            height: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: 'none',
-            background: 'transparent',
-            borderRadius: 'var(--radius-sm)',
-            cursor: 'pointer',
-            color: 'var(--color-text-tertiary)',
-            zIndex: 1,
-            transition: 'color var(--duration-fast) var(--ease-smooth)',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)' }}
-          onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
-        >
-          <Icon name="trash" size={16} />
-        </button>
-      )}
       {hasChildren && (
         <div style={hasTerminalChildren
           ? { marginTop: '4px' }
@@ -716,8 +651,8 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
         </div>
       )}
       {/* 每卡「+ 添加子词条」菜单（Task 10 §Step 2）：编者模式可用，按 ALLOWED_CHILD_KEYS 过滤。
-          多行容器（有子项或词性）换行显示于内容下方；单行容器走头部行内联簇（v0.4.3 §2） */}
-      {editorMode && childDefs.length > 0 && (hasChildren || isPosPane) && showsButtons && (
+          所有容器（含单行，v0.5.2 §2 起统一）换行显示于内容下方；叶子卡片 childDefs.length === 0 不渲染 */}
+      {editorMode && childDefs.length > 0 && showsButtons && (
         <div style={{ marginTop: '8px' }}>{addChildControl}</div>
       )}
     </div>
