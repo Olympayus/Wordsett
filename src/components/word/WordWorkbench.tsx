@@ -431,11 +431,13 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
         />
       )}
       <div style={{ display: 'flex', alignItems: isPosPane ? 'center' : 'baseline', gap: '4px' }}>
-        {/* 左端 gutter：宽度写死，故内部控件如何显隐都不改变文字区宽度 → 零重排 */}
+        {/* 左端 gutter：宽度写死，故内部控件如何显隐都不改变文字区宽度 → 零重排。
+            space-between：拖拽手柄贴行左缘，操作控件（⋯ / 垃圾桶）贴 gutter 右缘，
+            两者之间的空白留在中间，手柄不再被推到离左缘 26px 处。 */}
         <div
           style={{
             width: GUTTER_WIDTH, flexShrink: 0, alignSelf: 'center',
-            display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '2px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2px',
           }}
         >
           <button
