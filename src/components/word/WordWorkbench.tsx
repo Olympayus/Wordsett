@@ -35,8 +35,12 @@ const fieldState = (fv: FieldValue): FieldState =>
 const GUTTER_WIDTH = 64
 
 // 常驻占位 + opacity 显隐（照搬 PhoneticArea.tsx:54-57 的 reveal 模式）
+// visibility 而非仅 opacity（v0.5.2 任务 6 回归修复）：常驻挂载后仅靠 opacity，
+// 不可见控件仍在 Tab 序列与无障碍树中，Tab+Enter 会误触删除/加子词条；
+// visibility:hidden 同时移出两者，且不占位差、布局照旧保留。
 const reveal = (on: boolean): CSSProperties => ({
   opacity: on ? 1 : 0,
+  visibility: on ? 'visible' : 'hidden',
   pointerEvents: on ? 'auto' : 'none',
   transition: 'opacity 150ms var(--ease-smooth)',
 })
@@ -199,6 +203,9 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
           alignItems: 'center',
           justifyContent: 'center',
           opacity: showsButtons ? 1 : 0,
+          // ⋯ 按钮不经过 reveal()（下拉浮层是它的兄弟节点，需在 hover 移出后仍可点），
+          // 故此处单独加 visibility，与 reveal 同理移出隐藏控件的 Tab 序列与无障碍树。
+          visibility: showsButtons ? 'visible' : 'hidden',
           pointerEvents: showsButtons ? 'auto' : 'none',
           border: 'none',
           background: 'transparent',
@@ -709,6 +716,15 @@ export default function WordWorkbench() {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [])
+
+  // 切换编者模式时收起工作台浮层（v0.5.2 任务 6）：旧的切换开关会一并清空菜单状态，
+  // 新 pill 只 setEditorMode，会留下 menuOpenId → 透明遮罩残留吞掉下一次点击、
+  // 切回普通模式时菜单又原样弹开。挂载时各值本就是 null/false，effect 首跑无副作用。
+  useEffect(() => {
+    setMenuOpenId(null)
+    setChildMenuId(null)
+    setAddFieldOpen(false)
+  }, [editorMode])
 
   // 内联编辑点外关闭：点击编辑卡外部且未改动时退出编辑（有改动保持，供继续编辑/保存）
   useEffect(() => {

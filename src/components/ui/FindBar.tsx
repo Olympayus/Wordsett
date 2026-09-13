@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { useViewStore } from '../../stores/viewStore'
 
 // 统一页内查找（spec §4b）：挂 AppShell，工作台与词典详情共用；CSS Custom Highlight API 高亮
 // CSS Custom Highlight API 由 lib.dom（TS ≥6）/ WebView2 提供，无需 shim 文件
@@ -23,6 +24,7 @@ export default function FindBar() {
   const [query, setQuery] = useState('')
   const [index, setIndex] = useState(0)
   const [matches, setMatches] = useState(0)
+  const activeModule = useViewStore(s => s.activeModule)
   const inputRef = useRef<HTMLInputElement>(null)
   useEffect(() => { current = new FindBarController(() => { setQuery(q => q || ''); setOpen(true); requestAnimationFrame(() => inputRef.current?.focus()) }); return () => { current = null } }, [])
 
@@ -31,7 +33,10 @@ export default function FindBar() {
     if (!open || !query.trim()) { CSS.highlights?.delete(HIGHLIGHT_NAME); setMatches(0); return }
     if (typeof Highlight === 'undefined' || !CSS.highlights) { setMatches(0); return }
     const hl = new Highlight()
-    const walker = document.createTreeWalker(document.querySelector('main') ?? document.body, NodeFilter.SHOW_TEXT)
+    // 搜索根绑定当前激活模块（v0.5.2 §4b）：工作台隐藏时其 <main> 仍在 DOM 中，
+    // 按 activeModule 选取 data-find-root 对应的内容根，避免在设置页里搜到隐藏的工作台文本。
+    const root = document.querySelector(`[data-find-root="${activeModule}"]`) ?? document.body
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
     const ranges: Range[] = []
     let target: Range | null = null
     let node: Node | null
@@ -52,7 +57,7 @@ export default function FindBar() {
     ranges.forEach(r => hl.add(r))
     CSS.highlights?.set(HIGHLIGHT_NAME, hl)
     if (target) { const el = target.startContainer.parentElement; el?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }
-  }, [open, query, index])
+  }, [open, query, index, activeModule])
 
   if (!open) return null
   return createPortal(

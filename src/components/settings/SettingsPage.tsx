@@ -34,7 +34,8 @@ export default function SettingsPage() {
   })
 
   return (
-    <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
+    // data-find-root 供 FindBar 定位当前模块的搜索根（工作台用同名属性区分）
+    <div data-find-root="settings" style={{ flex: 1, display: 'flex', overflow: 'hidden', minWidth: 0 }}>
       <nav
         aria-label="设置分区"
         style={{

@@ -49,4 +49,28 @@ describe('viewStore 双视图切换（D2）', () => {
     useViewStore.getState().showModule('workbench')
     expect(useViewStore.getState().activeModule).toBe('workbench')
   })
+
+  // 设置页激活时，顶栏搜索建议 / Logo 是全局入口，须把模块带回工作台（v0.5.2 全局入口修复）
+  it('showDict 在设置模块下同时切回工作台模块', () => {
+    useViewStore.getState().showModule('settings')
+    useViewStore.getState().showDict('observe')
+    const s = useViewStore.getState()
+    expect(s.activeModule).toBe('workbench')
+    expect(s.activeView).toBe('dict')
+    expect(s.dictWord).toBe('observe')
+  })
+
+  it('showWorkbench 在设置模块下同时切回工作台模块', () => {
+    useViewStore.getState().showModule('settings')
+    useViewStore.getState().showWorkbench()
+    const s = useViewStore.getState()
+    expect(s.activeModule).toBe('workbench')
+    expect(s.activeView).toBe('workbench')
+    expect(s.dictWord).toBeNull()
+  })
+
+  it('showModule 仍是唯一能选设置模块的入口', () => {
+    useViewStore.getState().showModule('settings')
+    expect(useViewStore.getState().activeModule).toBe('settings')
+  })
 })

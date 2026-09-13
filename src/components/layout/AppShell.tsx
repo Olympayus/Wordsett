@@ -74,8 +74,9 @@ export default function AppShell() {
             <SidebarFooter collapsed={collapsed} />
           </aside>
 
-          {/* 右侧区域：词编辑视图 ↔ 词典详情视图（规格 §2，同一时刻仅其一；D2 替换显示） */}
-          <main className="flex-1 overflow-hidden">
+          {/* 右侧区域：词编辑视图 ↔ 词典详情视图（规格 §2，同一时刻仅其一；D2 替换显示）。
+              data-find-root 供 FindBar 定位当前模块的搜索根（设置页用同名属性区分）。 */}
+          <main data-find-root="workbench" className="flex-1 overflow-hidden">
             {activeView === 'dict' && dictWord
               ? <DictDetailPanel word={dictWord} />
               : <WordWorkbench />}

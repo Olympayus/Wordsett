@@ -6,6 +6,7 @@ import type { MergeFieldInput } from '../services/wordService'
 import * as fieldService from '../services/fieldService'
 import { useCategoryStore } from './categoryStore'
 import { useNavHistoryStore } from './navHistoryStore'
+import { current } from '../lib/navHistory'
 
 interface WordStore {
   words: WordWithPreview[]
@@ -89,10 +90,15 @@ export const useWordStore = create<WordStore>((set, get) => ({
   deleteWord: async (id) => {
     const ok = await wordService.deleteWord(id)
     if (!ok) return
+    const wasSelected = get().selectedWordId === id
     // 历史栈清理：被删词条若在栈内，回退时不得落到空词条（v0.5.2 §6）
     useNavHistoryStore.getState().dropId(id)
-    if (get().selectedWordId === id) {
-      set({ selectedWordId: null, fieldValues: [] })
+    if (wasSelected) {
+      // 删除当前词条后的自动切词（spec §6 入栈时机）：落到历史栈现在指向的邻居词条；
+      // 空栈则维持原来的空态。非选中词条的删除不动选中项。
+      const neighbour = current(useNavHistoryStore.getState().history)
+      if (neighbour) await get().selectWord(neighbour)
+      else set({ selectedWordId: null, fieldValues: [] })
     }
     await get().loadWords()
   },
