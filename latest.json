@@ -1,11 +1,11 @@
 {
-  "version": "0.5.1",
-  "notes": "v0.5.1 更新： 新增 · 中文搜索建议下拉补显释义（命中行，含高亮） · 语义网络各组 ℹ 官方说明 释义误拆（如 yuppy）\n· 中文搜索排序（完整命中优先于括号注命中）\n· wordnet 释义剥离引用例句\n· 词根 hover不再引发页面跳动，编辑体验与音标统一\n· 近义词辨析项编辑框与词形变化一致",
-  "pub_date": "2026-09-06T07:42:53.256Z",
+  "version": "0.5.2",
+  "notes": "界面改版：左下活动栏 + 设置独立页；新增词条导航条（浏览器式前进 / 后退）；字段区降噪（hover抖动根因修复、取消固定标签列、缩进一次封顶、行内控件移到右侧）；词根每行一条；音标 / 词根添加控件 hover现形、编者模式按来源三态上色；搜索框不再盖住词表；统计数字格式统一。",
+  "pub_date": "2026-09-13T13:57:54.282Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZGJIY2FZYjkvWEpra0dZalJ0QUVPQ0ZoaWI0MGlWdTlpSkVpZ24raUxvcjVHZ1lib0tlanNXelkxU3V3R012SWtBc2ZiYzc4d2ZTbzRSVFZXakx0SUFFPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg4NjgwNTU3CWZpbGU6V29yZHNldHRfMC41LjFfeDY0LXNldHVwLmV4ZQp5QjR5SnY4Vk14bWFuU0JkcXRUNEFNMEFyMGxFQ2I1Z1Q5akVZOHZYVHdOSGlqNmdYQVZHVzVzOXpITnlwaWdKTlZOUS94RWFpZ3lISUxBeHZYSGdDZz09Cg==",
-      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.5.1/Wordsett_0.5.1_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFFvRDczYzZ1MEVKSjBiY2JHVzhGeHc3bVpOd0lUbk9xL0tabndweFBkWlFxSWI4U0ZNcXNSTTlSNGhlVlA3b0VLOUJaYkhpdnZFK0VHK3RXSVA0bndRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MzA3ODU5CWZpbGU6V29yZHNldHRfMC41LjJfeDY0LXNldHVwLmV4ZQpjMTg2YUJtR293VWx4b1ZoNXZNMXptWFpBVkMwU1A5bE1KOHZ4Z0I3TTNDMFVpWlJJUXFCcEhGb2tSNU9acTNwMzNrZmhDY0JzNWR1SldWaWhsNmRBUT09Cg==",
+      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.5.2/Wordsett_0.5.2_x64-setup.exe"
     }
   }
 }
