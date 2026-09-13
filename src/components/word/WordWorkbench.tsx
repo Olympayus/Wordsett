@@ -20,6 +20,7 @@ import Icon from '../icons'
 import CategoryCapsule from './CategoryCapsule'
 import PhoneticArea from './PhoneticArea'
 import TabBar from './TabBar'
+import WorkbenchNavBar from './WorkbenchNavBar'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useUiStore } from '../../stores/uiStore'
 import type { FieldDefinition, FieldValue } from '../../types/field'
@@ -726,7 +727,6 @@ export default function WordWorkbench() {
   const { words, selectedWordId, fieldValues, updateFieldValue, deleteWord, addFieldValue, deleteFieldValue, reorderFieldValues } = useWordStore()
   const [defs, setDefs] = useState<FieldDefinition[]>([])
   const editorMode = useViewStore(s => s.editorMode)
-  const setEditorMode = useViewStore(s => s.setEditorMode)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editValue, setEditValue] = useState('')
   const [entryValue, setEntryValue] = useState('')  // 进入编辑时的值
@@ -1065,6 +1065,12 @@ export default function WordWorkbench() {
         />
       )}
       <div style={{ maxWidth: '720px', margin: '0 auto', padding: '24px 32px 48px' }}>
+        {/* 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区 */}
+        <WorkbenchNavBar
+          onAddTab={handleAddTab}
+          onDeleteWord={handleDelete}
+          missingTabs={missingTabs(contentRoots, keyOfFv)}
+        />
         {/* 单词标题区（规格 §5.1） */}
         <div style={{ marginBottom: '12px' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px', marginBottom: '6px' }}>
@@ -1093,32 +1099,6 @@ export default function WordWorkbench() {
                 >
                   {selectedWord.lemma}
                 </div>
-                {/* 删除单词：垃圾桶图标按钮（与标题稍隔开），不再用底部文字按钮 */}
-                <button
-                  type="button"
-                  title="删除单词"
-                  aria-label="删除单词"
-                  onClick={handleDelete}
-                  style={{
-                    marginLeft: '10px',
-                    width: '26px',
-                    height: '26px',
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    border: 'none',
-                    background: 'transparent',
-                    borderRadius: 'var(--radius-sm)',
-                    cursor: 'pointer',
-                    color: 'var(--color-text-tertiary)',
-                    transition: 'color var(--duration-fast) var(--ease-smooth), background-color var(--duration-fast) var(--ease-smooth)',
-                  }}
-                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)'; e.currentTarget.style.background = 'color-mix(in srgb, var(--color-danger) 8%, transparent)' }}
-                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.background = 'transparent' }}
-                >
-                  <Icon name="trash" size={16} />
-                </button>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
@@ -1193,57 +1173,18 @@ export default function WordWorkbench() {
               </button>
             </div>
           </div>
-          {/* 音标行 + 编者模式开关（同一行）：音标左、开关右 */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '16px', marginTop: '10px' }}>
-            <PhoneticArea
-              values={phoneticValues.filter(fv => fv.id === editingId || fv.value.trim())}
-              editorMode={editorMode}
-              editingId={editingId}
-              editValue={editValue}
-              onEditValueChange={setEditValue}
-              onStartEdit={handleStartEdit}
-              onSave={handleSave}
-              onCancelEdit={() => setEditingId(null)}
-              onAdd={() => handleAddField(defs.find(d => d.key === 'phonetic')!)}
-              onDelete={handleDeleteField}
-            />
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', flexShrink: 0 }}>
-              <span>编者模式</span>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={editorMode}
-                aria-label="编者模式"
-                onClick={() => { setEditorMode(!editorMode); setMenuOpenId(null); setChildMenuId(null) }}
-                style={{
-                  width: '36px',
-                  height: '20px',
-                  background: editorMode ? 'var(--color-brand)' : 'var(--color-border-strong)',
-                  borderRadius: 'var(--radius-full)',
-                  position: 'relative',
-                  flexShrink: 0,
-                  border: 'none',
-                  padding: 0,
-                  cursor: 'pointer',
-                  transition: 'background-color var(--duration-fast) var(--ease-smooth)',
-                }}
-              >
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: '2px',
-                    left: '2px',
-                    width: '16px',
-                    height: '16px',
-                    background: '#FFFFFF',
-                    borderRadius: '50%',
-                    transition: 'transform var(--duration-fast) var(--ease-smooth)',
-                    transform: editorMode ? 'translateX(16px)' : 'translateX(0)',
-                  }}
-                />
-              </button>
-            </div>
-          </div>
+          <PhoneticArea
+            values={phoneticValues.filter(fv => fv.id === editingId || fv.value.trim())}
+            editorMode={editorMode}
+            editingId={editingId}
+            editValue={editValue}
+            onEditValueChange={setEditValue}
+            onStartEdit={handleStartEdit}
+            onSave={handleSave}
+            onCancelEdit={() => setEditingId(null)}
+            onAdd={() => handleAddField(defs.find(d => d.key === 'phonetic')!)}
+            onDelete={handleDeleteField}
+          />
           <PhoneticArea
             values={wordRootValues
               .filter(fv => fv.id === editingId || (fv.children?.length ?? 0) > 0 || editorMode)
