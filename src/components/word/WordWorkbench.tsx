@@ -225,7 +225,8 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
         <div
           style={{
             position: 'absolute',
-            right: 0,
+            left: 0,
+            right: 'auto',
             top: 'calc(100% + 4px)',
             minWidth: '120px',
             padding: '4px',
@@ -451,8 +452,13 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
           </button>
 
           {/* ⋯ 菜单：普通模式渲染（叶子与容器都有——原行尾 + 卡片右上角两处合并到此）；
-              编者模式不渲染，沿用原行为 */}
-          {!editorMode && threeDotMenu}
+              编者模式不渲染，沿用原行为。position:relative 包裹 → 下拉锚定按钮自身盒而非卡片，
+              避免高容器卡的下拉跑到整卡下方甚至出屏 */}
+          {!editorMode && (
+            <div style={{ position: 'relative', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+              {threeDotMenu}
+            </div>
+          )}
 
           {/* 删除：合并原三处入口（叶子行尾、单行容器行尾、容器右下）。此处对所有卡片无条件渲染：
               原三处渲染条件取并集并非恒为真——普通模式且「词性窗格无子项」时原本没有删除入口；
@@ -651,9 +657,10 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
         </div>
       )}
       {/* 每卡「+ 添加子词条」菜单（Task 10 §Step 2）：编者模式可用，按 ALLOWED_CHILD_KEYS 过滤。
-          所有容器（含单行，v0.5.2 §2 起统一）换行显示于内容下方；叶子卡片 childDefs.length === 0 不渲染 */}
-      {editorMode && childDefs.length > 0 && showsButtons && (
-        <div style={{ marginTop: '8px' }}>{addChildControl}</div>
+          所有容器（含单行，v0.5.2 §2 起统一）换行显示于内容下方；叶子卡片 childDefs.length === 0 不渲染。
+          常驻挂载 + reveal 显隐（不靠条件渲染），高度始终保留 → hover 不再推动下方行（spec §2 布局恒定） */}
+      {editorMode && childDefs.length > 0 && (
+        <div style={{ marginTop: '8px', ...reveal(showsButtons) }}>{addChildControl}</div>
       )}
     </div>
   )
