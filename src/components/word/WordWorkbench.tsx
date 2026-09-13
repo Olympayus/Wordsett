@@ -658,6 +658,15 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
                 {state === 'edited' ? '已编辑' : '个人'}
               </span>
             )}
+
+            {/* 单行容器（无子项、非词性）：pill 走行内右端（v0.4.3 §2 的观感，v0.5.2 修订恢复）。
+                常驻挂载 + reveal 显隐、宽度始终保留 —— 若改成 hover 才渲染，正文宽会在 hover 时骤减而重新折行，
+                即该行字符抖动（spec §2）。代价：该行正文永久窄约一个 pill 宽。有子项或词性的容器仍走卡片下方。 */}
+            {childDefs.length > 0 && !hasChildren && !isPosPane && (
+              <div style={{ flexShrink: 0, alignSelf: 'center', ...reveal(showsButtons) }}>
+                {addChildControl}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -676,9 +685,10 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
         </div>
       )}
       {/* 每卡「+ 添加子词条」菜单（Task 10 §Step 2）：编者模式可用，按 ALLOWED_CHILD_KEYS 过滤。
-          所有容器（含单行，v0.5.2 §2 起统一）换行显示于内容下方；叶子卡片 childDefs.length === 0 不渲染。
+          有子项或词性的容器（内容多行）换行显示于内容下方；单行容器走上方表头行内右端。
+          叶子卡片 childDefs.length === 0 不渲染（两个分支都不满足，条件互斥不会重复渲染同一个 pill）。
           常驻挂载 + reveal 显隐（不靠条件渲染），高度始终保留 → hover 不再推动下方行（spec §2 布局恒定） */}
-      {editorMode && childDefs.length > 0 && (
+      {editorMode && childDefs.length > 0 && (hasChildren || isPosPane) && (
         <div style={{ marginTop: '8px', ...reveal(showsButtons) }}>{addChildControl}</div>
       )}
     </div>
