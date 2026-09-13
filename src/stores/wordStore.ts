@@ -5,6 +5,7 @@ import * as wordService from '../services/wordService'
 import type { MergeFieldInput } from '../services/wordService'
 import * as fieldService from '../services/fieldService'
 import { useCategoryStore } from './categoryStore'
+import { useNavHistoryStore } from './navHistoryStore'
 
 interface WordStore {
   words: WordWithPreview[]
@@ -13,7 +14,7 @@ interface WordStore {
   fieldValues: FieldValue[]
 
   loadWords: () => Promise<void>
-  selectWord: (id: string | null) => Promise<void>
+  selectWord: (id: string | null, opts?: { record?: boolean }) => Promise<void>
   updateFieldValue: (fvId: string, input: FieldValueContentUpdate) => Promise<void>
   restoreFieldValue: (fvId: string) => Promise<void>
   addFieldValue: (fieldId: string, parentId?: string | null) => Promise<FieldValue | null>
@@ -36,10 +37,14 @@ export const useWordStore = create<WordStore>((set, get) => ({
     set({ words, loading: false })
   },
 
-  selectWord: async (id) => {
+  selectWord: async (id, opts) => {
     // 仅切换单词时清空（加载态）；同名刷新（拖拽重排/编辑保存/还原/添加字段）保留列表，
     // 避免字段列表先坍缩再重取导致滚动容器 scrollTop 被钳到顶部（跳顶）。
-    if (id !== get().selectedWordId) set({ selectedWordId: id, fieldValues: [] })
+    if (id !== get().selectedWordId) {
+      set({ selectedWordId: id, fieldValues: [] })
+      // 历史栈：仅记录非空的词条切换；箭头导航自身调用时传 record:false（v0.5.2 §6）
+      if (id && opts?.record !== false) useNavHistoryStore.getState().record(id)
+    }
     if (!id) return
     const values = await fieldService.getValues(id)
     set({ fieldValues: values })
@@ -84,6 +89,8 @@ export const useWordStore = create<WordStore>((set, get) => ({
   deleteWord: async (id) => {
     const ok = await wordService.deleteWord(id)
     if (!ok) return
+    // 历史栈清理：被删词条若在栈内，回退时不得落到空词条（v0.5.2 §6）
+    useNavHistoryStore.getState().dropId(id)
     if (get().selectedWordId === id) {
       set({ selectedWordId: null, fieldValues: [] })
     }
