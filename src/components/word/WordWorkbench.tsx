@@ -35,10 +35,6 @@ const FIELD_STYLES: Record<FieldState, CSSProperties> = {
   personal: { background: FIELD_STATE_BG.personal, border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)',      borderLeft: '3px solid var(--color-weave-personal)' },
 }
 
-// 字段行左端固定 gutter（v0.5.2 修订）：只放 12px 的拖拽手柄，留 4px 余量。
-// 宽度写死的意义是「手柄显隐不改变文字区宽度」；操作控件移到右侧后不再需要为它们留 64px。
-const GUTTER_WIDTH = 16
-
 // 字段标签列宽度（v0.5.2 修订）：各层统一，不再分「第 0 层 100px / 更深层 80px 起」两档——
 // 两档既让深层多丢宽度，又让「例句」这类二字标签空掉大半列。
 // 取 minWidth 而非固定 width：12–13px 下「中文释义(1)」约 71px，恰好卡在 72px，
@@ -435,34 +431,33 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
           }}
         />
       )}
-      <div style={{ display: 'flex', alignItems: isPosPane ? 'center' : 'baseline', gap: '4px' }}>
-        {/* 左端 gutter：只放拖拽手柄（v0.5.2 修订）。操作控件（⋯ / 垃圾桶）已移到行右端与卡片角落，
-            故 gutter 从 64px 收到 16px，正文净增约 48px。宽度仍写死 → 手柄显隐不改文字区宽度（零重排）。 */}
-        <div
-          style={{ width: GUTTER_WIDTH, flexShrink: 0, alignSelf: 'center', display: 'flex', alignItems: 'center' }}
+      <div style={{ position: 'relative', display: 'flex', alignItems: isPosPane ? 'center' : 'baseline', gap: '4px' }}>
+        {/* 拖拽手柄改为绝对定位（v0.5.2 修订）：原先它独占行左端 16px 的 gutter，再加行距 4px，
+            与卡片内边距合起来构成「第一个字离卡片左缘 26px」。绝对定位后不参与排版，
+            正文起点只剩卡片自身内边距（6px），手柄 hover 时浮在卡片左缘外侧（左 14px 处，
+            落在列内边距 / 子级缩进里，不与文字重叠）。
+            仍常驻挂载 + reveal 显隐：绝对定位本就不影响行宽，故零重排不变。 */}
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...listeners}
+          {...attributes}
+          title="拖动排序"
+          aria-label="拖动排序"
+          style={{
+            position: 'absolute', left: '-14px', top: '50%', transform: 'translateY(-50%)',
+            width: '12px', height: '14px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: 'none', background: 'transparent',
+            borderRadius: 'var(--radius-sm)',
+            cursor: isDragging ? 'grabbing' : 'grab',
+            color: 'var(--color-text-tertiary)',
+            touchAction: 'none',
+            ...reveal(showsButtons),
+          }}
         >
-          <button
-            type="button"
-            ref={setActivatorNodeRef}
-            {...listeners}
-            {...attributes}
-            title="拖动排序"
-            aria-label="拖动排序"
-            style={{
-              width: '12px', height: '14px',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              border: 'none', background: 'transparent',
-              borderRadius: 'var(--radius-sm)',
-              cursor: isDragging ? 'grabbing' : 'grab',
-              color: 'var(--color-text-tertiary)',
-              flexShrink: 0, alignSelf: 'center',
-              touchAction: 'none',
-              ...reveal(showsButtons),
-            }}
-          >
-            <Icon name="grip" size={11} />
-          </button>
-        </div>
+          <Icon name="grip" size={11} />
+        </button>
         {isPosPane ? (
           isEditing ? (
             <div className="space-y-2" style={{ flex: 1 }}>
