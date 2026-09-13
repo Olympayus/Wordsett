@@ -522,7 +522,9 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
                   whiteSpace: 'nowrap',
                 }}
               >
-                中文×{zhCount} · 英文×{enCount}
+                中文: <span className="stat-num">{zhCount}</span>
+                {' · '}
+                英文: <span className="stat-num">{enCount}</span>
               </span>
             </>
           )

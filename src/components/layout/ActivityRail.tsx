@@ -1,6 +1,9 @@
 import { useViewStore } from '../../stores/viewStore'
 import Icon from '../icons'
 
+// 活动栏宽度：内容行第一列。顶栏计算搜索框可用宽度时也要算上它，故导出为常量。
+export const ACTIVITY_RAIL_WIDTH = 46
+
 // 活动栏（v0.5.2 §4）：内容行的第一列，不贯穿全高——标题栏是自绘的
 // （decorations:false + data-tauri-drag-region），贯穿会撞上拖拽区与窗口按钮。
 // 放进内容行后，本栏底边即窗口底边，设置按钮天然落在左下角。
@@ -22,7 +25,7 @@ export default function ActivityRail() {
     <nav
       aria-label="模块"
       style={{
-        width: '46px', flexShrink: 0,
+        width: `${ACTIVITY_RAIL_WIDTH}px`, flexShrink: 0,
         background: 'var(--color-surface)',
         borderRight: '1px solid var(--color-border)',
         display: 'flex', flexDirection: 'column', alignItems: 'center',

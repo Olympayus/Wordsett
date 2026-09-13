@@ -238,7 +238,7 @@ export default function WordList({
         }}>
           {row.label}
         </span>
-        {!collapsed && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{row.count}</span>}
+        {!collapsed && <span className="stat-num" style={{ fontSize: 'var(--text-xs)' }}>{row.count}</span>}
       </div>
     )
   }

@@ -17,4 +17,13 @@ body {
   outline-offset: 2px;
 }
 
+/* 统计数字统一格式：等宽 + 主色 + 半粗。
+   左下角「单词总数」、侧栏分组计数、词性右侧中英释义计数共用同一份，
+   三处都靠这几个属性表达「这是个数字」，各自内联写会漂移。 */
+.stat-num {
+  font-family: var(--font-mono);
+  color: var(--color-text-primary);
+  font-weight: var(--weight-semibold);
+}
+
 @keyframes spin { to { transform: rotate(360deg) } }

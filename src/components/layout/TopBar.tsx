@@ -8,7 +8,13 @@ import { useUpdaterStore } from '../../stores/updaterStore'
 import { useWordStore } from '../../stores/wordStore'
 import { useClickOutside } from '../../lib/useClickOutside'
 import { SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
+import { ACTIVITY_RAIL_WIDTH } from './ActivityRail'
 import Icon from '../icons'
+
+// 搜索框几何：可用宽度两侧各扣「活动栏 + 展开侧栏 + 边距」，保证搜索框与建议下拉都不侵入侧栏。
+const SEARCH_EDGE_MARGIN = 12
+const SEARCH_MIN_WIDTH = 320
+const SEARCH_LEFT_INSET = ACTIVITY_RAIL_WIDTH + SIDEBAR_EXPANDED_WIDTH + SEARCH_EDGE_MARGIN  // 358
 
 // 全局顶栏（规格 §3）：Logo 32×32 / 主搜索框 32px / 设置按钮；建议下拉 → 词典详情视图（D2）
 // 自绘标题栏（Task 15）：header 为拖拽区 + 内置窗口控制；搜索框绝对居中、胶囊圆角
@@ -153,11 +159,17 @@ export default function TopBar() {
         </button>
       </div>
 
-      {/* 中：搜索框按窗口中心绝对居中；宽度上限 = 视口 − 2×(侧边栏宽 + 16px 间隙)，左边缘落在侧边栏延长线右侧留一小段距离 */}
+      {/* 中：搜索框默认按窗口中心绝对居中；宽度与左缘下限都保证它（及其下拉）不侵入展开侧栏。
+          原先只按 (侧边栏 300 + 16) × 2 减宽，漏掉了活动栏 46px，且靠 50% 居中——
+          1400px 窗口下左缘落在 316px，而侧栏右缘在 46 + 300 = 346，于是下拉会盖住侧栏。
+          现在可用宽度按「活动栏 + 展开侧栏 + 12px 边距」两侧扣（358 × 2），
+          左缘再加 max(…, 358 + 半最小宽) 兜底，窄窗口下也不会越过侧栏。 */}
       <div
         style={{
-          position: 'absolute', left: '50%', top: '50%', transform: 'translate(-50%, -50%)',
-          width: `min(960px, max(320px, calc(100vw - ${(SIDEBAR_EXPANDED_WIDTH + 16) * 2}px)))`,
+          position: 'absolute', top: '50%',
+          left: `max(50%, ${SEARCH_LEFT_INSET + SEARCH_MIN_WIDTH / 2}px)`,
+          transform: 'translate(-50%, -50%)',
+          width: `min(960px, max(${SEARCH_MIN_WIDTH}px, calc(100vw - ${SEARCH_LEFT_INSET * 2}px)))`,
         }}
       >
         <div className="relative" ref={searchRef}>

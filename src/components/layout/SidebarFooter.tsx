@@ -18,9 +18,7 @@ export default function SidebarFooter({ collapsed }: { collapsed: boolean }) {
       }}
     >
       单词总数:{' '}
-      <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--color-text-primary)', fontWeight: 'var(--weight-semibold)' }}>
-        {count}
-      </span>
+      <span className="stat-num">{count}</span>
     </div>
   )
 }
