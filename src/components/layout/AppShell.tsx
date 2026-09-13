@@ -48,38 +48,41 @@ export default function AppShell() {
         {/* 活动栏：模块切换（工作台 / 设置），设置按钮落在左下角 */}
         <ActivityRail />
 
-        {activeModule === 'settings' ? (
-          <SettingsPage />
-        ) : (
-          <>
-            {/* 侧边栏：展开 300px / 收起内容自适应（D1）+ 底部 footer（规格 §2、§4.5） */}
-            <aside
-              className="flex flex-col shrink-0"
-              style={{
-                width: sidebarWidth,
-                background: 'var(--color-canvas)',
-                borderRight: '1px solid var(--color-border)',
-                transition: 'width 150ms var(--ease-smooth)',
-                overflow: 'hidden',
-              }}
-            >
-              <WordList
-                collapsed={collapsed}
-                onToggleCollapse={() => setCollapsed(c => !c)}
-                mode={mode}
-                onToggleMode={() => useSettingsStore.getState().setSidebarMode(mode === 'alphabet' ? 'category' : 'alphabet')}
-              />
-              <SidebarFooter collapsed={collapsed} />
-            </aside>
+        {/* 工作台（词表侧栏 + 编辑/词典区）：模块来回切换时保持挂载、设置激活时 display:none 隐藏，
+            以保留词表滚动位置与编辑器组件状态（规格 §5；§8 手动验收 3） */}
+        <div
+          className="flex flex-1 overflow-hidden"
+          style={{ display: activeModule === 'settings' ? 'none' : 'flex' }}
+        >
+          {/* 侧边栏：展开 300px / 收起内容自适应（D1）+ 底部 footer（规格 §2、§4.5） */}
+          <aside
+            className="flex flex-col shrink-0"
+            style={{
+              width: sidebarWidth,
+              background: 'var(--color-canvas)',
+              borderRight: '1px solid var(--color-border)',
+              transition: 'width 150ms var(--ease-smooth)',
+              overflow: 'hidden',
+            }}
+          >
+            <WordList
+              collapsed={collapsed}
+              onToggleCollapse={() => setCollapsed(c => !c)}
+              mode={mode}
+              onToggleMode={() => useSettingsStore.getState().setSidebarMode(mode === 'alphabet' ? 'category' : 'alphabet')}
+            />
+            <SidebarFooter collapsed={collapsed} />
+          </aside>
 
-            {/* 右侧区域：词编辑视图 ↔ 词典详情视图（规格 §2，同一时刻仅其一；D2 替换显示） */}
-            <main className="flex-1 overflow-hidden">
-              {activeView === 'dict' && dictWord
-                ? <DictDetailPanel word={dictWord} />
-                : <WordWorkbench />}
-            </main>
-          </>
-        )}
+          {/* 右侧区域：词编辑视图 ↔ 词典详情视图（规格 §2，同一时刻仅其一；D2 替换显示） */}
+          <main className="flex-1 overflow-hidden">
+            {activeView === 'dict' && dictWord
+              ? <DictDetailPanel word={dictWord} />
+              : <WordWorkbench />}
+          </main>
+        </div>
+
+        {activeModule === 'settings' && <SettingsPage />}
       </div>
 
       <CategoryAssignModal
