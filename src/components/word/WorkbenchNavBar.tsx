@@ -82,18 +82,21 @@ export default function WorkbenchNavBar({
       >
         <Icon name="arrow-left" size={15} />
       </button>
-      <button
-        type="button"
-        title={region === 'dict' ? '前进' : '下一个词条'}
-        aria-label={region === 'dict' ? '前进' : '下一个词条'}
-        disabled={!canGoForward(history)}
-        onClick={() => go('forward')}
-        onMouseEnter={hoverOn}
-        onMouseLeave={hoverOff}
-        style={navBtn(!canGoForward(history))}
-      >
-        <Icon name="arrow-right" size={15} />
-      </button>
+      {/* dict 区无法推进历史指针，其前进箭头必然禁用，故不渲染 */}
+      {region === 'workbench' && (
+        <button
+          type="button"
+          title="下一个词条"
+          aria-label="下一个词条"
+          disabled={!canGoForward(history)}
+          onClick={() => go('forward')}
+          onMouseEnter={hoverOn}
+          onMouseLeave={hoverOff}
+          style={navBtn(!canGoForward(history))}
+        >
+          <Icon name="arrow-right" size={15} />
+        </button>
+      )}
 
       {/* ⋯ 更多操作（普通模式可见）本轮不实现：⋯ 菜单内容与「删除此标签页」收进菜单是 v0.7.0 段二的独立项，
           本轮没有可放入 ⋯ 的条目；等段二落地时在本组件右侧补上即可。
