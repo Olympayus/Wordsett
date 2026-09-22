@@ -34,9 +34,6 @@ const RELATION_DESCRIPTIONS: Record<keyof RelatedWords['groups'], string> = {
   verbGroups: '动词组：含义相近、可互换而不改变句子真值的动词分组',
 }
 
-// 词源相关词组的小字说明（v0.4.3 §6：WordNet 词源相关形式 ≠ 构词派生）
-const DERIVATIVES_NOTE = '源自 WordNet 词源相关形式，含同义集合成员，并非全部构词派生'
-
 // 相似词组簇释义常驻 caption（两行截断，hover 看完整 gloss）
 const CAPTION_STYLE: CSSProperties = {
   fontSize: 12,
@@ -93,41 +90,40 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
   }
 
   // 胶囊保留整组视觉，但每个单词是独立可点的 token（v0.4.3 §7：单击该词跳转到对应词面板）
-  // 外层 Tooltip 承载组 gloss，单词按钮 Tooltip 承载「查询…」提示
+  // 组说明不再挂胶囊 Tooltip（v0.5.3 §3.1）：与其内层单词 Tooltip 嵌套会同时弹出、落点重叠。
+  // 组说明改由组标题旁 ℹ 承载（RELATION_DESCRIPTIONS，与其它组同一模式）。
   const chip = (g: RelatedGroup) => (
-    <Tooltip key={g.words.join('·')} content={g.definition} width={340}>
-      <span style={{
-        display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', maxWidth: '100%',
-        fontSize: 13, padding: '3px 11px', borderRadius: 'var(--radius-full)',
-        border: '1px solid var(--color-border-strong)', background: 'var(--color-surface)',
-        color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
-      }}>
-        {g.words.map((w, i) => (
-          <span key={w} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-            {i > 0 && <span style={{ color: 'var(--color-text-tertiary)', opacity: 0.7 }}>·</span>}
-            <Tooltip content={`查询「${w}」`} width={220}>
-              <button
-                type="button"
-                onClick={() => showDict(w)}
-                style={{
-                  border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
-                  fontSize: 13, color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
-                  borderRadius: 'var(--radius-sm)',
-                  transition: 'color var(--duration-fast) var(--ease-smooth), text-decoration-color var(--duration-fast) var(--ease-smooth)',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-brand)'; e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.textUnderlineOffset = '2px' }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.textDecoration = 'none' }}
-              >
-                {w}
-              </button>
-            </Tooltip>
-            {isWordCollected(w, collectedWords) && (
-              <span aria-label="已收录" title="已收录" style={{ color: 'var(--color-brand)', fontSize: 10, fontWeight: 700 }}>✓</span>
-            )}
-          </span>
-        ))}
-      </span>
-    </Tooltip>
+    <span key={g.words.join('·')} style={{
+      display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', maxWidth: '100%',
+      fontSize: 13, padding: '3px 11px', borderRadius: 'var(--radius-full)',
+      border: '1px solid var(--color-border-strong)', background: 'var(--color-surface)',
+      color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
+    }}>
+      {g.words.map((w, i) => (
+        <span key={w} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          {i > 0 && <span style={{ color: 'var(--color-text-tertiary)', opacity: 0.7 }}>·</span>}
+          <Tooltip content={`查询「${w}」`} width={220}>
+            <button
+              type="button"
+              onClick={() => showDict(w)}
+              style={{
+                border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+                fontSize: 13, color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
+                borderRadius: 'var(--radius-sm)',
+                transition: 'color var(--duration-fast) var(--ease-smooth), text-decoration-color var(--duration-fast) var(--ease-smooth)',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-brand)'; e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.textUnderlineOffset = '2px' }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.textDecoration = 'none' }}
+            >
+              {w}
+            </button>
+          </Tooltip>
+          {isWordCollected(w, collectedWords) && (
+            <span aria-label="已收录" title="已收录" style={{ color: 'var(--color-brand)', fontSize: 10, fontWeight: 700 }}>✓</span>
+          )}
+        </span>
+      ))}
+    </span>
   )
 
   const entries = Object.entries(data.groups) as Array<[keyof RelatedWords['groups'], RelatedGroup[]]>
@@ -191,11 +187,6 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
                 </button>
               )}
             </div>
-            {key === 'derivatives' && (
-              <div style={{ fontSize: 11, color: 'var(--color-text-tertiary)', marginTop: 4, lineHeight: 1.5 }}>
-                {DERIVATIVES_NOTE}
-              </div>
-            )}
           </div>
         )
       })}
