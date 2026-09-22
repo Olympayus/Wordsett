@@ -1094,6 +1094,7 @@ export default function WordWorkbench() {
       <div style={{ maxWidth: '720px', margin: '0 auto', padding: '24px 16px 48px' }}>
         {/* 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区 */}
         <WorkbenchNavBar
+          region="workbench"
           onDeleteWord={handleDelete}
         />
         {/* 单词标题区（规格 §5.1） */}

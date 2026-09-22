@@ -6,8 +6,16 @@ import { canGoBack, canGoForward } from '../../lib/navHistory'
 import Icon from '../icons'
 
 interface WorkbenchNavBarProps {
-  /** 删除当前词条（词头垃圾桶移出后的唯一主入口） */
-  onDeleteWord: () => void
+  /** 所在区域：工作台显示编者/删除，搜索返回页显示返回/合并添加 */
+  region: 'workbench' | 'dict'
+  /** 删除当前词条（仅 region='workbench' 使用） */
+  onDeleteWord?: () => void
+  /** 左箭头行为（仅 region='dict' 使用）：返回工作台 */
+  onBack?: () => void
+  /** 右端合并添加（仅 region='dict' 使用） */
+  onMergeAdd?: () => void
+  mergeCount?: number
+  mergeDisabled?: boolean
 }
 
 // 导航按钮（V8 .nav-btn）：28×28、无边框无底色，hover 才起底色
@@ -24,7 +32,9 @@ const navBtn = (disabled = false): CSSProperties => ({
 // 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区，吸顶。
 // 箭头是浏览器式前进 / 后退，走用户访问轨迹，不是词表顺序。
 // 形态对齐 V8 原型 .ed-toolbar：圆角描边浮条（--color-surface 底 + 1px 描边），而非仅一条下边框。
-export default function WorkbenchNavBar({ onDeleteWord }: WorkbenchNavBarProps) {
+export default function WorkbenchNavBar({
+  region, onDeleteWord, onBack, onMergeAdd, mergeCount = 0, mergeDisabled = false,
+}: WorkbenchNavBarProps) {
   const editorMode = useViewStore(s => s.editorMode)
   const setEditorMode = useViewStore(s => s.setEditorMode)
   const history = useNavHistoryStore(s => s.history)
@@ -61,12 +71,14 @@ export default function WorkbenchNavBar({ onDeleteWord }: WorkbenchNavBarProps) 
       }}
     >
       <button
-        type="button" title="上一个词条" aria-label="上一个词条"
-        disabled={!canGoBack(history)}
-        onClick={() => go('back')}
+        type="button"
+        title={region === 'dict' ? '返回' : '上一个词条'}
+        aria-label={region === 'dict' ? '返回' : '上一个词条'}
+        disabled={region === 'workbench' && !canGoBack(history)}
+        onClick={() => region === 'dict' ? onBack?.() : go('back')}
         onMouseEnter={hoverOn}
         onMouseLeave={hoverOff}
-        style={navBtn(!canGoBack(history))}
+        style={navBtn(region === 'workbench' && !canGoBack(history))}
       >
         <Icon name="arrow-left" size={15} />
       </button>
@@ -85,35 +97,61 @@ export default function WorkbenchNavBar({ onDeleteWord }: WorkbenchNavBarProps) 
           本轮没有可放入 ⋯ 的条目；等段二落地时在本组件右侧补上即可。
           ＋ 新增标签页已移除：它与标签条右侧的 ＋ 重复（同一 TAB_GROUPS 选择器），标签条那处保留为唯一入口。 */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={editorMode}
-          aria-label="编者模式"
-          onClick={() => setEditorMode(!editorMode)}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '5px',
-            height: '26px', padding: '0 11px', flexShrink: 0,
-            border: `1px solid ${editorMode ? 'var(--color-brand)' : 'var(--color-border)'}`,
-            background: editorMode ? 'var(--color-brand-soft)' : 'transparent',
-            borderRadius: 'var(--radius-full)', cursor: 'pointer',
-            fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-medium)',
-            color: editorMode ? 'var(--color-brand)' : 'var(--color-text-secondary)',
-            transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
-          }}
-        >
-          <Icon name="edit" size={12} />
-          编者
-        </button>
+        {region === 'workbench' ? (
+          <>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={editorMode}
+              aria-label="编者模式"
+              onClick={() => setEditorMode(!editorMode)}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '5px',
+                height: '26px', padding: '0 11px', flexShrink: 0,
+                border: `1px solid ${editorMode ? 'var(--color-brand)' : 'var(--color-border)'}`,
+                background: editorMode ? 'var(--color-brand-soft)' : 'transparent',
+                borderRadius: 'var(--radius-full)', cursor: 'pointer',
+                fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-medium)',
+                color: editorMode ? 'var(--color-brand)' : 'var(--color-text-secondary)',
+                transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
+              }}
+            >
+              <Icon name="edit" size={12} />
+              编者
+            </button>
 
-        <button
-          type="button" title="删除词条" aria-label="删除词条" onClick={onDeleteWord}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-danger)' }}
-          onMouseLeave={hoverOff}
-          style={navBtn()}
-        >
-          <Icon name="trash" size={15} />
-        </button>
+            <button
+              type="button" title="删除词条" aria-label="删除词条" onClick={onDeleteWord}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-danger)' }}
+              onMouseLeave={hoverOff}
+              style={navBtn()}
+            >
+              <Icon name="trash" size={15} />
+            </button>
+          </>
+        ) : (
+          <button
+            type="button"
+            aria-label="合并添加"
+            disabled={mergeDisabled}
+            onClick={onMergeAdd}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '5px',
+              height: '26px', padding: '0 12px', flexShrink: 0,
+              border: '1px solid var(--color-brand)',
+              background: mergeDisabled ? 'transparent' : 'var(--color-brand)',
+              borderRadius: 'var(--radius-full)',
+              cursor: mergeDisabled ? 'default' : 'pointer',
+              fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-medium)',
+              color: mergeDisabled ? 'var(--color-text-tertiary)' : 'white',
+              opacity: mergeDisabled ? 0.6 : 1,
+              transition: 'background-color var(--duration-fast) var(--ease-smooth), opacity var(--duration-fast) var(--ease-smooth)',
+            }}
+          >
+            <Icon name="plus" size={12} />
+            合并添加{mergeCount > 0 ? ` · ${mergeCount} 项` : ''}
+          </button>
+        )}
       </div>
     </div>
   )
