@@ -16,14 +16,14 @@ describe('buildSynonymDiscriminationFields', () => {
     expect(fields[0]).toMatchObject({ key: 'synonym_discrimination', value: '' })
     const group = fields[0].children![0]
     expect(group.key).toBe('synonym_discrimination_group')
-    expect(group.value).toBe('这组词都有「相当，颇」的意思，其区别是：')
+    expect(group.value).toBe('相当，颇')
     expect(group.children!.map(c => c.value)).toEqual(['quite: 含义比 fairly 稍强', 'rather: 语气比 quite 强'])
   })
-  it('空描述组 value 为空串；缺定义项只存 word', () => {
+  it('空描述组标题取成员词；缺定义项只存 word', () => {
     const fields = buildSynonymDiscriminationFields([{ description: '', items: [{ word: 'only', definition: '' }] }])
     expect(fields[0].value).toBe('')
     const group = fields[0].children![0]
-    expect(group.value).toBe('')
+    expect(group.value).toBe('only')
     expect(group.children?.[0].value).toBe('only')
   })
   it('一词多组 → 同一根下多个组父级（组边界保留，不并为一个容器）', () => {

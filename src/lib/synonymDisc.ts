@@ -23,10 +23,11 @@ export function extractGroupTitle(group: SynonymGroup): string {
 
 // resemble.json 组 → 单一「近义词辨析」根容器下挂 组父级（value=组描述作小标题）→ 成员词叶子
 // （父子级结构：组边界入库后不丢失，spec：近义词辨析条目用父子级条目承载组）
+// 组父级 value = 短标题（v0.5.3 §2.2 经 extractGroupTitle 提取），供界面直接渲染为小标题
 export function buildSynonymDiscriminationFields(groups: SynonymGroup[]): DictionaryField[] {
   const groupFields = groups.map(g => ({
     key: 'synonym_discrimination_group',
-    value: g.description ?? '',
+    value: extractGroupTitle(g),
     children: g.items.map(m => ({
       key: 'synonym_discrimination_item',
       value: m.definition ? `${m.word}: ${m.definition}` : m.word,
