@@ -77,6 +77,13 @@ describe('shouldFlattenChildren', () => {
   it('无子级时不平铺', () => {
     expect(shouldFlattenChildren(false, false, [])).toBe(false)
   })
+  it('组容器永不判为平铺（v0.5.3 §2.3：辨析组需卡片盒承载组边界）', () => {
+    expect(shouldFlattenChildren(false, true, [leaf('synonym_discrimination_item'), leaf('synonym_discrimination_item')], true)).toBe(false)
+  })
+  it('isGroupPane 默认 false：省略第 4 参与显式传 false 等价', () => {
+    expect(shouldFlattenChildren(false, true, [leaf('example')], false))
+      .toBe(shouldFlattenChildren(false, true, [leaf('example')]))
+  })
 })
 
 describe('toggleSubtreeSelection', () => {

@@ -30,10 +30,16 @@ import type { FieldDefinition, FieldValue } from '../../types/field'
 
 // 三态与三态底色来自 lib（v0.5.2 修订）：音标 / 词根 chip 也按同一套来源三态上色，
 // 故抽到 src/lib/fieldState.ts 作唯一真相；这里只在其上补齐边框与左边条。
+// 字段状态 → 左 3px 竖条色（v0.5.3 §2.3）：字段卡、词性窗格、辨析组窗格共用同一套来源三态色。
+const FIELD_LEFT_COLOR: Record<FieldState, string> = {
+  original: 'var(--color-weave-original)',
+  edited: 'var(--color-weave-edited)',
+  personal: 'var(--color-weave-personal)',
+}
 const FIELD_STYLES: Record<FieldState, CSSProperties> = {
-  original: { background: FIELD_STATE_BG.original, border: '1px solid var(--color-border)', borderLeft: '3px solid var(--color-weave-original)' },
-  edited:   { background: FIELD_STATE_BG.edited,   border: '1px solid var(--color-brand-soft)',  borderLeft: '3px solid var(--color-weave-edited)' },
-  personal: { background: FIELD_STATE_BG.personal, border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)',      borderLeft: '3px solid var(--color-weave-personal)' },
+  original: { background: FIELD_STATE_BG.original, border: '1px solid var(--color-border)', borderLeft: `3px solid ${FIELD_LEFT_COLOR.original}` },
+  edited:   { background: FIELD_STATE_BG.edited,   border: '1px solid var(--color-brand-soft)',  borderLeft: `3px solid ${FIELD_LEFT_COLOR.edited}` },
+  personal: { background: FIELD_STATE_BG.personal, border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)',      borderLeft: `3px solid ${FIELD_LEFT_COLOR.personal}` },
 }
 
 // 左端 gutter 宽度（v0.5.2 修订）：手柄宽 10px，不额外留余量。
@@ -131,19 +137,22 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
   const labelText = labelOverride ?? (ITEM_FIELD_KEYS.includes(def.key) ? '' : def.name)
   // 词性父：规则线块状窗格（spec §6.1）；词性父不使用 FIELD_STYLES/isLevel1 普通卡样式，窗格样式优先
   const isPosPane = def.key === 'part_of_speech'
+  // 辨析组：有框渲染以表达组边界（v0.5.3 §2.3）
+  const isGroupPane = def.key === 'synonym_discrimination_group'
   // 多行容器（有子项或词性窗格）：内容占多行，⋯ / 垃圾桶走卡片角落绝对定位（不占正文宽度）。
   // 其余（叶子、单行容器）内容只有一行，控件走行右端行内簇（常驻占位，见下方）。
-  const isMultiLine = Boolean(hasChildren) || isPosPane
+  const isMultiLine = Boolean(hasChildren) || isPosPane || isGroupPane
   const posChildren = fv.children ?? []
   const childKey = (c: FieldValue) => defs.find(d => d.id === c.fieldId)?.key ?? ''
   const zhCount = posChildren.filter(c => childKey(c) === 'chinese_definition').length
   const enCount = posChildren.filter(c => childKey(c) === 'english_definition').length
+  const state = fieldState(fv)
   // 词性窗格样式（#1）：两种模式统一中性色，品牌蓝仅保留给「已编辑」字段状态语义
-  const paneStyle: CSSProperties = isPosPane
+  const paneStyle: CSSProperties = (isPosPane || isGroupPane)
     ? {
         background: 'var(--color-surface-raised)',
         border: '1px solid var(--color-border)',
-        borderLeft: '3px solid var(--color-border-strong)',
+        borderLeft: isGroupPane ? `3px solid ${FIELD_LEFT_COLOR[state]}` : '3px solid var(--color-border-strong)',
         borderRadius: 'var(--radius-md)',
         // 左右内边距收到 4px（v0.5.2 修订）：标签离卡片左缘的距离里，这一项每层都要付一次，
         // 词性窗格又是有边框的盒子，收窄后整体正文起点明显左移。
@@ -164,7 +173,6 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
     : (def.key === 'chinese_definition' || def.key === 'english_definition')
       ? '添加子词条'
       : '添加项'
-  const state = fieldState(fv)
   // ③ hover 作用域：某词条按钮可见 ⇔ hovered 节点是该词条自身或其任一后代（即「当前 + 祖先链」）
   const containsId = (node: FieldValue, id: string | null): boolean => {
     if (!id) return false
@@ -176,7 +184,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
 
   // ②a：叶子容器（子项均为终端项）不渲染树状分支/连接横线，子项平铺成无框列表。
   // 词性窗格永不平铺（保留词性→释义树与中/英释义编号，保证 ecdict/wordnet 编号一致）。
-  const hasTerminalChildren = shouldFlattenChildren(isPosPane, Boolean(hasChildren), fv.children!)
+  const hasTerminalChildren = shouldFlattenChildren(isPosPane, Boolean(hasChildren), fv.children!, isGroupPane)
   const renderedChildren = hasChildren
     ? hasTerminalChildren
       ? fv.children!.map(child => (
@@ -192,7 +200,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
               if (cKey === 'chinese_definition') { zhNum += 1; labelOverride = `中文释义(${zhNum})` }
               else if (cKey === 'english_definition') { enNum += 1; labelOverride = `英文释义(${enNum})` }
             } else if (cKey === 'synonym_discrimination_group') {
-              // 近义词辨析组：小标题 = 组描述（spec：注释小字改小标题）
+              // 近义词辨析组：小标题 = 提取后的短标题（v0.5.3 §2.2 extractGroupTitle，非原始组描述）
               labelOverride = child.value
             }
             return (
@@ -397,7 +405,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
       }}
       data-field-edit={isEditing ? 'true' : undefined}
       style={
-        isPosPane
+        (isPosPane || isGroupPane)
           ? { ...paneStyle, ...draggingStyle }
           : editorMode
             ? {
