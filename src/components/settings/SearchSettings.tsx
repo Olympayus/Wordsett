@@ -8,7 +8,8 @@ import { FIELD_TREE, isAncestorOff, type FieldTreeNode } from '../../lib/fieldTr
 
 // 标题信息开关（v0.5：词条标题行下的信息展示）
 const TITLE_ROWS: { key: TitleInfoKey; label: string }[] = [
-  { key: 'showBadges',         label: '词源徽标（柯林斯星级 · 牛津3000 · 考试标签）' },
+  { key: 'showCollinsStars',   label: '柯林斯星级' },
+  { key: 'showBadges',         label: '词源徽标（牛津3000 · 考试标签）' },
   { key: 'showPhonetic',       label: '音标' },
   { key: 'showWordRoot',       label: '词根' },
   { key: 'showDomainCategory', label: '领域·范畴' },
