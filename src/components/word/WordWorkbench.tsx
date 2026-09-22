@@ -14,6 +14,7 @@ import { sortTreeByTemplate, ALLOWED_CHILD_KEYS } from '../../lib/fieldOrder'
 import { visibleTabs, defaultTab, missingTabs, groupRootsByTab, addableLeafKeys, TAB_GROUPS, type TabKey } from '../../lib/tabs'
 import { hasFieldChanges } from '../../lib/fieldChanges'
 import { shouldFlattenChildren } from '../../lib/dictPlan'
+import { insertBefore, dropY, reorderSiblingIds } from '../../lib/dragReorder'
 import { selectWordRootItems } from '../../lib/phonetic'
 import { fieldState, FIELD_STATE_BG, type FieldState } from '../../lib/fieldState'
 import { Button } from '../ui/Button'
@@ -964,6 +965,18 @@ export default function WordWorkbench() {
     setInsertIndicator(null)
   }
 
+  // 拖动卡片的中线：键盘拖动时没有指针，用它作落点兜底
+  const draggedCenterY = (active: DragEndEvent['active']): number => {
+    const rect = active.rect.current.translated
+    return rect ? rect.top + rect.height / 2 : 0
+  }
+
+  // 落点纵坐标（v0.5.3 任务 4）：以指针相对目标卡片中线判定插入前后。
+  // 不能用 active.rect.current.translated.top —— 卡片不跟随指针移动，其顶边比指针高出一个
+  // 抓取偏移，矮行（例句 / 近义词项）下「插到后面」因此永远选不中，向下拖动成了静默空操作。
+  const dropYOf = (event: DragOverEvent | DragEndEvent): number =>
+    dropY(event.activatorEvent, event.delta.y, draggedCenterY(event.active))
+
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event
     if (!over) { setInsertIndicator(null); return }
@@ -975,9 +988,7 @@ export default function WordWorkbench() {
       setInsertIndicator(null)
       return
     }
-    const overRect = over.rect
-    const activeTop = active.rect.current.translated?.top ?? 0
-    setInsertIndicator({ overId: targetId, before: activeTop < overRect.top + overRect.height / 2 })
+    setInsertIndicator({ overId: targetId, before: insertBefore(dropYOf(event), over.rect) })
   }
 
   const handleDragCancel = () => {
@@ -989,20 +1000,18 @@ export default function WordWorkbench() {
     const { active, over } = event
     if (!over) return
     const targetId = String(over.id).replace(/^drop-/, '')
-    if (targetId === String(active.id)) return  // 落在自身：不重排
     const dragged = findFieldValueById(String(active.id))
     const target = findFieldValueById(targetId)
     if (!dragged || !target || dragged.parentId !== target.parentId) return  // 仅同级重排
     const siblings = (dragged.parentId
       ? (findFieldValueById(dragged.parentId)?.children ?? [])
       : fieldValues.filter(fv => !fv.parentId))
-    const without = siblings.filter(s => s.id !== dragged.id)
-    const overRect = over.rect
-    const activeTop = active.rect.current.translated?.top ?? 0
-    const insertBefore = activeTop < overRect.top + overRect.height / 2
-    const targetIndex = without.findIndex(s => s.id === target.id)
-    without.splice(insertBefore ? targetIndex : targetIndex + 1, 0, dragged)
-    await reorderFieldValues(without.map((s, i) => ({ id: s.id, displayOrder: i })))
+    const nextIds = reorderSiblingIds(
+      siblings.map(s => s.id), dragged.id, target.id,
+      insertBefore(dropYOf(event), over.rect),
+    )
+    if (!nextIds) return  // 落点是自身 / 同级集合已变：不写库
+    await reorderFieldValues(nextIds.map((id, i) => ({ id, displayOrder: i })))
   }
 
   // 头部音标：从 fieldValues 经 defs 反查 key 提取（规格 §6.1 标题行仅音标，词性改由窗格展示）
