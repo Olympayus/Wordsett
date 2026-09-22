@@ -3,7 +3,8 @@ import type { CSSProperties } from 'react'
 import DictDetailCard, { type DictDetailCardHandle } from './DictDetailCard'
 import WordTitleExtras from './WordTitleExtras'
 import SemanticNetwork from './SemanticNetwork'
-import TitleChips from './TitleChips'
+import TitleChips, { CollinsStars } from './TitleChips'
+import WorkbenchNavBar from '../word/WorkbenchNavBar'
 import { lookupTitleMeta, lookupWord } from '../../services/searchService'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
@@ -11,7 +12,6 @@ import { ensureWord } from '../../lib/ensureWord'
 import type { MergeFieldInput } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
 import type { DictionaryEntry } from '../../types/dictionary'
-import Icon from '../icons'
 
 interface DetailResult {
   source: string
@@ -38,8 +38,8 @@ function tabStyle(active: boolean): CSSProperties {
   }
 }
 
-// 词典详情视图（D2）：替换右侧区域。返回按钮/Esc 回词编辑视图（Task 5 追加「添加成功回编辑视图」）。
-// 词典 | 语义网络 双 Tab；词典 Tab 底部浮动「合并添加」栏（有勾选才浮现、无计数），聚合全源勾选字段一次合并后跳编辑页（需求 2b 后半）。
+// 词典详情视图（D2）：替换右侧区域。导航条返回/Esc 回词编辑视图（Task 5 追加「添加成功回编辑视图」）。
+// 词典 | 语义网络 双 Tab；导航条右端「合并添加」聚合全源勾选字段一次合并后跳编辑页（需求 2b 后半）。
 export default function DictDetailPanel({ word }: Props) {
   const [results, setResults] = useState<DetailResult[]>([])
   const [loading, setLoading] = useState(true)
@@ -123,29 +123,20 @@ export default function DictDetailPanel({ word }: Props) {
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--color-surface)' }}>
       <div style={{
-        maxWidth: '720px', margin: '0 auto', padding: '24px 32px',
-        // 内容不足一屏时仍让浮动操作栏贴底：flex 列 + 操作栏 margin-top:auto（v0.4.3 修复）
+        maxWidth: '720px', margin: '0 auto', padding: '24px 16px 48px',
         minHeight: '100%', display: 'flex', flexDirection: 'column',
       }}>
-        {/* 返回按钮 + 单词标题 */}
-        <div className="flex items-center gap-2 mb-4">
-          <button
-            type="button"
-            onClick={showWorkbench}
-            title="返回"
-            className="flex items-center gap-1.5"
-            style={{
-              border: 'none', background: 'transparent', cursor: 'pointer',
-              fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-              color: 'var(--color-text-secondary)', padding: '6px 8px', borderRadius: 'var(--radius-sm)',
-              transition: 'color var(--duration-fast) var(--ease-smooth)',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)' }}
-            onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-secondary)' }}
-          >
-            <Icon name="arrow-left" size={16} />
-            返回
-          </button>
+        {/* 导航条（v0.5.3 §3.4）：与工作台同款同位置；左箭头返回工作台、右端合并添加 */}
+        <WorkbenchNavBar
+          region="dict"
+          onBack={showWorkbench}
+          onMergeAdd={handleMergeAdd}
+          mergeCount={results.reduce((n, r) => n + (selectionCounts[r.source] ?? 0), 0) + stripInputs.length}
+          mergeDisabled={!anySelected}
+        />
+
+        {/* 单词标题行（v0.5.3 §3.3）：星级紧随单词；徽标与领域标签在右侧两行右对齐 */}
+        <div className="flex items-start gap-2 mb-4">
           <span style={{
             fontFamily: 'var(--font-serif)', fontSize: 'var(--text-xl)',
             fontWeight: 'var(--weight-semibold)', color: 'var(--color-text-primary)',
@@ -153,8 +144,8 @@ export default function DictDetailPanel({ word }: Props) {
           }}>
             {word}
           </span>
-          {/* 徽标/领域标签：标题右侧展示（不勾选、不入库） */}
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center' }}>
+          <CollinsStars meta={meta} />
+          <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>
             <TitleChips meta={meta} />
           </div>
         </div>
@@ -214,22 +205,6 @@ export default function DictDetailPanel({ word }: Props) {
         <div style={{ display: tab === 'network' ? 'block' : 'none' }}>
           <SemanticNetwork word={word} onCountChange={setNetworkCount} />
         </div>
-
-        {/* 浮动操作栏：仅词典 tab + 有勾选时渲染；flex 列末位 margin-top:auto 保证内容不足时贴底、
-            内容超长时 position:sticky 钉在可视区底部（v0.4.3 修复：单词典关闭后不再居中悬空） */}
-        {tab === 'dict' && anySelected && (
-          <div style={{
-            position: 'sticky', bottom: 16, width: 'fit-content',
-            marginLeft: 'auto', marginRight: 'auto', marginTop: 'auto',
-            display: 'flex', alignItems: 'center',
-          }}>
-            <button
-              type="button"
-              onClick={handleMergeAdd}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 18px', borderRadius: 'var(--radius-full)', border: '1px solid #2a2825', background: 'var(--color-brand)', color: 'white', fontSize: 13, fontWeight: 600, cursor: 'pointer', boxShadow: 'var(--shadow-raised)' }}
-            ><Icon name="plus" size={14} /> 合并添加</button>
-          </div>
-        )}
       </div>
     </div>
   )

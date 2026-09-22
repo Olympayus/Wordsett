@@ -83,7 +83,9 @@ export default function WorkbenchNavBar({
         <Icon name="arrow-left" size={15} />
       </button>
       <button
-        type="button" title="下一个词条" aria-label="下一个词条"
+        type="button"
+        title={region === 'dict' ? '前进' : '下一个词条'}
+        aria-label={region === 'dict' ? '前进' : '下一个词条'}
         disabled={!canGoForward(history)}
         onClick={() => go('forward')}
         onMouseEnter={hoverOn}
