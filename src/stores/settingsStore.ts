@@ -11,6 +11,7 @@ export type DictionaryKey = 'ecdict' | 'wordnet'
 
 export type TitleInfoKey =
   | 'showBadges' | 'showPhonetic' | 'showWordRoot'
+  | 'showCollinsStars'
   | 'showDomainCategory' | 'showDomainRegion' | 'showDomainUsage'
 
 export interface SettingsStore {
@@ -31,8 +32,9 @@ const DEFAULT_DISPLAY_FIELDS: Record<DisplayFieldKey, boolean> = {
   derivatives: true,
 }
 const DEFAULT_DICTIONARIES: Record<DictionaryKey, boolean> = { ecdict: true, wordnet: true }
-const DEFAULT_TITLE_INFO: Record<TitleInfoKey, boolean> = {
+export const DEFAULT_TITLE_INFO: Record<TitleInfoKey, boolean> = {
   showBadges: true, showPhonetic: true, showWordRoot: true,
+  showCollinsStars: true,
   showDomainCategory: true, showDomainRegion: true, showDomainUsage: true,
 }
 

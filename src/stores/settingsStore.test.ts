@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useSettingsStore, type TitleInfoKey } from './settingsStore'
+import { useSettingsStore, DEFAULT_TITLE_INFO, type TitleInfoKey } from './settingsStore'
 
 const DEFAULT = {
   displayFields: {
@@ -79,7 +79,7 @@ describe('settingsStore（规格 §7）', () => {
   })
 })
 
-const TITLE_KEYS: TitleInfoKey[] = ['showBadges', 'showPhonetic', 'showWordRoot', 'showDomainCategory', 'showDomainRegion', 'showDomainUsage']
+const TITLE_KEYS: TitleInfoKey[] = ['showBadges', 'showPhonetic', 'showWordRoot', 'showCollinsStars', 'showDomainCategory', 'showDomainRegion', 'showDomainUsage']
 
 it('titleInfo 默认全 true', () => {
   const t = useSettingsStore.getState().titleInfo
@@ -102,4 +102,26 @@ it('迁移：v3 无 titleInfo 的旧数据补齐默认 true 并升 version 4', a
   const s = useSettingsStore.getState()
   expect(s.sidebarMode).toBe('category')
   for (const k of TITLE_KEYS) expect(s.titleInfo[k]).toBe(true)
+})
+
+it('showCollinsStars 默认开启（v0.5.3 §3.3）', () => {
+  expect(DEFAULT_TITLE_INFO.showCollinsStars).toBe(true)
+})
+
+it('旧设置无 showCollinsStars 键时经 migrate 合并默认开启，且保留旧键（v0.5.3 §3.3）', async () => {
+  const legacyTitleInfo = {
+    showBadges: false, showPhonetic: true, showWordRoot: false,
+    showDomainCategory: false, showDomainRegion: true, showDomainUsage: false,
+  }
+  expect('showCollinsStars' in legacyTitleInfo).toBe(false)
+  localStorage.setItem('wordsett-settings', JSON.stringify({
+    state: { sidebarMode: 'category', titleInfo: legacyTitleInfo },
+    version: 3,
+  }))
+  await useSettingsStore.persist.rehydrate()
+  const s = useSettingsStore.getState()
+  expect(s.titleInfo.showCollinsStars).toBe(true)
+  for (const [k, v] of Object.entries(legacyTitleInfo)) {
+    expect(s.titleInfo[k as TitleInfoKey]).toBe(v)
+  }
 })
