@@ -67,10 +67,12 @@ async function queryWordPreviews(filter: string | null): Promise<WordWithPreview
        SELECT fv2.*, ROW_NUMBER() OVER (PARTITION BY fv2.word_id, fv2.field_id ORDER BY fv2.display_order, fv2.id) AS rn
        FROM field_values fv2
      ) fv ON fv.word_id = w.id
-     ${filterParam ? 'WHERE w.lemma LIKE ?3 OR fv.value LIKE ?3' : ''}
+     ${filterParam ? `WHERE w.lemma LIKE ?3 OR (?4 <> '' AND fv.field_id = ?4 AND fv.value LIKE ?3) OR (?5 <> '' AND fv.field_id = ?5 AND fv.value LIKE ?3)` : ''}
      GROUP BY w.id
      ORDER BY w.updated_at DESC`,
-    filterParam ? [phoneticId || '', posId || '', filterParam] : [phoneticId || '', posId || '']
+    filterParam
+      ? [phoneticId || '', posId || '', filterParam, phoneticId || '', posId || '']
+      : [phoneticId || '', posId || '']
   )
   return rows.map(r => ({
     id: r.id,

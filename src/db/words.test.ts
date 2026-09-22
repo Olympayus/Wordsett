@@ -43,6 +43,34 @@ describe('db/words', () => {
     expect(hit.data.some(w => w.lemma === 'patience')).toBe(false)
   })
 
+  it('searchWords 不因非展示字段命中而返回词条（第 9 条：收窄到 lemma + 音标 + 词性）', async () => {
+    // 词根是非展示字段（侧栏行上不渲染），它的值不应参与筛选
+    const hidden = await wordsDb.createWord({ lemma: 'zorblat' })
+    if (!hidden.ok) throw new Error('createWord failed')
+    await fieldsDb.insertFieldValue({
+      wordId: hidden.data.id, fieldId: 'f_word_root', value: '苹果', source: 'user',
+    })
+    const byHiddenField = await wordsDb.searchWords('苹果')
+    if (!byHiddenField.ok) throw new Error('searchWords failed')
+    expect(byHiddenField.data.some(w => w.lemma === 'zorblat')).toBe(false)
+
+    // 音标与词性是展示字段，它们的值仍应参与筛选
+    const visible = await wordsDb.createWord({ lemma: 'zorbvat' })
+    if (!visible.ok) throw new Error('createWord failed')
+    await fieldsDb.insertFieldValue({
+      wordId: visible.data.id, fieldId: 'f_phonetic', value: 'pingguo', source: 'user',
+    })
+    await fieldsDb.insertFieldValue({
+      wordId: visible.data.id, fieldId: 'f_part_of_speech', value: 'qiguo', source: 'user',
+    })
+    const byPhonetic = await wordsDb.searchWords('pingguo')
+    if (!byPhonetic.ok) throw new Error('searchWords failed')
+    expect(byPhonetic.data.some(w => w.lemma === 'zorbvat')).toBe(true)
+    const byPos = await wordsDb.searchWords('qiguo')
+    if (!byPos.ok) throw new Error('searchWords failed')
+    expect(byPos.data.some(w => w.lemma === 'zorbvat')).toBe(true)
+  })
+
   it('deleteWord 删除单词及其字段（级联）', async () => {
     const wordResult = await wordsDb.createWord({ lemma: 'temp' })
     if (!wordResult.ok) throw new Error('createWord failed')
