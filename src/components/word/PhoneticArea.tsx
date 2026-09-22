@@ -75,6 +75,8 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
     return (
       <span
         key={fv.id}
+        // 标记放在外层 span：让 WordWorkbench 的点外关闭经 closest() 覆盖 input 与 ✓/✕（拖选不退出编辑）
+        data-field-edit={isEditing ? 'true' : undefined}
         style={{
           ...chipBase,
           ...displayFont,
