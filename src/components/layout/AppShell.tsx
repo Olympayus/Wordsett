@@ -7,6 +7,7 @@ import DictDetailPanel from '../search/DictDetailPanel'
 import { useWordStore } from '../../stores/wordStore'
 import { useViewStore } from '../../stores/viewStore'
 import SettingsPage from '../settings/SettingsPage'
+import ReviewModule from '../review/ReviewModule'
 import ActivityRail from './ActivityRail'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useUiStore } from '../../stores/uiStore'
@@ -45,14 +46,15 @@ export default function AppShell() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* 活动栏：模块切换（工作台 / 设置），设置按钮落在左下角 */}
+        {/* 活动栏：模块切换（工作台 / 复习 / 设置），设置按钮落在左下角 */}
         <ActivityRail />
 
-        {/* 工作台（词表侧栏 + 编辑/词典区）：模块来回切换时保持挂载、设置激活时 display:none 隐藏，
-            以保留词表滚动位置与编辑器组件状态（规格 §5；§8 手动验收 3） */}
+        {/* 工作台（词表侧栏 + 编辑/词典区）：模块来回切换时保持挂载、非工作台模块激活时 display:none 隐藏，
+            以保留词表滚动位置与编辑器组件状态（规格 §5；§8 手动验收 3）。复习模块是全屏专注态，
+            同样走隐藏路径，工作台因此不会与复习模块并排显示（spec §2.1）。 */}
         <div
           className="flex flex-1 overflow-hidden"
-          style={{ display: activeModule === 'settings' ? 'none' : 'flex' }}
+          style={{ display: activeModule === 'workbench' ? 'flex' : 'none' }}
         >
           {/* 侧边栏：展开 300px / 收起内容自适应（D1）+ 底部 footer（规格 §2、§4.5） */}
           <aside
@@ -82,6 +84,9 @@ export default function AppShell() {
               : <WordWorkbench />}
           </main>
         </div>
+
+        {/* 复习模块（v0.6）：全屏专注态，不做 display:none 保活——切走即卸载，队列留在会话 store */}
+        {activeModule === 'review' && <ReviewModule />}
 
         {activeModule === 'settings' && <SettingsPage />}
       </div>

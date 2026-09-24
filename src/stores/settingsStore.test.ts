@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useSettingsStore, DEFAULT_TITLE_INFO, type TitleInfoKey } from './settingsStore'
+import { useSettingsStore, DEFAULT_TITLE_INFO, DEFAULT_REVIEW, type TitleInfoKey } from './settingsStore'
 
 const DEFAULT = {
   displayFields: {
@@ -55,7 +55,7 @@ describe('settingsStore（规格 §7）', () => {
     expect(parsed.state.sidebarMode).toBe('category')
     expect(parsed.state.displayFields.phonetic).toBe(false)
     expect(Object.keys(parsed.state).sort()).toEqual(
-      ['dictionaries', 'displayFields', 'sidebarMode', 'titleInfo']
+      ['dictionaries', 'displayFields', 'review', 'sidebarMode', 'titleInfo']
     )
   })
 
@@ -143,4 +143,19 @@ it('旧设置无 showCollinsStars 键时经 migrate 合并默认开启，且保�
   for (const [k, v] of Object.entries(legacyTitleInfo)) {
     expect(s.titleInfo[k as TitleInfoKey]).toBe(v)
   }
+})
+
+describe('settingsStore 复习分区', () => {
+  it('默认值：保留率 0.9 / 阈值 4 / 新词 10 / 上限 30 / 逐字母开', () => {
+    expect(DEFAULT_REVIEW).toEqual({
+      retention: 0.9, leechThreshold: 4, newCardQuota: 10, queueLimit: 30, letterHighlight: true,
+    })
+  })
+
+  it('setReview 只改指定键', () => {
+    useSettingsStore.getState().setReview('newCardQuota', 5)
+    expect(useSettingsStore.getState().review.newCardQuota).toBe(5)
+    expect(useSettingsStore.getState().review.queueLimit).toBe(30)
+    useSettingsStore.getState().setReview('newCardQuota', 10)
+  })
 })

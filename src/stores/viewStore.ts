@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 export type ActiveView = 'workbench' | 'dict'
-export type ActiveModule = 'workbench' | 'settings'
+export type ActiveModule = 'workbench' | 'review' | 'settings'
 
 interface ViewStore {
   activeModule: ActiveModule
