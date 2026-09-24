@@ -9,15 +9,16 @@ import { compareTyped } from '../../lib/review/typed'
 import { getWordContent } from '../../db/review'
 
 /**
- * 答题态。两段式：作答（红绿提示）→ 三键评分。
- * 用局部 revealed 驱动「作答前 / 作答后」两态；store 的 phase 只记录会话级状态。
+ * 答题态。三段：作答（红绿提示）→ 三键评分 → 结果区块停在屏上等「下一题」推进。
+ * 局部 revealed 驱动「作答前 / 作答后」；store 的 phase 的 'rated' 驱动「已评分 / 待推进」。
  */
 export default function ReviewArena() {
-  const { queue, index, answerCurrent, advance } = useReviewSessionStore()
+  const { queue, index, phase, answerCurrent, advance } = useReviewSessionStore()
   const letterHighlight = useSettingsStore(s => s.review.letterHighlight)
   const retention = useSettingsStore(s => s.review.retention)
 
-  const [revealed, setRevealed] = useState(false)
+  // 初值随 store：模块切走再切回时本组件会重挂，若这张卡已评分就直接停在结果态，不让它被再评一次
+  const [revealed, setRevealed] = useState(() => useReviewSessionStore.getState().phase === 'rated')
   const [lastInput, setLastInput] = useState('')
   const [correct, setCorrect] = useState<boolean | null>(null)
   const [snapshot, setSnapshot] = useState<CardContent | null>(null)
@@ -27,11 +28,15 @@ export default function ReviewArena() {
   const [nextDueAt, setNextDueAt] = useState<number | null>(null)
   // 同步置位的重入闸：键盘监听闭包里的 rating state 有滞后，连按两下会重复提交评分
   const ratingRef = useRef(false)
+  // 已评分（结果区块留在屏上，等「下一题」推进）：store 的 phase 就是为这一态设计的
+  const rated = phase === 'rated'
 
   const dto = queue[index]
 
   useEffect(() => {
-    setRevealed(false); setLastInput(''); setCorrect(null); setSnapshot(null)
+    // 换卡（或从别的模块回到本模块）时重置；phase 已是 'rated' 说明这张卡已评分，直接落在结果态
+    setRevealed(useReviewSessionStore.getState().phase === 'rated')
+    setLastInput(''); setCorrect(null); setSnapshot(null)
     setStartedAt(Date.now()); setRating(false); ratingRef.current = false
     setRateError(null); setNextDueAt(null)
     if (!dto) return
@@ -49,7 +54,7 @@ export default function ReviewArena() {
     const kind = inputKindFor(dto.template)
     if (kind === 'choice') {
       setCorrect(input === String((dto.answer as any).translation ?? ''))
-    } else if (kind === 'typed') {
+    } else if (kind === 'typed' && dto.template !== 'recall') {
       const target = typedTarget(dto)
       setCorrect(target ? compareTyped(input, target) : null)
     } else {
@@ -61,7 +66,8 @@ export default function ReviewArena() {
   const handleRate = async (r: number) => {
     // 同步置位、且成功 advance 前不解锁：键盘监听闭包里的 rating state 有滞后，连按两下
     // 会重复提交；「advance 之后、换卡 effect 之前」落下的按键会用旧卡 dto 重复评分。
-    if (ratingRef.current) return
+    // rated 兜住另一条路：模块切走再切回时 phase 仍是 'rated'，这张卡不能再评一次。
+    if (ratingRef.current || rated) return
     ratingRef.current = true
     setRating(true)
     // 会话所属策略决定计分与否：被切到别的策略下查看的会话仍按自己的模式评分
@@ -82,17 +88,22 @@ export default function ReviewArena() {
     }
     setRateError(null)
     setNextDueAt(res.dueAt)
-    // 落库成功后再记账，保证 answered 里不出现没写进库的评分
+    // 落库成功后再记账（answerCurrent 同时把 phase 置为 'rated'，结果区块留在屏上），
+    // 推进交给「下一题」按钮 / 再按一次评分键（spec §2.3）。
     answerCurrent(r)
-    advance()
   }
 
-  // 揭示后可用 1 / 2 / 3 键评分
+  // 揭示后：未评分 → 1 / 2 / 3 评分；已评分 → 同样的键推进下一题（不重复评分）。
+  // 读 store 的实时 phase 而非渲染闭包：换卡前的重复按键落在旧闭包里，
+  // 此时 phase 已是 answering、ratingRef 仍为 true → 既不会重复评分也不会连跳两题。
   useEffect(() => {
     if (!revealed) return
     const onKey = (e: KeyboardEvent) => {
       const i = ['1', '2', '3'].indexOf(e.key)
-      if (i >= 0) { e.preventDefault(); handleRate(i + 1) }
+      if (i < 0) return
+      e.preventDefault()
+      if (useReviewSessionStore.getState().phase === 'rated') advance()
+      else handleRate(i + 1)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -109,22 +120,33 @@ export default function ReviewArena() {
         </div>
       </div>
 
-      <PromptCard dto={dto} letterHighlight={letterHighlight} disabled={revealed} onSubmit={handleSubmit} />
+      {/* key：换卡即重挂 PromptCard，否则 AnswerInput 的 value / picked 会跨卡残留 */}
+      <PromptCard key={dto.cardId} dto={dto} letterHighlight={letterHighlight} disabled={revealed} onSubmit={handleSubmit} />
 
       {revealed && (
         <>
           <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} nextDueAt={nextDueAt} />
-          <RatingBar onRate={handleRate} disabled={rating} />
+          <RatingBar onRate={handleRate} disabled={rated || rating} />
           {rateError && (
             <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: '#c0705a' }}>{rateError}</span>
           )}
-          <button
-            type="button"
-            onClick={() => handleRate(1)}
-            style={{ alignSelf: 'flex-start', fontSize: '12px', background: 'none', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
-          >
-            直接跳过（记为忘了）
-          </button>
+          {rated ? (
+            <button
+              type="button"
+              onClick={() => advance()}
+              style={{ alignSelf: 'flex-start', padding: '8px 20px', borderRadius: 'var(--radius-lg)', border: 'none', background: 'var(--color-brand)', color: '#fff', cursor: 'pointer', fontSize: '13px' }}
+            >
+              下一题
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => handleRate(1)}
+              style={{ alignSelf: 'flex-start', fontSize: '12px', background: 'none', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
+            >
+              直接跳过（记为忘了）
+            </button>
+          )}
         </>
       )}
     </div>

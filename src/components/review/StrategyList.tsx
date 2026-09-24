@@ -9,10 +9,12 @@ export interface StrategyMeta {
   progress?: { index: number; total: number; template: string } | null
 }
 
-export default function StrategyList({ strategies, active, onSelect }: {
+export default function StrategyList({ strategies, active, onSelect, footer }: {
   strategies: StrategyMeta[]
   active: ReviewStrategy
   onSelect: (s: ReviewStrategy) => void
+  /** 左栏底部插槽（spec §2.1 的掌握度分布条）；只放聚合量，不得含词条内容（spec §2.2）。 */
+  footer?: React.ReactNode
 }) {
   return (
     <nav aria-label="复习策略" className="flex flex-col gap-1 p-2" style={{ width: '220px', flexShrink: 0, borderRight: '1px solid var(--color-border)' }}>
@@ -55,6 +57,7 @@ export default function StrategyList({ strategies, active, onSelect }: {
           </button>
         )
       })}
+      <div style={{ marginTop: 'auto', padding: '8px 10px 4px' }}>{footer}</div>
     </nav>
   )
 }

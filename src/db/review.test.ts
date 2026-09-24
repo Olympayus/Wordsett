@@ -7,6 +7,7 @@ import {
   getAvailabilityMask,
   getTemplateLogs,
   getWordContent,
+  getDistractorTranslations,
   getCardMeta,
   getState,
   applyReview,
@@ -162,6 +163,19 @@ describe('db/review 读路径', () => {
 
   it('getWordContent 词不存在返回 null', async () => {
     expect(await getWordContent('nope', db)).toBeNull()
+  })
+
+  it('getDistractorTranslations 随机采样：同样输入多次取数不会总是同一组', async () => {
+    await seedWord(db, 'w1', 'alpha')
+    for (const [i, w] of ['beta', 'gamma', 'delta', 'epsilon'].entries()) await seedWord(db, `w${i + 2}`, w)
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
+    // 4 个候选里取 3：若按固定顺序截断，30 次结果会完全一致
+    for (const [i, v] of ['贝塔', '伽马', '德尔塔', '艾普西龙'].entries()) {
+      await seedValue(db, `fv${i + 10}`, `w${i + 2}`, 'chinese_definition', v)
+    }
+    const seen = new Set<string>()
+    for (let i = 0; i < 30; i++) seen.add((await getDistractorTranslations('w1', 3, db)).join('|'))
+    expect(seen.size).toBeGreaterThan(1)
   })
 
   it('getCardMeta 返回 last_template', async () => {

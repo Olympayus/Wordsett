@@ -25,7 +25,7 @@ export function elapsedDaysSince(lastReviewAt: number | null, now: number): numb
 export const NEW_CARD_RNOW: Record<InitialFamiliarity, number> = { 1: 0.15, 2: 0.45, 3: 0.75 }
 
 // 分档阈值：3 个阈值切出 4 档（+ 无记录为第 0 档，共 5 档）。
-// exp(-7/S) 下约对应 S = 13.7 / 23.3 / 46.6 天
+// 反解 exp(-7/S) = t 得 S = 7 / −ln(t)，故三档约对应 S = 10.1 / 19.6 / 43.1 天
 const TIER_THRESHOLDS = [0.5, 0.7, 0.85]
 
 /** 掌握度分档：0 = 无记录，1 最弱 → 4 最熟。 */

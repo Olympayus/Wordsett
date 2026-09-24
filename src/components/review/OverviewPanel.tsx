@@ -1,3 +1,5 @@
+import MasteryBar from './MasteryBar'
+
 export default function OverviewPanel({ title, total, newCount, estimateMinutes, masteryBuckets, onStart, startLabel = '开始复习', empty }: {
   title: string
   total: number
@@ -16,14 +18,13 @@ export default function OverviewPanel({ title, total, newCount, estimateMinutes,
       </div>
     )
   }
-  const totalCards = masteryBuckets.reduce((a, b) => a + b, 0)
   return (
     <div className="flex flex-col items-start gap-5 p-8">
       <h2 style={{ fontSize: '20px', fontWeight: 600 }}>{title}</h2>
       <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
         {total} 张 · 含新词 {newCount} · 预计 {estimateMinutes} 分钟
       </p>
-      <MasteryBar buckets={masteryBuckets} total={totalCards} />
+      <MasteryBar buckets={masteryBuckets} />
       <button
         type="button"
         onClick={onStart}
@@ -36,21 +37,6 @@ export default function OverviewPanel({ title, total, newCount, estimateMinutes,
       >
         {startLabel}
       </button>
-    </div>
-  )
-}
-
-function MasteryBar({ buckets, total }: { buckets: number[]; total: number }) {
-  if (total === 0) return null
-  const colors = ['var(--color-border)', '#c9d4e0', '#a9bccf', '#7f9bb8', '#5a7d9e']
-  return (
-    <div className="flex flex-col gap-1" style={{ width: '100%', maxWidth: '420px' }}>
-      <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>掌握度分布</span>
-      <div className="flex" style={{ height: '8px', borderRadius: '4px', overflow: 'hidden' }}>
-        {buckets.map((n, i) => (
-          <div key={i} style={{ width: `${(n / total) * 100}%`, background: colors[i] }} />
-        ))}
-      </div>
     </div>
   )
 }

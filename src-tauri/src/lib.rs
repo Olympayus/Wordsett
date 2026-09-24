@@ -73,8 +73,11 @@ fn open_data_dir(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 /// FSRS 计算结果的一档：下一记忆状态与下次复习间隔（天）。
-/// **字段名是前端契约，不可变**（前端按此解析）。
+/// **字段名是前端契约，不可变**（前端按 camelCase 解析：intervalDays / stability / difficulty）。
+/// Tauri 只对命令**参数**做 camelCase 映射，返回值原样经过 serde，故此处显式声明线上格式；
+/// 漂移会让前端读到 undefined 并静默写入 NaN（`fsrs_next_serializes_camel_case_fields` 钉住它）。
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct NextState {
     stability: f32,
     difficulty: f32,
@@ -82,6 +85,7 @@ pub struct NextState {
 }
 
 #[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct FsrsNextResult {
     again: NextState,
     hard: NextState,
@@ -187,5 +191,28 @@ mod tests {
         let out =
             fsrs_next(Some(12.0), Some(5.0), 1, None).expect("review with state should succeed");
         assert!(out.again.interval_days >= 1);
+    }
+
+    /// 跨语言契约：前端读 `intervalDays` / `stability` / `difficulty`。
+    /// 这条测试钉住线上格式，防止有人把 `rename_all` 删掉而前端静默写入 NaN。
+    #[test]
+    fn fsrs_next_serializes_camel_case_fields() {
+        let out = fsrs_next(None, None, 0, None).expect("first review should succeed");
+        let v = serde_json::to_value(&out).expect("FsrsNextResult 必须可序列化");
+
+        for key in ["again", "hard", "good", "easy"] {
+            let s = &v[key];
+            assert!(s["intervalDays"].is_i64(), "{key}.intervalDays 缺失或非整数：{s}");
+            assert!(
+                s["intervalDays"].as_i64().unwrap() >= 1,
+                "{key}.intervalDays 必须 ≥ 1：{s}"
+            );
+            assert!(s["stability"].is_number(), "{key}.stability 缺失或非数值：{s}");
+            assert!(s["difficulty"].is_number(), "{key}.difficulty 缺失或非数值：{s}");
+            assert!(
+                s.get("interval_days").is_none(),
+                "{key} 仍带 snake_case 字段，前端会读到 undefined：{s}"
+            );
+        }
     }
 }

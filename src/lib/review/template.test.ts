@@ -11,13 +11,20 @@ describe('review/template', () => {
     expect(FIELD_KEY_GROUPS.example).toEqual(expect.arrayContaining(['example_sentence', 'example']))
   })
 
-  it('难度序覆盖全部五种模板，且从易到难', () => {
-    expect(TEMPLATE_DIFFICULTY).toEqual(['recognize', 'cloze', 'recall', 'english_def', 'listen'])
+  it('难度序覆盖四题型（listen 因 TTS 缺位暂时下线），且从易到难', () => {
+    expect(TEMPLATE_DIFFICULTY).toEqual(['recognize', 'cloze', 'recall', 'english_def'])
+    expect(TEMPLATE_DIFFICULTY).not.toContain('listen')
   })
 
   it('usableTemplates 按掩码筛出可用模板', () => {
     const t = usableTemplates({ translation: true, definition: false, example: true, phonetic: false })
     expect(t).toEqual(['recognize', 'cloze', 'recall'])
+  })
+
+  it('usableTemplates 永不含 listen：音标字段齐全也不出听辨（TTS 不可用即整体下线）', () => {
+    const t = usableTemplates({ translation: true, definition: true, example: true, phonetic: true })
+    expect(t).toEqual(['recognize', 'cloze', 'recall', 'english_def'])
+    expect(t).not.toContain('listen')
   })
 
   it('templateAccuracy 只统计最近 10 次，正确率为 rating ≥ 3 的占比', () => {

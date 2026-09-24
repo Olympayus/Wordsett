@@ -34,6 +34,46 @@ describe('db/init ensureSchema', () => {
     expect(v[0].user_version).toBe(SCHEMA_VERSION)
   })
 
+  it('v0 非空库重建：上次中断留下的旧式复习表被 DROP 后按现定义重建', async () => {
+    const { adapter } = await createRawTestDb()
+    for (const sql of SCHEMA_SEED_STATEMENTS) await adapter.execute(sql)
+    // 模拟上次中断的 init：review_cards 是更早的窄定义（没有 initial_familiarity），且已有一行
+    await adapter.execute(
+      "CREATE TABLE review_cards (id TEXT PRIMARY KEY, word_id TEXT NOT NULL REFERENCES words(id) ON DELETE CASCADE, created_at INTEGER NOT NULL)"
+    )
+    await adapter.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w0','stale','stale','en',1,1)"
+    )
+    await adapter.execute("INSERT INTO review_cards (id, word_id, created_at) VALUES ('c0','w0',1)")
+    await adapter.execute('PRAGMA user_version = 0')
+
+    await ensureSchema(adapter)
+
+    // 残留表若没被 DROP，IF NOT EXISTS 不会纠正它的定义
+    const cols = await adapter.select<{ name: string }>("SELECT name FROM pragma_table_info('review_cards')")
+    expect(cols.map(c => c.name)).toContain('initial_familiarity')
+    const cards = await adapter.select<{ c: number }>('SELECT count(*) as c FROM review_cards')
+    expect(cards[0].c).toBe(0)
+    const words = await adapter.select<{ c: number }>('SELECT count(*) as c FROM words')
+    expect(words[0].c).toBe(0)
+  })
+
+  it('更新的库（user_version 高于本代码）：不重建、不降版本号', async () => {
+    const { adapter } = await createRawTestDb()
+    for (const sql of SCHEMA_SEED_STATEMENTS) await adapter.execute(sql)
+    await adapter.execute(`PRAGMA user_version = ${SCHEMA_VERSION + 1}`)
+    await adapter.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w5','keep','keep','en',1,1)"
+    )
+
+    await ensureSchema(adapter)
+
+    const v = await adapter.select<{ user_version: number }>('SELECT user_version FROM pragma_user_version')
+    expect(v[0].user_version).toBe(SCHEMA_VERSION + 1)
+    const words = await adapter.select<{ c: number }>('SELECT count(*) as c FROM words')
+    expect(words[0].c).toBe(1)
+  })
+
   it('版本一致但缺内置字段：幂等补种，不重建、不丢数据', async () => {
     const { adapter } = await createRawTestDb()
     await ensureSchema(adapter)

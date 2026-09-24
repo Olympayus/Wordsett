@@ -65,10 +65,21 @@ export function seedFieldDefinitionsSQL(): string {
   return `INSERT OR IGNORE INTO field_definitions VALUES ${rows};`
 }
 
-// D4：PRAGMA user_version 驱动重建。P4/P5 变更 schema 时递增此值。
+// PRAGMA user_version：当前 schema 版本。P4/P5 变更 schema 时递增此值。
 export const SCHEMA_VERSION = 4
 
+// ensureSchema 的重建门限（见 init.ts）。这是**版本门，不是空库判定**：user_version 低于此值
+// 就 DROP 重建，哪怕库里已有数据。与 SCHEMA_VERSION 有意解耦——让它跟着 SCHEMA_VERSION 一起涨，
+// 下一次 schema 变更就会开始清空 v3 用户的数据库。
+export const REBUILD_BELOW_VERSION = 3
+
+// 重建时的 DROP 顺序＝外键依赖的反向（先子表后父表）：
+// review_logs / review_states → review_cards → word_categories / field_values → words。
+// 复习三表必须列进来：上一次中断的 init 可能已经建过它们，残留表会带着指向已删表的悬空外键。
 export const SQL_DROP_TABLES: string[] = [
+  'DROP TABLE IF EXISTS review_logs;',
+  'DROP TABLE IF EXISTS review_states;',
+  'DROP TABLE IF EXISTS review_cards;',
   'DROP TABLE IF EXISTS word_categories;',
   'DROP TABLE IF EXISTS categories;',
   'DROP TABLE IF EXISTS field_values;',

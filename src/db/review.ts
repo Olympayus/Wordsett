@@ -195,15 +195,20 @@ export async function getWordContent(wordId: string, h?: DbHandle): Promise<Card
   }
 }
 
-/** 跨词采样干扰释义：只 SELECT 释义文本，不含任何其他字段。 */
+/**
+ * 跨词采样干扰释义：只 SELECT 释义文本，不含任何其他字段。
+ * 随机采样（`ORDER BY random()`）——顺序取前 n 个会让几乎每张认读卡都摆出同样的三个干扰项，
+ * 用户可以靠「挑没见过的那个」蒙对。子查询先行去重，再随机排序截断。
+ */
 export async function getDistractorTranslations(wordId: string, n: number, h?: DbHandle): Promise<string[]> {
   const d = db(h)
   const rows = await d.select<Record<string, any>>(
-    `SELECT DISTINCT fv.value FROM field_values fv
-     JOIN field_definitions fd ON fd.id = fv.field_id
-     WHERE fd.key = 'chinese_definition' AND fv.word_id <> ?1
-       AND fv.value IS NOT NULL AND trim(fv.value) <> ''
-     ORDER BY fv.word_id LIMIT ?2`,
+    `SELECT value FROM (
+       SELECT DISTINCT fv.value AS value FROM field_values fv
+       JOIN field_definitions fd ON fd.id = fv.field_id
+       WHERE fd.key = 'chinese_definition' AND fv.word_id <> ?1
+         AND fv.value IS NOT NULL AND trim(fv.value) <> ''
+     ) ORDER BY random() LIMIT ?2`,
     [wordId, n],
   )
   return rows.map(r => String(r.value))

@@ -94,6 +94,31 @@ describe('review/queue', () => {
     expect(r.queue).toHaveLength(50)
   })
 
+  it('includeNotDue：未到期的熟词默认排除，置位后进到期池并按 R_now 升序', () => {
+    // afar 逾期 90 天（R_now 更低）在前，near 明天才到期（R_now 更高）在后
+    const pool = [
+      cand({ cardId: 'near', stability: 10, lastReviewAt: NOW, dueAt: NOW + MS_PER_DAY }),
+      cand({ cardId: 'afar', stability: 10, lastReviewAt: NOW - 90 * MS_PER_DAY, dueAt: NOW + MS_PER_DAY }),
+    ]
+    const off = buildQueue(pool, { now: NOW, newCardQuota: 0, queueLimit: 30 })
+    expect(off.queue).toEqual([])
+    expect(off.dueCount).toBe(0)
+
+    const on = buildQueue(pool, { now: NOW, newCardQuota: 0, queueLimit: 30, includeNotDue: true })
+    expect(on.queue.map(c => c.cardId)).toEqual(['afar', 'near'])
+    expect(on.dueCount).toBe(2)
+    expect(on.newCount).toBe(0)
+  })
+
+  it('includeNotDue 不放宽新卡：stability 为 null 的仍走新卡额度', () => {
+    const r = buildQueue(
+      [cand({ cardId: 'fresh', stability: null, initialFamiliarity: 1 })],
+      { now: NOW, newCardQuota: 0, queueLimit: 30, includeNotDue: true },
+    )
+    expect(r.queue).toEqual([])
+    expect(r.dueCount).toBe(0)
+  })
+
   it('输出按 R_now 升序统一排列', () => {
     const r = buildQueue([
       cand({ cardId: 'due', stability: 100, lastReviewAt: NOW - 90 * MS_PER_DAY, dueAt: NOW - 90 * MS_PER_DAY }),

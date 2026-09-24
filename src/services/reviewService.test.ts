@@ -2,22 +2,34 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { assembleCardDTO } from './reviewService'
 import type { QueueCandidate } from '../lib/review/queue'
 
-const { invokeMock, getStateMock, applyReviewMock, insertPracticeLogMock } = vi.hoisted(() => ({
+const {
+  invokeMock, getStateMock, applyReviewMock, insertPracticeLogMock,
+  registerAllWordsMock, getCandidatesMock, getWordContentMock, getStatsMock,
+} = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   getStateMock: vi.fn(),
   applyReviewMock: vi.fn(),
   insertPracticeLogMock: vi.fn(),
+  registerAllWordsMock: vi.fn(),
+  getCandidatesMock: vi.fn(),
+  getWordContentMock: vi.fn(),
+  getStatsMock: vi.fn(),
 }))
 
-// rateCard 只碰这三个 db 入口，直接打桩；fsrs_next 走 Tauri invoke，单独打桩
+// rateCard 只碰这三个 db 入口，直接打桩；fsrs_next 走 Tauri invoke，单独打桩。
+// getOverview 另走 registerAllWords / getCandidates / getWordContent / getStats。
 vi.mock('../db/review', () => ({
   getState: getStateMock,
   applyReview: applyReviewMock,
   insertPracticeLog: insertPracticeLogMock,
+  registerAllWords: registerAllWordsMock,
+  getCandidates: getCandidatesMock,
+  getWordContent: getWordContentMock,
+  getStats: getStatsMock,
 }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }))
 
-const { rateCard } = await import('./reviewService')
+const { rateCard, getOverview, REVIEW_DEFAULTS } = await import('./reviewService')
 
 const scoringInput = {
   cardId: 'c1', rating: 3, template: 'cloze' as const, mode: 'review' as const,
@@ -152,6 +164,15 @@ describe('reviewService.assembleCardDTO', () => {
     const dto = assembleCardDTO(candidate(), 'cloze', noExample, null)
     expect((dto.prompt as any).sentence.length).toBeGreaterThan(0)
   })
+
+  it('认读：与正确释义同文 / 重复的干扰项被剔除，选项两两不同', () => {
+    const messy = { ...content, distractors: ['短暂的', '持久的', '持久的', '明显的', '丰富的'] }
+    const dto = assembleCardDTO(candidate(), 'recognize', messy, null)
+    const options = (dto.prompt as any).options as string[]
+    expect(options).toHaveLength(4)
+    expect(new Set(options).size).toBe(options.length)
+    expect(options.filter(o => o === '短暂的')).toHaveLength(1)
+  })
 })
 
 describe('reviewService 认读干扰项闸门', () => {
@@ -159,5 +180,35 @@ describe('reviewService 认读干扰项闸门', () => {
     const { templatesWithDistractorGate } = await import('./reviewService')
     expect(templatesWithDistractorGate(['recognize', 'cloze'], 2)).toEqual(['cloze'])
     expect(templatesWithDistractorGate(['recognize', 'cloze'], 3)).toEqual(['recognize', 'cloze'])
+  })
+})
+
+describe('reviewService.getOverview 用组卷同一道认读闸门', () => {
+  beforeEach(() => {
+    registerAllWordsMock.mockReset()
+    getCandidatesMock.mockReset()
+    getWordContentMock.mockReset()
+    getStatsMock.mockReset()
+    registerAllWordsMock.mockResolvedValue(undefined)
+    getStatsMock.mockResolvedValue({
+      ok: true,
+      data: { masteryBuckets: [1, 0, 0, 0, 0], dueByDay: Array(8).fill(0), recentRatings: [] },
+    })
+  })
+
+  it('只有认读可出、干扰释义不足 3 个：承诺 0 张（点得动的张数）', async () => {
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [candidate({ availableTemplates: ['recognize'] })] })
+    getWordContentMock.mockResolvedValue({ ...content, distractors: ['持久的'] })
+    const o = await getOverview(REVIEW_DEFAULTS)
+    expect(o.total).toBe(0)
+    expect(o.estimateMinutes).toBe(1)
+  })
+
+  it('干扰释义够 3 个：同一张卡计入承诺张数', async () => {
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [candidate({ availableTemplates: ['recognize'] })] })
+    getWordContentMock.mockResolvedValue(content)
+    const o = await getOverview(REVIEW_DEFAULTS)
+    expect(o.total).toBe(1)
+    expect(o.newCount).toBe(0)
   })
 })

@@ -21,8 +21,15 @@ export const TEMPLATE_DEPS: Record<Template, FieldGroup[]> = {
   listen: ['phonetic'],
 }
 
-/** 出题难度序：从易到难。新词（无日志）按此序兜底，形成「先认后写」的递进。 */
-export const TEMPLATE_DIFFICULTY: Template[] = ['recognize', 'cloze', 'recall', 'english_def', 'listen']
+/**
+ * 出题难度序：从易到难。新词（无日志）按此序兜底，形成「先认后写」的递进。
+ * 也是 usableTemplates 的筛选源——**不在此列 = 该题型整体下线**。
+ * 听辨 listen：TTS 未落地（`speak` 命令不存在），题面只有播放按钮、无法作答，
+ * 唯一的出口「直接跳过」会写 rating = 1 并污染调度数据。故按 spec §4.1「TTS 整体不可用
+ * 则该题型下线，其余四题型不受影响」暂时下线；`TEMPLATE_DEPS.listen`、assembleCardDTO 的
+ * listen 分支与 PromptCard 的播放按钮都保留，TTS 落地后把它加回本数组即可上线。
+ */
+export const TEMPLATE_DIFFICULTY: Template[] = ['recognize', 'cloze', 'recall', 'english_def']
 
 export type FieldMask = Record<FieldGroup, boolean>
 

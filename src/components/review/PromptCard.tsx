@@ -6,13 +6,17 @@ export function inputKindFor(template: ReviewCardDTO['template']): InputKind {
   switch (template) {
     case 'recognize': return 'choice'
     case 'cloze': return 'typed'
+    case 'recall': return 'typed'   // spec §4.1：中译英也是键入（仅拼写辅助，不判分）
     case 'listen': return 'typed'
     default: return 'reveal'
   }
 }
 
+/** 逐字母标红的比对目标；仅键入型题目有（中译英的目标是答案里的单词）。 */
 export function typedTarget(dto: ReviewCardDTO): string | undefined {
-  if (dto.template === 'cloze' || dto.template === 'listen') return String(dto.answer.lemma ?? '')
+  if (dto.template === 'cloze' || dto.template === 'recall' || dto.template === 'listen') {
+    return String(dto.answer.lemma ?? '')
+  }
   return undefined
 }
 

@@ -4,6 +4,7 @@ import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
 import { getStats, getAbsent } from '../../services/reviewService'
+import type { ReviewCardDTO } from '../../services/reviewService'
 
 export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
   const { queue, answered, startedAt } = useReviewSessionStore()
@@ -43,7 +44,7 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
       <Section title={`答错的词 (${wrong.length})`} empty="本轮没有答错的词">
         {wrong.map(c => (
           <Row key={c.cardId} onClick={() => jump(c.wordId)}>
-            {c.answer.lemma ? String(c.answer.lemma) : c.cardId}
+            {wrongLabel(c)}
           </Row>
         ))}
       </Section>
@@ -64,8 +65,17 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
   )
 }
 
-function Section({ title, empty, children }: { title: string; empty: string; children: React.ReactNode }) {
-  const items = Array.isArray(children) ? children : [children]
+/** 答错的词列表的可读标签：题面单词（认读的题面才有）→ 答案里的单词 → 答案释义 → 卡号兜底。 */
+function wrongLabel(c: ReviewCardDTO): string {
+  const p = c.prompt as Record<string, unknown>
+  const a = c.answer as Record<string, unknown>
+  const label = [p.lemma, a.lemma, a.translation]
+    .map(v => (v === null || v === undefined ? '' : String(v)))
+    .find(v => v !== '')
+  return label ?? c.cardId
+}
+
+function Section({ title, empty, children }: { title: string; empty: string; children: React.ReactNode }) {  const items = Array.isArray(children) ? children : [children]
   return (
     <div className="flex flex-col gap-1">
       <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{title}</span>

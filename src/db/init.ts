@@ -1,4 +1,4 @@
-import { REVIEW_TABLES, SCHEMA_SEED_STATEMENTS, SCHEMA_VERSION, SQL_DROP_TABLES, seedFieldDefinitionsSQL } from './schema'
+import { REBUILD_BELOW_VERSION, REVIEW_TABLES, SCHEMA_SEED_STATEMENTS, SCHEMA_VERSION, SQL_DROP_TABLES, seedFieldDefinitionsSQL } from './schema'
 
 // 与 tauri-plugin-sql Database 对齐的最小接口（与 test-utils.DbLike 同构）
 export interface DbHandle {
@@ -10,8 +10,9 @@ export async function ensureSchema(db: DbHandle): Promise<void> {
   const rows = await db.select<{ user_version: number }>('SELECT user_version FROM pragma_user_version')
   const current = rows[0]?.user_version ?? 0
 
-  // 仅 v0 空库走重建路径（新装用户无损失）；已初始化的库一律不再 DROP
-  if (current < 3) {
+  // 版本门，不是空库判定：user_version 低于 REBUILD_BELOW_VERSION 就重建（已初始化的新版库一律不再 DROP）。
+  // 该常量与 SCHEMA_VERSION 有意解耦，不要为了「保持同步」把它改成 SCHEMA_VERSION。
+  if (current < REBUILD_BELOW_VERSION) {
     for (const sql of SQL_DROP_TABLES) await db.execute(sql)
     for (const sql of SCHEMA_SEED_STATEMENTS) await db.execute(sql)
   }
@@ -26,5 +27,6 @@ export async function ensureSchema(db: DbHandle): Promise<void> {
   // 幂等补建当段新表（全部 IF NOT EXISTS）
   for (const sql of REVIEW_TABLES) await db.execute(sql)
 
-  await db.execute(`PRAGMA user_version = ${SCHEMA_VERSION}`)
+  // 只在版本更低时写：用老代码打开更新的数据库（current > SCHEMA_VERSION）不得把版本号降回去
+  if (current < SCHEMA_VERSION) await db.execute(`PRAGMA user_version = ${SCHEMA_VERSION}`)
 }

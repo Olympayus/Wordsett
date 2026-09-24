@@ -76,7 +76,7 @@ export function assembleCardDTO(
 
   switch (template) {
     case 'recognize': {
-      const options = shuffleDeterministic([content.translation, ...content.distractors].slice(0, 4), candidate.cardId)
+      const options = shuffleDeterministic(recognizeOptions(content), candidate.cardId)
       prompt = { lemma: content.lemma, phonetic: content.phonetic, options }
       answer = { translation: content.translation, partOfSpeech: content.partOfSpeech }
       break
@@ -119,6 +119,23 @@ export function assembleCardDTO(
       rNow,
     },
   }
+}
+
+/**
+ * 认读选项：正确释义 + 至多 3 个干扰项，且选项文本两两不同、都不等于正确释义。
+ * 干扰释义按跨词采样而来，可能与本词释义同文（两个一模一样的选项 + React key 重复）。
+ */
+function recognizeOptions(content: CardContent): string[] {
+  const out = [content.translation]
+  const seen = new Set(out.map(o => o.trim()))
+  for (const d of content.distractors) {
+    const t = d.trim()
+    if (!t || seen.has(t)) continue
+    seen.add(t)
+    out.push(d)
+    if (out.length === 4) break
+  }
+  return out
 }
 
 /** 确定性洗牌：同一 cardId 总是得到同一顺序，避免重复出题时选项乱跳。 */
@@ -173,8 +190,10 @@ export async function getQueue(
   const now = Date.now()
   const EMPTY: QueueResult = { queue: [], dueCount: 0, newCount: 0, absentCount: 0 }
 
-  // 自由练习要够到未到期的熟词，因此走不看 due_at 的候选池
-  const candRes = strategy === 'free'
+  // 自由练习要够到未到期的熟词，因此走不看 due_at 的候选池；
+  // 唯一例外是「今日队列重练」——它按定义就是今日到期队列，沿用只看 due_at 的源。
+  const freeToday = strategy === 'free' && freeScope?.kind === 'today'
+  const candRes = strategy === 'free' && !freeToday
     ? await reviewDb.getAllCandidates()
     : await reviewDb.getCandidates(now)
   if (!candRes.ok) return { queue: [], absent: [], result: EMPTY }
@@ -183,11 +202,13 @@ export async function getQueue(
   if (strategy === 'weak') {
     candidates = await filterWeak(candidates, params, now)
   } else if (strategy === 'free') {
-    candidates = await filterFree(candidates, freeScope)
+    candidates = await filterFree(candidates, freeScope, params, now)
   }
 
+  // 自由练习的候选池本就含未到期的熟词（getAllCandidates 的全部意义），
+  // 故 includeNotDue = true：否则 buildQueue 的 due 过滤会把这些卡全数丢掉，练习恒为空。
   const result = strategy === 'free'
-    ? buildQueue(candidates, { now, newCardQuota: 0, queueLimit: freeScope?.limit ?? 20 })
+    ? buildQueue(candidates, { now, newCardQuota: 0, queueLimit: freeScope?.limit ?? 20, includeNotDue: true })
     : buildQueue(candidates, { now, newCardQuota: params.newCardQuota, queueLimit: params.queueLimit })
 
   // 全库随机：buildQueue 的 R_now 排序会覆盖乱序，故在最后重新打乱
@@ -232,12 +253,19 @@ async function filterWeak(candidates: QueueCandidate[], params: ReviewParams, no
   return candidates.filter(c => ids.has(c.cardId))
 }
 
+/**
+ * 自由练习的范围筛选。'today' 的候选源已是到期集（见 getQueue 的 freeToday 分支），原样透传；
+ * 'weak' 复用 filterWeak（薄弱定义只有 getWeakCardIds 一处实现），不再把整库交给用户。
+ */
 async function filterFree(
   candidates: QueueCandidate[],
-  scope?: FreeScope,
+  scope: FreeScope | undefined,
+  params: ReviewParams,
+  now: number,
 ): Promise<QueueCandidate[]> {
   if (!scope) return []
   if (scope.kind === 'today') return candidates
+  if (scope.kind === 'weak') return filterWeak(candidates, params, now)
   if (scope.kind === 'category' && scope.categoryId) {
     // 复用现有 getAllWordCategoryMap（src/db/categories.ts），不新增查询
     const { getAllWordCategoryMap } = await import('../db/categories')
@@ -325,12 +353,35 @@ async function invokeFsrsNext(
     stability, difficulty, elapsedDays, retention: safeRetention,
   })
   const key = rating === 1 ? 'again' : rating === 2 ? 'hard' : rating === 3 ? 'good' : 'easy'
-  return out[key]
+  const next = out[key]
+  // 跨语言字段名漂移的兜底：Tauri 不映射返回值，读到 undefined 会一路算成 NaN，
+  // 直到 review_states.due_at（INTEGER NOT NULL）才炸——那已是写库失败。这里就喊停。
+  if (!Number.isFinite(next?.intervalDays) || next.intervalDays < 1) {
+    throw new Error(`fsrs_next 返回的 ${key}.intervalDays 非法：${String(next?.intervalDays)}`)
+  }
+  return next
 }
 
 export async function getStats() {
   const r = await reviewDb.getStats()
   return r.ok ? r.data : { masteryBuckets: [0, 0, 0, 0, 0], dueByDay: Array(8).fill(0), recentRatings: [] }
+}
+
+/**
+ * 概览承诺的张数必须等于点得动的张数：getQueue 逐卡过 templatesWithDistractorGate，
+ * 概览若只数 buildQueue 的长度，小库上会出现「承诺 3 张、按钮却什么都不出」。
+ * 只有候选词含 recognize 时才需要读内容——闸门只可能剔除这一个模板。
+ */
+async function deliverable(candidates: QueueCandidate[]): Promise<QueueCandidate[]> {
+  const out: QueueCandidate[] = []
+  for (const c of candidates) {
+    if (!c.availableTemplates.includes('recognize')) { out.push(c); continue }
+    const content = await loadContent(c.wordId)
+    if (!content) continue
+    if (templatesWithDistractorGate(c.availableTemplates, content.distractors.length).length === 0) continue
+    out.push(c)
+  }
+  return out
 }
 
 export async function getOverview(params: ReviewParams) {
@@ -339,11 +390,13 @@ export async function getOverview(params: ReviewParams) {
   const candRes = await reviewDb.getCandidates(now)
   const candidates = candRes.ok ? candRes.data : []
   const result = buildQueue(candidates, { now, newCardQuota: params.newCardQuota, queueLimit: params.queueLimit })
+  const queue = await deliverable(result.queue)
   const stats = await getStats()
   return {
-    total: result.queue.length,
-    newCount: result.newCount,
-    estimateMinutes: Math.max(1, Math.round(result.queue.length * 0.3)),
+    total: queue.length,
+    // 从闸门后的队列重算：被闸门剔除的新卡不能再算进「含新词」
+    newCount: queue.filter(c => c.stability === null).length,
+    estimateMinutes: Math.max(1, Math.round(queue.length * 0.3)),
     masteryBuckets: stats.masteryBuckets,
   }
 }
