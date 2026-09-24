@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react'
-import type { CSSProperties } from 'react'
 import { relatedWords } from '../../services/searchService'
 import { stripGlossExamples } from '../../lib/wordnetParse'
 import type { RelatedWords, RelatedGroup } from '../../providers/wordnet'
@@ -32,19 +31,6 @@ const RELATION_DESCRIPTIONS: Record<keyof RelatedWords['groups'], string> = {
   pertainyms: '派生来源：形容/副词所派生的名词来源',
   attributes: '属性：名词属性与描述该属性的形容词之间的对应',
   verbGroups: '动词组：含义相近、可互换而不改变句子真值的动词分组',
-}
-
-// 相似词组簇释义常驻 caption（两行截断，hover 看完整 gloss）
-const CAPTION_STYLE: CSSProperties = {
-  fontSize: 12,
-  color: 'var(--color-text-tertiary)',
-  lineHeight: 1.45,
-  maxWidth: 320,
-  wordBreak: 'break-word',
-  display: '-webkit-box',
-  WebkitLineClamp: 2,
-  WebkitBoxOrient: 'vertical',
-  overflow: 'hidden',
 }
 
 interface Props {
@@ -125,7 +111,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
         </span>
       ))}
       {g.definition && (
-        <Tooltip content={g.definition} width={340}>
+        <Tooltip content={stripGlossExamples(g.definition)} width={340}>
           <span role="img" aria-label={`组说明：${g.words.join('、')}`} style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'help' }}><Icon name="info" size={12} /></span>
         </Tooltip>
       )}
@@ -165,24 +151,8 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
                 <span role="img" aria-label="说明" style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'help' }}><Icon name="info" size={13} /></span>
               </Tooltip>
             </div>
-            <div style={
-              key === 'similarTo'
-                ? { display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'flex-start' }
-                : { display: 'flex', flexWrap: 'wrap', gap: 6 }
-            }>
-              {shown.map(g => key === 'similarTo'
-                ? (
-                  <div
-                    key={g.words.join('·')}
-                    style={{ maxWidth: 360, display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'flex-start' }}
-                  >
-                    {chip(g)}
-                    {g.definition && (
-                      <span style={CAPTION_STYLE}>{stripGlossExamples(g.definition)}</span>
-                    )}
-                  </div>
-                )
-                : chip(g))}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {shown.map(g => chip(g))}
               {items.length > 9 && (
                 <button
                   type="button"
