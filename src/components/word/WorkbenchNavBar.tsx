@@ -4,6 +4,7 @@ import { useNavHistoryStore } from '../../stores/navHistoryStore'
 import { useWordStore } from '../../stores/wordStore'
 import { canGoBack, canGoForward } from '../../lib/navHistory'
 import Icon from '../icons'
+import SquareButton, { SQUARE_BUTTON_STYLE } from '../ui/SquareButton'
 
 interface WorkbenchNavBarProps {
   /** 所在区域：工作台显示编者/删除，搜索返回页显示返回/合并添加 */
@@ -28,6 +29,9 @@ const navBtn = (disabled = false): CSSProperties => ({
   opacity: disabled ? 0.3 : 1,
   transition: 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
 })
+
+// 方块按钮的状态切换动效：底样在 WorkbenchNavBar 局部叠加，transition 覆盖会被改动的属性。
+const SQUARE_BUTTON_TRANSITION = 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth), box-shadow var(--duration-fast) var(--ease-smooth), opacity var(--duration-fast) var(--ease-smooth)'
 
 // 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区，吸顶。
 // 箭头是浏览器式前进 / 后退，走用户访问轨迹，不是词表顺序。
@@ -101,9 +105,20 @@ export default function WorkbenchNavBar({
       {/* ⋯ 更多操作（普通模式可见）本轮不实现：⋯ 菜单内容与「删除此标签页」收进菜单是 v0.7.0 段二的独立项，
           本轮没有可放入 ⋯ 的条目；等段二落地时在本组件右侧补上即可。
           ＋ 新增标签页已移除：它与标签条右侧的 ＋ 重复（同一 TAB_GROUPS 选择器），标签条那处保留为唯一入口。 */}
+      {/* 合并添加（dict 区）：SquareButton 的 prop 面正好（children / onClick / disabled / title），
+          直接用组件而非手抄底样 —— 组件存在的意义就是「一处底样两处复用」，抄一份就白做了。
+          禁用态沿用组件自带的灰底 + 0.5 透明度（与设置页一致），不再是旧的透明底 + 三级灰字。
+          可及名交给可见文字（含「· N 项」计数），比旧的 aria-label="合并添加"（屏蔽计数）更完整。
+          flex-shrink 沿用旧按钮的写法：与同排的圆钮对齐，拉伸时先让文字两侧留白而不是折行。 */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
         {region === 'workbench' ? (
           <>
+            {/* 编者模式（v0.5.3 §4.1）：开 = 设置页同款方块底样（深品牌底 + 黑字），
+                关 = 同一底样 + 透明底 + 二级灰字 + 内描边。两态仅差底色 / 字色 / 描边，
+                度量（padding + 圆角 + 字号）完全一致，故切换时导航条不会跳动。
+                描边用 inset box-shadow 而非 border：border 会在 border-box 下多吃掉 2px，
+                切换时按钮宽高各变 2px。role="switch" 与 aria-checked 保留，on/off 不被统一样式吃掉。
+                设置页暂无同类开关；若日后加 hover，应同 SquareButton 一律不加（按钮不加 hover 反色）。 */}
             <button
               type="button"
               role="switch"
@@ -111,14 +126,12 @@ export default function WorkbenchNavBar({
               aria-label="编者模式"
               onClick={() => setEditorMode(!editorMode)}
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: '5px',
-                height: '26px', padding: '0 11px', flexShrink: 0,
-                border: `1px solid ${editorMode ? 'var(--color-brand)' : 'var(--color-border)'}`,
-                background: editorMode ? 'var(--color-brand-soft)' : 'transparent',
-                borderRadius: 'var(--radius-full)', cursor: 'pointer',
-                fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-medium)',
-                color: editorMode ? 'var(--color-brand)' : 'var(--color-text-secondary)',
-                transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
+                ...SQUARE_BUTTON_STYLE,
+                background: editorMode ? SQUARE_BUTTON_STYLE.background : 'transparent',
+                color: editorMode ? SQUARE_BUTTON_STYLE.color : 'var(--color-text-secondary)',
+                boxShadow: editorMode ? 'none' : 'inset 0 0 0 1px var(--color-border)',
+                display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0,
+                transition: SQUARE_BUTTON_TRANSITION,
               }}
             >
               <Icon name="edit" size={12} />
@@ -135,27 +148,16 @@ export default function WorkbenchNavBar({
             </button>
           </>
         ) : (
-          <button
-            type="button"
-            aria-label="合并添加"
+          <SquareButton
+            title="合并添加"
             disabled={mergeDisabled}
-            onClick={onMergeAdd}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '5px',
-              height: '26px', padding: '0 12px', flexShrink: 0,
-              border: '1px solid var(--color-brand)',
-              background: mergeDisabled ? 'transparent' : 'var(--color-brand)',
-              borderRadius: 'var(--radius-full)',
-              cursor: mergeDisabled ? 'default' : 'pointer',
-              fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-medium)',
-              color: mergeDisabled ? 'var(--color-text-tertiary)' : 'white',
-              opacity: mergeDisabled ? 0.6 : 1,
-              transition: 'background-color var(--duration-fast) var(--ease-smooth), opacity var(--duration-fast) var(--ease-smooth)',
-            }}
+            onClick={() => onMergeAdd?.()}
           >
-            <Icon name="plus" size={12} />
-            合并添加{mergeCount > 0 ? ` · ${mergeCount} 项` : ''}
-          </button>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+              <Icon name="plus" size={12} />
+              合并添加{mergeCount > 0 ? ` · ${mergeCount} 项` : ''}
+            </span>
+          </SquareButton>
         )}
       </div>
     </div>
