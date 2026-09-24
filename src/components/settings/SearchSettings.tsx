@@ -169,7 +169,7 @@ function DictRow({ label, sub, checked, onChange }: {
       <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{label}</span>
       {sub && <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{sub}</span>}
       <span style={{ flex: 1 }} />
-      <Toggle checked={checked} onChange={onChange} aria-label={`${label}开关`} />
+      <Toggle checked={checked} onChange={onChange} aria-label={`${label}${sub ? `（${sub}）` : ''}开关`} />
     </div>
   )
 }
@@ -205,7 +205,8 @@ export default function SearchSettings() {
         </div>
         {FIELD_TREE.map(node => <FieldRow key={node.key} node={node} />)}
         {/* 音标/词根（v0.5.3 §4.1 第 12 条）：属标题信息键（写 titleInfo 而非 displayFields），
-            但语义上与词典字段相邻，故置于本区末尾；sub「标题行」用于与上方字段树的同名「音标」区分。 */}
+            键类型不符不能进 FIELD_TREE，故作为兄弟行置于末尾；sub「标题行」表示作用界面，
+            并随 aria-label 一并播报，以与上方字段树的同名「音标」区分。 */}
         <DictRow label="音标" sub="标题行" checked={titleInfo.showPhonetic} onChange={on => setTitleInfo('showPhonetic', on)} />
         <DictRow label="词根" sub="标题行" checked={titleInfo.showWordRoot} onChange={on => setTitleInfo('showWordRoot', on)} />
       </div>
