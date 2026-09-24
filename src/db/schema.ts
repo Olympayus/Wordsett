@@ -66,7 +66,7 @@ export function seedFieldDefinitionsSQL(): string {
 }
 
 // D4：PRAGMA user_version 驱动重建。P4/P5 变更 schema 时递增此值。
-export const SCHEMA_VERSION = 3
+export const SCHEMA_VERSION = 4
 
 export const SQL_DROP_TABLES: string[] = [
   'DROP TABLE IF EXISTS word_categories;',
@@ -81,4 +81,45 @@ export const SCHEMA_SEED_STATEMENTS: string[] = [
   SQL_CREATE_WORDS, SQL_CREATE_FIELD_DEFINITIONS, SQL_CREATE_FIELD_VALUES,
   SQL_CREATE_CATEGORIES, SQL_CREATE_WORD_CATEGORIES,
   SQL_CREATE_INDEXES, seedFieldDefinitionsSQL(),
+]
+
+// 复习三表（v0.6.0，spec §3）。幂等建表，随每段交付补建。
+export const SQL_CREATE_REVIEW_CARDS = `CREATE TABLE IF NOT EXISTS review_cards (
+  id TEXT PRIMARY KEY,
+  word_id TEXT NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+  last_template TEXT,
+  initial_familiarity INTEGER NOT NULL DEFAULT 1,
+  created_at INTEGER NOT NULL
+);`
+
+export const SQL_CREATE_REVIEW_STATES = `CREATE TABLE IF NOT EXISTS review_states (
+  card_id TEXT PRIMARY KEY REFERENCES review_cards(id) ON DELETE CASCADE,
+  stability REAL,
+  difficulty REAL,
+  due_at INTEGER NOT NULL,
+  lapses INTEGER NOT NULL DEFAULT 0,
+  reps INTEGER NOT NULL DEFAULT 0,
+  suspended INTEGER NOT NULL DEFAULT 0,
+  last_review_at INTEGER
+);`
+
+export const SQL_CREATE_REVIEW_LOGS = `CREATE TABLE IF NOT EXISTS review_logs (
+  id TEXT PRIMARY KEY,
+  card_id TEXT NOT NULL REFERENCES review_cards(id) ON DELETE CASCADE,
+  reviewed_at INTEGER NOT NULL,
+  rating INTEGER NOT NULL,
+  template TEXT,
+  mode TEXT NOT NULL DEFAULT 'review',
+  duration_ms INTEGER
+);`
+
+export const REVIEW_INDEXES: string[] = [
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_cards_word ON review_cards(word_id);',
+  'CREATE INDEX IF NOT EXISTS idx_states_due ON review_states(suspended, due_at);',
+  'CREATE INDEX IF NOT EXISTS idx_logs_card ON review_logs(card_id, reviewed_at);',
+]
+
+export const REVIEW_TABLES: string[] = [
+  SQL_CREATE_REVIEW_CARDS, SQL_CREATE_REVIEW_STATES, SQL_CREATE_REVIEW_LOGS,
+  ...REVIEW_INDEXES,
 ]

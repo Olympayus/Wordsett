@@ -1,5 +1,5 @@
 import initSqlJs from 'sql.js'
-import { SCHEMA_SEED_STATEMENTS } from './schema'
+import { REVIEW_TABLES, SCHEMA_SEED_STATEMENTS } from './schema'
 
 // 与 tauri-plugin-sql Database 对齐的最小接口（execute/select）
 export interface DbLike {
@@ -33,5 +33,6 @@ export async function createRawTestDb(): Promise<{ adapter: DbLike }> {
 export async function createTestDb(): Promise<DbLike> {
   const { adapter } = await createRawTestDb()
   for (const sql of SCHEMA_SEED_STATEMENTS) await adapter.execute(sql)
+  for (const sql of REVIEW_TABLES) await adapter.execute(sql)
   return adapter
 }
