@@ -10,8 +10,6 @@ import { FIELD_TREE, isAncestorOff, type FieldTreeNode } from '../../lib/fieldTr
 const TITLE_ROWS: { key: TitleInfoKey; label: string }[] = [
   { key: 'showCollinsStars',   label: '柯林斯星级' },
   { key: 'showBadges',         label: '词源徽标（牛津3000 · 考试标签）' },
-  { key: 'showPhonetic',       label: '音标' },
-  { key: 'showWordRoot',       label: '词根' },
   { key: 'showDomainCategory', label: '领域·范畴' },
   { key: 'showDomainRegion',   label: '地理区域' },
   { key: 'showDomainUsage',    label: '用法域' },
@@ -206,6 +204,10 @@ export default function SearchSettings() {
           } />
         </div>
         {FIELD_TREE.map(node => <FieldRow key={node.key} node={node} />)}
+        {/* 音标/词根（v0.5.3 §4.1 第 12 条）：属标题信息键（写 titleInfo 而非 displayFields），
+            但语义上与词典字段相邻，故置于本区末尾；sub「标题行」用于与上方字段树的同名「音标」区分。 */}
+        <DictRow label="音标" sub="标题行" checked={titleInfo.showPhonetic} onChange={on => setTitleInfo('showPhonetic', on)} />
+        <DictRow label="词根" sub="标题行" checked={titleInfo.showWordRoot} onChange={on => setTitleInfo('showWordRoot', on)} />
       </div>
 
       {/* 第 10 条：去掉块顶分割线，改用块间距保持层次 */}

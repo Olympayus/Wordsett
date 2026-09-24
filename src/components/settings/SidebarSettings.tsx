@@ -6,6 +6,14 @@ const MODES: { mode: SidebarMode; title: string; desc: string }[] = [
   { mode: 'category', title: '分类模式', desc: '按分类分组，组内可自由排序。收起后显示单词与分类名。' },
 ]
 
+// v0.5.3 §4.1（第 13 条）：说明文字在首个句号处断行，句号留在前半行。
+// 无句号的文案防御性地原样返回单行。
+function splitAtFirstPeriod(desc: string): string[] {
+  const i = desc.indexOf('。')
+  if (i < 0) return [desc]
+  return [desc.slice(0, i + 1), desc.slice(i + 1)]
+}
+
 // v0.5.3 §4.1（第 11 条）：与 SearchSettings 的 SECTION_TITLE 同一处理 —— 字号 +2 并加粗。
 // 提为模块级常量，便于与 SearchSettings 的小标题保持一致。
 const SECTION_TITLE: React.CSSProperties = { fontSize: 'var(--text-base)', fontWeight: 'var(--weight-bold)', color: 'var(--color-text-primary)' }
@@ -39,7 +47,9 @@ export default function SidebarSettings() {
               onMouseLeave={e => { if (!selected) e.currentTarget.style.borderColor = 'var(--color-border)' }}
             >
               <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semibold)', marginBottom: '6px', color: 'var(--color-text-primary)' }}>{m.title}</div>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>{m.desc}</div>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                {splitAtFirstPeriod(m.desc).map((line, i) => <div key={i}>{line}</div>)}
+              </div>
             </button>
           )
         })}
