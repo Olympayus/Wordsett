@@ -24,13 +24,16 @@ const SETTINGS_CONTENT_WIDTH = 720
 export default function SettingsPage() {
   const [active, setActive] = useState<SectionKey>('search')
 
+  // v0.5.3 §4.1（第 10 条）：左栏文字改黑色衬线体。两种状态文字都取近黑
+  // （--color-text-primary，#1C1814）；选中态改由「暖品牌底 + 2px 品牌色左边条 + 加粗」承载，
+  // 颜色与底色一起提示，避免文字再靠蓝/灰二色区分。
   const navStyle = (isActive: boolean): React.CSSProperties => ({
     width: '100%', display: 'block', textAlign: 'left', cursor: 'pointer',
     padding: '10px 20px', fontSize: 'var(--text-sm)',
-    color: isActive ? 'var(--color-brand)' : 'var(--color-text-secondary)',
+    color: 'var(--color-text-primary)',
     background: isActive ? 'var(--color-brand-soft)' : 'transparent',
-    fontWeight: isActive ? 'var(--weight-medium)' : 'var(--weight-regular)',
-    fontFamily: 'var(--font-sans)',
+    fontWeight: isActive ? 'var(--weight-bold)' : 'var(--weight-regular)',
+    fontFamily: 'var(--font-serif)',
     border: 'none',
     borderLeft: `2px solid ${isActive ? 'var(--color-brand)' : 'transparent'}`,
     transition: 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',

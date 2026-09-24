@@ -6,13 +6,17 @@ const MODES: { mode: SidebarMode; title: string; desc: string }[] = [
   { mode: 'category', title: '分类模式', desc: '按分类分组，组内可自由排序。收起后显示单词与分类名。' },
 ]
 
+// v0.5.3 §4.1（第 11 条）：与 SearchSettings 的 SECTION_TITLE 同一处理 —— 字号 +2 并加粗。
+// 提为模块级常量，便于与 SearchSettings 的小标题保持一致。
+const SECTION_TITLE: React.CSSProperties = { fontSize: 'var(--text-base)', fontWeight: 'var(--weight-bold)', color: 'var(--color-text-primary)' }
+
 // 侧边栏显示控制（规格 §7.4）：两个单选卡片，切换即时生效
 export default function SidebarSettings() {
   const sidebarMode = useSettingsStore(s => s.sidebarMode)
   const setSidebarMode = useSettingsStore(s => s.setSidebarMode)
   return (
     <>
-      <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)', marginBottom: '16px', color: 'var(--color-text-primary)' }}>
+      <div style={{ ...SECTION_TITLE, marginBottom: '16px' }}>
         侧边栏显示模式
       </div>
       <div style={{ display: 'flex', gap: '12px' }}>

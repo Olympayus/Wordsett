@@ -6,6 +6,10 @@ import type { ImportPlan } from '../../lib/libraryCodec'
 import { useWordStore } from '../../stores/wordStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 
+// v0.5.3 §4.1（第 11 条）：小标题字号 +2（--text-sm 13px → --text-base 15px）并加粗。
+// 原为 raw 600（≈ --weight-semibold），这里一并提到 --weight-bold，与 SearchSettings / SidebarSettings 的小标题一致。
+const SECTION_TITLE: React.CSSProperties = { fontSize: 'var(--text-base)', fontWeight: 'var(--weight-bold)', color: 'var(--color-text-primary)' }
+
 export default function DataSettings() {
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<string>('')
@@ -56,11 +60,11 @@ export default function DataSettings() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       <div>
-        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: '6px' }}>导出词库</div>
+        <div style={{ ...SECTION_TITLE, marginBottom: '6px' }}>导出词库</div>
         <button style={btn} onClick={handleExport} disabled={busy}>导出为备份文件</button>
       </div>
       <div>
-        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 600, marginBottom: '6px' }}>导入词库</div>
+        <div style={{ ...SECTION_TITLE, marginBottom: '6px' }}>导入词库</div>
         <button style={btn} onClick={handlePick} disabled={busy}>选择备份文件…</button>
         {plan && (
           <div style={{ marginTop: '10px', padding: '10px 12px', background: 'var(--color-brand-soft)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)' }}>

@@ -35,7 +35,8 @@ const DICT_SECTION_TOOLTIP = (
   </>
 )
 
-const SECTION_TITLE: React.CSSProperties = { fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-medium)', color: 'var(--color-text-primary)' }
+// v0.5.3 §4.1（第 11 条）：小标题字号 +2（--text-sm 13px → --text-base 15px）并加粗
+const SECTION_TITLE: React.CSSProperties = { fontSize: 'var(--text-base)', fontWeight: 'var(--weight-bold)', color: 'var(--color-text-primary)' }
 
 // 悬浮框几何：宽度固定，与锚点留 8px 间隙。两处（定位与纵向修正）都要用，故提到模块级。
 const PANEL_WIDTH = 320
@@ -207,7 +208,8 @@ export default function SearchSettings() {
         {FIELD_TREE.map(node => <FieldRow key={node.key} node={node} />)}
       </div>
 
-      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '16px', marginBottom: '24px' }}>
+      {/* 第 10 条：去掉块顶分割线，改用块间距保持层次 */}
+      <div style={{ marginTop: '32px', marginBottom: '24px' }}>
         <div style={{ ...SECTION_TITLE, marginBottom: '12px' }}>标题信息</div>
         {TITLE_ROWS.map(r => (
           <DictRow
@@ -219,8 +221,8 @@ export default function SearchSettings() {
         ))}
       </div>
 
-      {/* 词典（本地词典开关）：置于「词典返回词条」之下 */}
-      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '16px', marginBottom: '24px' }}>
+      {/* 词典（本地词典开关）：置于「词典返回词条」之下（分割线已去掉，改为块间距） */}
+      <div style={{ marginTop: '32px', marginBottom: '24px' }}>
         <div style={{ ...SECTION_TITLE, marginBottom: '12px' }}>
           词典
           <HoverInfo content={DICT_SECTION_TOOLTIP} />
