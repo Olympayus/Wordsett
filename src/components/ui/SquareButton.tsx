@@ -18,7 +18,10 @@ const BUTTON_TRANSITION = 'transform 150ms cubic-bezier(.25,.1,.25,1), backgroun
 
 export const BUTTON_BASE: CSSProperties = {
   minWidth: 88,
-  padding: '6px 12px',
+  // 竖向 8px → 按钮实测约 31px（8+13+8+2 边框）。6px 时仅 27px，在 30px 高的设置行里偏矮，
+  // 重心发飘；31px 与行高相当，不至于把行撑变形。行高由 padding + lineHeight 推出而非写死
+  // height，多行标签时按钮仍能随内容长高。
+  padding: '8px 12px',
   borderRadius: BUTTON_RADIUS,
   border: '1px solid rgba(0,0,0,.16)',
   background: 'var(--color-accent)',
@@ -49,8 +52,10 @@ const BRAND_HOVER = 'color-mix(in srgb, var(--color-brand) 88%, white)'
 /** 导航条内的紧凑尺寸：不撑高导航条、不与同排 28×28 的箭头按钮争视觉重量 */
 export const BUTTON_SIZE_NAV: CSSProperties = { minWidth: 0, padding: '4px 12px' }
 
-/** 文字行内的紧凑尺寸：跟在标签文字后面（如「本地数据存储位置 浏览」），不限最小宽 */
-export const BUTTON_SIZE_ROW: CSSProperties = { minWidth: 0, padding: '4px 12px' }
+/** 文字行内的紧凑尺寸：跟在标签文字后面（如「本地数据存储位置 浏览」），不限最小宽。
+    竖向内边距取 6px 而非 4px：该行不是 30px 的紧凑开关行（那是 DictRow），普通 div 容得下，
+    按钮与基底等高才不会在同一行里显得小一号。 */
+export const BUTTON_SIZE_ROW: CSSProperties = { minWidth: 0, padding: '6px 12px' }
 
 /** 禁用态：灰底 + 半透明，与项目内既有 disabled 观感一致 */
 export const BUTTON_DISABLED: CSSProperties = {
