@@ -108,6 +108,25 @@ it('showCollinsStars 默认开启（v0.5.3 §3.3）', () => {
   expect(DEFAULT_TITLE_INFO.showCollinsStars).toBe(true)
 })
 
+it('迁移：v4 旧数据（v0.5.2 实际写盘形态，titleInfo 无 showCollinsStars）补齐默认开启并保留旧键（v0.5.3 §3.3）', async () => {
+  // v0.5.2 发布态写盘形态：version 4，titleInfo 仅 6 个旧键，刻意 true/false 混合以观察合并方向
+  const legacyTitleInfo = {
+    showBadges: false, showPhonetic: true, showWordRoot: false,
+    showDomainCategory: true, showDomainRegion: false, showDomainUsage: true,
+  }
+  expect('showCollinsStars' in legacyTitleInfo).toBe(false)
+  localStorage.setItem('wordsett-settings', JSON.stringify({
+    state: { sidebarMode: 'category', titleInfo: legacyTitleInfo },
+    version: 4,
+  }))
+  await useSettingsStore.persist.rehydrate()
+  const s = useSettingsStore.getState()
+  expect(s.titleInfo.showCollinsStars).toBe(true)
+  for (const [k, v] of Object.entries(legacyTitleInfo)) {
+    expect(s.titleInfo[k as TitleInfoKey]).toBe(v)
+  }
+})
+
 it('旧设置无 showCollinsStars 键时经 migrate 合并默认开启，且保留旧键（v0.5.3 §3.3）', async () => {
   const legacyTitleInfo = {
     showBadges: false, showPhonetic: true, showWordRoot: false,

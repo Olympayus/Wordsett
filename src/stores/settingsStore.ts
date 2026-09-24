@@ -52,7 +52,7 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'wordsett-settings',
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => localStorage),
       migrate: (persisted) => {
         const state = (persisted ?? {}) as Partial<SettingsStore> & { displayFields?: Record<string, boolean> }
