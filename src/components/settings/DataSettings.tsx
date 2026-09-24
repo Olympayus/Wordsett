@@ -5,6 +5,8 @@ import { pickAndPlanImport, applyImport } from '../../services/importService'
 import type { ImportPlan } from '../../lib/libraryCodec'
 import { useWordStore } from '../../stores/wordStore'
 import { useCategoryStore } from '../../stores/categoryStore'
+import { openDataDir } from '../../lib/dataPath'
+import SquareButton from '../ui/SquareButton'
 
 // v0.5.3 §4.1（第 11 条）：小标题字号 +2（--text-sm 13px → --text-base 15px）并加粗。
 // 原为 raw 600（≈ --weight-semibold），这里一并提到 --weight-bold，与 SearchSettings / SidebarSettings 的小标题一致。
@@ -51,6 +53,20 @@ export default function DataSettings() {
     else if (r.error) setError(r.error)
   }
 
+  // 「浏览」打开数据目录（v0.5.3 §4.1 第 14 条）。Task 16 的 open_data_dir 返回
+  // Result<(), String>，DB 不存在 / opener 调用失败都会 reject，故在此 try/catch
+  // 接住并写入下方共用的 error 槽——不吞掉 rejection，否则只有控制台报
+  // unhandled rejection、界面完全无反馈。失败文案与 handleExport/handlePick 一致
+  // （e instanceof Error ? e.message : String(e)）。
+  const handleBrowse = async () => {
+    setError(''); setStatus('')
+    try {
+      await openDataDir()
+    } catch (e) {
+      setError(`打开数据目录失败：${e instanceof Error ? e.message : String(e)}`)
+    }
+  }
+
   const btn: React.CSSProperties = {
     padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-strong)',
     background: 'var(--color-surface)', color: 'var(--color-text-primary)', cursor: 'pointer',
@@ -59,6 +75,16 @@ export default function DataSettings() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+      {/* 本地数据存储位置（v0.5.3 §4.1 第 14 条）：首行，黑色字体，附浏览按钮。
+          浏览按钮用 Task 18 的 SquareButton，与其他方块按钮同一份统一样式。 */}
+      <div style={{
+        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+        fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
+      }}>
+        <span>本地数据存储</span>
+        <span style={{ flex: 1 }} />
+        <SquareButton onClick={() => { void handleBrowse() }} title="在系统文件管理器中打开数据目录并选中 wordsett.db">浏览</SquareButton>
+      </div>
       <div>
         <div style={{ ...SECTION_TITLE, marginBottom: '6px' }}>导出词库</div>
         <button style={btn} onClick={handleExport} disabled={busy}>导出为备份文件</button>

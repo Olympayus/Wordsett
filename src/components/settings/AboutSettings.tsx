@@ -8,7 +8,7 @@ export default function AboutSettings() {
     <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
       <div style={{ fontWeight: 'var(--weight-semibold)', color: 'var(--color-text-primary)' }}>Wordsett</div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-        <span>版本：v{pkg.version}</span>
+        <span style={{ color: 'var(--color-text-primary)' }}>版本：v{pkg.version}</span>
         <button
           type="button"
           onClick={() => void checkManually()}
@@ -22,7 +22,6 @@ export default function AboutSettings() {
           检查更新
         </button>
       </div>
-      <div>数据存储：本地（sqlite:wordsett.db）</div>
     </div>
   )
 }
