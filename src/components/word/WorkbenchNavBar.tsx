@@ -5,6 +5,7 @@ import { useWordStore } from '../../stores/wordStore'
 import { canGoBack, canGoForward } from '../../lib/navHistory'
 import Icon from '../icons'
 import SquareButton, { SQUARE_BUTTON_STYLE } from '../ui/SquareButton'
+import Tooltip from '../ui/Tooltip'
 
 interface WorkbenchNavBarProps {
   /** 所在区域：工作台显示编者/删除，搜索返回页显示返回/合并添加 */
@@ -108,8 +109,10 @@ export default function WorkbenchNavBar({
       {/* 合并添加（dict 区）：SquareButton 的 prop 面正好（children / onClick / disabled / title），
           直接用组件而非手抄底样 —— 组件存在的意义就是「一处底样两处复用」，抄一份就白做了。
           禁用态沿用组件自带的灰底 + 0.5 透明度（与设置页一致），不再是旧的透明底 + 三级灰字。
-          可及名交给可见文字（含「· N 项」计数），比旧的 aria-label="合并添加"（屏蔽计数）更完整。
-          flex-shrink 沿用旧按钮的写法：与同排的圆钮对齐，拉伸时先让文字两侧留白而不是折行。 */}
+          flex-shrink 沿用旧按钮的写法：与同排的圆钮对齐，拉伸时先让文字两侧留白而不是折行。
+          悬浮说明走 Tooltip 包裹而非 title 属性：accname 2.2 的 title 早于 name-from-content，
+          title 一挂就把可及名钉成常量「合并添加」，「· N 项」永远不被读出（Icon 是 aria-hidden，
+          不参与命名）。去掉 title 后可及名回到可见文字 =「合并添加 · N 项」。 */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
         {region === 'workbench' ? (
           <>
@@ -118,7 +121,10 @@ export default function WorkbenchNavBar({
                 度量（padding + 圆角 + 字号）完全一致，故切换时导航条不会跳动。
                 描边用 inset box-shadow 而非 border：border 会在 border-box 下多吃掉 2px，
                 切换时按钮宽高各变 2px。role="switch" 与 aria-checked 保留，on/off 不被统一样式吃掉。
-                设置页暂无同类开关；若日后加 hover，应同 SquareButton 一律不加（按钮不加 hover 反色）。 */}
+                描边色取 --color-text-tertiary 而非 --color-border：导航条自身底色是
+                --color-canvas，--color-border 对它只有 1.15:1，1px 线等于隐形（按钮看着就没了），
+                tertiary 有 1.98:1，关态才有可辨认的边界。设置页暂无同类开关；若日后加 hover，
+                应同 SquareButton 一律不加（按钮不加 hover 反色）。 */}
             <button
               type="button"
               role="switch"
@@ -129,7 +135,7 @@ export default function WorkbenchNavBar({
                 ...SQUARE_BUTTON_STYLE,
                 background: editorMode ? SQUARE_BUTTON_STYLE.background : 'transparent',
                 color: editorMode ? SQUARE_BUTTON_STYLE.color : 'var(--color-text-secondary)',
-                boxShadow: editorMode ? 'none' : 'inset 0 0 0 1px var(--color-border)',
+                boxShadow: editorMode ? 'none' : 'inset 0 0 0 1px var(--color-text-tertiary)',
                 display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0,
                 transition: SQUARE_BUTTON_TRANSITION,
               }}
@@ -148,16 +154,17 @@ export default function WorkbenchNavBar({
             </button>
           </>
         ) : (
-          <SquareButton
-            title="合并添加"
-            disabled={mergeDisabled}
-            onClick={() => onMergeAdd?.()}
-          >
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
-              <Icon name="plus" size={12} />
-              合并添加{mergeCount > 0 ? ` · ${mergeCount} 项` : ''}
-            </span>
-          </SquareButton>
+          <Tooltip content={mergeCount > 0 ? `把勾选的 ${mergeCount} 项合并添加进词条` : '先勾选要添加的词条'} width={260}>
+            <SquareButton
+              disabled={mergeDisabled}
+              onClick={() => onMergeAdd?.()}
+            >
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+                <Icon name="plus" size={12} />
+                合并添加{mergeCount > 0 ? ` · ${mergeCount} 项` : ''}
+              </span>
+            </SquareButton>
+          </Tooltip>
         )}
       </div>
     </div>
