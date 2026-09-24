@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import SearchSettings from './SearchSettings'
+import ReviewSettings from './ReviewSettings'
 import SidebarSettings from './SidebarSettings'
 import CategorySettings from './CategorySettings'
 import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings'
 
-type SectionKey = 'search' | 'sidebar' | 'category' | 'data' | 'about'
+type SectionKey = 'search' | 'review' | 'sidebar' | 'category' | 'data' | 'about'
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'search', label: '搜索设置' },
+  { key: 'review', label: '复习' },
   { key: 'sidebar', label: '侧边栏显示' },
   { key: 'category', label: '分类管理' },
   { key: 'data', label: '数据' },
@@ -69,6 +71,7 @@ export default function SettingsPage() {
         </div>
         <div style={{ maxWidth: SETTINGS_CONTENT_WIDTH, padding: '24px' }}>
           {active === 'search' && <SearchSettings />}
+          {active === 'review' && <ReviewSettings />}
           {active === 'sidebar' && <SidebarSettings />}
           {active === 'category' && <CategorySettings />}
           {active === 'data' && <DataSettings />}
