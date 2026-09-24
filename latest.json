@@ -1,11 +1,11 @@
 {
-  "version": "0.5.2",
-  "notes": "界面改版：左下活动栏 + 设置独立页；新增词条导航条（浏览器式前进 / 后退）；字段区降噪（hover抖动根因修复、取消固定标签列、缩进一次封顶、行内控件移到右侧）；词根每行一条；音标 / 词根添加控件 hover现形、编者模式按来源三态上色；搜索框不再盖住词表；统计数字格式统一。",
-  "pub_date": "2026-09-13T13:57:54.282Z",
+  "version": "0.5.3",
+  "notes": "缺陷修复 · 辨析数据链 · 搜索页与设置页改版。\n\n【缺陷修复】\n- 音标 / 词根进入编辑态后，按下鼠标拖选文本不再立即退出编辑态\n- 释义词条下的近义词、例句子项可正常拖动换位并持久化\n- 左侧边栏筛选输入与筛选结果保持一致\n\n【近义词辨析】\n- 辨析组按词条自动提取组标题，以卡片隔开渲染，不再统一叫「近义词辨析组」、也不再多套一层外层卡片\n- 组内浮层的释义与例句分行显示：释义置顶，例句保留引号、每行一条并加「·」前缀\n- 修复引号内含分号的例句被打碎的问题（分号仅在双引号外才作分隔符）\n\n【搜索返回页】\n- 接入与工作台同款的词条导航条，返回、合并添加\n- 单词标题字号与工作区一致；柯林斯星级与单词同一行基线对齐；领域标签移到右侧下行\n- 语义网络胶囊浮层补回释义说明，浮层不再互相遮挡\n\n【设置页】\n- 方块按钮统一为圆角方形：设置项与「编者模式」「合并添加」并入同一组件\n- 关于与数据分区改版；新增「本地数据存储位置 · 浏览」一键在文件管理器中打开数据目录\n- 音标、词根开关移入词典返回词条区顶部；移除失效的音标开关（词典卡内音标已不再显示）\n- Logo 与左下活动栏图标对齐\n\n【设置迁移】\n- 柯林斯星级显示开关对已存在的用户默认开启",
+  "pub_date": "2026-09-24T09:15:46.275Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFFvRDczYzZ1MEVKSjBiY2JHVzhGeHc3bVpOd0lUbk9xL0tabndweFBkWlFxSWI4U0ZNcXNSTTlSNGhlVlA3b0VLOUJaYkhpdnZFK0VHK3RXSVA0bndRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5MzA3ODU5CWZpbGU6V29yZHNldHRfMC41LjJfeDY0LXNldHVwLmV4ZQpjMTg2YUJtR293VWx4b1ZoNXZNMXptWFpBVkMwU1A5bE1KOHZ4Z0I3TTNDMFVpWlJJUXFCcEhGb2tSNU9acTNwMzNrZmhDY0JzNWR1SldWaWhsNmRBUT09Cg==",
-      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.5.2/Wordsett_0.5.2_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZGE4REVKR0VEMWV1czducDFoN2tvby9LRktEdkRlMGlGZE9aQUpNVUtSejVBM3pyR2YvUXZwSG1tblBjbm9pa3lSRFRmUFhkNkVaWWJaeVk5bkJtcEEwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMjM5ODg2CWZpbGU6V29yZHNldHRfMC41LjNfeDY0LXNldHVwLmV4ZQpMcXplNENqNTJCQnhRTWd1SytHYjVML0h0c2sySTRmeERUeGJjYVZFRXZFa1NrS04rOTBFNlRVYWdxdFY3TmkvOW83RFQ0d0tqRGNDdGFOTDgrVVlBZz09Cg==",
+      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.5.3/Wordsett_0.5.3_x64-setup.exe"
     }
   }
 }
