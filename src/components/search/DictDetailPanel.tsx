@@ -135,16 +135,20 @@ export default function DictDetailPanel({ word }: Props) {
           mergeDisabled={!anySelected}
         />
 
-        {/* 单词标题行（v0.5.3 §3.3）：星级紧随单词；徽标与领域标签在右侧两行右对齐 */}
+        {/* 单词标题行（v0.5.3 §3.3）：星级紧随单词并与单词基线对齐；徽标与领域标签在右侧两行右对齐。
+            单词+星级 包一层 items-baseline：跨字体大小/行高比固定 px 偏移稳健；外层 items-start 保留给两行 TitleChips。 */}
         <div className="flex items-start gap-2 mb-4">
-          <span style={{
-            fontFamily: 'var(--font-serif)', fontSize: 'var(--text-xl)',
-            fontWeight: 'var(--weight-semibold)', color: 'var(--color-text-primary)',
-            whiteSpace: 'nowrap',
-          }}>
-            {word}
-          </span>
-          <CollinsStars meta={meta} />
+          {/* 单词+星级（基准线对齐组）：无 marginLeft:auto，星级紧邻单词右侧 */}
+          <div className="flex items-baseline gap-2">
+            <span style={{
+              fontFamily: 'var(--font-serif)', fontSize: 'var(--text-2xl)',
+              fontWeight: 'var(--weight-bold)', color: 'var(--color-text-primary)',
+              lineHeight: 1.2, whiteSpace: 'nowrap',
+            }}>
+              {word}
+            </span>
+            <CollinsStars meta={meta} />
+          </div>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>
             <TitleChips meta={meta} />
           </div>
