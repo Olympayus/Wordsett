@@ -8,7 +8,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir])
+        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir, fsrs_next])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -72,9 +72,68 @@ fn open_data_dir(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// FSRS 计算结果的一档：下一记忆状态与下次复习间隔（天）。
+/// **字段名是前端契约，不可变**（前端按此解析）。
+#[derive(serde::Serialize)]
+pub struct NextState {
+    stability: f32,
+    difficulty: f32,
+    interval_days: i64,
+}
+
+#[derive(serde::Serialize)]
+pub struct FsrsNextResult {
+    again: NextState,
+    hard: NextState,
+    good: NextState,
+    easy: NextState,
+}
+
+/// FSRS 纯计算：给定当前记忆状态与间隔天数，返回 Again / Hard / Good / Easy 四档的
+/// 下一状态与间隔（天）。无 IO——取数与落库都在前端 reviewService。
+/// `stability` / `difficulty` 均为 Some 时视为已复习过的卡片；任一为 None 视为首评。
+/// `elapsed_days` 为距上次复习的天数（首评为 0），会实质影响结果。
+/// `retention` 为期望记忆保留率，省略时取 0.9。
+#[tauri::command]
+fn fsrs_next(
+    stability: Option<f32>,
+    difficulty: Option<f32>,
+    elapsed_days: u32,
+    retention: Option<f32>,
+) -> Result<FsrsNextResult, String> {
+    use fsrs::{MemoryState, FSRS};
+
+    let fsrs = FSRS::default();
+    let state = match (stability, difficulty) {
+        (Some(s), Some(d)) => Some(MemoryState {
+            stability: s,
+            difficulty: d,
+        }),
+        _ => None,
+    };
+
+    // 一次调用即得四档结果。
+    let next = fsrs
+        .next_states(state, retention.unwrap_or(0.9), elapsed_days)
+        .map_err(|e| e.to_string())?;
+
+    let to_next = |item: fsrs::ItemState| NextState {
+        stability: item.memory.stability,
+        difficulty: item.memory.difficulty,
+        interval_days: item.interval.max(1.0).floor() as i64,
+    };
+
+    Ok(FsrsNextResult {
+        again: to_next(next.again),
+        hard: to_next(next.hard),
+        good: to_next(next.good),
+        easy: to_next(next.easy),
+    })
+}
+
 #[cfg(test)]
 mod tests {
-    use super::to_loadable_path;
+    use super::{fsrs_next, to_loadable_path};
     use std::path::Path;
 
     #[test]
@@ -99,5 +158,34 @@ mod tests {
             to_loadable_path(Path::new(r"\\?\UNC\server\share\wordnet.db")),
             r"\\server\share\wordnet.db"
         );
+    }
+
+    #[test]
+    fn fsrs_next_returns_four_ratings_with_positive_intervals() {
+        let out = fsrs_next(None, None, 3, None).expect("first review should succeed");
+        for s in [&out.again, &out.hard, &out.good, &out.easy] {
+            assert!(
+                s.stability > 0.0,
+                "stability must be positive, got {}",
+                s.stability
+            );
+            assert!(
+                (1.0..=10.0).contains(&s.difficulty),
+                "difficulty out of range: {}",
+                s.difficulty
+            );
+            assert!(s.interval_days >= 1, "interval must be at least 1 day");
+        }
+
+        // 评分越高，间隔不应更短
+        assert!(out.good.interval_days >= out.hard.interval_days);
+        assert!(out.easy.interval_days >= out.good.interval_days);
+    }
+
+    #[test]
+    fn fsrs_next_accepts_existing_state() {
+        let out =
+            fsrs_next(Some(12.0), Some(5.0), 1, None).expect("review with state should succeed");
+        assert!(out.again.interval_days >= 1);
     }
 }
