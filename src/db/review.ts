@@ -2,6 +2,7 @@ import { getDb } from './connection'
 import type { DbHandle } from './init'
 import type { DbResult } from './types'
 import { FIELD_KEY_GROUPS, usableTemplates, type FieldMask, type TemplateLog } from '../lib/review/template'
+import { mastery as toMastery, masteryTier } from '../lib/review/mastery'
 import type { CardContent, InitialFamiliarity, Template } from '../lib/review/types'
 import type { QueueCandidate } from '../lib/review/queue'
 
@@ -206,4 +207,216 @@ export async function getDistractorTranslations(wordId: string, n: number, h?: D
     [wordId, n],
   )
   return rows.map(r => String(r.value))
+}
+
+/** 惰性注册：把库里全部词补一张卡（一词一卡，UNIQUE 索引防重）。 */
+export async function registerAllWords(h?: DbHandle): Promise<void> {
+  const d = db(h)
+  const rows = await d.select<{ id: string }>('SELECT id FROM words')
+  await registerCards(rows.map(r => r.id), d)
+}
+
+export interface ReviewStateRow {
+  stability: number | null
+  difficulty: number | null
+  reps: number
+  lapses: number
+  lastReviewAt: number | null
+}
+
+/** 卡的计分状态；无状态行（未首评）返回 null。lastReviewAt 供 elapsedDays 计算。 */
+export async function getState(cardId: string, h?: DbHandle): Promise<DbResult<ReviewStateRow | null>> {
+  const d = db(h)
+  try {
+    const rows = await d.select<Record<string, any>>(
+      'SELECT stability, difficulty, reps, lapses, last_review_at FROM review_states WHERE card_id = ?1', [cardId])
+    if (rows.length === 0) return { ok: true, data: null }
+    const r = rows[0]
+    return {
+      ok: true,
+      data: {
+        stability: r.stability === null || r.stability === undefined ? null : Number(r.stability),
+        difficulty: r.difficulty === null || r.difficulty === undefined ? null : Number(r.difficulty),
+        reps: Number(r.reps),
+        lapses: Number(r.lapses),
+        lastReviewAt: r.last_review_at === null || r.last_review_at === undefined ? null : Number(r.last_review_at),
+      },
+    }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
+export interface ApplyReviewInput {
+  cardId: string
+  rating: number
+  template: Template
+  stability: number
+  difficulty: number
+  dueAt: number
+  lapses: number
+  reps: number
+  reviewedAt: number
+  durationMs?: number
+}
+
+/** 计分评分事务：UPSERT review_states + INSERT review_logs(mode='review')。 */
+export async function applyReview(input: ApplyReviewInput, h?: DbHandle): Promise<DbResult<void>> {
+  const d = db(h)
+  try {
+    await d.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+       VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)
+       ON CONFLICT(card_id) DO UPDATE SET
+         stability = excluded.stability, difficulty = excluded.difficulty,
+         due_at = excluded.due_at, lapses = excluded.lapses,
+         reps = excluded.reps, last_review_at = excluded.last_review_at`,
+      [input.cardId, input.stability, input.difficulty, input.dueAt,
+       input.lapses, input.reps, input.reviewedAt],
+    )
+    await d.execute(
+      `INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode, duration_ms)
+       VALUES (?1, ?2, ?3, ?4, ?5, 'review', ?6)`,
+      [crypto.randomUUID(), input.cardId, input.reviewedAt, input.rating,
+       input.template, input.durationMs ?? null],
+    )
+    await d.execute('UPDATE review_cards SET last_template = ?1 WHERE id = ?2', [input.template, input.cardId])
+    return { ok: true, data: undefined }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
+export interface PracticeLogInput {
+  cardId: string
+  rating: number
+  template: Template
+  reviewedAt: number
+  durationMs?: number
+}
+
+/** 不计分：只写日志（mode='practice'），review_states 全字段不动。 */
+export async function insertPracticeLog(input: PracticeLogInput, h?: DbHandle): Promise<DbResult<void>> {
+  const d = db(h)
+  try {
+    await d.execute(
+      `INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode, duration_ms)
+       VALUES (?1, ?2, ?3, ?4, ?5, 'practice', ?6)`,
+      [crypto.randomUUID(), input.cardId, input.reviewedAt, input.rating,
+       input.template, input.durationMs ?? null],
+    )
+    await d.execute('UPDATE review_cards SET last_template = ?1 WHERE id = ?2', [input.template, input.cardId])
+    return { ok: true, data: undefined }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
+export async function setLastTemplate(cardId: string, template: Template, h?: DbHandle): Promise<void> {
+  await db(h).execute('UPDATE review_cards SET last_template = ?1 WHERE id = ?2', [template, cardId])
+}
+
+/** 薄弱词专项候选卡：lapses ≥ 阈值 ∪ 窗口内存在 rating = 1 的日志（含 practice）。 */
+export async function getWeakCardIds(
+  opts: { leechThreshold: number; recentWindowMs: number; now: number },
+  h?: DbHandle,
+): Promise<DbResult<string[]>> {
+  const d = db(h)
+  try {
+    const rows = await d.select<{ id: string }>(
+      `SELECT DISTINCT c.id FROM review_cards c
+       LEFT JOIN review_states s ON s.card_id = c.id
+       WHERE (s.lapses IS NOT NULL AND s.lapses >= ?1)
+          OR c.id IN (SELECT card_id FROM review_logs WHERE rating = 1 AND reviewed_at >= ?2)`,
+      [opts.leechThreshold, opts.now - opts.recentWindowMs])
+    return { ok: true, data: rows.map(r => r.id) }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
+/** 左栏计数：today = 到期且可出题的词数；weak = lapses ≥ 阈值 ∪ 窗口内 rating = 1。 */
+export async function getStrategyCounts(
+  opts: { leechThreshold: number; recentWindowMs: number; now: number },
+  h?: DbHandle,
+): Promise<DbResult<{ today: number; weak: number }>> {
+  const d = db(h)
+  try {
+    const dueRows = await d.select<Record<string, any>>(
+      `SELECT c.word_id FROM review_cards c
+       JOIN review_states s ON s.card_id = c.id
+       WHERE s.suspended = 0 AND s.due_at <= ?1`, [opts.now])
+    const mask = await getAvailabilityMask(dueRows.map(r => r.word_id), d)
+    if (!mask.ok) return mask
+    const today = dueRows.filter(r => (mask.data[r.word_id] ? usableTemplates(mask.data[r.word_id]).length > 0 : false)).length
+
+    const weak = await getWeakCardIds(opts, d)
+    if (!weak.ok) return weak
+    return { ok: true, data: { today, weak: weak.data.length } }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
+/** 小结态统计：掌握度分桶 / 未来 7 日到期 / 近期评分分布（只读 mode='review'）。 */
+export async function getStats(now: number = Date.now(), h?: DbHandle): Promise<DbResult<{
+  masteryBuckets: number[]
+  dueByDay: number[]
+  recentRatings: { day: string; again: number; hard: number; good: number }[]
+}>> {
+  const d = db(h)
+  try {
+    const cardRows = await d.select<Record<string, any>>(
+      'SELECT stability, last_review_at FROM review_states')
+    const buckets = [0, 0, 0, 0, 0]
+    for (const r of cardRows) {
+      const s = r.stability === null || r.stability === undefined ? null : Number(r.stability)
+      const m = toMastery(s)
+      buckets[masteryTier(m)]++
+    }
+
+    const dayRows = await d.select<Record<string, any>>(
+      `SELECT CAST((due_at - ?1) / 86400000 AS INTEGER) AS d, count(*) AS c
+       FROM review_states WHERE suspended = 0 AND due_at <= ?1 + 7 * 86400000
+       GROUP BY d`, [now])
+    const dueByDay = Array.from({ length: 8 }, () => 0)
+    for (const r of dayRows) {
+      const d0 = Math.max(0, Number(r.d))
+      if (d0 <= 7) dueByDay[d0] += Number(r.c)
+    }
+
+    const ratingRows = await d.select<Record<string, any>>(
+      `SELECT date(reviewed_at / 1000, 'unixepoch', 'localtime') AS day, rating, count(*) AS c
+       FROM review_logs WHERE mode = 'review' AND reviewed_at >= ?1
+       GROUP BY day, rating ORDER BY day ASC`, [now - 14 * 86400000])
+    const byDay = new Map<string, { day: string; again: number; hard: number; good: number }>()
+    for (const r of ratingRows) {
+      const e = byDay.get(r.day) ?? { day: r.day, again: 0, hard: 0, good: 0 }
+      const n = Number(r.c)
+      if (Number(r.rating) === 1) e.again += n
+      else if (Number(r.rating) === 2) e.hard += n
+      else e.good += n
+      byDay.set(r.day, e)
+    }
+    return { ok: true, data: { masteryBuckets: buckets, dueByDay, recentRatings: [...byDay.values()] } }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
+/** 缺内容词条：已注册卡但当前无任何可用模板。 */
+export async function getAbsentWords(h?: DbHandle): Promise<DbResult<{ wordId: string; lemma: string }[]>> {
+  const d = db(h)
+  try {
+    const rows = await d.select<Record<string, any>>(
+      'SELECT c.word_id, w.lemma FROM review_cards c JOIN words w ON w.id = c.word_id')
+    const mask = await getAvailabilityMask(rows.map(r => r.word_id), d)
+    if (!mask.ok) return mask
+    const out = rows
+      .filter(r => usableTemplates(mask.data[r.word_id] ?? { translation: false, definition: false, example: false, phonetic: false }).length === 0)
+      .map(r => ({ wordId: r.word_id, lemma: r.lemma }))
+    return { ok: true, data: out }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
 }
