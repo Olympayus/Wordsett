@@ -11,19 +11,14 @@ export function stripGlossExamples(gloss: string): string {
   return gloss.replace(/\s*;?\s*"[^"]*"/g, '').trim()
 }
 
-// WordNet gloss 拆成「一句话一行」：按分号分段（释义与引号例句各自成行），供悬浮小窗逐行渲染
-export function splitGlossLines(gloss: string): string[] {
-  return gloss.split(';').map(s => s.trim()).filter(Boolean)
-}
-
 export interface GlossParts {
   definition: string
   examples: string[]
 }
 
 // 引号感知分段：分号只在双引号外才是分隔符，例句正文内的分号属字面内容。
-// 真实 wordnet.db 中约 8.4% 的 gloss 在引号内含分号，且释义本身可能是多段（都属释义正文），
-// 故不能用 splitGlossLines 的朴素 split。
+// 真实 wordnet.db 中约 8.4% 的 gloss 在引号内含分号；且释义本身可能是多段未加引号的正文，
+// 朴素按 ';' 切分会把这些释义段误判为例句、并把含分号的引号例句打碎，故必须引号感知。
 // definition 为全部非引号段按原序以 '; ' 拼接；examples 保留例句自带的双引号。
 export function splitGlossParts(gloss: string): GlossParts {
   const segments: string[] = []
