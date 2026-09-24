@@ -1,11 +1,13 @@
 import type { ReviewCardDTO } from '../../services/reviewService'
 import type { CardContent } from '../../services/reviewService'
 
-export default function ResultBlock({ dto, snapshot, lastInput, correct }: {
+export default function ResultBlock({ dto, snapshot, lastInput, correct, nextDueAt }: {
   dto: ReviewCardDTO
   snapshot: CardContent | null
   lastInput: string
   correct: boolean | null
+  /** 本次评分刚写入的到期时间；未评分 / 练习模式（不排期）为 null，回落到 sched。 */
+  nextDueAt?: number | null
 }) {
   return (
     <section aria-label="答题复盘" className="flex flex-col gap-4" style={{ maxWidth: '560px' }}>
@@ -34,7 +36,9 @@ export default function ResultBlock({ dto, snapshot, lastInput, correct }: {
       <div className="flex flex-col gap-1">
         <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>下次到期</span>
         <span style={{ fontSize: '13px' }}>
-          {dto.sched.dueAt > Date.now() ? formatDue(dto.sched.dueAt) : '评分后更新'}
+          {nextDueAt != null
+            ? formatDue(nextDueAt)
+            : dto.sched.dueAt > Date.now() ? formatDue(dto.sched.dueAt) : '评分后更新'}
         </span>
       </div>
     </section>

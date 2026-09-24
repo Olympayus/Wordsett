@@ -4,7 +4,7 @@ import RatingBar from './RatingBar'
 import ResultBlock from './ResultBlock'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useSettingsStore } from '../../stores/settingsStore'
-import { rateCard, type CardContent } from '../../services/reviewService'
+import { rateCard, type CardContent, type RateCardResult } from '../../services/reviewService'
 import { compareTyped } from '../../lib/review/typed'
 import { getWordContent } from '../../db/review'
 
@@ -23,6 +23,8 @@ export default function ReviewArena() {
   const [snapshot, setSnapshot] = useState<CardContent | null>(null)
   const [startedAt, setStartedAt] = useState(Date.now())
   const [rating, setRating] = useState(false)
+  const [rateError, setRateError] = useState<string | null>(null)
+  const [nextDueAt, setNextDueAt] = useState<number | null>(null)
   // 同步置位的重入闸：键盘监听闭包里的 rating state 有滞后，连按两下会重复提交评分
   const ratingRef = useRef(false)
 
@@ -31,6 +33,7 @@ export default function ReviewArena() {
   useEffect(() => {
     setRevealed(false); setLastInput(''); setCorrect(null); setSnapshot(null)
     setStartedAt(Date.now()); setRating(false); ratingRef.current = false
+    setRateError(null); setNextDueAt(null)
     if (!dto) return
     let alive = true
     // getWordContent 本身不吞异常（可能 reject），快照失败按「暂无快照」降级
@@ -42,6 +45,7 @@ export default function ReviewArena() {
 
   const handleSubmit = (input: string) => {
     setLastInput(input)
+    setRateError(null)
     const kind = inputKindFor(dto.template)
     if (kind === 'choice') {
       setCorrect(input === String((dto.answer as any).translation ?? ''))
@@ -62,14 +66,22 @@ export default function ReviewArena() {
     setRating(true)
     // 会话所属策略决定计分与否：被切到别的策略下查看的会话仍按自己的模式评分
     const mode = useReviewSessionStore.getState().sessionStrategy === 'today' ? 'review' : 'practice'
+    let res: RateCardResult
     try {
-      await rateCard({ cardId: dto.cardId, rating: r, template: dto.template, mode, durationMs: Date.now() - startedAt, retention })
-    } catch {
-      // 落库失败：不记账、不前进，松开闸门让用户重试（未 advance，仍是当前卡）
-      ratingRef.current = false
+      res = await rateCard({ cardId: dto.cardId, rating: r, template: dto.template, mode, durationMs: Date.now() - startedAt, retention })
+    } catch (e) {
+      // 落库失败之外仍有会抛的路径（fsrs_next 的 Tauri invoke 拒绝），同样不前进
+      res = { ok: false, error: e instanceof Error ? e.message : String(e), dueAt: null }
+    }
+    if (!res.ok) {
+      // 未 advance，仍是当前卡：松开闸门让用户重试
+      setRateError(res.error ?? '评分未保存，请重试')
       setRating(false)
+      ratingRef.current = false
       return
     }
+    setRateError(null)
+    setNextDueAt(res.dueAt)
     // 落库成功后再记账，保证 answered 里不出现没写进库的评分
     answerCurrent(r)
     advance()
@@ -101,8 +113,11 @@ export default function ReviewArena() {
 
       {revealed && (
         <>
-          <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} />
+          <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} nextDueAt={nextDueAt} />
           <RatingBar onRate={handleRate} disabled={rating} />
+          {rateError && (
+            <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: '#c0705a' }}>{rateError}</span>
+          )}
           <button
             type="button"
             onClick={() => handleRate(1)}

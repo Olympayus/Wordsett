@@ -1,6 +1,75 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { assembleCardDTO } from './reviewService'
 import type { QueueCandidate } from '../lib/review/queue'
+
+const { invokeMock, getStateMock, applyReviewMock, insertPracticeLogMock } = vi.hoisted(() => ({
+  invokeMock: vi.fn(),
+  getStateMock: vi.fn(),
+  applyReviewMock: vi.fn(),
+  insertPracticeLogMock: vi.fn(),
+}))
+
+// rateCard 只碰这三个 db 入口，直接打桩；fsrs_next 走 Tauri invoke，单独打桩
+vi.mock('../db/review', () => ({
+  getState: getStateMock,
+  applyReview: applyReviewMock,
+  insertPracticeLog: insertPracticeLogMock,
+}))
+vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }))
+
+const { rateCard } = await import('./reviewService')
+
+const scoringInput = {
+  cardId: 'c1', rating: 3, template: 'cloze' as const, mode: 'review' as const,
+}
+const fsrsReply = { again: { stability: 1, difficulty: 5, intervalDays: 1 }, hard: { stability: 2, difficulty: 5, intervalDays: 2 }, good: { stability: 10, difficulty: 5, intervalDays: 10 }, easy: { stability: 20, difficulty: 5, intervalDays: 20 } }
+
+beforeEach(() => {
+  invokeMock.mockReset(); getStateMock.mockReset(); applyReviewMock.mockReset(); insertPracticeLogMock.mockReset()
+  invokeMock.mockResolvedValue(fsrsReply)
+  getStateMock.mockResolvedValue({ ok: true, data: { stability: 10, difficulty: 5, reps: 3, lapses: 0, lastReviewAt: null } })
+  applyReviewMock.mockResolvedValue({ ok: true, data: undefined })
+  insertPracticeLogMock.mockResolvedValue({ ok: true, data: undefined })
+})
+
+describe('reviewService.rateCard 落库结果', () => {
+  it('计分成功：ok 且带回刚写入的到期时间', async () => {
+    const res = await rateCard(scoringInput)
+    expect(res.ok).toBe(true)
+    expect(res.error).toBeUndefined()
+    // dueAt 必须等于传给 applyReview 的那个值（不是重新算的 now）
+    expect(res.dueAt).toBe(applyReviewMock.mock.calls[0][0].dueAt)
+    expect(res.dueAt).toBeGreaterThan(Date.now())
+  })
+
+  it('applyReview 失败（DbResult 非抛错）：ok:false 带出 error，不写成功到期时间', async () => {
+    applyReviewMock.mockResolvedValue({ ok: false, error: 'SQLITE_BUSY' })
+    const res = await rateCard(scoringInput)
+    expect(res).toMatchObject({ ok: false, error: 'SQLITE_BUSY', dueAt: null })
+  })
+
+  it('getState 失败：不写任何数据，直接返回失败（避免把已复习的卡当新卡重算）', async () => {
+    getStateMock.mockResolvedValue({ ok: false, error: 'read failed' })
+    const res = await rateCard(scoringInput)
+    expect(res).toMatchObject({ ok: false, error: 'read failed', dueAt: null })
+    expect(applyReviewMock).not.toHaveBeenCalled()
+    expect(invokeMock).not.toHaveBeenCalled()
+  })
+
+  it('练习模式：失败也透出 error，dueAt 恒为 null（不排期）', async () => {
+    insertPracticeLogMock.mockResolvedValue({ ok: false, error: 'log failed' })
+    const res = await rateCard({ cardId: 'c1', rating: 1, template: 'cloze', mode: 'practice' })
+    expect(res).toMatchObject({ ok: false, error: 'log failed', dueAt: null })
+  })
+
+  it('retention 透传给 fsrs_next（并按 0.7~0.98 夹紧）', async () => {
+    await rateCard({ ...scoringInput, retention: 0.95 })
+    expect(invokeMock).toHaveBeenCalledWith('fsrs_next', expect.objectContaining({ retention: 0.95 }))
+    invokeMock.mockClear()
+    await rateCard({ ...scoringInput, retention: 0.1 })
+    expect(invokeMock).toHaveBeenCalledWith('fsrs_next', expect.objectContaining({ retention: 0.7 }))
+  })
+})
 
 const NOW = Date.now()
 const MS_PER_DAY = 86_400_000

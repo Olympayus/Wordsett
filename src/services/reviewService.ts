@@ -252,7 +252,15 @@ async function filterFree(
   return candidates
 }
 
-/** 评分：计分走 FSRS 推进，练习只写日志。 */
+/** 评分结果：db 层用 DbResult 吞掉 SQL 异常并返回 ok:false，service 必须把它透出给调用方。 */
+export interface RateCardResult {
+  ok: boolean
+  error?: string
+  /** 计分模式写库成功后的新到期时间；练习模式为 null */
+  dueAt: number | null
+}
+
+/** 评分：计分走 FSRS 推进，练习只写日志。返回落库结果，失败时调用方不应推进会话。 */
 export async function rateCard(input: {
   cardId: string
   rating: number
@@ -260,14 +268,16 @@ export async function rateCard(input: {
   mode: ReviewMode
   durationMs?: number
   retention?: number
-}): Promise<void> {
+}): Promise<RateCardResult> {
   const now = Date.now()
   if (input.mode === 'practice') {
-    await reviewDb.insertPracticeLog({ ...input, reviewedAt: now })
-    return
+    const r = await reviewDb.insertPracticeLog({ ...input, reviewedAt: now })
+    return { ok: r.ok, error: r.ok ? undefined : r.error, dueAt: null }
   }
   const st = await reviewDb.getState(input.cardId)
-  const prev = st.ok ? st.data : null
+  // 读不到旧状态就不能推进：prev 落空会让 FSRS 把已复习的卡当新卡重算，静默清掉它的进度
+  if (!st.ok) return { ok: false, error: st.error, dueAt: null }
+  const prev = st.data
   const elapsedDays = prev?.lastReviewAt == null
     ? 0
     : Math.max(0, Math.floor((now - prev.lastReviewAt) / 86_400_000))
@@ -279,18 +289,20 @@ export async function rateCard(input: {
     input.retention,
   )
   const intervalDays = Math.max(1, Math.floor(next.intervalDays))
-  await reviewDb.applyReview({
+  const dueAt = now + intervalDays * 86_400_000
+  const w = await reviewDb.applyReview({
     cardId: input.cardId,
     rating: input.rating,
     template: input.template,
     stability: next.stability,
     difficulty: next.difficulty,
-    dueAt: now + intervalDays * 86_400_000,
+    dueAt,
     lapses: (prev?.lapses ?? 0) + (input.rating === 1 ? 1 : 0),
     reps: (prev?.reps ?? 0) + 1,
     reviewedAt: now,
     durationMs: input.durationMs,
   })
+  return { ok: w.ok, error: w.ok ? undefined : w.error, dueAt: w.ok ? dueAt : null }
 }
 
 interface FsrsNext {
