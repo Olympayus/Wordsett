@@ -91,7 +91,8 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
 
   // 胶囊保留整组视觉，但每个单词是独立可点的 token（v0.4.3 §7：单击该词跳转到对应词面板）
   // 组说明不再挂胶囊 Tooltip（v0.5.3 §3.1）：与其内层单词 Tooltip 嵌套会同时弹出、落点重叠。
-  // 组说明改由组标题旁 ℹ 承载（RELATION_DESCRIPTIONS，与其它组同一模式）。
+  // 组标题旁 ℹ 只承载关系类型说明（RELATION_DESCRIPTIONS），一个 key 下可有多组，故每个组另挂自己的 ℹ，
+  // 展示该组词集自身的 gloss（g.definition），与单词按钮 Tooltip 互不嵌套、不重叠。
   const chip = (g: RelatedGroup) => (
     <span key={g.words.join('·')} style={{
       display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', maxWidth: '100%',
@@ -123,6 +124,11 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
           )}
         </span>
       ))}
+      {g.definition && (
+        <Tooltip content={g.definition} width={340}>
+          <span role="img" aria-label="组说明" style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'help' }}><Icon name="info" size={12} /></span>
+        </Tooltip>
+      )}
     </span>
   )
 
