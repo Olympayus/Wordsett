@@ -18,7 +18,7 @@ const BUTTON_TRANSITION = 'transform 150ms cubic-bezier(.25,.1,.25,1), backgroun
 
 export const BUTTON_BASE: CSSProperties = {
   minWidth: 88,
-  padding: '6px 16px',
+  padding: '6px 12px',
   borderRadius: BUTTON_RADIUS,
   border: '1px solid rgba(0,0,0,.16)',
   background: 'var(--color-accent)',
@@ -49,6 +49,9 @@ const BRAND_HOVER = 'color-mix(in srgb, var(--color-brand) 88%, white)'
 /** 导航条内的紧凑尺寸：不撑高导航条、不与同排 28×28 的箭头按钮争视觉重量 */
 export const BUTTON_SIZE_NAV: CSSProperties = { minWidth: 0, padding: '4px 12px' }
 
+/** 文字行内的紧凑尺寸：跟在标签文字后面（如「本地数据存储位置 浏览」），不限最小宽 */
+export const BUTTON_SIZE_ROW: CSSProperties = { minWidth: 0, padding: '4px 12px' }
+
 /** 禁用态：灰底 + 半透明，与项目内既有 disabled 观感一致 */
 export const BUTTON_DISABLED: CSSProperties = {
   background: 'var(--color-border-strong)',
@@ -57,7 +60,7 @@ export const BUTTON_DISABLED: CSSProperties = {
   opacity: 0.55,
 }
 
-export type ButtonSize = 'default' | 'nav'
+export type ButtonSize = 'default' | 'nav' | 'row'
 
 interface Props {
   children: ReactNode
@@ -96,6 +99,7 @@ export default function SquareButton({ children, onClick, disabled, title, press
       style={{
         ...BUTTON_BASE,
         ...(size === 'nav' ? BUTTON_SIZE_NAV : null),
+        ...(size === 'row' ? BUTTON_SIZE_ROW : null),
         ...(disabled ? BUTTON_DISABLED : null),
         // 底色只求值一次：生效态优先于 hover，二者正交时走「生效色的亮一阶」。
         // 写成三段条件展开会互相覆盖（后展开的赢），所以在这里合成单值。

@@ -203,12 +203,13 @@ export default function SearchSettings() {
             </>
           } />
         </div>
-        {FIELD_TREE.map(node => <FieldRow key={node.key} node={node} />)}
         {/* 音标/词根（v0.5.3 §4.1 第 12 条）：属标题信息键（写 titleInfo 而非 displayFields），
-            键类型不符不能进 FIELD_TREE，故作为兄弟行置于末尾；sub「标题行」表示作用界面，
-            并随 aria-label 一并播报，以与上方字段树的同名「音标」区分。 */}
+            键类型不符不能进 FIELD_TREE，故作为兄弟行排在字段树之前；sub「标题行」表示作用界面，
+            并随 aria-label 一并播报。放最前是因为它们控制的是搜索页标题行，比下方任一词典
+            返回字段都更靠近「这条设置管什么」的第一眼位置。 */}
         <DictRow label="音标" sub="标题行" checked={titleInfo.showPhonetic} onChange={on => setTitleInfo('showPhonetic', on)} />
         <DictRow label="词根" sub="标题行" checked={titleInfo.showWordRoot} onChange={on => setTitleInfo('showWordRoot', on)} />
+        {FIELD_TREE.map(node => <FieldRow key={node.key} node={node} />)}
       </div>
 
       {/* 第 10 条：去掉块顶分割线，改用块间距保持层次 */}

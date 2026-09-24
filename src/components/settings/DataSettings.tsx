@@ -75,9 +75,9 @@ export default function DataSettings() {
         display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
         fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
       }}>
-        <span>本地数据存储</span>
+        <span>本地数据存储位置</span>
         <span style={{ flex: 1 }} />
-        <SquareButton onClick={() => { void handleBrowse() }} title="在系统文件管理器中打开数据目录并选中 wordsett.db">浏览</SquareButton>
+        <SquareButton size="row" onClick={() => { void handleBrowse() }} title="在系统文件管理器中打开数据目录并选中 wordsett.db">浏览</SquareButton>
       </div>
       <div>
         <div style={{ ...SECTION_TITLE, marginBottom: '6px' }}>导出词库</div>

@@ -10,8 +10,12 @@ const ALL_ON = {
 describe('getAncestors', () => {
   it('返回含自身的祖先链', () => {
     expect(getAncestors('example')).toEqual(['part_of_speech', 'english_definition', 'example'])
-    expect(getAncestors('phonetic')).toEqual(['phonetic'])
     expect(getAncestors('derivatives')).toEqual(['derivatives'])
+  })
+  it('音标不在词典返回树内（卡内已被硬编码隐藏，开关无效），但仍是合法的 DisplayFieldKey', () => {
+    // getAncestors 对树外 key 回落到 [key]，不抛错：音标作为 FieldKey 在解析/DB/工作台仍在用
+    expect(getAncestors('phonetic')).toEqual(['phonetic'])
+    expect(FIELD_TREE.map(n => n.key)).not.toContain('phonetic')
   })
 })
 
@@ -21,6 +25,9 @@ describe('FIELD_TREE', () => {
     expect(keys).toContain('derivatives')
     expect(FIELD_TREE.find(n => n.key === 'derivatives')?.label).toBe('词源相关词')
     expect(FIELD_TREE.find(n => n.key === 'derivatives')?.children ?? []).toHaveLength(0)
+  })
+  it('不再含「音标」节点：词典卡内音标被无条件过滤，该开关控制不了任何东西', () => {
+    expect(FIELD_TREE.map(n => n.key)).not.toContain('phonetic')
   })
 })
 

@@ -6,8 +6,11 @@ export interface FieldTreeNode {
   children?: FieldTreeNode[]
 }
 
+// 词典返回字段树。音标刻意不在此列：词典卡内它已被 DictDetailCard 无条件过滤
+// （`.filter(n => n.key !== 'phonetic')`），开关控制不了任何东西，留着只是个死设置。
+// 真正控制音标显示的是 titleInfo.showPhonetic（搜索页标题下方的音标条），
+// 它以「音标 标题行」的形式挂在 SearchSettings 的词典返回词条区末尾。
 export const FIELD_TREE: FieldTreeNode[] = [
-  { key: 'phonetic', label: '音标' },
   {
     key: 'part_of_speech', label: '词性',
     children: [
