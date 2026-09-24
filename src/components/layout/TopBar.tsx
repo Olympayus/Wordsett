@@ -17,11 +17,14 @@ const SEARCH_MIN_WIDTH = 320
 const SEARCH_LEFT_INSET = ACTIVITY_RAIL_WIDTH + SIDEBAR_EXPANDED_WIDTH + SEARCH_EDGE_MARGIN  // 358
 
 // Logo 水平居中对齐活动栏图标（v0.5.3 §4.1 第 17 条）。活动栏 <nav> 是内容行第一列、
-// 贴在窗口 x=0，46px 宽且 alignItems:'center'（列向 flex 的交叉轴即水平），
-// 32px 的图标按钮在 46px 内水平居中 → 图标中心 x = 46/2 = 23px。
-// Logo 按钮也是 32px 宽，中心 x = 左内边距 + 16，令两者相等即得
-// 左内边距 = 46/2 - 16 = (ACTIVITY_RAIL_WIDTH - 32) / 2 = 7px。
-const LOGO_LEFT_PADDING = (ACTIVITY_RAIL_WIDTH - 32) / 2  // 7
+// 贴在窗口 x=0，alignItems:'center'（列向 flex 的交叉轴即水平）把 32px 图标按钮水平居中。
+// 关键：46px 是 border-box 宽（Tailwind preflight 对 * 设 box-sizing: border-box），
+// 其中含 ActivityRail <nav> 的 borderRight: 1px 且左右 padding 为 0，
+// 故实际居中宽度是 46 - 1 = 45px → 图标中心 x = 45/2 = 22.5px。
+// Logo 也是 32px 宽，中心 x = 左内边距 + 16，令两者相等：
+// 左内边距 = 46/2 - 1/2 - 16 = (46 - 1 - 32) / 2 = 6.5px。
+const ACTIVITY_RAIL_BORDER = 1  // 须与 ActivityRail <nav> 的 borderRight 同步
+const LOGO_LEFT_PADDING = (ACTIVITY_RAIL_WIDTH - ACTIVITY_RAIL_BORDER - 32) / 2  // 6.5
 
 // 全局顶栏（规格 §3）：Logo 32×32 / 主搜索框 32px / 设置按钮；建议下拉 → 词典详情视图（D2）
 // 自绘标题栏（Task 15）：header 为拖拽区 + 内置窗口控制；搜索框绝对居中、胶囊圆角
