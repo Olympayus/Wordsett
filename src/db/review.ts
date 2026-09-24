@@ -260,7 +260,12 @@ export interface ApplyReviewInput {
   durationMs?: number
 }
 
-/** 计分评分事务：UPSERT review_states + INSERT review_logs(mode='review')。 */
+/**
+ * 计分评分事务：UPSERT review_states + INSERT review_logs(mode='review')。
+ * 注意：不用事务包裹（同 importService 的 applyImport）。tauri-plugin-sql 的连接池会把同一批
+ * db.execute 分散到不同连接，BEGIN 与后续写入不在同一连接上会触发 SQLITE_BUSY（database is locked）。
+ * 每条语句独立提交（已知限制：中途失败会留下 review_states 已推进、却缺 review_logs 对应行）。
+ */
 export async function applyReview(input: ApplyReviewInput, h?: DbHandle): Promise<DbResult<void>> {
   const d = db(h)
   try {
@@ -295,7 +300,10 @@ export interface PracticeLogInput {
   durationMs?: number
 }
 
-/** 不计分：只写日志（mode='practice'），review_states 全字段不动。 */
+/**
+ * 不计分：只写日志（mode='practice'），review_states 全字段不动。
+ * 同样每条语句独立提交（连接池限制见 applyReview）；中途失败至多留下已写的 last_template。
+ */
 export async function insertPracticeLog(input: PracticeLogInput, h?: DbHandle): Promise<DbResult<void>> {
   const d = db(h)
   try {
