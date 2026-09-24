@@ -126,7 +126,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
       ))}
       {g.definition && (
         <Tooltip content={g.definition} width={340}>
-          <span role="img" aria-label="组说明" style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'help' }}><Icon name="info" size={12} /></span>
+          <span role="img" aria-label={`组说明：${g.words.join('、')}`} style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'help' }}><Icon name="info" size={12} /></span>
         </Tooltip>
       )}
     </span>
