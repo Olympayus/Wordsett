@@ -70,13 +70,13 @@ export default function DataSettings() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {/* 本地数据存储位置（v0.5.3 §4.1 第 14 条）：首行，黑色字体，附浏览按钮。
-          浏览按钮用 Task 18 的 SquareButton，与其他方块按钮同一份统一样式。 */}
+          浏览按钮用 SquareButton 的 row 尺寸（不限最小宽），紧跟文字其后。
+          中间不留 flex:1 撑开占位——那会把按钮推到行尾，与「跟随其后」的意图相反。 */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
         fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
       }}>
         <span>本地数据存储位置</span>
-        <span style={{ flex: 1 }} />
         <SquareButton size="row" onClick={() => { void handleBrowse() }} title="在系统文件管理器中打开数据目录并选中 wordsett.db">浏览</SquareButton>
       </div>
       <div>
