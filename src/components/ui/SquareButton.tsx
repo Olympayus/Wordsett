@@ -6,11 +6,14 @@ import type { CSSProperties, ReactNode } from 'react'
 // 编者模式的生效态用 --color-brand。hover 亮一阶不新增 token，用 color-mix 现场提亮
 // ——与仓库既有做法一致（color-mix 在 src/ 已有 8 处）。
 // 几何按容器适配而非照搬参考文档的 50px/132px：设置页的开关行高约 30px、导航条内边距 6px，
-// 50px 高的按钮会把这两处都撑变形。故只取文档的「圆润方形」观感（14px 圆角 + 发丝边），
+// 50px 高的按钮会把这两处都撑变形。故只取文档的「圆角方形」观感（方正圆角 + 发丝边），
 // 高度与最小宽由 size 决定。字号同理：导航条里与 28×28 的箭头按钮同排，不能压过箭头。
 // 过渡白名单只有 transform 与 background-color：按压回弹走 transform、状态换色走底色，
 // 不动画 box-shadow / width / 边距。box-shadow 仅用于非动画的静态内描边。
-const BUTTON_RADIUS = 14
+// 圆角 6px：参考文档给的是 14px（圆润方形），但按钮实际只有 34px 高（导航条内更矮），
+// 14px 圆角占高度近四成，轮廓读作「胶囊/圆」而非「圆角方形」。6px 保留一点柔度同时
+// 保持方正感，也是项目上一版按钮用过的值。
+const BUTTON_RADIUS = 6
 const BUTTON_TRANSITION = 'transform 150ms cubic-bezier(.25,.1,.25,1), background-color 150ms cubic-bezier(.25,.1,.25,1)'
 
 export const BUTTON_BASE: CSSProperties = {
