@@ -52,3 +52,13 @@ export const TAB_ITEM_KEYS: Record<'phrase' | 'exchange' | 'derivatives' | 'disc
 export function addableLeafKeys(tab: TabKey): string[] {
   return tab === 'main' ? TAB_GROUPS.main.roots : [TAB_ITEM_KEYS[tab]]
 }
+
+// 单独标签页的平铺子项有两种形态（v0.5.3 §2.3 / N1 修复）：
+//   · 叶子项（短语 / 词形变化 / 词源相关词）—— 无卡片样式，渲染进共享容器卡片；
+//   · 「组」容器（近义词辨析）—— 组自带 paneStyle 卡片盒与状态色左竖条，本就是完整卡片，
+//     再套外层容器只会得到「卡片里套卡片」，故组直接作最高级卡片渲染。
+// 判据取自 TAB_ITEM_KEYS：那张表正是「各单独标签页直接内容项的 key」的唯一真相，
+// 新增组型标签页时只改表即可，无需在此再列一遍 tab 名。
+export function isGroupedTab(tab: TabKey): boolean {
+  return tab !== 'main' && TAB_ITEM_KEYS[tab] === 'synonym_discrimination_group'
+}

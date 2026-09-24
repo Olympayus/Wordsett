@@ -11,7 +11,7 @@ import { useWordStore } from '../../stores/wordStore'
 import { useViewStore } from '../../stores/viewStore'
 import { getDefinitions } from '../../services/fieldService'
 import { sortTreeByTemplate, ALLOWED_CHILD_KEYS } from '../../lib/fieldOrder'
-import { visibleTabs, defaultTab, missingTabs, groupRootsByTab, addableLeafKeys, TAB_GROUPS, type TabKey } from '../../lib/tabs'
+import { visibleTabs, defaultTab, missingTabs, groupRootsByTab, addableLeafKeys, isGroupedTab, TAB_GROUPS, type TabKey } from '../../lib/tabs'
 import { hasFieldChanges } from '../../lib/fieldChanges'
 import { shouldFlattenChildren } from '../../lib/dictPlan'
 import { insertBefore, dropY, reorderSiblingIds } from '../../lib/dragReorder'
@@ -1043,6 +1043,9 @@ export default function WordWorkbench() {
   // 单独标签页（短语/词形变化/派生词）：跳过根容器卡片，直接平铺其子项；主标签页渲染容器
   const isFlatTab = effectiveTab !== null && effectiveTab !== 'main'
   const renderValues = isFlatTab ? sortedTabValues.flatMap(c => c.children ?? []) : sortedTabValues
+  // 辨析标签页的平铺子项是「组」而非叶子：组自带 paneStyle 卡片盒，是完整的顶层卡片，
+  // 不再套共享容器卡片（见下方字段列表分支）。其余单独标签页的子项皆为无卡片样式的叶子，保持原样。
+  const isGroupTab = isFlatTab && effectiveTab !== null && isGroupedTab(effectiveTab)
 
   const wordCapsules = categories.filter(c => wordCategoryIds.includes(c.id))
   const showMoreCapsules = wordCapsules.length > 4
@@ -1253,7 +1256,21 @@ export default function WordWorkbench() {
           onDragCancel={handleDragCancel}
         >
           <div style={{ marginTop: '8px' }}>
-            {isFlatTab && renderValues.length > 0 && (
+            {/* 辨析标签页的平铺子项是「组」（synonym_discrimination_group），不是叶子：
+                组在 FieldCard 内走 (isPosPane || isGroupPane) 分支取 paneStyle，
+                卡片盒 + 状态色左竖条俱全，本就是完整卡片；再套一层容器卡片只会得到
+                「卡片里套卡片」，并把 paneStyle 的 marginBottom 组间距压成 0。
+                故按标签页分流：组直接作最高级卡片平铺（depth=0，结构对齐词性标签页的词性窗格），
+                短语 / 词形变化 / 词源相关词仍是叶子项，沿用共享容器卡片，一字未动。
+                组的 labelOverride 取 fv.value —— 提取后的短标题（v0.5.3 §2.2 extractGroupTitle），
+                与非平铺分支的 labelOverride = child.value 同一来源；
+                ITEM_FIELD_KEYS 只含 synonym_discrimination_item，不含组键，故 labelText 不会被清空。 */}
+            {isFlatTab && isGroupTab && renderValues.length > 0 && (
+              renderValues.map(fv => (
+                <FieldCard key={fv.id} fv={fv} depth={0} {...cardProps} labelOverride={fv.value} />
+              ))
+            )}
+            {isFlatTab && !isGroupTab && renderValues.length > 0 && (
               /* 单独标签页：子项平铺进容器卡片（保留容器抬升底色 + 边框 + 柔和阴影，去掉标题框） */
               <div style={{ background: 'var(--color-surface-raised)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-raised)', padding: '4px 10px' }}>
                 {renderValues.map(fv => (

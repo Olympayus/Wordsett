@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { visibleTabs, defaultTab, missingTabs, groupRootsByTab, addableLeafKeys, TAB_ORDER, TAB_GROUPS, TAB_ITEM_KEYS } from './tabs'
+import { visibleTabs, defaultTab, missingTabs, groupRootsByTab, addableLeafKeys, isGroupedTab, TAB_ORDER, TAB_GROUPS, TAB_ITEM_KEYS } from './tabs'
 import type { FieldValue } from '../types/field'
 
 // fieldId 直接当作字段 key 注入，keyOf 用 fieldId
@@ -57,5 +57,21 @@ describe('tabs 派生', () => {
     expect(TAB_ORDER[TAB_ORDER.length - 1]).toBe('discrimination')
     expect(TAB_GROUPS.discrimination.label).toBe('近义词辨析')
     expect(TAB_ITEM_KEYS.discrimination).toBe('synonym_discrimination_group')
+  })
+})
+
+describe('isGroupedTab（单独标签页的平铺子项是否自带卡片盒）', () => {
+  it('仅辨析为组型：组卡自渲染，不套共享容器卡片', () => {
+    expect(isGroupedTab('discrimination')).toBe(true)
+  })
+
+  it('三个叶子型单独标签页仍走共享容器卡片（回归护栏）', () => {
+    expect(isGroupedTab('phrase')).toBe(false)
+    expect(isGroupedTab('exchange')).toBe(false)
+    expect(isGroupedTab('derivatives')).toBe(false)
+  })
+
+  it('主标签页不参与：其根容器本就按卡片渲染', () => {
+    expect(isGroupedTab('main')).toBe(false)
   })
 })
