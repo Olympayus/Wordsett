@@ -7,7 +7,8 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![dict_resource_path])
+        .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -47,6 +48,28 @@ fn to_loadable_path(path: &std::path::Path) -> String {
     } else {
         s.into_owned()
     }
+}
+
+/// 在系统文件管理器中打开本地数据目录并选中 wordsett.db（v0.5.3 §4.2）。
+/// 数据库由 tauri-plugin-sql 以 `sqlite:wordsett.db` 相对标识创建：
+/// 该插件（wrapper.rs）取 app_config_dir 后拼上标识剩余部分，故此处解析同一目录以保持一致。
+#[tauri::command]
+fn open_data_dir(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri::path::BaseDirectory;
+    use tauri_plugin_opener::OpenerExt;
+
+    let db = app
+        .path()
+        .resolve("wordsett.db", BaseDirectory::AppConfig)
+        .map_err(|e| e.to_string())?;
+
+    if !db.exists() {
+        return Err(format!("数据文件不存在：{}", db.display()));
+    }
+
+    app.opener()
+        .reveal_item_in_dir(&db)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
