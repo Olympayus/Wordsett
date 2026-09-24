@@ -28,4 +28,9 @@ describe('review/typed', () => {
     expect(letterMatches('', 'car')).toEqual([])
     expect(letterMatches('car', '')).toEqual([false, false, false])
   })
+
+  it('letterMatches 非 BMP 字符按码点对齐，不错位', () => {
+    expect(letterMatches('a😀b', 'a😀b')).toEqual([true, true, true])
+    expect(letterMatches('😀', '😀')).toEqual([true])
+  })
 })

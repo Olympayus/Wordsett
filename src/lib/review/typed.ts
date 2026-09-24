@@ -10,9 +10,14 @@ export function compareTyped(input: string, target: string): boolean {
   return a.length > 0 && a === b
 }
 
-/** 逐字母比对：第 i 位是否与目标一致（逐字母即错即标红用）。 */
+/**
+ * 逐字母比对：第 i 位是否与目标一致（逐字母即错即标红用）。
+ * 两侧均按码点对齐比较；调用方需自行保证 input 已 trim（本函数不做归一），
+ * 返回数组与 input 按码点位置一一对应。
+ */
 export function letterMatches(input: string, target: string): boolean[] {
   const a = input.toLowerCase()
   const b = target.toLowerCase()
-  return Array.from(a, (ch, i) => ch === b[i])
+  const bs = Array.from(b)
+  return Array.from(a, (ch, i) => ch === bs[i])
 }
