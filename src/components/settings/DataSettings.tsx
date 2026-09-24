@@ -67,12 +67,6 @@ export default function DataSettings() {
     }
   }
 
-  const btn: React.CSSProperties = {
-    padding: '8px 14px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border-strong)',
-    background: 'var(--color-surface)', color: 'var(--color-text-primary)', cursor: 'pointer',
-    fontSize: 'var(--text-sm)', fontFamily: 'var(--font-sans)',
-  }
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {/* 本地数据存储位置（v0.5.3 §4.1 第 14 条）：首行，黑色字体，附浏览按钮。
@@ -87,19 +81,21 @@ export default function DataSettings() {
       </div>
       <div>
         <div style={{ ...SECTION_TITLE, marginBottom: '6px' }}>导出词库</div>
-        <button style={btn} onClick={handleExport} disabled={busy}>导出为备份文件</button>
+        <SquareButton onClick={handleExport} disabled={busy}>导出为备份文件</SquareButton>
       </div>
       <div>
         <div style={{ ...SECTION_TITLE, marginBottom: '6px' }}>导入词库</div>
-        <button style={btn} onClick={handlePick} disabled={busy}>选择备份文件…</button>
+        <SquareButton onClick={handlePick} disabled={busy}>选择备份文件…</SquareButton>
         {plan && (
           <div style={{ marginTop: '10px', padding: '10px 12px', background: 'var(--color-brand-soft)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)' }}>
             <div>{fmt(plan)}</div>
-            <button
-              style={{ ...btn, marginTop: '8px', background: 'var(--color-brand)', color: 'white', border: 'none' }}
-              onClick={handleApply}
-              disabled={busy}
-            >确认导入</button>
+            {/* 「确认导入」与上方两个按钮同款，不再单列品牌底 + 白字变体：
+                变体色（--color-brand 浅品牌底 + 白字）与 SquareButton 的深品牌底 + 黑字
+                并列会让同一区块里出现两种按钮语言，且它所在的内嵌 plan 盒本身就是品牌色底，
+                再压一个品牌按钮会糊在一起。统一底样后，唯一的区分靠它在 plan 盒内的位置。 */}
+            <div style={{ marginTop: '8px' }}>
+              <SquareButton onClick={handleApply} disabled={busy}>确认导入</SquareButton>
+            </div>
           </div>
         )}
       </div>

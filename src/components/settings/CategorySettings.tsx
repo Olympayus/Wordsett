@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useUiStore } from '../../stores/uiStore'
 import Icon from '../icons'
+import SquareButton from '../ui/SquareButton'
 
 function CategoryRow({ cat, count, onEdit, onDelete }: {
   cat: { id: string; name: string; color: string; description?: string | null }
@@ -33,9 +34,11 @@ function CategoryRow({ cat, count, onEdit, onDelete }: {
         <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{cat.name}</div>
         {cat.description && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{cat.description}</div>}
       </div>
-      {/* 计数常驻：数字等宽 + 汉字无衬线，同色 */}
+      {/* 计数常驻：数字走 .stat-num（等宽 + 主色 + 半粗），汉字无衬线二级灰 */}
       <span style={{ whiteSpace: 'nowrap' }}>
-        <span style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>{count}</span>
+        {/* className 统一数字格式（与工作区左下、侧栏分组、词性计数同源），
+            字号仍内联——.stat-num 不设字号，WordList.tsx:241 也是类 + 内联字号。 */}
+        <span className="stat-num" style={{ fontSize: 'var(--text-xs)' }}>{count}</span>
         <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}> 词</span>
       </span>
       <button type="button" title="编辑分类" aria-label="编辑分类" onClick={onEdit}
@@ -65,22 +68,18 @@ export default function CategorySettings() {
 
   return (
     <div>
-      <button
-        type="button"
-        onClick={() => openEditor(null, null)}
-        style={{
-          display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '16px',
-          padding: '8px 14px', borderRadius: 'var(--radius-md)', cursor: 'pointer',
-          border: '1px dashed var(--color-border-strong)', background: 'transparent',
-          color: 'var(--color-brand)', fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',
-          transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-brand-softer)'; e.currentTarget.style.borderColor = 'var(--color-brand)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
-      >
-        <Icon name="plus" size={16} />
-        新建分类
-      </button>
+      {/* 「新建分类」用 SquareButton（v0.5.3 §4.1 第 16 条）：深品牌底 + 黑色无衬线、不加粗，
+          旧的虚线描边 + hover 反色一并去掉——统一样式下按钮不反色（与 WorkbenchNavBar 一致）。
+          SquareButton 自身不是 flex 行，图标与文字直接并列会贴在一起，故 children 包一层
+          inline-flex + gap（同 WorkbenchNavBar 的「合并添加」按钮写法）。 */}
+      <div style={{ marginBottom: '16px' }}>
+        <SquareButton onClick={() => openEditor(null, null)}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+            <Icon name="plus" size={16} />
+            新建分类
+          </span>
+        </SquareButton>
+      </div>
 
       {categories.length === 0 ? (
         <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', padding: '8px 0' }}>

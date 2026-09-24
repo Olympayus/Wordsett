@@ -16,6 +16,13 @@ const SEARCH_EDGE_MARGIN = 12
 const SEARCH_MIN_WIDTH = 320
 const SEARCH_LEFT_INSET = ACTIVITY_RAIL_WIDTH + SIDEBAR_EXPANDED_WIDTH + SEARCH_EDGE_MARGIN  // 358
 
+// Logo 水平居中对齐活动栏图标（v0.5.3 §4.1 第 17 条）。活动栏 <nav> 是内容行第一列、
+// 贴在窗口 x=0，46px 宽且 alignItems:'center'（列向 flex 的交叉轴即水平），
+// 32px 的图标按钮在 46px 内水平居中 → 图标中心 x = 46/2 = 23px。
+// Logo 按钮也是 32px 宽，中心 x = 左内边距 + 16，令两者相等即得
+// 左内边距 = 46/2 - 16 = (ACTIVITY_RAIL_WIDTH - 32) / 2 = 7px。
+const LOGO_LEFT_PADDING = (ACTIVITY_RAIL_WIDTH - 32) / 2  // 7
+
 // 全局顶栏（规格 §3）：Logo 32×32 / 主搜索框 32px / 设置按钮；建议下拉 → 词典详情视图（D2）
 // 自绘标题栏（Task 15）：header 为拖拽区 + 内置窗口控制；搜索框绝对居中、胶囊圆角
 export default function TopBar() {
@@ -127,7 +134,7 @@ export default function TopBar() {
       }}
       style={{
         height: '48px', display: 'flex', alignItems: 'center', gap: '12px',
-        padding: '0 8px 0 16px',
+        padding: `0 8px 0 ${LOGO_LEFT_PADDING}px`,
         // 顶栏必须浮在页面内容之上：搜索建议下拉会垂出 48px 的 header 进入内容行，
         // 而工作台的吸顶导航条同为 --z-sticky（20）、且在 DOM 中更靠后，等值并列时后者胜出会盖住下拉。
         // 故顶栏取 --z-overlay（30）：高于页内吸顶条（20）与页内下拉（10），仍低于模态（40）与 FindBar。
