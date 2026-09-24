@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { relatedWords } from '../../services/searchService'
-import { stripGlossExamples } from '../../lib/wordnetParse'
+import { splitGlossParts } from '../../lib/wordnetParse'
 import type { RelatedWords, RelatedGroup } from '../../providers/wordnet'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
@@ -31,6 +31,22 @@ const RELATION_DESCRIPTIONS: Record<keyof RelatedWords['groups'], string> = {
   pertainyms: '派生来源：形容/副词所派生的名词来源',
   attributes: '属性：名词属性与描述该属性的形容词之间的对应',
   verbGroups: '动词组：含义相近、可互换而不改变句子真值的动词分组',
+}
+
+// 组 ℹ 浮窗内容：释义置顶（多段合并为一行），例句保留自带引号逐行排列并以 · 引导。
+// 字号/行高沿用 Tooltip 气泡默认的 12px，此处只补例句块的上边距。
+function GlossTip({ gloss }: { gloss: string }) {
+  const { definition, examples } = splitGlossParts(gloss)
+  return (
+    <>
+      {definition && <div>{definition}</div>}
+      {examples.length > 0 && (
+        <div style={{ marginTop: definition ? 6 : 0 }}>
+          {examples.map((ex, i) => <div key={i}>· {ex}</div>)}
+        </div>
+      )}
+    </>
+  )
 }
 
 interface Props {
@@ -111,7 +127,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
         </span>
       ))}
       {g.definition && (
-        <Tooltip content={stripGlossExamples(g.definition)} width={340}>
+        <Tooltip content={<GlossTip gloss={g.definition} />} width={340}>
           <span role="img" aria-label={`组说明：${g.words.join('、')}`} style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'help' }}><Icon name="info" size={12} /></span>
         </Tooltip>
       )}

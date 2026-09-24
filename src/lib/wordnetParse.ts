@@ -16,6 +16,46 @@ export function splitGlossLines(gloss: string): string[] {
   return gloss.split(';').map(s => s.trim()).filter(Boolean)
 }
 
+export interface GlossParts {
+  definition: string
+  examples: string[]
+}
+
+// 引号感知分段：分号只在双引号外才是分隔符，例句正文内的分号属字面内容。
+// 真实 wordnet.db 中约 8.4% 的 gloss 在引号内含分号，且释义本身可能是多段（都属释义正文），
+// 故不能用 splitGlossLines 的朴素 split。
+// definition 为全部非引号段按原序以 '; ' 拼接；examples 保留例句自带的双引号。
+export function splitGlossParts(gloss: string): GlossParts {
+  const segments: string[] = []
+  let buf = ''
+  let inQuote = false
+  for (const ch of gloss) {
+    if (ch === '"') {
+      inQuote = !inQuote
+      buf += ch
+    } else if (ch === ';' && !inQuote) {
+      segments.push(buf)
+      buf = ''
+    } else {
+      buf += ch
+    }
+  }
+  segments.push(buf)
+
+  const definitions: string[] = []
+  const examples: string[] = []
+  for (const raw of segments) {
+    const seg = raw.trim()
+    if (!seg) continue // 空段 / 尾随分号产生的空段
+    if (seg.length >= 2 && seg.startsWith('"') && seg.endsWith('"')) {
+      if (seg.length > 2) examples.push(seg) // 退化空引号 `""` 无正文，直接丢弃
+    } else {
+      definitions.push(seg)
+    }
+  }
+  return { definition: definitions.join('; '), examples }
+}
+
 export interface SynsetInput {
   pos: string
   definition: string

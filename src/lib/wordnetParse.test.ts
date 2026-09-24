@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { posDisplay, buildWordnetFields, stripGlossExamples, splitGlossLines } from './wordnetParse'
+import { posDisplay, buildWordnetFields, stripGlossExamples, splitGlossLines, splitGlossParts } from './wordnetParse'
 
 describe('posDisplay', () => {
   it('n/v/a/s/r 显示映射', () => {
@@ -83,5 +83,47 @@ describe('splitGlossLines', () => {
   })
   it('无分号时单行', () => {
     expect(splitGlossLines('agreeably diverting')).toEqual(['agreeably diverting'])
+  })
+})
+
+describe('splitGlossParts', () => {
+  it('释义在顶部、例句带引号各归各位', () => {
+    expect(splitGlossParts('capable of arousing and holding the attention; "a fascinating story"; "films should be entertaining"'))
+      .toEqual({
+        definition: 'capable of arousing and holding the attention',
+        examples: ['"a fascinating story"', '"films should be entertaining"'],
+      })
+  })
+  it('例句内含分号不拆开，且多段未加引号的释义都并入 definition', () => {
+    // 真实 wordnet.db gloss：朴素 split(';') 会把引号内分号当分隔符、把释义尾段误判为例句
+    expect(splitGlossParts('a tangible and visible entity; an entity that can cast a shadow; "it was full of rackets, balls and other objects"'))
+      .toEqual({
+        definition: 'a tangible and visible entity; an entity that can cast a shadow',
+        examples: ['"it was full of rackets, balls and other objects"'],
+      })
+  })
+  it('引号内分号原样保留在例句内', () => {
+    expect(splitGlossParts('a remark; "he said; then he left"'))
+      .toEqual({ definition: 'a remark', examples: ['"he said; then he left"'] })
+  })
+  it('无分号、无例句时全文为 definition', () => {
+    expect(splitGlossParts('agreeably diverting')).toEqual({ definition: 'agreeably diverting', examples: [] })
+  })
+  it('空串 / 纯空白不抛错', () => {
+    expect(splitGlossParts('')).toEqual({ definition: '', examples: [] })
+    expect(splitGlossParts('   ')).toEqual({ definition: '', examples: [] })
+  })
+  it('尾随分号与连续分号产生的空段被忽略', () => {
+    expect(splitGlossParts('a score in baseball;')).toEqual({ definition: 'a score in baseball', examples: [] })
+    expect(splitGlossParts('a score in baseball;;  ;')).toEqual({ definition: 'a score in baseball', examples: [] })
+  })
+  it('只有空引号 `""` 时不产生空例句', () => {
+    expect(splitGlossParts('a remark; ""')).toEqual({ definition: 'a remark', examples: [] })
+  })
+  it('整条 gloss 就是一个引号例句（无 definition 正文）', () => {
+    expect(splitGlossParts('"a fascinating story"')).toEqual({ definition: '', examples: ['"a fascinating story"'] })
+  })
+  it('释义在例句之后（WordNet 偶有该形态）仍各归各位', () => {
+    expect(splitGlossParts('"a fascinating story"; agreeable')).toEqual({ definition: 'agreeable', examples: ['"a fascinating story"'] })
   })
 })
