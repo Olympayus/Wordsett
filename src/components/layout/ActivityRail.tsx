@@ -18,6 +18,8 @@ export default function ActivityRail() {
     let alive = true
     const refresh = async () => {
       const { getStrategyCounts, REVIEW_DEFAULTS } = await import('../../services/reviewService')
+      // getStrategyCounts 的 today 只数到期且有可用题型的卡，不读 newCardQuota / queueLimit，
+      // 所以这里传 REVIEW_DEFAULTS 与传用户设置结果相同。
       const c = await getStrategyCounts(REVIEW_DEFAULTS)
       if (alive) setBadge(c.today)
     }

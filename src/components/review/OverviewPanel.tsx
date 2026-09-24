@@ -1,4 +1,5 @@
-export default function OverviewPanel({ total, newCount, estimateMinutes, masteryBuckets, onStart, startLabel = '开始复习', empty }: {
+export default function OverviewPanel({ title, total, newCount, estimateMinutes, masteryBuckets, onStart, startLabel = '开始复习', empty }: {
+  title: string
   total: number
   newCount: number
   estimateMinutes: number
@@ -18,7 +19,7 @@ export default function OverviewPanel({ total, newCount, estimateMinutes, master
   const totalCards = masteryBuckets.reduce((a, b) => a + b, 0)
   return (
     <div className="flex flex-col items-start gap-5 p-8">
-      <h2 style={{ fontSize: '20px', fontWeight: 600 }}>今日复习</h2>
+      <h2 style={{ fontSize: '20px', fontWeight: 600 }}>{title}</h2>
       <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
         {total} 张 · 含新词 {newCount} · 预计 {estimateMinutes} 分钟
       </p>

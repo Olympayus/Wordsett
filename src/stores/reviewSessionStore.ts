@@ -17,7 +17,10 @@ export interface FreeScope {
 }
 
 interface ReviewSessionStore {
+  /** 当前查看的策略 */
   strategy: ReviewStrategy
+  /** 会话所属策略；null = 没有进行中的会话。切走的会话仍保留 queue/answered，切回即续。 */
+  sessionStrategy: ReviewStrategy | null
   phase: SessionPhase
   queue: ReviewCardDTO[]
   index: number
@@ -36,6 +39,7 @@ interface ReviewSessionStore {
 
 export const useReviewSessionStore = create<ReviewSessionStore>((set, get) => ({
   strategy: 'today',
+  sessionStrategy: null,
   phase: 'overview',
   queue: [],
   index: 0,
@@ -43,10 +47,11 @@ export const useReviewSessionStore = create<ReviewSessionStore>((set, get) => ({
   freeScope: null,
   startedAt: null,
 
-  setStrategy: (strategy) => set({ strategy, phase: 'overview', queue: [], index: 0, answered: [] }),
+  // 只切「看哪个策略」；进行中的会话原地保留，切回该策略即续（规格 §2.4）
+  setStrategy: (strategy) => set({ strategy }),
   setPhase: (phase) => set({ phase }),
   setFreeScope: (freeScope) => set({ freeScope }),
-  startSession: (queue) => set({ queue, index: 0, answered: [], phase: 'answering', startedAt: Date.now() }),
+  startSession: (queue) => set({ queue, index: 0, answered: [], phase: 'answering', startedAt: Date.now(), sessionStrategy: get().strategy }),
   answerCurrent: (rating) => {
     const { queue, index, answered } = get()
     const card = queue[index]
@@ -59,5 +64,5 @@ export const useReviewSessionStore = create<ReviewSessionStore>((set, get) => ({
     if (next >= queue.length) set({ phase: 'summary' })
     else set({ index: next, phase: 'answering' })
   },
-  reset: () => set({ phase: 'overview', queue: [], index: 0, answered: [], startedAt: null }),
+  reset: () => set({ phase: 'overview', sessionStrategy: null, queue: [], index: 0, answered: [], startedAt: null }),
 }))
