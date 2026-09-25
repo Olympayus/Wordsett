@@ -2,7 +2,7 @@ import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 
 // 方块按钮统一样式（v0.5.3 §4.1 第 16 条重做）。
-// 配色收进项目既有色板：默认态用暖橙 --color-accent（与词条卡片的强调色同源），
+// 配色收进项目既有色板：默认态用暖中性底 --color-surface-sunken，
 // 编者模式的生效态用 --color-brand。hover 亮一阶不新增 token，用 color-mix 现场提亮
 // ——与仓库既有做法一致（color-mix 在 src/ 已有 8 处）。
 // 几何按容器适配而非照搬参考文档的 50px/132px：设置页的开关行高约 30px、导航条内边距 6px，
@@ -24,7 +24,10 @@ export const BUTTON_BASE: CSSProperties = {
   padding: '8px 12px',
   borderRadius: BUTTON_RADIUS,
   border: '1px solid rgba(0,0,0,.16)',
-  background: 'var(--color-accent)',
+  // 默认态用主题暖中性底而非强调橙（v0.6.1 §2.1）：暖橙在本仓库有既定语义——个人录入字段
+  // （--color-weave-personal）与分类胶囊第 5 色。通用按钮占满默认态会冲淡那层语义；
+  // 撤下来后「默认 vs 生效」改由「亮底 / 实底」区分，比两个色相更干净。
+  background: 'var(--color-surface-sunken)',
   color: 'var(--color-text-primary)',
   fontFamily: 'var(--font-sans)',
   fontSize: 13,
@@ -45,8 +48,8 @@ export const BUTTON_BASE: CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
-// hover 亮一阶：与默认色同色相，只提亮，不换色相——与参考文档「同色相亮一阶」一致
-const ACCENT_HOVER = 'color-mix(in srgb, var(--color-accent) 88%, white)'
+// hover 亮一阶：默认态在暖中性底上提亮，生效态在品牌蓝上提亮——都只提亮、不换色相
+const NEUTRAL_HOVER = 'color-mix(in srgb, var(--color-surface-sunken) 88%, white)'
 const BRAND_HOVER = 'color-mix(in srgb, var(--color-brand) 88%, white)'
 
 /** 导航条内的紧凑尺寸：不撑高导航条、不与同排 28×28 的箭头按钮争视觉重量 */
@@ -108,7 +111,7 @@ export default function SquareButton({ children, onClick, disabled, title, press
         ...(disabled ? BUTTON_DISABLED : null),
         // 底色只求值一次：生效态优先于 hover，二者正交时走「生效色的亮一阶」。
         // 写成三段条件展开会互相覆盖（后展开的赢），所以在这里合成单值。
-        ...(!disabled ? { background: on ? (hover ? BRAND_HOVER : 'var(--color-brand)') : (hover ? ACCENT_HOVER : 'var(--color-accent)') } : null),
+        ...(!disabled ? { background: on ? (hover ? BRAND_HOVER : 'var(--color-brand)') : (hover ? NEUTRAL_HOVER : 'var(--color-surface-sunken)') } : null),
         ...(pressing && !disabled ? { transform: 'scale(.96)' } : null),
       }}
     >

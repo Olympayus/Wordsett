@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type IconName = 'plus' | 'grip' | 'more' | 'trash' | 'search' | 'swap' | 'chevron' | 'arrow-right' | 'chevron-left' | 'settings' | 'arrow-left' | 'close' | 'info' | 'edit' | 'chevron-right' | 'minimize' | 'maximize' | 'restore' | 'layers'
+export type IconName = 'plus' | 'grip' | 'more' | 'trash' | 'search' | 'swap' | 'chevron' | 'arrow-right' | 'chevron-left' | 'settings' | 'arrow-left' | 'close' | 'info' | 'edit' | 'chevron-right' | 'minimize' | 'maximize' | 'restore' | 'layers' | 'book'
 
 const PATHS: Record<IconName, ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
@@ -89,6 +89,12 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M12 2L2 7l10 5 10-5-10-5z" />
       <path d="M2 17l10 5 10-5" />
       <path d="M2 12l10 5 10-5" />
+    </>
+  ),
+  book: (
+    <>
+      <path d="M4 4.5h5.5a2.5 2.5 0 0 1 2.5 2.5V20a2 2 0 0 0-2-2H4z" />
+      <path d="M20 4.5h-5.5A2.5 2.5 0 0 0 12 7v13a2 2 0 0 1 2-2h6z" />
     </>
   ),
 }
