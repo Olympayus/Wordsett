@@ -8,7 +8,7 @@ import MasteryBar from './MasteryBar'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useCategoryStore } from '../../stores/categoryStore'
-import { getStrategyCounts, getOverview, getQueue, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
+import { getOverview, getQueue, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import type { ReviewStrategy } from '../../lib/review/types'
 
 export default function ReviewModule() {
@@ -17,7 +17,6 @@ export default function ReviewModule() {
   const categories = useCategoryStore(s => s.categories)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
 
-  const [counts, setCounts] = useState({ today: 0, weak: 0 })
   const [overview, setOverview] = useState<Awaited<ReturnType<typeof getOverview>> | null>(null)
   // 组卷为空时的就地提示：先前是静默 return，用户按了按钮却什么都没发生
   const [emptyNotice, setEmptyNotice] = useState<string | null>(null)
@@ -46,13 +45,11 @@ export default function ReviewModule() {
     setEmptyNotice(null)
     const run = async () => {
       try {
-        const [c, o] = await Promise.all([getStrategyCounts(params), getOverview(params)])
+        const o = await getOverview(params)
         if (!alive || id !== reqIdRef.current) return
-        setCounts(c)
         setOverview(o)
       } catch {
         if (!alive || id !== reqIdRef.current) return
-        setCounts({ today: 0, weak: 0 })
         setOverview({ total: 0, newCount: 0, estimateMinutes: 0, masteryBuckets: [0, 0, 0, 0, 0] })
       }
     }
@@ -63,17 +60,9 @@ export default function ReviewModule() {
   const strategies: StrategyMeta[] = [
     // 计数来源＝组卷结果长度（spec §2.2）：与右栏概览卡同一数字。左栏若用 getStrategyCounts 的
     // due 计数，会与旁边的概览卡相差一个新词额度（新库上左栏 0、右栏 30）——同屏同名的两个数必须一致。
-    { key: 'today', label: '今日复习', count: overview?.total ?? 0, hint: '到期 + 新词额度 · 计分', progress: progressFor('today') },
-    { key: 'weak', label: '薄弱词专项', count: counts.weak, hint: `连错 ≥ ${params.leechThreshold} ∪ 近 7 天答错 · 不计分`, progress: progressFor('weak') },
-    { key: 'free', label: '自由练习', count: null, hint: '自选范围 · 不计分', progress: progressFor('free') },
+    { key: 'today', label: '今日复习', count: null, hint: '', progress: progressFor('today') },
+    { key: 'free', label: '自由练习', count: null, hint: '', progress: progressFor('free') },
   ]
-
-  // 薄弱词专项不引进新词、不走今日队列：数字取 getStrategyCounts 的 weak（getOverview 只描述今日队列）
-  // （getStrategyCounts 的 today 已不在此处展示，只留给右栏概览 → 左栏一致；活动栏徽标自带查询）
-  const weakTotal = counts.weak
-  const weakEstimate = Math.max(1, Math.round(weakTotal * 0.3))
-  const overviewTitle = strategy === 'weak' ? '薄弱词专项' : '今日复习'
-  const startLabel = strategy === 'weak' ? '开始专项练习' : '开始复习'
 
   const NO_CARDS = '本轮没有可出的题。可能词条缺少出题所需的内容（释义 / 例句 / 音标），先到工作台补全。'
 
@@ -110,16 +99,16 @@ export default function ReviewModule() {
             onStart={handleFreeStart}
           />
         )}
-        {showOverview && strategy !== 'free' && (
+        {showOverview && strategy === 'today' && (
           <OverviewPanel
-            title={overviewTitle}
-            total={strategy === 'weak' ? weakTotal : (overview?.total ?? 0)}
-            newCount={strategy === 'weak' ? 0 : (overview?.newCount ?? 0)}
-            estimateMinutes={strategy === 'weak' ? weakEstimate : (overview?.estimateMinutes ?? 0)}
+            title="今日复习"
+            total={overview?.total ?? 0}
+            newCount={overview?.newCount ?? 0}
+            estimateMinutes={overview?.estimateMinutes ?? 0}
             masteryBuckets={overview?.masteryBuckets ?? [0, 0, 0, 0, 0]}
             onStart={handleStart}
-            startLabel={startLabel}
-            empty={(strategy === 'weak' ? weakTotal : (overview?.total ?? 0)) === 0}
+            startLabel="开始复习"
+            empty={(overview?.total ?? 0) === 0}
           />
         )}
         {live && <ReviewArena />}

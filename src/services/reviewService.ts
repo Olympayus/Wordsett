@@ -214,9 +214,8 @@ export async function getQueue(
   if (!candRes.ok) return { queue: [], absent: [], result: EMPTY }
 
   let candidates = candRes.data
-  if (strategy === 'weak') {
-    candidates = await filterWeak(candidates, params, now)
-  } else if (strategy === 'free') {
+  // 薄弱词专项已并入自由练习的 scope.kind = 'weak'（spec §3.2），此处不再有独立的 weak 策略分支
+  if (strategy === 'free') {
     candidates = await filterFree(candidates, freeScope, params, now)
   }
 
@@ -256,7 +255,7 @@ function shuffle<T>(items: T[]): T[] {
   return items
 }
 
-/** 薄弱词筛选与左栏计数同源：薄弱定义只有 getWeakCardIds 一处实现。 */
+/** 薄弱词筛选与薄弱词计数同源：薄弱定义只有 getWeakCardIds 一处实现。 */
 async function filterWeak(candidates: QueueCandidate[], params: ReviewParams, now: number): Promise<QueueCandidate[]> {
   const r = await reviewDb.getWeakCardIds({
     leechThreshold: params.leechThreshold,

@@ -90,7 +90,8 @@ export default function ReviewArena() {
     setNextDueAt(res.dueAt)
     // 落库成功后再记账（answerCurrent 同时把 phase 置为 'rated'，结果区块留在屏上），
     // 推进交给「下一题」按钮 / 再按一次评分键（spec §2.3）。
-    answerCurrent(r)
+    // lastInput 即作答原文：揭示型与「直接跳过」未经提交，它就是 ''（spec §4.1）。
+    answerCurrent(r, lastInput)
   }
 
   // 揭示后：未评分 → 1 / 2 / 3 评分；已评分 → 同样的键推进下一题（不重复评分）。

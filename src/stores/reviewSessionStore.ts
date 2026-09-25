@@ -8,6 +8,11 @@ export interface AnsweredEntry {
   cardId: string
   rating: number
   template: Template
+  /**
+   * 用户当时的作答原文（选择题＝选中的选项文本；键入题＝键入内容；揭示型与跳过＝''）。
+   * 回看已答题时要靠它重建结果区（spec §4.1）；对错不另存，可由 input + DTO 现场派生。
+   */
+  input: string
 }
 
 export interface FreeScope {
@@ -32,7 +37,7 @@ interface ReviewSessionStore {
   setPhase: (p: SessionPhase) => void
   setFreeScope: (s: FreeScope | null) => void
   startSession: (queue: ReviewCardDTO[]) => void
-  answerCurrent: (rating: number) => void
+  answerCurrent: (rating: number, input: string) => void
   advance: () => void
   reset: () => void
 }
@@ -52,11 +57,11 @@ export const useReviewSessionStore = create<ReviewSessionStore>((set, get) => ({
   setPhase: (phase) => set({ phase }),
   setFreeScope: (freeScope) => set({ freeScope }),
   startSession: (queue) => set({ queue, index: 0, answered: [], phase: 'answering', startedAt: Date.now(), sessionStrategy: get().strategy }),
-  answerCurrent: (rating) => {
+  answerCurrent: (rating, input) => {
     const { queue, index, answered } = get()
     const card = queue[index]
     if (!card) return
-    set({ answered: [...answered, { cardId: card.cardId, rating, template: card.template }], phase: 'rated' })
+    set({ answered: [...answered, { cardId: card.cardId, rating, template: card.template, input }], phase: 'rated' })
   },
   advance: () => {
     const { index, queue } = get()
