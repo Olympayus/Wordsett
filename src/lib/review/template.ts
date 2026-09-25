@@ -24,12 +24,11 @@ export const TEMPLATE_DEPS: Record<Template, FieldGroup[]> = {
 /**
  * 出题难度序：从易到难。新词（无日志）按此序兜底，形成「先认后写」的递进。
  * 也是 usableTemplates 的筛选源——**不在此列 = 该题型整体下线**。
- * 听辨 listen：TTS 未落地（`speak` 命令不存在），题面只有播放按钮、无法作答，
- * 唯一的出口「直接跳过」会写 rating = 1 并污染调度数据。故按 spec §4.1「TTS 整体不可用
- * 则该题型下线，其余四题型不受影响」暂时下线；`TEMPLATE_DEPS.listen`、assembleCardDTO 的
- * listen 分支与 PromptCard 的播放按钮都保留，TTS 落地后把它加回本数组即可上线。
+ *
+ * 听辨 listen（v0.6.1 上线）：依赖系统级 TTS，故是否可用由运行时门控决定，
+ * 见 usableTemplates 的 opts.allowListen 与 lib/review/ttsGate.ts。
  */
-export const TEMPLATE_DIFFICULTY: Template[] = ['recognize', 'cloze', 'recall', 'english_def']
+export const TEMPLATE_DIFFICULTY: Template[] = ['recognize', 'cloze', 'recall', 'english_def', 'listen']
 
 export type FieldMask = Record<FieldGroup, boolean>
 
@@ -47,9 +46,17 @@ export function templateAccuracy(logs: TemplateLog[], template: Template): numbe
   return recent.filter(l => l.rating >= 3).length / recent.length
 }
 
-/** 按字段掩码筛出该词可出的模板，按难度序排列。 */
-export function usableTemplates(mask: FieldMask): Template[] {
-  return TEMPLATE_DIFFICULTY.filter(t => TEMPLATE_DEPS[t].every(g => mask[g]))
+export interface TemplateGateOpts {
+  /** 听辨依赖 TTS；系统无英文音色时为 false，该题型整体下线（spec §5.3）。缺省 = false。 */
+  allowListen?: boolean
+}
+
+/** 按字段掩码 + 运行时门控筛出该词可出的模板，按难度序排列。 */
+export function usableTemplates(mask: FieldMask, opts: TemplateGateOpts = {}): Template[] {
+  return TEMPLATE_DIFFICULTY.filter(t => {
+    if (t === 'listen' && !opts.allowListen) return false
+    return TEMPLATE_DEPS[t].every(g => mask[g])
+  })
 }
 
 /**
