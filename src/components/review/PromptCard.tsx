@@ -1,4 +1,5 @@
 import type { ReviewCardDTO } from '../../services/reviewService'
+import { formatPhonetic } from '../../lib/phonetic'
 import AnswerInput, { type InputKind } from './AnswerInput'
 
 /** 模板 → 作答形态与题面渲染方式。 */
@@ -32,10 +33,14 @@ export default function PromptCard({
   return (
     <section aria-label="题目" className="flex flex-col gap-4" style={{ maxWidth: '560px' }}>
       {dto.template === 'recognize' && (
-        <>
+        <div className="flex flex-wrap items-baseline gap-2">
           <h3 style={{ fontSize: '28px', fontWeight: 600 }}>{p.lemma}</h3>
-          {p.phonetic && <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>{p.phonetic}</span>}
-        </>
+          {p.phonetic && (
+            <span style={{ fontFamily: 'var(--font-phonetic)', fontSize: 15, color: 'var(--color-text-secondary)' }}>
+              {formatPhonetic(String(p.phonetic))}
+            </span>
+          )}
+        </div>
       )}
       {dto.template === 'cloze' && <p style={{ fontSize: '16px', lineHeight: 1.7 }}>{p.sentence}</p>}
       {dto.template === 'recall' && <h3 style={{ fontSize: '22px', fontWeight: 500 }}>{p.translation}</h3>}

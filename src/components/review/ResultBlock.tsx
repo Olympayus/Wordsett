@@ -1,5 +1,6 @@
 import type { ReviewCardDTO } from '../../services/reviewService'
 import type { CardContent } from '../../services/reviewService'
+import { formatPhonetic } from '../../lib/phonetic'
 
 export default function ResultBlock({ dto, snapshot, lastInput, correct, nextDueAt }: {
   dto: ReviewCardDTO
@@ -25,8 +26,14 @@ export default function ResultBlock({ dto, snapshot, lastInput, correct, nextDue
 
       <div className="flex flex-col gap-1">
         <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>完整词条</span>
-        <h3 style={{ fontSize: '22px', fontWeight: 600 }}>{snapshot?.lemma ?? String(dto.answer.lemma ?? '')}</h3>
-        {snapshot?.phonetic && <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>{snapshot.phonetic}</span>}
+        <div className="flex flex-wrap items-baseline gap-2">
+          <h3 style={{ fontSize: '22px', fontWeight: 600 }}>{snapshot?.lemma ?? String(dto.answer.lemma ?? '')}</h3>
+          {snapshot?.phonetic && (
+            <span style={{ fontFamily: 'var(--font-phonetic)', fontSize: 15, color: 'var(--color-text-secondary)' }}>
+              {formatPhonetic(snapshot.phonetic)}
+            </span>
+          )}
+        </div>
         {snapshot?.translation && <p style={{ fontSize: '14px' }}>{snapshot.translation}</p>}
         {snapshot?.definition && <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>{snapshot.definition}</p>}
         {snapshot?.example && <p style={{ fontSize: '13px', fontStyle: 'italic' }}>{snapshot.example}</p>}

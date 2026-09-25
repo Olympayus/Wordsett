@@ -99,7 +99,8 @@ export default function ReviewModule() {
         onSelect={(s: ReviewStrategy) => setStrategy(s)}
         footer={<MasteryBar buckets={overview?.masteryBuckets ?? []} />}
       />
-      <main className="flex-1 overflow-auto">
+      {/* 右栏用 surface（白）铺底，左栏留在 canvas 上——与设置页、工作台同一套「nav 米色 / 内容白」分栏 */}
+      <main className="flex-1 overflow-auto" style={{ background: 'var(--color-surface)' }}>
         {emptyNotice && (
           <span style={{ display: 'block', padding: '12px 32px 0', fontSize: '12px', color: '#c0705a' }}>{emptyNotice}</span>
         )}
