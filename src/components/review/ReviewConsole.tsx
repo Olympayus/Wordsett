@@ -1,3 +1,14 @@
+import type { Template } from '../../lib/review/types'
+
+/** 题型枚举 → 中文档面名（spec §3.1 的「题型名」）。键即 Template 全集，将来加题型时这里编译不过。 */
+const TEMPLATE_LABEL: Record<Template, string> = {
+  recognize: '认读',
+  cloze: '填空',
+  recall: '中译英',
+  english_def: '英文释义题',
+  listen: '听辨',
+}
+
 /**
  * 左栏顶部小控制台（v0.6.1 §3.1）。
  *
@@ -8,7 +19,7 @@ export interface ConsoleSession {
   index: number
   total: number
   remaining: number
-  template: string
+  template: Template
 }
 
 export default function ReviewConsole({ overview, weakCount, session }: {
@@ -26,7 +37,7 @@ export default function ReviewConsole({ overview, weakCount, session }: {
         </div>
         <div style={{ display: 'flex', gap: '10px', marginTop: '5px', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
           <span>剩余 {session.remaining}</span>
-          <span>{session.template}</span>
+          <span>{TEMPLATE_LABEL[session.template]}</span>
         </div>
         <div style={{ height: '3px', marginTop: '8px', background: 'var(--color-border)', borderRadius: '2px' }}>
           <div style={{ width: `${pct}%`, height: '100%', background: 'var(--color-brand)', borderRadius: '2px' }} />
