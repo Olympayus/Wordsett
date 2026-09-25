@@ -22,12 +22,14 @@ export function typedTarget(dto: ReviewCardDTO): string | undefined {
 }
 
 export default function PromptCard({
-  dto, letterHighlight, disabled, onSubmit,
+  dto, letterHighlight, disabled, onSubmit, revealedInput,
 }: {
   dto: ReviewCardDTO
   letterHighlight: boolean
   disabled: boolean
   onSubmit: (input: string) => void
+  /** 回看态：该卡已提交的作答原文，透传给 AnswerInput 复现判分着色 */
+  revealedInput?: string
 }) {
   const p = dto.prompt as Record<string, any>
   return (
@@ -55,7 +57,7 @@ export default function PromptCard({
               await invoke('speak', { text: String(dto.answer.lemma ?? ''), rate: 1.0 })
             } catch { /* 静默降级 */ }
           }}
-          style={{ alignSelf: 'flex-start', padding: '10px 18px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', cursor: 'pointer', fontSize: '13px' }}
+          style={{ alignSelf: 'flex-start', padding: '10px 18px', borderRadius: 'var(--radius-lg)', border: '1px solid color-mix(in srgb, var(--color-accent) 35%, white)', background: 'var(--color-accent-soft)', color: 'color-mix(in srgb, var(--color-accent) 70%, black)', cursor: 'pointer', fontSize: '13px' }}
         >
           播放读音
         </button>
@@ -67,10 +69,11 @@ export default function PromptCard({
       <AnswerInput
         kind={inputKindFor(dto.template)}
         options={Array.isArray(p.options) ? p.options.map((o: unknown) => String(o)) : undefined}
-        target={typedTarget(dto)}
+        target={typedTarget(dto) ?? (dto.template === 'recognize' ? String((dto.answer as any).translation ?? '') : undefined)}
         letterHighlight={letterHighlight}
         disabled={disabled}
         onSubmit={onSubmit}
+        revealedInput={revealedInput}
       />
     </section>
   )
