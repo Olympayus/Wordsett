@@ -141,7 +141,7 @@ export default function ReviewArena() {
   const handleEnd = async () => {
     const ok = await useUiStore.getState().confirm({
       title: '结束本轮回合？',
-      message: `已答的 ${answeredCount(answeredList)} 道题照常保存，但本轮不会生成小结，剩余 ${Math.max(0, queue.length - index - 1)} 题留到下次。`,
+      message: `已答的 ${answeredCount(answeredList)} 道题照常保存，但本轮不会生成小结，剩余 ${Math.max(0, queue.length - answeredCount(answeredList))} 题留到下次。`,
       confirmLabel: '结束并退出',
       danger: true,
     })
