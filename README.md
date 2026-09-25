@@ -4,7 +4,7 @@
 
 Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查询**、**词汇语义网络**与**结构化词汇管理**合二为一：搜索并合并 ECDICT / WordNet 的权威释义，借助 WordNet 语义关系构建词汇网络，再用分层字段、分类系统把你自己的理解沉淀成长期可复用的知识。
 
-![version](https://img.shields.io/badge/version-0.5.3-4A6FA5)
+![version](https://img.shields.io/badge/version-0.6.0-4A6FA5)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![offline](https://img.shields.io/badge/offline-first-yes-6B8E7F)
 ![license](https://img.shields.io/badge/license-MIT-4A6FA5)
@@ -46,6 +46,9 @@ Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查
 ### ✍️ 三态字段编辑
 每个字段区分**原始 / 已编辑 / 个人**三种状态：词典导入的原文、你修改过的内容、你原创的条目，一眼可辨；「编者模式」下可视化增删与重排。
 
+### 🔁 间隔复习 · FSRS 智能排程
+词库里的每个词自动成为一张复习卡，按 **FSRS**（基于记忆遗忘曲线的间隔重复算法）排定下次到期时间，越熟悉的词间隔越长。三种练习方式：**今日复习**（到期 + 新词额度，计分）、**薄弱词专项**（连错或近 7 天答错的词）、**自由练习**（自选分类或范围，不计分）。五种题型（认读 / 填空 / 中译英 / 英释义 / 听辨）按词条已有字段自动选取；键入题逐字母标红，评分后展示完整词条与下次到期。切换策略不丢进度，随时切回即续。参数（目标记忆保持率、新词额度、每日上限、连错阈值）可在设置中调整。
+
 ### 🏷️ 分类系统
 **8 种颜色**的分类胶囊，单词 ↔ 分类自由分配；侧边栏支持**字母 / 分类**双模式分组；设置面板内置**分类管理**。
 
@@ -85,9 +88,9 @@ Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查
 
 | 系统 | 安装包 |
 |------|--------|
-| **Windows** | `Wordsett_0.5.3_x64-setup.exe`（当前发布提供；MSI 暂未随包） |
-| **macOS** | `Wordsett_0.5.3_x64.dmg`（在 macOS 上构建） |
-| **Linux** | `Wordsett_0.5.3_x86_64.AppImage` / `.deb`（在 Linux 上构建；暂未提供） |
+| **Windows** | `Wordsett_0.6.0_x64-setup.exe`（当前发布提供；MSI 暂未随包） |
+| **macOS** | `Wordsett_0.6.0_x64.dmg`（在 macOS 上构建） |
+| **Linux** | `Wordsett_0.6.0_x86_64.AppImage` / `.deb`（在 Linux 上构建；暂未提供） |
 
 下载后**双击运行安装程序**，跟随向导即可完成安装；开始菜单会出现 **Wordsett** 图标。
 
