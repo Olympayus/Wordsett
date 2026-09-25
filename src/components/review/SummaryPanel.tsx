@@ -2,14 +2,12 @@ import { useEffect, useState } from 'react'
 import StatsMini, { type ReviewStats } from './StatsMini'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useViewStore } from '../../stores/viewStore'
-import { useWordStore } from '../../stores/wordStore'
+import { jumpToWord } from '../../lib/review/jumpToWord'
 import { getStats, getAbsent } from '../../services/reviewService'
 import type { ReviewCardDTO } from '../../services/reviewService'
 
 export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
   const { queue, answered, startedAt } = useReviewSessionStore()
-  const showWorkbench = useViewStore(s => s.showWorkbench)
-  const selectWord = useWordStore(s => s.selectWord)
   const [stats, setStats] = useState<ReviewStats | null>(null)
   const [absent, setAbsent] = useState<{ wordId: string; lemma: string }[]>([])
 
@@ -23,11 +21,6 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
   const good = answered.filter(a => a.rating === 3).length
   const seconds = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0
   const wrong = queue.filter(c => answered.some(a => a.cardId === c.cardId && a.rating === 1))
-
-  const jump = async (wordId: string) => {
-    showWorkbench()
-    await selectWord(wordId)
-  }
 
   return (
     <div className="flex flex-col gap-5 p-8" style={{ maxWidth: '720px' }}>
@@ -43,14 +36,14 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
 
       <Section title={`答错的词 (${wrong.length})`} empty="本轮没有答错的词">
         {wrong.map(c => (
-          <Row key={c.cardId} onClick={() => jump(c.wordId)}>
+          <Row key={c.cardId} onClick={() => void jumpToWord(c.wordId)}>
             {wrongLabel(c)}
           </Row>
         ))}
       </Section>
 
       <Section title={`暂无可出题内容 (${absent.length})`} empty="没有缺内容的词条">
-        {absent.map(a => <Row key={a.wordId} onClick={() => jump(a.wordId)}>{a.lemma}</Row>)}
+        {absent.map(a => <Row key={a.wordId} onClick={() => void jumpToWord(a.wordId)}>{a.lemma}</Row>)}
       </Section>
 
       <div className="flex gap-2">

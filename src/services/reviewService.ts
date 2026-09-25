@@ -411,7 +411,8 @@ export async function getOverview(params: ReviewParams) {
     // 从闸门后的队列重算：被闸门剔除的新卡不能再算进「含新词」
     newCount: queue.filter(c => c.stability === null).length,
     estimateMinutes: Math.max(1, Math.round(queue.length * 0.3)),
-    masteryBuckets: stats.masteryBuckets,
+    // 三图与近 14 天趋势都要 dueByDay / recentRatings，故整包透出而非只给 masteryBuckets
+    stats,
   }
 }
 
