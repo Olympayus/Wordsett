@@ -25,30 +25,70 @@ pub fn is_english_voice<L: AsRef<str>>(language: L) -> bool {
     l == "en" || l.starts_with("en-") || l.starts_with("en_")
 }
 
+/// 探测结果：**除了**判定「系统里有没有英文音色」，还要把这个音色选中。
+///
+/// 判据与行为必须在同一处收口。WinRT 后端在 `WinRt::new()` 时把
+/// `voice` 钉成 `SpeechSynthesizer::DefaultVoice()`（winrt.rs:138），此后的每次
+/// speak 都用这个字段（winrt.rs:182 的 `voice: self.voice.clone()`、winrt.rs:191 的
+/// `synth.SetVoice(&self.voice)`）。只判存在而不选中，探测在 zh-CN 机器上照样返回
+/// true，听辨题照样上线，却用中文嗓音念英文——正是 spec §5.2 要防的那件事。
+///
+/// 所以：find 到英文音色就 `set_voice` 选中它；`set_voice` 失败（音色在枚举与
+/// 选取之间消失、或后端不支持 voice 特性）视为探测失败，返回 false 让听辨题下线。
+/// 选中态存在单例上，speak 复用同一实例，不逐次重选。
+fn english_voice(engine: &mut Tts) -> std::result::Result<Option<tts::Voice>, String> {
+    let voices = engine.voices().map_err(|e| e.to_string())?;
+    let english = voices.into_iter().find(|v| is_english_voice(v.language()));
+    match english {
+        None => Ok(None),
+        Some(v) => {
+            engine.set_voice(&v).map_err(|e| e.to_string())?;
+            Ok(Some(v))
+        }
+    }
+}
+
 /// 系统里是否存在英文音色。**任何失败一律返回 false**，不向上抛错
 /// （保守：听辨题下线好过用中文音色读英文）。
 #[tauri::command]
 pub fn tts_english_voice_available() -> Result<bool, String> {
-    // 锁中毒 / 建引擎失败 / 枚举失败，都归为「不可用」——前端拿到的永远是
-    // 一个可信的 bool，不会因为 Err 走上另一条分支。
+    // 锁中毒 / 建引擎失败 / 枚举失败 / 选中失败，都归为「不可用」——前端拿到的永远是
+    // 一个可信的 bool，不会因为 Err 走上另一条分支。但「这台机器没有英文音色」和
+    // 「引擎根本建不起来」对用户是两回事，诊断行让它们在日志里可分（item 5）。
     let Ok(mut guard) = ENGINE.lock() else {
+        eprintln!("[tts] engine mutex poisoned; treating as no english voice");
         return Ok(false);
     };
     let engine = match guard.as_mut() {
         Some(e) => e,
         None => match Tts::default() {
             Ok(e) => guard.insert(e),
-            Err(_) => return Ok(false),
+            Err(e) => {
+                eprintln!("[tts] could not construct engine: {e}");
+                return Ok(false);
+            }
         },
     };
-    // voices() 取 &self，不可变借用即可。
-    match engine.voices() {
-        Ok(voices) => Ok(voices.iter().any(|v| is_english_voice(v.language()))),
-        Err(_) => Ok(false),
+    // voices() 取 &self，不可变借用即可；选中需要 &mut，故 english_voice 收 &mut Tts。
+    match english_voice(engine) {
+        Ok(Some(v)) => {
+            eprintln!("[tts] english voice selected: {} ({})", v.name(), v.language());
+            Ok(true)
+        }
+        Ok(None) => Ok(false),
+        Err(e) => {
+            eprintln!("[tts] could not select an english voice: {e}");
+            Ok(false)
+        }
     }
 }
 
 /// 朗读一段文本。rate 缺省 1.0（正常语速）。
+///
+/// 用的是单例上**已选中的音色**——`tts_english_voice_available` 选中英文音色后
+/// 一直留在 ENGINE 里，这里不再逐次 set_voice（逐次重选反而会让一次播放与下一次
+/// 之间出现音色漂移）。探测没跑过或没找到英文音色时，这里就是后端默认音色，
+/// 但那种机器上听辨题本就不在线。
 #[tauri::command]
 pub fn speak(text: String, rate: Option<f32>) -> Result<(), String> {
     let mut guard = ENGINE.lock().map_err(|e| e.to_string())?;

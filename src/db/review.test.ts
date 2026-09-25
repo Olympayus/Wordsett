@@ -547,4 +547,45 @@ describe('db/review 听辨门控与薄弱词计数', () => {
       { leechThreshold: 4, recentWindowMs: 7 * 86_400_000, now: NOW }, db)
     expect(r.ok && r.data).toEqual([])
   })
+
+  // spec §8.1-3：两条查询是同一宽口径的两份实现（lapses ≥ 阈值 ∪ 窗口内 rating = 1，不按 mode 过滤），
+  // 没有任何东西把它们绑在一起——一边改了口径，另一边照旧返回，页面上的「薄弱词 K」与列表就会
+  // 悄悄对不上。这条测试把两份实现的 id 集合钉在一起。
+  it('getWeakWordsWithCounts 与 getWeakCardIds 同一库上返回同一集合', async () => {
+    const db = await createTestDb()
+    for (const [i, lemma] of ['leech', 'recent', 'practiceOnly', 'clean', 'stale'].entries()) {
+      await seedWord(db, `w${i + 1}`, lemma)
+    }
+    await registerAllWords(db)
+    const cardOf = async (wordId: string) =>
+      (await db.select<{ id: string }>('SELECT id FROM review_cards WHERE word_id = ?1', [wordId]))[0].id
+    // 五个词覆盖判据的两支与两个反例：w1 只靠 lapses 达标、w2 只靠 review 日志、w3 只靠
+    // practice 日志（两边都不按 mode 过滤）、w4 干净、w5 窗口外答错。
+    const c1 = await cardOf('w1')
+    const c2 = await cardOf('w2')
+    const c3 = await cardOf('w3')
+    await db.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended)
+       VALUES (?1, 5, 5, 0, 4, 6, 0)`, [c1])
+    await db.execute("INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES ('l1',?1,?2,1,'recall','review')", [c2, NOW - 2 * 86_400_000])
+    await db.execute("INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES ('l2',?1,?2,1,'cloze','practice')", [c3, NOW - 3 * 86_400_000])
+    await db.execute("INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES ('l3',?1,?2,1,'recall','review')", [await cardOf('w5'), NOW - 30 * 86_400_000])
+
+    const opts = { leechThreshold: 4, recentWindowMs: 7 * 86_400_000, now: NOW }
+    const ids = await getWeakCardIds(opts, db)
+    const rows = await getWeakWordsWithCounts(opts, db)
+    expect(ids.ok).toBe(true)
+    expect(rows.ok).toBe(true)
+    if (!ids.ok || !rows.ok) return
+    // 同一库同一口径：两边必须命中同一批词（w1 lapses 达标 / w2 窗口内 review 答错 /
+    // w3 只有 practice 答错——两边都不按 mode 过滤；w4 干净、w5 窗口外，两边都不该命中）。
+    expect(rows.data.map(w => w.wordId).sort()).toEqual(['w1', 'w2', 'w3'])
+    // getWeakCardIds 给的是 card_id，映射回 word_id 后与列表逐词相同
+    const words = new Set(
+      (await db.select<{ word_id: string }>(
+        `SELECT word_id FROM review_cards WHERE id IN (${ids.data.map(() => '?').join(',')})`, ids.data,
+      )).map(r => r.word_id),
+    )
+    expect([...words].sort()).toEqual([...new Set(rows.data.map(w => w.wordId))].sort())
+  })
 })

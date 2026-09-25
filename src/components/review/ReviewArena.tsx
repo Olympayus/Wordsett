@@ -30,6 +30,9 @@ export default function ReviewArena() {
   const past = answeredNow && phase === 'answering'
   // 刚评完待推进：三键已隐、等「下一题」
   const rated = phase === 'rated'
+  // 停在队尾：导航条右箭头在此恒为灰（canGoForward：index+1 >= queue.length），故回看态的最后一题
+  // 需要自己的小结入口。箭头本身不动——nav.test.ts 钉住了「不能越过最后一张」。
+  const atTail = index === queue.length - 1
 
   // 初值随 store：模块切走再切回时本组件会重挂，若这张卡已评分就直接停在结果态，不让它被再评一次
   const [revealed, setRevealed] = useState(() => currentAnswered(
@@ -176,19 +179,38 @@ export default function ReviewArena() {
         onSubmit={handleSubmit}
       />
 
+      {rateError && (
+        // 错误行放在 revealed 块**之外**、题面之下。「跳过」按钮在揭示前就能按（spec §2.4），
+        // 而 setRevealed(true) 只在评分成功后跑：跳过落库失败时 revealed 仍为假、整块结果区
+        // 不渲染，错误若只挂在块内就成「点了没反应」（题面不变、跳过还在、无提示）。
+        // 评分成功时 setRateError(null) 已把它清掉，故成功后的「跳过」不会留残影。
+        <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: '#c0705a' }}>{rateError}</span>
+      )}
+
       {revealed && (
         <>
           <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} nextDueAt={nextDueAt} />
           {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
           {!answeredNow && <RatingBar onRate={r => void handleRate(r, lastInput)} disabled={rating} />}
-          {rateError && (
-            <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: '#c0705a' }}>{rateError}</span>
-          )}
           {past ? (
-            // 回看态：只读回放，不给推进入口——向前靠导航条右箭头（spec §4.2）
-            <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-              本题评分：{RATING_LABELS[pastEntry?.rating ?? 0] ?? '—'}
-            </span>
+            // 回看态：只读回放。一般位置向前靠导航条右箭头；但整轮已答完又翻回最后一题时
+            // canGoForward 在队尾恒为 false（nav.test.ts 钉住「箭头不越界」），右箭头被灰掉，
+            // 而「结束回合」按设计不出小结——那轮小结就彻底不可达了。补一颗尾部专属的
+            // 「查看小结」：它调的正是 advance()，在队尾会把 phase 置成 'summary'。
+            // 按钮与「下一题」同形同位（下一题本就是这一态的正常控件），两态互斥。
+            atTail ? (
+              <button
+                type="button"
+                onClick={() => advance()}
+                style={{ alignSelf: 'flex-start', padding: '8px 20px', borderRadius: 'var(--radius-lg)', border: 'none', background: 'var(--color-brand)', color: '#fff', cursor: 'pointer', fontSize: '13px' }}
+              >
+                查看小结
+              </button>
+            ) : (
+              <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+                本题评分：{RATING_LABELS[pastEntry?.rating ?? 0] ?? '—'}
+              </span>
+            )
           ) : rated ? (
             <button
               type="button"
