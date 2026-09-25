@@ -63,7 +63,9 @@ export default function ReviewArena() {
     setRevealed(true)
   }
 
-  const handleRate = async (r: number) => {
+  // input 缺省即用户实际提交的作答原文（选择题＝选中项，键入题＝键入内容）；
+  // 「直接跳过」显式传 ''——那条路径刻意丢弃被放弃的作答，回看时不得把它当作用户的答案重放（spec §4.1）。
+  const handleRate = async (r: number, input: string = lastInput) => {
     // 同步置位、且成功 advance 前不解锁：键盘监听闭包里的 rating state 有滞后，连按两下
     // 会重复提交；「advance 之后、换卡 effect 之前」落下的按键会用旧卡 dto 重复评分。
     // rated 兜住另一条路：模块切走再切回时 phase 仍是 'rated'，这张卡不能再评一次。
@@ -90,8 +92,7 @@ export default function ReviewArena() {
     setNextDueAt(res.dueAt)
     // 落库成功后再记账（answerCurrent 同时把 phase 置为 'rated'，结果区块留在屏上），
     // 推进交给「下一题」按钮 / 再按一次评分键（spec §2.3）。
-    // lastInput 即作答原文：揭示型与「直接跳过」未经提交，它就是 ''（spec §4.1）。
-    answerCurrent(r, lastInput)
+    answerCurrent(r, input)
   }
 
   // 揭示后：未评分 → 1 / 2 / 3 评分；已评分 → 同样的键推进下一题（不重复评分）。
@@ -142,7 +143,7 @@ export default function ReviewArena() {
           ) : (
             <button
               type="button"
-              onClick={() => handleRate(1)}
+              onClick={() => handleRate(1, '')}
               style={{ alignSelf: 'flex-start', fontSize: '12px', background: 'none', border: 'none', color: 'var(--color-text-secondary)', cursor: 'pointer' }}
             >
               直接跳过（记为忘了）
