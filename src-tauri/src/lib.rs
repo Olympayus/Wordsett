@@ -1,4 +1,7 @@
+mod tts_player;
+
 use tauri::Manager;
+use tts_player::{speak, tts_english_voice_available};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -8,7 +11,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir, fsrs_next])
+        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir, fsrs_next, speak, tts_english_voice_available])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
