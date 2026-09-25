@@ -14,6 +14,7 @@ import {
   insertPracticeLog,
   setLastTemplate,
   getWeakCardIds,
+  getWeakWordsWithCounts,
   getStrategyCounts,
   getStats,
   getAbsentWords,
@@ -472,5 +473,78 @@ describe('db/review 写路径与聚合', () => {
     await seedValue(db, 'fv1', 'w1', 'chinese_definition', '满')
     const r = await getAbsentWords(db)
     expect(r.ok && r.data).toEqual([{ wordId: 'w2', lemma: 'empty' }])
+  })
+})
+
+describe('db/review 听辨门控与薄弱词计数', () => {
+  it('getCandidates：缺省门控下音标齐全的词也不出听辨', async () => {
+    const db = await createTestDb()
+    await seedWord(db, 'w1', 'alpha')
+    await seedValue(db, 'v1', 'w1', 'chinese_definition', '第一个')
+    await seedValue(db, 'v2', 'w1', 'phonetic', 'ˈælfə')
+    await registerAllWords(db)
+    const r = await getCandidates(NOW, db)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const c = r.data.find(x => x.wordId === 'w1')
+    expect(c?.availableTemplates).not.toContain('listen')
+  })
+
+  it('getCandidates：allowListen=true 时音标齐全的词出听辨', async () => {
+    const db = await createTestDb()
+    await seedWord(db, 'w1', 'alpha')
+    await seedValue(db, 'v1', 'w1', 'chinese_definition', '第一个')
+    await seedValue(db, 'v2', 'w1', 'phonetic', 'ˈælfə')
+    await registerAllWords(db)
+    const r = await getCandidates(NOW, db, { allowListen: true })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    const c = r.data.find(x => x.wordId === 'w1')
+    expect(c?.availableTemplates).toContain('listen')
+  })
+
+  it('getWeakWordsWithCounts：返回 lapses 与窗口内答错次数，顺序按 lapses 降序', async () => {
+    const db = await createTestDb()
+    await seedWord(db, 'w1', 'alpha')
+    await seedWord(db, 'w2', 'beta')
+    await seedWord(db, 'w3', 'gamma')
+    await seedValue(db, 'v1', 'w1', 'chinese_definition', '第一个\n第二行不该被带出')
+    await seedValue(db, 'v2', 'w2', 'chinese_definition', '第二个')
+    await seedValue(db, 'v3', 'w3', 'chinese_definition', '第三个')
+    await registerAllWords(db)
+
+    // w1：连错 5 次；w2：无 lapses，但窗口内有 2 次 rating = 1；w3：干净
+    await db.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended)
+       SELECT id, 5, 5, ?1, 5, 5, 0 FROM review_cards WHERE word_id = 'w1'`, [NOW])
+    const w2card = await db.select<{ id: string }>("SELECT id FROM review_cards WHERE word_id = 'w2'")
+    for (const t of [NOW - 1000, NOW - 2000]) {
+      await db.execute(
+        "INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES (?1,?2,?3,1,'recognize','practice')",
+        [crypto.randomUUID(), w2card[0].id, t])
+    }
+
+    const r = await getWeakWordsWithCounts(
+      { leechThreshold: 4, recentWindowMs: 7 * 86_400_000, now: NOW }, db)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.data.map(x => x.wordId)).toEqual(['w1', 'w2'])
+    expect(r.data[0]).toMatchObject({ lemma: 'alpha', lapses: 5, recentMisses: 0 })
+    expect(r.data[1]).toMatchObject({ lemma: 'beta', lapses: 0, recentMisses: 2 })
+  })
+
+  it('getWeakWordsWithCounts：窗口外的错题不计入', async () => {
+    const db = await createTestDb()
+    await seedWord(db, 'w1', 'alpha')
+    await seedValue(db, 'v1', 'w1', 'chinese_definition', '第一个')
+    await registerAllWords(db)
+    const card = await db.select<{ id: string }>("SELECT id FROM review_cards WHERE word_id = 'w1'")
+    await db.execute(
+      "INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES (?1,?2,?3,1,'recognize','review')",
+      [crypto.randomUUID(), card[0].id, NOW - 8 * 86_400_000])
+
+    const r = await getWeakWordsWithCounts(
+      { leechThreshold: 4, recentWindowMs: 7 * 86_400_000, now: NOW }, db)
+    expect(r.ok && r.data).toEqual([])
   })
 })

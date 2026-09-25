@@ -58,8 +58,17 @@ export async function getAvailabilityMask(
   }
 }
 
+/** 运行时门控：依赖本机能力的题型。缺省全关（保守），由 service 层从 ttsGate 读出后传入。 */
+export interface CandidateOpts {
+  allowListen?: boolean
+}
+
 /** 行 → QueueCandidate（stability 空 = 新卡未首评；dueAt 空 = 新卡无意义取 0）。 */
-function mapCandidate(r: Record<string, any>, mask: Record<string, FieldMask>): QueueCandidate {
+function mapCandidate(
+  r: Record<string, any>,
+  mask: Record<string, FieldMask>,
+  opts: CandidateOpts,
+): QueueCandidate {
   const m = mask[r.word_id] ?? { translation: false, definition: false, example: false, phonetic: false }
   const fam = Number(r.initial_familiarity)
   return {
@@ -69,12 +78,16 @@ function mapCandidate(r: Record<string, any>, mask: Record<string, FieldMask>): 
     dueAt: r.due_at === null || r.due_at === undefined ? 0 : Number(r.due_at),
     lastReviewAt: r.last_review_at === null || r.last_review_at === undefined ? null : Number(r.last_review_at),
     initialFamiliarity: (fam === 2 || fam === 3 ? fam : 1) as InitialFamiliarity,
-    availableTemplates: usableTemplates(m),
+    availableTemplates: usableTemplates(m, { allowListen: opts.allowListen === true }),
   }
 }
 
 /** 候选池：到期卡 + 未首评新卡，带字段掩码与可用模板。suspended 卡排除在外。 */
-export async function getCandidates(now: number, h?: DbHandle): Promise<DbResult<QueueCandidate[]>> {
+export async function getCandidates(
+  now: number,
+  h?: DbHandle,
+  opts: CandidateOpts = {},
+): Promise<DbResult<QueueCandidate[]>> {
   const d = db(h)
   try {
     const rows = await d.select<Record<string, any>>(
@@ -88,14 +101,14 @@ export async function getCandidates(now: number, h?: DbHandle): Promise<DbResult
     )
     const mask = await getAvailabilityMask(rows.map(r => r.word_id), d)
     if (!mask.ok) return mask
-    return { ok: true, data: rows.map(r => mapCandidate(r, mask.data)) }
+    return { ok: true, data: rows.map(r => mapCandidate(r, mask.data, opts)) }
   } catch (e: any) {
     return { ok: false, error: e.toString() }
   }
 }
 
 /** 自由练习用：全部未挂起卡（含未到期的熟词），dueAt 原样带出。 */
-export async function getAllCandidates(h?: DbHandle): Promise<DbResult<QueueCandidate[]>> {
+export async function getAllCandidates(h?: DbHandle, opts: CandidateOpts = {}): Promise<DbResult<QueueCandidate[]>> {
   const d = db(h)
   try {
     const rows = await d.select<Record<string, any>>(
@@ -108,7 +121,7 @@ export async function getAllCandidates(h?: DbHandle): Promise<DbResult<QueueCand
     )
     const mask = await getAvailabilityMask(rows.map(r => r.word_id), d)
     if (!mask.ok) return mask
-    return { ok: true, data: rows.map(r => mapCandidate(r, mask.data)) }
+    return { ok: true, data: rows.map(r => mapCandidate(r, mask.data, opts)) }
   } catch (e: any) {
     return { ok: false, error: e.toString() }
   }
@@ -348,9 +361,69 @@ export async function getWeakCardIds(
   }
 }
 
+export interface WeakWordRow {
+  wordId: string
+  lemma: string
+  /** 中文释义原文（可能含多行）；展示取首段由 UI 负责 */
+  translation: string
+  lapses: number
+  recentMisses: number
+}
+
+/**
+ * 薄弱词专项页的列表数据（spec §3.4）。判定与 getWeakCardIds 同一宽口径：
+ * lapses ≥ 阈值 ∪ 窗口内存在 rating = 1 的日志（**不按 mode 过滤**——练习里的答错/跳过
+ * 同样是有价值的信号，v0.6 spec §3.8）。
+ *
+ * 排序：lapses 降序 → 窗口内答错次数降序 → lemma 升序。列表最上面的是最该补内容的词。
+ */
+export async function getWeakWordsWithCounts(
+  opts: { leechThreshold: number; recentWindowMs: number; now: number },
+  h?: DbHandle,
+): Promise<DbResult<WeakWordRow[]>> {
+  const d = db(h)
+  try {
+    const since = opts.now - opts.recentWindowMs
+    // 释义取值与 getAvailabilityMask 同源：都按 FIELD_KEY_GROUPS.translation 的 key 集匹配，
+    // 不硬编码字段 key，将来同义 key 增补时两处一起生效。
+    const zhKeys = FIELD_KEY_GROUPS.translation.map(k => `'${k}'`).join(',')
+    const missCount = `(SELECT count(*) FROM review_logs l
+                         WHERE l.card_id = c.id AND l.rating = 1 AND l.reviewed_at >= ?2)`
+    const rows = await d.select<Record<string, any>>(
+      `SELECT c.word_id AS wordId,
+              w.lemma AS lemma,
+              COALESCE((SELECT fv.value FROM field_values fv
+                          JOIN field_definitions fd ON fd.id = fv.field_id
+                         WHERE fv.word_id = c.word_id AND fd.key IN (${zhKeys})
+                         ORDER BY fv.display_order LIMIT 1), '') AS translation,
+              COALESCE(s.lapses, 0) AS lapses,
+              ${missCount} AS recentMisses
+         FROM review_cards c
+         JOIN words w ON w.id = c.word_id
+         LEFT JOIN review_states s ON s.card_id = c.id
+        WHERE (s.lapses IS NOT NULL AND s.lapses >= ?1)
+           OR ${missCount} > 0
+        ORDER BY lapses DESC, recentMisses DESC, w.lemma ASC`,
+      [opts.leechThreshold, since],
+    )
+    return {
+      ok: true,
+      data: rows.map(r => ({
+        wordId: String(r.wordId),
+        lemma: String(r.lemma),
+        translation: String(r.translation ?? ''),
+        lapses: Number(r.lapses),
+        recentMisses: Number(r.recentMisses),
+      })),
+    }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
 /** 左栏计数：today = 到期且可出题的词数；weak = lapses ≥ 阈值 ∪ 窗口内 rating = 1。 */
 export async function getStrategyCounts(
-  opts: { leechThreshold: number; recentWindowMs: number; now: number },
+  opts: { leechThreshold: number; recentWindowMs: number; now: number; allowListen?: boolean },
   h?: DbHandle,
 ): Promise<DbResult<{ today: number; weak: number }>> {
   const d = db(h)
@@ -361,7 +434,10 @@ export async function getStrategyCounts(
        WHERE s.suspended = 0 AND s.due_at <= ?1`, [opts.now])
     const mask = await getAvailabilityMask(dueRows.map(r => r.word_id), d)
     if (!mask.ok) return mask
-    const today = dueRows.filter(r => (mask.data[r.word_id] ? usableTemplates(mask.data[r.word_id]).length > 0 : false)).length
+    const today = dueRows.filter(r => {
+      const m = mask.data[r.word_id]
+      return m ? usableTemplates(m, { allowListen: opts.allowListen === true }).length > 0 : false
+    }).length
 
     const weak = await getWeakCardIds(opts, d)
     if (!weak.ok) return weak
@@ -418,7 +494,7 @@ export async function getStats(now: number = Date.now(), h?: DbHandle): Promise<
 }
 
 /** 缺内容词条：已注册卡但当前无任何可用模板。 */
-export async function getAbsentWords(h?: DbHandle): Promise<DbResult<{ wordId: string; lemma: string }[]>> {
+export async function getAbsentWords(h?: DbHandle, opts: CandidateOpts = {}): Promise<DbResult<{ wordId: string; lemma: string }[]>> {
   const d = db(h)
   try {
     const rows = await d.select<Record<string, any>>(
@@ -426,7 +502,13 @@ export async function getAbsentWords(h?: DbHandle): Promise<DbResult<{ wordId: s
     const mask = await getAvailabilityMask(rows.map(r => r.word_id), d)
     if (!mask.ok) return mask
     const out = rows
-      .filter(r => usableTemplates(mask.data[r.word_id] ?? { translation: false, definition: false, example: false, phonetic: false }).length === 0)
+      .filter(r => {
+        const granted = usableTemplates(
+          mask.data[r.word_id] ?? { translation: false, definition: false, example: false, phonetic: false },
+          { allowListen: opts.allowListen === true },
+        ).length === 0
+        return granted
+      })
       .map(r => ({ wordId: r.word_id, lemma: r.lemma }))
     return { ok: true, data: out }
   } catch (e: any) {
