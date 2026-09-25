@@ -53,13 +53,13 @@ export default function ReviewSettings() {
         onChange={v => setReview('queueLimit', v)}
       />
 
-      {/* 开关行与上面四行的控件右边缘对齐：左列同样是「标签 + 说明」两行结构 */}
+      {/* 开关行只有单行标签，控件右端与上面四行数字框的右边缘对齐（flex-end，不是居中） */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: '13px' }}>键入题逐字母标红</div>
         </div>
-        <div style={{ width: 90, display: 'flex', justifyContent: 'center' }}>
-          <Toggle checked={review.letterHighlight} onChange={v => setReview('letterHighlight', v)} />
+        <div style={{ width: 90, display: 'flex', justifyContent: 'flex-end' }}>
+          <Toggle aria-label="键入题逐字母标红" checked={review.letterHighlight} onChange={v => setReview('letterHighlight', v)} />
         </div>
       </div>
     </div>
