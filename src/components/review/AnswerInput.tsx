@@ -27,7 +27,10 @@ export default function AnswerInput({
   letterHighlight: boolean
   disabled: boolean
   onSubmit: (input: string) => void
-  /** 回看态：该卡已提交的作答原文；有值时按判分结果着色，且不再响应点击 */
+  /**
+   * 回看态：该卡已提交的作答原文。`!== undefined`（含 `''`）时切到已判分形态并按结果着色；
+   * 组件本身不因此停止响应点击——是否可点由调用方的 `disabled` 决定。
+   */
   revealedInput?: string
 }) {
   const [value, setValue] = useState('')

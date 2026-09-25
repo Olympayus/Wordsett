@@ -39,6 +39,8 @@ interface ReviewSessionStore {
   startSession: (queue: ReviewCardDTO[]) => void
   answerCurrent: (rating: number, input: string) => void
   advance: () => void
+  /** 导航条跳题：只改题号并把 phase 拨回 'answering'（不重排 answered，只读导航不记账）。 */
+  setIndex: (i: number) => void
   reset: () => void
 }
 
@@ -68,6 +70,13 @@ export const useReviewSessionStore = create<ReviewSessionStore>((set, get) => ({
     const next = index + 1
     if (next >= queue.length) set({ phase: 'summary' })
     else set({ index: next, phase: 'answering' })
+  },
+  // 跳题与 advance 同一动作面：越界不搬，越界之外把 phase 拨回 'answering'，
+  // 让回看态（已答 + answering）与待推进态（已答 + rated）都落回各自判据
+  setIndex: (i) => {
+    const { queue } = get()
+    if (i < 0 || i >= queue.length) return
+    set({ index: i, phase: 'answering' })
   },
   reset: () => set({ phase: 'overview', sessionStrategy: null, queue: [], index: 0, answered: [], startedAt: null }),
 }))
