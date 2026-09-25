@@ -1,4 +1,6 @@
 import * as reviewDb from '../db/review'
+import type { WeakWordRow } from '../db/review'
+import { isListenEnabled } from '../lib/review/ttsGate'
 import { buildQueue, type QueueCandidate, type QueueResult } from '../lib/review/queue'
 import { pickTemplate, templateAccuracy, type TemplateLog } from '../lib/review/template'
 import { mastery, retrievability, elapsedDaysSince, NEW_CARD_RNOW, masteryTier } from '../lib/review/mastery'
@@ -170,13 +172,24 @@ export async function getStrategyCounts(params: ReviewParams) {
     leechThreshold: params.leechThreshold,
     recentWindowMs: 7 * 86_400_000,
     now: Date.now(),
+    allowListen: isListenEnabled(),
   })
   if (!r.ok) return { today: 0, weak: 0 }
   return { today: r.data.today, weak: r.data.weak }
 }
 
 export async function getAbsent() {
-  const r = await reviewDb.getAbsentWords()
+  const r = await reviewDb.getAbsentWords(undefined, { allowListen: isListenEnabled() })
+  return r.ok ? r.data : []
+}
+
+/** 薄弱词专项页的列表（spec §3.4）。失败返回空数组，页面走空态。 */
+export async function getWeakWords(params: ReviewParams): Promise<WeakWordRow[]> {
+  const r = await reviewDb.getWeakWordsWithCounts({
+    leechThreshold: params.leechThreshold,
+    recentWindowMs: 7 * 86_400_000,
+    now: Date.now(),
+  })
   return r.ok ? r.data : []
 }
 
@@ -193,9 +206,11 @@ export async function getQueue(
   // 自由练习要够到未到期的熟词，因此走不看 due_at 的候选池；
   // 唯一例外是「今日队列重练」——它按定义就是今日到期队列，沿用只看 due_at 的源。
   const freeToday = strategy === 'free' && freeScope?.kind === 'today'
+  // 门控只在 service 层读一次，往下传普通参数——db 层不 import ttsGate，保持可测
+  const allowListen = isListenEnabled()
   const candRes = strategy === 'free' && !freeToday
-    ? await reviewDb.getAllCandidates()
-    : await reviewDb.getCandidates(now)
+    ? await reviewDb.getAllCandidates(undefined, { allowListen })
+    : await reviewDb.getCandidates(now, undefined, { allowListen })
   if (!candRes.ok) return { queue: [], absent: [], result: EMPTY }
 
   let candidates = candRes.data
@@ -387,7 +402,7 @@ async function deliverable(candidates: QueueCandidate[]): Promise<QueueCandidate
 export async function getOverview(params: ReviewParams) {
   await reviewDb.registerAllWords()
   const now = Date.now()
-  const candRes = await reviewDb.getCandidates(now)
+  const candRes = await reviewDb.getCandidates(now, undefined, { allowListen: isListenEnabled() })
   const candidates = candRes.ok ? candRes.data : []
   const result = buildQueue(candidates, { now, newCardQuota: params.newCardQuota, queueLimit: params.queueLimit })
   const queue = await deliverable(result.queue)

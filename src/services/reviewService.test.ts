@@ -5,6 +5,7 @@ import type { QueueCandidate } from '../lib/review/queue'
 const {
   invokeMock, getStateMock, applyReviewMock, insertPracticeLogMock,
   registerAllWordsMock, getCandidatesMock, getWordContentMock, getStatsMock,
+  getWeakWordsWithCountsMock,
 } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   getStateMock: vi.fn(),
@@ -14,6 +15,7 @@ const {
   getCandidatesMock: vi.fn(),
   getWordContentMock: vi.fn(),
   getStatsMock: vi.fn(),
+  getWeakWordsWithCountsMock: vi.fn(),
 }))
 
 // rateCard 只碰这三个 db 入口，直接打桩；fsrs_next 走 Tauri invoke，单独打桩。
@@ -26,10 +28,11 @@ vi.mock('../db/review', () => ({
   getCandidates: getCandidatesMock,
   getWordContent: getWordContentMock,
   getStats: getStatsMock,
+  getWeakWordsWithCounts: getWeakWordsWithCountsMock,
 }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }))
 
-const { rateCard, getOverview, REVIEW_DEFAULTS } = await import('./reviewService')
+const { rateCard, getOverview, REVIEW_DEFAULTS, getWeakWords } = await import('./reviewService')
 
 const scoringInput = {
   cardId: 'c1', rating: 3, template: 'cloze' as const, mode: 'review' as const,
@@ -210,5 +213,24 @@ describe('reviewService.getOverview 用组卷同一道认读闸门', () => {
     const o = await getOverview(REVIEW_DEFAULTS)
     expect(o.total).toBe(1)
     expect(o.newCount).toBe(0)
+  })
+})
+
+describe('reviewService 薄弱词列表', () => {
+  beforeEach(() => {
+    getWeakWordsWithCountsMock.mockReset()
+  })
+
+  it('无薄弱词时返回空数组，不抛异常', async () => {
+    getWeakWordsWithCountsMock.mockResolvedValue({ ok: true, data: [] })
+    const r = await getWeakWords(REVIEW_DEFAULTS)
+    expect(Array.isArray(r)).toBe(true)
+    expect(r).toEqual([])
+  })
+
+  it('db 层查询失败：吞掉 ok:false 返回空数组，不抛异常', async () => {
+    getWeakWordsWithCountsMock.mockResolvedValue({ ok: false, error: 'SQLITE_BUSY' })
+    const r = await getWeakWords(REVIEW_DEFAULTS)
+    expect(r).toEqual([])
   })
 })
