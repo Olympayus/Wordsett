@@ -49,16 +49,8 @@ pub fn tts_english_voice_available() -> Result<bool, String> {
 }
 
 /// 朗读一段文本。rate 缺省 1.0（正常语速）。
-///
-/// 返回 `Result<bool, String>` 而非 brief 写的 `Result<(), String>`：unit 响应在
-/// tauri 2.11.5 下过不了编译——`#[tauri::command]` 展开成 `kind.block(result, ..)`，
-/// 要求 `T: IpcResponse`，而 `()` 的 `IpcResponse` 只能经 `Result<!, E>` 的
-/// never-type fallback 成立，rustc 判其为 `dependency_on_unit_never_type_fallback`
-/// （deny-by-default）并报错。bool 是 `IpcResponse` 的原生实现，前端调用方本就
-/// 丢弃返回值（PromptCard.tsx:55 只 `await`，不取结果），语义无差。
-/// 成功恒为 `true`；失败时 Err 的内容是给日志看的，不进前端判断。
 #[tauri::command]
-pub fn speak(text: String, rate: Option<f32>) -> Result<bool, String> {
+pub fn speak(text: String, rate: Option<f32>) -> Result<(), String> {
     let mut guard = ENGINE.lock().map_err(|e| e.to_string())?;
     let engine = match guard.as_mut() {
         Some(e) => e,
@@ -78,10 +70,7 @@ pub fn speak(text: String, rate: Option<f32>) -> Result<bool, String> {
     // （winrt.rs:213-233），故随后 interrupt=false 入队即从头播。
     let _ = engine.stop();
     // 丢弃 UtteranceId：前端不关心单次播报的句柄，只要「已受理」。
-    engine
-        .speak(text, false)
-        .map(|_| true)
-        .map_err(|e| e.to_string())
+    engine.speak(text, false).map(|_| ()).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
