@@ -4,11 +4,11 @@ import OverviewPanel from './OverviewPanel'
 import FreeScopePanel from './FreeScopePanel'
 import ReviewArena from './ReviewArena'
 import SummaryPanel from './SummaryPanel'
-import MasteryBar from './MasteryBar'
+import ReviewConsole from './ReviewConsole'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useCategoryStore } from '../../stores/categoryStore'
-import { getOverview, getQueue, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
+import { getStrategyCounts, getOverview, getQueue, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import type { ReviewStrategy } from '../../lib/review/types'
 
 export default function ReviewModule() {
@@ -17,6 +17,7 @@ export default function ReviewModule() {
   const categories = useCategoryStore(s => s.categories)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
 
+  const [counts, setCounts] = useState({ today: 0, weak: 0 })
   const [overview, setOverview] = useState<Awaited<ReturnType<typeof getOverview>> | null>(null)
   // 组卷为空时的就地提示：先前是静默 return，用户按了按钮却什么都没发生
   const [emptyNotice, setEmptyNotice] = useState<string | null>(null)
@@ -36,6 +37,10 @@ export default function ReviewModule() {
     sessionLive && key === sessionStrategy && queue.length > 0
       ? { index, total: queue.length, template: queue[index]?.template ?? '' }
       : null
+  // 控制台挂「会话所属策略」的进度：切到别的策略看时，原会话的进度仍在控制台里显示
+  const consoleSession = sessionLive && queue.length > 0
+    ? { index, total: queue.length, remaining: Math.max(0, queue.length - index - 1), template: queue[index]?.template ?? '' }
+    : null
 
   // alive 防卸载后写 state；reqId 保证只有最新一次请求的结果生效（慢的旧请求不得覆盖新数据）。
   // 失败时把 overview 落到确定的空值，概览区显示空库引导而非一直空转。
@@ -45,11 +50,13 @@ export default function ReviewModule() {
     setEmptyNotice(null)
     const run = async () => {
       try {
-        const o = await getOverview(params)
+        const [c, o] = await Promise.all([getStrategyCounts(params), getOverview(params)])
         if (!alive || id !== reqIdRef.current) return
+        setCounts(c)
         setOverview(o)
       } catch {
         if (!alive || id !== reqIdRef.current) return
+        setCounts({ today: 0, weak: 0 })
         setOverview({ total: 0, newCount: 0, estimateMinutes: 0, masteryBuckets: [0, 0, 0, 0, 0] })
       }
     }
@@ -58,10 +65,10 @@ export default function ReviewModule() {
   }, [params.retention, params.leechThreshold, params.newCardQuota, params.queueLimit, showOverview])
 
   const strategies: StrategyMeta[] = [
-    // 计数来源＝组卷结果长度（spec §2.2）：与右栏概览卡同一数字。左栏若用 getStrategyCounts 的
-    // due 计数，会与旁边的概览卡相差一个新词额度（新库上左栏 0、右栏 30）——同屏同名的两个数必须一致。
-    { key: 'today', label: '今日复习', count: null, hint: '', progress: progressFor('today') },
-    { key: 'free', label: '自由练习', count: null, hint: '', progress: progressFor('free') },
+    // 计数来源＝组卷结果长度（spec §2.2）：与右栏概览卡同一数字，已在顶部小控制台里呈现。
+    // 策略条上不再挂数字（v0.6.1 §2.5）——同屏同名的两个数不必出现两次。
+    { key: 'today', label: '今日复习', progress: progressFor('today') },
+    { key: 'free', label: '自由练习', progress: progressFor('free') },
   ]
 
   const NO_CARDS = '本轮没有可出的题。可能词条缺少出题所需的内容（释义 / 例句 / 音标），先到工作台补全。'
@@ -86,7 +93,7 @@ export default function ReviewModule() {
         strategies={strategies}
         active={strategy}
         onSelect={(s: ReviewStrategy) => setStrategy(s)}
-        footer={<MasteryBar buckets={overview?.masteryBuckets ?? []} />}
+        header={<ReviewConsole overview={overview} weakCount={counts.weak} session={consoleSession} />}
       />
       {/* 右栏用 surface（白）铺底，左栏留在 canvas 上——与设置页、工作台同一套「nav 米色 / 内容白」分栏 */}
       <main className="flex-1 overflow-auto" style={{ background: 'var(--color-surface)' }}>
