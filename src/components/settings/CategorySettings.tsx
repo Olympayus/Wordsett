@@ -74,7 +74,7 @@ export default function CategorySettings() {
           SquareButton 自身不是 flex 行，图标与文字直接并列会贴在一起，故 children 包一层
           inline-flex + gap（同 WorkbenchNavBar 的「合并添加」按钮写法）。 */}
       <div style={{ marginBottom: '16px' }}>
-        <SquareButton onClick={() => openEditor(null, null)}>
+        <SquareButton tone="surface" onClick={() => openEditor(null, null)}>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
             <Icon name="plus" size={16} />
             新建分类

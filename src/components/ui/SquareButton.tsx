@@ -16,21 +16,33 @@ import type { CSSProperties, ReactNode } from 'react'
 const BUTTON_RADIUS = 6
 const BUTTON_TRANSITION = 'transform 150ms cubic-bezier(.25,.1,.25,1), background-color 150ms cubic-bezier(.25,.1,.25,1)'
 
-// ── 配色（四值，全部由既有色板派生，不新增 token）─────────────────────────────
-// 静止两态：默认＝暖中性阶梯里比画布明显深的一阶；生效＝品牌蓝的浅一阶。
-// hover 一律「同色相再提亮一档」：默认态由 border 提到 sunken，生效态由 78% 品牌提到 72%。
-// 阶梯参考（L*）：#FFFFFF 100 → 画布 #F6F4EF 96.2 → #EFECE5 93.4 → #E8E4DE 90.7
-//   → #D9D4CE 85.4。色板本身的节奏约 3 L*，故 hover 的阶差取 2 L* 以上才读得出来
-//   （旧值 88%+white 只有 0.7 L*，肉眼几乎无变化）。
+// ── 配色（v0.6.2 条目 1：按按钮的**直接父级背景**分两套）────────────────────────
+// 画布套＝v0.6.1 的现状值；白底套整体浅一阶——同样的按钮压在纯白上会显得更重，
+// 与画布的对比也过强。两套都不用新 token，全部由既有色板派生。
 //
-// 生效态之所以取「浅一阶」而不是原来的 --color-brand 实底：按钮的字色是基础字色
+// 阶梯参考（L*）：#FFFFFF 100 → 画布 #F6F4EF 96.2 → 白底套 rest #E8E4DE 90.7
+//   → 白底套 hover #EFECE5 93.4；画布套 rest #E2DED7 88.6 → hover #E8E4DE 90.7。
+// 两套的 hover 阶差都在 2 L* 以上（v0.6.1 定下的可读门槛）。
+const NEUTRAL_REST_CANVAS = 'color-mix(in srgb, var(--color-border-strong) 60%, var(--color-surface-sunken))'  // #E2DED7
+const NEUTRAL_HOVER_CANVAS = 'var(--color-border)'                                                             // #E8E4DE
+const NEUTRAL_REST_SURFACE = 'var(--color-border)'                                                             // #E8E4DE
+const NEUTRAL_HOVER_SURFACE = 'var(--color-surface-sunken)'                                                     // #EFECE5
+
+// 生效态（编者模式类的形态开关）：品牌蓝的浅一阶，两套共用——形态开关的语义由
+// role/aria-checked 承载，底色只需与常态可区分，不随容器底变浅。
+//
+// 之所以取「浅一阶」而不是原来的 --color-brand 实底：按钮的字色是基础字色
 // --color-text-primary #1C1814，压在 #4A6FA5（L* 46.4）上只有 3.45:1，低于 AA 4.5，
 // 视觉上读作「深字糊在深蓝里」。提到 78%（L* 58.7）后为 5.33:1，跨过 AA；再浅则蓝味
 // 开始散掉，故停在 78%。
-const NEUTRAL_REST = 'color-mix(in srgb, var(--color-border-strong) 60%, var(--color-surface-sunken))'  // #E2DED7
-const NEUTRAL_HOVER = 'var(--color-border)'                                                            // #E8E4DE
 const BRAND_ACTIVE = 'color-mix(in srgb, var(--color-brand) 78%, white)'                               // #728FB9
 const BRAND_ACTIVE_HOVER = 'color-mix(in srgb, var(--color-brand) 72%, white)'                          // #7D97BE
+
+/** 两套底色（测试与调用点核对用；渲染仍走组件内部的 tone 分支）。 */
+export const BUTTON_TONES = {
+  canvas: { rest: NEUTRAL_REST_CANVAS, hover: NEUTRAL_HOVER_CANVAS },
+  surface: { rest: NEUTRAL_REST_SURFACE, hover: NEUTRAL_HOVER_SURFACE },
+} as const
 
 export const BUTTON_BASE: CSSProperties = {
   minWidth: 88,
@@ -42,8 +54,9 @@ export const BUTTON_BASE: CSSProperties = {
   border: '1px solid rgba(0,0,0,.16)',
   // 默认态用主题暖中性底而非强调橙（v0.6.1 §2.1）：暖橙在本仓库有既定语义——个人录入字段
   // （--color-weave-personal）与分类胶囊第 5 色。通用按钮占满默认态会冲淡那层语义。
-  // 底色取值见上方 NEUTRAL_REST（暖中性阶梯的深一阶，比画布明显深，按钮立得住）。
-  background: NEUTRAL_REST,
+  // 底色取值见上方 NEUTRAL_REST_CANVAS（暖中性阶梯的深一阶，比画布明显深，按钮立得住）。
+  // 这是缺省 canvas 套的值；tone='surface' 的调用点由下方 tone 分支覆盖成浅一阶。
+  background: NEUTRAL_REST_CANVAS,
   color: 'var(--color-text-primary)',
   fontFamily: 'var(--font-sans)',
   fontSize: 13,
@@ -90,13 +103,20 @@ interface Props {
   /** 编者模式类的形态开关：true 时底色转为品牌蓝的浅一阶（BRAND_ACTIVE）。语义由调用方通过 role/aria-checked 承载 */
   pressed?: boolean
   size?: ButtonSize
+  /**
+   * 底色变体（v0.6.2 条目 1）。判据是**按钮的直接父级背景**，不是更外层：
+   * 画布底（--color-canvas，如复习 / 工作台导航条、左栏）用 `canvas`；
+   * 纯白底（--color-surface，如设置页各行、复习 / 工作台的内容区）用 `surface`。
+   * 缺省 `canvas`＝v0.6.1 的现状行为，调用点可逐个迁移。
+   */
+  tone?: 'canvas' | 'surface'
   /** 透传语义属性：形态开关需要 role="switch" + aria-checked，普通瞬时按钮不需要 */
   role?: 'switch' | 'button'
   'aria-checked'?: boolean
   'aria-label'?: string
 }
 
-export default function SquareButton({ children, onClick, disabled, title, pressed, size = 'default', role, 'aria-checked': ariaChecked, 'aria-label': ariaLabel }: Props) {
+export default function SquareButton({ children, onClick, disabled, title, pressed, size = 'default', tone = 'canvas', role, 'aria-checked': ariaChecked, 'aria-label': ariaLabel }: Props) {
   // hover / 按压必须用 JS 模拟：项目视觉一律走内联 style，不引 CSS class（见文件头注释）。
   // 按压用三事件配对而非 click —— 指针在按钮上松开才算有效，避免按下后滑出仍触发视觉反馈。
   const [hover, setHover] = useState(false)
@@ -123,7 +143,13 @@ export default function SquareButton({ children, onClick, disabled, title, press
         ...(disabled ? BUTTON_DISABLED : null),
         // 底色只求值一次：生效态优先于 hover，二者正交时走「生效色的亮一阶」。
         // 写成三段条件展开会互相覆盖（后展开的赢），所以在这里合成单值。
-        ...(!disabled ? { background: on ? (hover ? BRAND_ACTIVE_HOVER : BRAND_ACTIVE) : (hover ? NEUTRAL_HOVER : NEUTRAL_REST) } : null),
+        ...(!disabled ? {
+          background: on
+            ? (hover ? BRAND_ACTIVE_HOVER : BRAND_ACTIVE)
+            : (hover
+                ? (tone === 'surface' ? NEUTRAL_HOVER_SURFACE : NEUTRAL_HOVER_CANVAS)
+                : (tone === 'surface' ? NEUTRAL_REST_SURFACE : NEUTRAL_REST_CANVAS)),
+        } : null),
         ...(pressing && !disabled ? { transform: 'scale(.96)' } : null),
       }}
     >

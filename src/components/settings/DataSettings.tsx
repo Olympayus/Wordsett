@@ -77,15 +77,15 @@ export default function DataSettings() {
         fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
       }}>
         <span>本地数据存储位置</span>
-        <SquareButton size="row" onClick={() => { void handleBrowse() }} title="在系统文件管理器中打开数据目录并选中 wordsett.db">浏览</SquareButton>
+        <SquareButton tone="surface" size="row" onClick={() => { void handleBrowse() }} title="在系统文件管理器中打开数据目录并选中 wordsett.db">浏览</SquareButton>
       </div>
       <div>
         <div style={{ ...SECTION_TITLE, marginBottom: '6px' }}>导出词库</div>
-        <SquareButton onClick={handleExport} disabled={busy}>导出为备份文件</SquareButton>
+        <SquareButton tone="surface" onClick={handleExport} disabled={busy}>导出为备份文件</SquareButton>
       </div>
       <div>
         <div style={{ ...SECTION_TITLE, marginBottom: '6px' }}>导入词库</div>
-        <SquareButton onClick={handlePick} disabled={busy}>选择备份文件…</SquareButton>
+        <SquareButton tone="surface" onClick={handlePick} disabled={busy}>选择备份文件…</SquareButton>
         {plan && (
           <div style={{ marginTop: '10px', padding: '10px 12px', background: 'var(--color-brand-soft)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)' }}>
             <div>{fmt(plan)}</div>
@@ -94,7 +94,7 @@ export default function DataSettings() {
                 并列会让同一区块里出现两种按钮语言，且它所在的内嵌 plan 盒本身就是品牌色底，
                 再压一个品牌按钮会糊在一起。统一底样后，唯一的区分靠它在 plan 盒内的位置。 */}
             <div style={{ marginTop: '8px' }}>
-              <SquareButton onClick={handleApply} disabled={busy}>确认导入</SquareButton>
+              <SquareButton tone="surface" onClick={handleApply} disabled={busy}>确认导入</SquareButton>
             </div>
           </div>
         )}
