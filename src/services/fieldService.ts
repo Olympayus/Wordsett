@@ -121,8 +121,8 @@ export async function renumberWordByTemplate(wordId: string): Promise<boolean> {
  * 故这里把 definitions 的 id→key 映射拼上。定义有缓存（getDefinitions），不自查库。
  *
  * 逐字段（而非整词）查词条内容，故不取缓存。这里返回**摊平**的行：`getValues` 只返回
- * 根节点、子级挂在 `children` 上，而 buildPosTree 要按 parentId 逐层走，须自己摊开。
- * 保留传入的 displayOrder，不改排序。
+ * 根节点、子级挂在 `children` 上，而 buildPosTree 要按 parentId 逐层走，须自己摊开——
+ * 摊平到叶子（例句还要再往下两层），浅一层就漏。保留传入的 displayOrder，不改排序。
  */
 export async function getValuesWithKeys(wordId: string): Promise<{
   id: string; key: string; value: string; parentId: string | null; displayOrder: number

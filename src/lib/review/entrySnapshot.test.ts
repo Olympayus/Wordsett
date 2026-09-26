@@ -66,6 +66,35 @@ describe('buildPosTree（v0.6.2 条目 12）', () => {
     expect(tree[0].definitions.en[0].examples).toEqual(['The soldiers fanned out.', 'Smoke spread.'])
   })
 
+  it('无容器：example 直接挂英释义下（mergeFields 允许的形状）也入列，且不串兄弟', () => {
+    const tree = buildPosTree([
+      row('p1', 'part_of_speech', 'v.', null, 0),
+      row('en1', 'english_definition', 'to spread', 'p1', 1),
+      row('en2', 'english_definition', 'to diffuse', 'p1', 2),
+      row('e1', 'example', 'The soldiers fanned out.', 'en1', 3),
+    ])
+    expect(tree[0].definitions.en.map(d => ({ text: d.text, examples: d.examples }))).toEqual([
+      { text: 'to spread', examples: ['The soldiers fanned out.'] },
+      { text: 'to diffuse', examples: [] },
+    ])
+    // 没有中间释义可挂，落词性层
+    expect(tree[0].examples).toEqual([])
+  })
+
+  it('无中间释义：例句直接挂词性下时进词性层，不混进任何释义', () => {
+    const tree = buildPosTree([
+      row('p1', 'part_of_speech', 'v.', null, 0),
+      row('zh1', 'chinese_definition', '散布', 'p1', 1),
+      row('s1', 'example_sentence', '', 'p1', 2),
+      row('e1', 'example', 'The soldiers fanned out.', 's1', 3),
+      row('e2', 'example', 'They spread out slowly.', 'p1', 4),
+      row('e0', 'example', '', 'p1', 5),
+    ])
+    expect(tree[0].examples).toEqual(['The soldiers fanned out.', 'They spread out slowly.'])
+    expect(tree[0].definitions.zh.map(d => d.examples)).toEqual([[]])
+    expect(tree[0].definitions.en).toEqual([])
+  })
+
   it('短语 / 词形变化 / 词源 / 辨析四个标签页的根不进树', () => {
     const tree = buildPosTree([
       row('p1', 'part_of_speech', 'v.', null, 0),

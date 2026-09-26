@@ -32,18 +32,20 @@ export default function EntrySnapshot({ wordId, lemma, phonetic }: {
     <div className="flex flex-col gap-1">
       <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>完整词条</span>
       <div className="flex flex-wrap items-baseline gap-2">
-        <button
-          type="button"
-          onClick={() => void jumpToWord(wordId)}
-          title="跳转到工作台"
-          style={{
-            border: 'none', background: 'none', padding: 0, cursor: 'pointer',
-            fontSize: '22px', fontWeight: 600, color: 'var(--color-text-primary)',
-            fontFamily: 'var(--font-serif)', textAlign: 'left',
-          }}
-        >
-          {lemma}
-        </button>
+        <h3 style={{ margin: 0 }}>
+          <button
+            type="button"
+            onClick={() => void jumpToWord(wordId)}
+            title="跳转到工作台"
+            style={{
+              border: 'none', background: 'none', padding: 0, cursor: 'pointer',
+              fontSize: '22px', fontWeight: 600, color: 'var(--color-text-primary)',
+              fontFamily: 'var(--font-serif)', textAlign: 'left',
+            }}
+          >
+            {lemma}
+          </button>
+        </h3>
         {phonetic && (
           <span style={{ fontFamily: 'var(--font-phonetic)', fontSize: 15, color: 'var(--color-text-secondary)' }}>
             {formatPhonetic(phonetic)}
@@ -98,6 +100,19 @@ export default function EntrySnapshot({ wordId, lemma, phonetic }: {
               ))}
             </div>
           ))}
+          {g.examples.length > 0 && (
+            <div style={{ marginTop: 4 }}>
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>例句</div>
+              {g.examples.map((ex, i) => (
+                <div key={`${g.id}-pos-ex${i}`} style={{
+                  fontSize: '13px', fontStyle: 'italic', color: 'var(--color-text-tertiary)',
+                  lineHeight: 1.7, paddingLeft: 14,
+                }}>
+                  {ex}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       ))}
     </div>
