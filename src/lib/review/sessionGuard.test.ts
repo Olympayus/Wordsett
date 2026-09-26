@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  parseIntent, clickStaysInArena, leaveMessage, decisionFor,
+  parseIntent, clickStaysInArena, leaveMessage, decisionFor, isSessionLive,
   GUARD_ATTR, ARENA_ATTR, type GuardTarget,
 } from './sessionGuard'
 
@@ -77,6 +77,16 @@ describe('parseIntent', () => {
   it('策略意图只接受 today / free', () => {
     expect(parseIntent(button({ [GUARD_ATTR]: 'strategy:nope' }))).toBeNull()
   })
+
+  it('从标记元素读出回首页意图（顶栏 Logo：走 showWorkbench 而非 showModule）', () => {
+    expect(parseIntent(button({ [GUARD_ATTR]: 'home:workbench' })))
+      .toEqual({ kind: 'home', value: 'workbench' })
+  })
+
+  it('home 的未知值被拒（与 module / strategy 同一口径）', () => {
+    expect(parseIntent(button({ [GUARD_ATTR]: 'home:' }))).toBeNull()
+    expect(parseIntent(button({ [GUARD_ATTR]: 'home:dict' }))).toBeNull()
+  })
 })
 
 describe('clickStaysInArena', () => {
@@ -119,23 +129,54 @@ describe('decisionFor（Review Focus 5：不该拦的不拦、该拦的拦）', 
   it('没有会话进行时一律放行 —— 守卫必须彻底惰性', () => {
     // 这条是「不误伤」的那一半：会话没在进行时点任何地方都不该弹窗、更不该改状态。
     // 它同时也是「取消不推进」的护栏——守卫生效的场合越少，误改状态的机会越少。
-    expect(decisionFor(false, false, intent)).toBe('allow')
-    expect(decisionFor(false, true, null)).toBe('allow')
-    expect(decisionFor(false, false, null)).toBe('allow')
+    expect(decisionFor(false, false, intent, false)).toBe('allow')
+    expect(decisionFor(false, true, null, false)).toBe('allow')
+    expect(decisionFor(false, false, null, false)).toBe('allow')
   })
 
   it('会话进行中，做题区内的点击放行', () => {
-    expect(decisionFor(true, true, null)).toBe('allow')
-    expect(decisionFor(true, true, intent)).toBe('allow')
+    expect(decisionFor(true, true, null, false)).toBe('allow')
+    expect(decisionFor(true, true, intent, false)).toBe('allow')
   })
 
   it('会话进行中，区外但无意图标记的点击忽略 —— 不弹窗', () => {
     // 正文文本、卡片背景这类点击没有意图，弹窗只会烦人。忽略 ≠ 放行：
     // 不 preventDefault 也不 stopPropagation，让原本的行为照常发生。
-    expect(decisionFor(true, false, null)).toBe('ignore')
+    expect(decisionFor(true, false, null, false)).toBe('ignore')
   })
 
   it('会话进行中，区外且有意图标记 —— 弹确认窗', () => {
-    expect(decisionFor(true, false, intent)).toBe('confirm')
+    expect(decisionFor(true, false, intent, false)).toBe('confirm')
+  })
+
+  it('确认窗开着时不再弹第二个 —— 吞掉，不放行', () => {
+    // uiStore.confirm 只有一个模块级 resolver：第二次 confirm() 会覆盖第一次，
+    // 头一个 Promise 永不 settle（它的 reset + 重放永不发生），而这次点击的意图
+    // 却在没有任何确认的情况下执行了。故既不 confirm 也不放行给原 handler。
+    expect(decisionFor(true, false, intent, true)).toBe('swallow')
+  })
+
+  it('确认窗开着时，模态本身照常可点（遮罩无标记 → 忽略透传，不被吞）', () => {
+    // 吞掉只针对「区外带标记的控件」。确认窗自己的按钮与遮罩都没有标记，
+    // 判成 'ignore' 正常透传——否则取消键点不动，窗关不掉。
+    expect(decisionFor(true, false, null, true)).toBe('ignore')
+  })
+
+  it('模态标记不改变原有四个象限（allow / ignore 两端都被钉住）', () => {
+    expect(decisionFor(false, false, intent, true)).toBe('allow')
+    expect(decisionFor(true, true, intent, true)).toBe('allow')
+  })
+})
+
+describe('isSessionLive（守卫与 ReviewModule 共用的那条判据）', () => {
+  it('有会话且不在概览 / 小结态时为真', () => {
+    expect(isSessionLive('answering', 'today')).toBe(true)
+    expect(isSessionLive('rated', 'free')).toBe(true)
+  })
+
+  it('概览态 / 小结态 / 无会话时为假', () => {
+    expect(isSessionLive('overview', 'today')).toBe(false)
+    expect(isSessionLive('summary', 'today')).toBe(false)
+    expect(isSessionLive('answering', null)).toBe(false)
   })
 })

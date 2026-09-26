@@ -11,6 +11,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { getStrategyCounts, getOverview, getQueue, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import type { ReviewStrategy } from '../../lib/review/types'
+import { isSessionLive } from '../../lib/review/sessionGuard'
 
 export default function ReviewModule() {
   const { strategy, sessionStrategy, phase, queue, index, setStrategy, startSession, reset } = useReviewSessionStore()
@@ -26,9 +27,10 @@ export default function ReviewModule() {
   const reqIdRef = useRef(0)
 
   // 会话进行中：有会话（phase 非概览/小结）且正在看它所属的策略。
-  // 切到别的策略只看那个策略的概览；被切走的会话仍留在 store 里，
-  // 但 v0.6.2 起 SessionGuard 会拦下这次点击并询问——不再原地保留、切回即续（§2.4 已废）。
-  const sessionLive = phase !== 'overview' && phase !== 'summary' && sessionStrategy !== null
+  // 判据来自 sessionGuard.isSessionLive——与 SessionGuard 共用一处，两处分写会让
+  // 差集区间内的点击静默无人拦。切到别的策略只看那个策略的概览；被切走的会话仍留在
+  // store 里，但 v0.6.2 起 SessionGuard 会拦下这次点击并询问——不再原地保留、切回即续（§2.4 已废）。
+  const sessionLive = isSessionLive(phase, sessionStrategy)
   const live = sessionLive && strategy === sessionStrategy
   // 小结属于会话自己那一栏：它可见时压过概览面板（否则自由练习的小结会与范围面板同时出现）
   const summaryVisible = phase === 'summary' && sessionStrategy === strategy

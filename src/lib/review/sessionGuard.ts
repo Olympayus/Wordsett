@@ -1,4 +1,6 @@
 import type { ReviewStrategy } from './types'
+import type { SessionPhase } from '../../stores/reviewSessionStore'
+import type { ActiveModule } from '../../stores/viewStore'
 
 /**
  * 会话守卫（v0.6.2 §5.2，取代 v0.6 spec §2.4）。
@@ -25,17 +27,29 @@ export interface GuardTarget {
   contains(other: unknown): boolean
 }
 
-/** 区外可点元素上的意图标记。值形如 `module:settings` / `strategy:free`。 */
+/** 区外可点元素上的意图标记。值形如 `module:settings` / `home:workbench` / `strategy:free`。 */
 export const GUARD_ATTR = 'data-session-guard'
 
 /** 做题区容器的标记。落在它内部的点击一律放行。 */
 export const ARENA_ATTR = 'data-arena-region'
 
-const MODULES = new Set(['workbench', 'review', 'settings'])
+const MODULES = new Set<ActiveModule>(['workbench', 'review', 'settings'])
 const STRATEGIES = new Set<ReviewStrategy>(['today', 'free'])
+/** `home` 目前只有一个合法值：它唯一的动作就是「回工作台首页」，即 viewStore 的 showWorkbench()。 */
+const HOMES = new Set(['workbench'])
 
+/**
+ * 一次点击原本要做的动作。
+ *
+ * `module` 与 `home` 必须分开：两者的 store 动作不同，**重放必须与被点按钮自己的
+ * handler 完全一致**，不能近似。`showModule('workbench')` 只改 `activeModule`，而
+ * `showWorkbench()` 还要把 `activeView` 拨回 'workbench' 并把 `dictWord` 清空
+ * （viewStore.ts:23-26）。若 Logo 用 `module:workbench` 重放，用户确认后会落到
+ * 进复习前开着的那个词典页，而不是 Logo 本该去的词表。
+ */
 export type GuardIntent =
-  | { kind: 'module'; value: string }
+  | { kind: 'module'; value: ActiveModule }
+  | { kind: 'home'; value: 'workbench' }
   | { kind: 'strategy'; value: ReviewStrategy }
 
 /**
@@ -51,11 +65,25 @@ export function parseIntent(target: GuardTarget | null): GuardIntent | null {
   if (sep <= 0) return null
   const kind = raw.slice(0, sep)
   const value = raw.slice(sep + 1)
-  if (kind === 'module' && MODULES.has(value)) return { kind: 'module', value }
+  if (kind === 'module' && MODULES.has(value as ActiveModule)) {
+    return { kind: 'module', value: value as ActiveModule }
+  }
+  if (kind === 'home' && HOMES.has(value)) return { kind: 'home', value: value as 'workbench' }
   if (kind === 'strategy' && STRATEGIES.has(value as ReviewStrategy)) {
     return { kind: 'strategy', value: value as ReviewStrategy }
   }
   return null
+}
+
+/**
+ * 会话进行中＝有会话（phase 非概览 / 小结）且会话所属策略不为空。
+ *
+ * 守卫与 ReviewModule 的「做题区是否该渲染」必须共用这一条判据：两处分写时，
+ * 任一处收窄都会让两者的差集区间内的点击**静默无人拦**（守卫放行 → 一轮答题被丢掉），
+ * 放宽则会在 arena 未挂载时凭空弹窗。故抽成一处。
+ */
+export function isSessionLive(phase: SessionPhase, sessionStrategy: ReviewStrategy | null): boolean {
+  return phase !== 'overview' && phase !== 'summary' && sessionStrategy !== null
 }
 
 /**
@@ -88,22 +116,32 @@ export type GuardDecision =
   | 'ignore'
   /** 弹确认窗：确认才结束本轮并重放意图 */
   | 'confirm'
+  /** 吞掉：拦截且**不**执行任何动作（守卫自己的确认窗开着时，区外的带标记控件） */
+  | 'swallow'
 
 /**
  * 把守卫的判定抽成纯函数（v0.6.2 §5.2）。
  *
- * 抽出来的理由是**可测**：`cancel（不结束本轮）` 这条行为只有组件才能执行，
- * 而本仓库没有组件测试 harness，所以「取消后状态不变」无法直接断言。
- * 能断言的是它的前置：判定为 `allow` / `ignore` 时组件压根不会走到 `reset()` 那一步。
- * 于是「该惰性的时候必须惰性」这件最关键的事被钉住了。
+ * 抽出来的理由是**可测**：`cancel（不结束本轮）` 与「确认窗开着时不再弹第二个」
+ * 这两条行为只有组件才能执行，而本仓库没有组件测试 harness，所以它们无法直接断言。
+ * 能断言的是它们的前置：判定为 `allow` / `ignore` 时组件压根不会走到 `reset()` 那一步；
+ * 判定为 `swallow` 时组件压根不会走到第二次 `confirm()`。于是「该惰性的时候必须惰性」、
+ * 「不要在模态之上叠模态」这两件最关键的事被钉住了。
+ *
+ * @param modalOpen  确认窗（uiStore.confirmReq）是否正开着。`uiStore.confirm` 只有一个
+ *   模块级 resolver（uiStore.ts:25），第二次 confirm() 会把第一次的覆盖掉——第一个 Promise
+ *   永不 settle，它的 reset + 重放永不发生，而第二次点击的意图却在无确认的情况下执行了。
+ *   故模态期间带标记的区外点击必须拦下，且**不能**放行给原 handler。
  */
 export function decisionFor(
   live: boolean,
   inArena: boolean,
   intent: GuardIntent | null,
+  modalOpen: boolean,
 ): GuardDecision {
   if (!live) return 'allow'      // 没有会话进行 —— 守卫彻底惰性
   if (inArena) return 'allow'    // 做题区内 —— 放行
   if (!intent) return 'ignore'   // 区外但无意图 —— 不烦人
+  if (modalOpen) return 'swallow' // 自己的确认窗开着 —— 吞掉，不叠第二个、不放行
   return 'confirm'
 }

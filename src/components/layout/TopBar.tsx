@@ -151,7 +151,7 @@ export default function TopBar() {
           type="button"
           aria-label="Wordsett 首页"
           title="Wordsett"
-          data-session-guard="module:workbench"
+          data-session-guard="home:workbench"
           onClick={showWorkbench}
           style={{
             width: '32px', height: '32px', flexShrink: 0, cursor: 'pointer', border: 'none',
