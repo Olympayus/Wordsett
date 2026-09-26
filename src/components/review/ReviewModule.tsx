@@ -12,9 +12,10 @@ import { useCategoryStore } from '../../stores/categoryStore'
 import { getStrategyCounts, getOverview, getQueue, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import type { ReviewStrategy } from '../../lib/review/types'
 import { isSessionLive } from '../../lib/review/sessionGuard'
+import { scopeLabel } from '../../lib/review/scopeLabel'
 
 export default function ReviewModule() {
-  const { strategy, sessionStrategy, phase, queue, index, setStrategy, startSession, reset } = useReviewSessionStore()
+  const { strategy, sessionStrategy, phase, queue, answered, freeScope, setStrategy, startSession, reset } = useReviewSessionStore()
   const reviewSettings = useSettingsStore(s => s.review)
   const categories = useCategoryStore(s => s.categories)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
@@ -37,14 +38,16 @@ export default function ReviewModule() {
   // 概览态 = 没有正在展示的会话、也不在看小结：看别的策略时，它自己的概览照常出现。
   // v0.6.2 起会话进行中点别的策略会被 SessionGuard 拦下并询问——不再有「切走即续」。
   const showOverview = !live && !summaryVisible
-  // 进度挂在「会话所属策略」上：看着别的策略时，原会话仍显示题号与题型
-  const progressFor = (key: ReviewStrategy) =>
-    sessionLive && key === sessionStrategy && queue.length > 0
-      ? { index, total: queue.length, template: queue[index]?.template ?? '' }
-      : null
-  // 控制台挂「会话所属策略」的进度：切到别的策略看时，原会话的进度仍在控制台里显示
-  const consoleSession = sessionLive && queue.length > 0
-    ? { index, total: queue.length, remaining: Math.max(0, queue.length - index - 1), template: queue[index]?.template ?? '' }
+  // 控制台的进度挂在「会话所属策略」上：看着别的策略时，原会话的进度仍在控制台里显示。
+  // 但 v0.6.2 起 SessionGuard 会拦住这种切换，故实际只剩「会话自己那一栏」这一种情形。
+  // 计数用的是**已答数**而不是 index——箭头翻看旧题不该改这里（条目 14）。
+  const consoleSession = sessionLive && sessionStrategy && queue.length > 0
+    ? {
+        total: queue.length,
+        answeredCount: answered.length,
+        correctCount: answered.filter(a => a.rating >= 3).length,
+        scopeLabel: scopeLabel(sessionStrategy, freeScope?.kind ?? null),
+      }
     : null
 
   // alive 防卸载后写 state；reqId 保证只有最新一次请求的结果生效（慢的旧请求不得覆盖新数据）。
@@ -70,10 +73,10 @@ export default function ReviewModule() {
   }, [params.retention, params.leechThreshold, params.newCardQuota, params.queueLimit, showOverview])
 
   const strategies: StrategyMeta[] = [
-    // 计数来源＝组卷结果长度（spec §2.2）：与右栏概览卡同一数字，已在顶部小控制台里呈现。
-    // 策略条上不再挂数字（v0.6.1 §2.5）——同屏同名的两个数不必出现两次。
-    { key: 'today', label: '今日复习', progress: progressFor('today') },
-    { key: 'free', label: '自由练习', progress: progressFor('free') },
+    // 策略条上不挂数字（v0.6.1 §2.5）；v0.6.2 起控制台报的是**已答数**，
+    // 与光标位置无关，所以行上的 i/N 更没有存在理由（条目 13）。
+    { key: 'today', label: '今日复习' },
+    { key: 'free', label: '自由练习' },
   ]
 
   const NO_CARDS = '本轮没有可出的题。可能词条缺少出题所需的内容（释义 / 例句 / 音标），先到工作台补全。'

@@ -5,8 +5,6 @@ import Icon from '../icons'
 export interface StrategyMeta {
   key: ReviewStrategy
   label: string
-  /** 该策略有进行中的会话时给出进度；就地展开在左栏条目下方 */
-  progress?: { index: number; total: number; template: string } | null
 }
 
 export default function StrategyList({ strategies, active, onSelect, header, footer }: {
@@ -40,11 +38,6 @@ export default function StrategyList({ strategies, active, onSelect, header, foo
           >
             <Icon name="book" size={15} />
             <span style={{ fontSize: '13px', fontWeight: 500, fontFamily: 'var(--font-serif)' }}>{s.label}</span>
-            {s.progress && (
-              <span style={{ marginLeft: 'auto', fontSize: '10px', color: 'var(--color-text-secondary)' }}>
-                {s.progress.index + 1}/{s.progress.total}
-              </span>
-            )}
           </button>
         )
       })}
