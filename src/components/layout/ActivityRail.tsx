@@ -69,7 +69,7 @@ export default function ActivityRail() {
         onClick={() => showModule('review')}
         style={{ ...btnStyle(activeModule === 'review'), position: 'relative' }}
       >
-        <Icon name="swap" size={17} />
+        <Icon name="book" size={17} />
         {badge > 0 && (
           <span
             aria-label={`今日剩余 ${badge} 张`}

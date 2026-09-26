@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
 import type { ReviewStrategy } from '../../lib/review/types'
-import Icon from '../icons'
 
 export interface StrategyMeta {
   key: ReviewStrategy
@@ -36,7 +35,6 @@ export default function StrategyList({ strategies, active, onSelect, header, foo
               color: on ? 'var(--color-brand)' : 'var(--color-text-primary)',
             }}
           >
-            <Icon name="book" size={15} />
             <span style={{ fontSize: '13px', fontWeight: 500, fontFamily: 'var(--font-serif)' }}>{s.label}</span>
           </button>
         )

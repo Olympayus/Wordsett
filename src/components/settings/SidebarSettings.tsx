@@ -34,20 +34,34 @@ export default function SidebarSettings() {
             <button
               key={m.mode}
               type="button"
+              role="radio"
+              aria-checked={selected}
               onClick={() => setSidebarMode(m.mode)}
               style={{
                 flex: 1, padding: '16px', cursor: 'pointer', textAlign: 'left',
-                border: `2px solid ${selected ? 'var(--color-brand)' : 'var(--color-border)'}`,
                 borderRadius: 'var(--radius-lg)',
-                background: selected ? 'var(--color-brand-soft)' : 'transparent',
+                // C3′（v0.6.2 条目 7）：两个字框的**字色一律是基础字色**、标题加粗，
+                // 品牌蓝只留在选中框的圆点与描边上。未选框用暖中性底
+                // （--color-surface-sunken），与选中框的品牌浅底形成同深度、异色相的成对关系——
+                // 原实现未选框是全透明，退成裸文本，两个框不成对。
+                border: `2px solid ${selected ? 'color-mix(in srgb, var(--color-brand) 35%, white)' : 'var(--color-border)'}`,
+                background: selected ? 'var(--color-brand-soft)' : 'var(--color-surface-sunken)',
                 fontFamily: 'var(--font-sans)',
                 transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
               }}
               onMouseEnter={e => { if (!selected) e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
               onMouseLeave={e => { if (!selected) e.currentTarget.style.borderColor = 'var(--color-border)' }}
             >
-              <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semibold)', marginBottom: '6px', color: 'var(--color-text-primary)' }}>{m.title}</div>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: '6px' }}>
+                <span style={{
+                  width: 12, height: 12, flexShrink: 0, borderRadius: '50%',
+                  border: `1.5px solid ${selected ? 'var(--color-brand)' : 'var(--color-border-strong)'}`,
+                  background: selected ? 'var(--color-brand)' : 'transparent',
+                }} />
+                <span style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semibold)', color: 'var(--color-text-primary)' }}>{m.title}</span>
+              </div>
+              {/* 说明行用 72% 不透明降一档，避免与标题抢；换色会让两层文字偏离同一族 */}
+              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-primary)', opacity: 0.72, lineHeight: 1.5 }}>
                 {splitAtFirstPeriod(m.desc).map((line, i) => <div key={i}>{line}</div>)}
               </div>
             </button>
