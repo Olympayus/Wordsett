@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { scopeLabel, accuracyText } from './scopeLabel'
+import { scopeLabel, accuracyText, correctCount } from './scopeLabel'
 
 describe('scopeLabel（v0.6.2 条目 15 / 17）', () => {
   it('今日复习策略', () => {
@@ -34,5 +34,25 @@ describe('accuracyText（Review Focus 2）', () => {
 
   it('全对显示 100%', () => {
     expect(accuracyText(5, 5)).toBe('100%')
+  })
+})
+
+describe('correctCount（spec §8.1 控制台：正确数 = rating >= 3 计数）', () => {
+  it('空数组为 0', () => {
+    expect(correctCount([])).toBe(0)
+  })
+
+  it('只数 3 分与 4 分，不数 2 分', () => {
+    expect(correctCount([{ rating: 2 }, { rating: 3 }, { rating: 4 }])).toBe(2)
+  })
+
+  it('全对（全 4 分）与全错（全 1 分）', () => {
+    expect(correctCount([{ rating: 4 }, { rating: 4 }])).toBe(2)
+    expect(correctCount([{ rating: 1 }, { rating: 1 }])).toBe(0)
+  })
+
+  // 上一条正是「写成 === 3 也会过」的用例集合；这条不是——4 分必须在正确数里
+  it('4 分单独计入（=== 3 会漏掉这一条）', () => {
+    expect(correctCount([{ rating: 4 }])).toBe(1)
   })
 })

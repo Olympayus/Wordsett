@@ -12,7 +12,7 @@ import { useCategoryStore } from '../../stores/categoryStore'
 import { getStrategyCounts, getOverview, getQueue, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import type { ReviewStrategy } from '../../lib/review/types'
 import { isSessionLive } from '../../lib/review/sessionGuard'
-import { scopeLabel } from '../../lib/review/scopeLabel'
+import { scopeLabel, correctCount } from '../../lib/review/scopeLabel'
 
 export default function ReviewModule() {
   const { strategy, sessionStrategy, phase, queue, answered, freeScope, setStrategy, startSession, reset } = useReviewSessionStore()
@@ -45,7 +45,7 @@ export default function ReviewModule() {
     ? {
         total: queue.length,
         answeredCount: answered.length,
-        correctCount: answered.filter(a => a.rating >= 3).length,
+        correctCount: correctCount(answered),
         scopeLabel: scopeLabel(sessionStrategy, freeScope?.kind ?? null),
       }
     : null

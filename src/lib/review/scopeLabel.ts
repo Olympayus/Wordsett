@@ -11,7 +11,7 @@ export function scopeLabel(strategy: ReviewStrategy, scope: FreeScopeKind | null
   return FREE_SCOPE_LABEL[scope]
 }
 
-/** 与 FreeScopeTabs.tsx 的 SCOPE_TABS 文案一致（「某个分类」在 v0.6.2 改名「分类强化」）。 */
+/** Task 13 起与 `FreeScopeTabs` 的 `SCOPE_TABS` 同源（该文件现仍写死「某个分类」，本表在 v0.6.2 统一两处）。 */
 export const FREE_SCOPE_LABEL: Record<FreeScopeKind, string> = {
   category: '分类强化',
   weak: '薄弱词专项',
@@ -26,4 +26,18 @@ export const FREE_SCOPE_LABEL: Record<FreeScopeKind, string> = {
 export function accuracyText(answeredCount: number, correctCount: number): string {
   if (answeredCount <= 0) return '—'
   return `${Math.round((correctCount / answeredCount) * 100)}%`
+}
+
+/**
+ * 控制台的正确数（spec §8.1）。判据 `rating >= 3` 与 `template.ts` 的 `templateAccuracy`
+ * 同一处（那里也是 `>= 3`，并注明 Good/Easy 都算对）。
+ *
+ * 用 `>= 3` 而非 `=== 3` 是刻意的：rating 4（轻松）在数据层已算「记得」，只是还没有 UI。
+ * 写成 `=== 3` 会让将来 4 分档一上线，这行数字就无声地少算。
+ *
+ * 抽成函数而非留在 `ReviewModule` 里内联 filter：仓库没有组件测试 harness，
+ * 内联的判据无从断言——spec §8.1 点的正是这一条。
+ */
+export function correctCount(answered: { rating: number }[]): number {
+  return answered.filter(a => a.rating >= 3).length
 }
