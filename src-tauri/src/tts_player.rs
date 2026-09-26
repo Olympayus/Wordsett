@@ -14,6 +14,8 @@ pub mod sapi;
 /// 后端枚举。选定后不再变：探测跑过一次就定下走哪条路，`speak` 复用同一实例。
 enum Backend {
     /// WinRT（`SpeechSynthesizer`）。agile，可从任意线程调用，故直接放静态量。
+    /// 非 Windows 上 `tts` crate 走系统原生朗读（macOS 是 AppKit/NSSpeechSynthesizer），
+    /// 同样经由这个变体承载——差别只在探测时报告的标签。
     WinRt(Tts),
     /// SAPI5。单元线程，内部自带专属线程，外部调用是投递消息。
     #[cfg(windows)]
@@ -97,18 +99,42 @@ fn english_voice(engine: &mut Tts) -> std::result::Result<Option<tts::Voice>, St
     }
 }
 
-/// 已选定 WinRT 后的可用性回报。只读引擎状态，不改后端。
+/// 探测报告里的后端标签。**只是标签**：非 Windows 上 `tts` crate 走系统原生朗读
+/// （macOS 是 AppKit/NSSpeechSynthesizer），音色枚举与英文判定的实际工作由同一个
+/// `tts` crate 完成，与 Windows 上的 WinRT 分支同构，故**不另开一条探测路径**
+/// ——那会让 macOS 白白丢掉 fail-closed 门控（恒报可用）。spec §0.3 要求本版本
+/// 不改 macOS 的 TTS 路径，这里正是「保持原样，只改标签」。
+#[cfg(windows)]
+const BACKEND_LABEL: &str = "winrt";
+#[cfg(not(windows))]
+const BACKEND_LABEL: &str = "native";
+
+/// 已建立 WinRT 引擎后的可用性回报。**真的重跑一次 `english_voice`**，不复用旧结论。
 ///
-/// `voice` 取 None：音色名要重新遍历一遍音色表才拿得到，而那正是
-/// `english_voice` 做的事——后端一旦选定就不再重跑（见 `probe` 的开头）。
-/// 探测命令的第一次调用走的是带名字的那条路径，只有重复调用才落到这里，
-/// 此时前端已经拿到过音色名，不需要再补一次。
-fn winrt_english_voice_available() -> VoiceProbe {
-    VoiceProbe::available("winrt", None)
+/// 为什么必须重跑：`speak` 在探测没跑过时也会建 `Backend::WinRt`（见 speak 里
+/// 「探测没跑过」那条注释），而那个实例用的是**后端默认音色**（zh-CN 机器上就是中文）。
+/// 若这里只看枚举变体就报 available，等于把「用中文嗓音念英文」这个恰恰要防的事放过去了
+/// ——门控会 fail-open。顺带把音色名重新带回来：这条路径返回的名字现在是真的，不是 None。
+fn winrt_english_voice_available(engine: &mut Tts) -> VoiceProbe {
+    match english_voice(engine) {
+        Ok(Some(v)) => {
+            eprintln!("[tts] english voice selected: {} ({})", v.name(), v.language());
+            VoiceProbe::available(BACKEND_LABEL, Some(v.name().to_string()))
+        }
+        Ok(None) => VoiceProbe::unavailable(no_english_voice_reason()),
+        Err(e) => {
+            eprintln!("[tts] could not select an english voice: {e}");
+            VoiceProbe::unavailable(format!("英文音色选取失败：{e}"))
+        }
+    }
+}
+
+/// 所有后端都找不到英文音色时给用户的同一句原因（诊断面显示，spec §6.4）。
+fn no_english_voice_reason() -> String {
+    "系统里没有英文音色；按设置页指引装一个英文语音包后重启".to_string()
 }
 
 /// 取（必要时建立）WinRT 引擎。锁由调用方持有。
-#[cfg(windows)]
 fn winrt_engine(engine: &mut Option<Backend>) -> Result<&mut Tts, String> {
     if engine.is_none() {
         let t = Tts::default().map_err(|e| e.to_string())?;
@@ -117,6 +143,7 @@ fn winrt_engine(engine: &mut Option<Backend>) -> Result<&mut Tts, String> {
     match engine.as_mut() {
         Some(Backend::WinRt(t)) => Ok(t),
         // 已选定 SAPI5 后不可能走到这里——probe 在选定后端后直接复用，不再调本函数。
+        #[cfg(windows)]
         Some(Backend::Sapi(_)) => Err("引擎已切到 SAPI5".to_string()),
         None => unreachable!("上一行刚建过引擎"),
     }
@@ -126,12 +153,15 @@ fn winrt_engine(engine: &mut Option<Backend>) -> Result<&mut Tts, String> {
 ///
 /// 两条路：先 WinRT（`AllVoices`，只读 OneCore hive），拿不到英文音色就回退 SAPI5
 /// （读旧 Speech hive，见 sapi.rs 的模块注释）。回退不改变门控方向——两条都不行才判不可用。
-#[cfg(windows)]
+/// 非 Windows 上没有 SAPI5 这条回退（`sapi` 模块按 target 门掉），那一步定生死。
 fn probe(engine: &mut Option<Backend>) -> VoiceProbe {
-    // 已经选定过后端就直接复用
-    if let Some(b) = engine.as_ref() {
+    // 已经选定过后端就直接复用——但复用的是**引擎**，不是上次的结论。
+    // （引擎可能是 speak 抢先用默认音色建好的，故这里必须重新问一次「有没有英文音色」，
+    //   见 winrt_english_voice_available 的注释。）
+    if let Some(b) = engine.as_mut() {
         return match b {
-            Backend::WinRt(_) => winrt_english_voice_available(),
+            Backend::WinRt(t) => winrt_english_voice_available(t),
+            #[cfg(windows)]
             Backend::Sapi(w) => match w.list_english_voices() {
                 Ok(v) if !v.is_empty() => VoiceProbe::available("sapi", Some(v[0].1.clone())),
                 Ok(_) => VoiceProbe::unavailable("SAPI5 音色里没有英文音色"),
@@ -145,7 +175,7 @@ fn probe(engine: &mut Option<Backend>) -> VoiceProbe {
         Ok(t) => match english_voice(t) {
             Ok(Some(v)) => {
                 eprintln!("[tts] winrt english voice selected: {} ({})", v.name(), v.language());
-                return VoiceProbe::available("winrt", Some(v.name().to_string()));
+                return VoiceProbe::available(BACKEND_LABEL, Some(v.name().to_string()));
             }
             Ok(None) => {
                 eprintln!("[tts] winrt has no english voice; falling back to sapi5");
@@ -160,27 +190,28 @@ fn probe(engine: &mut Option<Backend>) -> VoiceProbe {
     }
 
     // 回退 SAPI5（失败即换后端，已建立的 WinRT 实例作废）
-    match sapi::SapiWorker::spawn() {
-        Ok(w) => match w.list_english_voices() {
-            Ok(v) if !v.is_empty() => {
-                eprintln!("[tts] sapi5 english voice selected: {}", v[0].1);
-                let out = VoiceProbe::available("sapi", Some(v[0].1.clone()));
-                *engine = Some(Backend::Sapi(w));
-                out
-            }
-            Ok(_) => VoiceProbe::unavailable(
-                "WinRT 与 SAPI5 里都没有英文音色；按设置页指引装一个英文语音包后重启",
-            ),
-            Err(e) => VoiceProbe::unavailable(format!("SAPI5 枚举失败：{e}")),
-        },
-        Err(e) => VoiceProbe::unavailable(format!("SAPI5 线程起不来：{e}")),
+    #[cfg(windows)]
+    {
+        match sapi::SapiWorker::spawn() {
+            Ok(w) => match w.list_english_voices() {
+                Ok(v) if !v.is_empty() => {
+                    eprintln!("[tts] sapi5 english voice selected: {}", v[0].1);
+                    let out = VoiceProbe::available("sapi", Some(v[0].1.clone()));
+                    *engine = Some(Backend::Sapi(w));
+                    out
+                }
+                Ok(_) => VoiceProbe::unavailable(format!(
+                    "WinRT 与 SAPI5 里都没有英文音色；{}",
+                    no_english_voice_reason()
+                )),
+                Err(e) => VoiceProbe::unavailable(format!("SAPI5 枚举失败：{e}")),
+            },
+            Err(e) => VoiceProbe::unavailable(format!("SAPI5 线程起不来：{e}")),
+        }
     }
-}
-
-/// 非 Windows 只有一个后端（系统原生朗读），无需探测音色，恒定报可用（spec §6.3）。
-#[cfg(not(windows))]
-fn probe(_engine: &mut Option<Backend>) -> VoiceProbe {
-    VoiceProbe::available("native", None)
+    // 非 Windows 没有回退臂：WinRT/原生那步没找到英文音色就直接判不可用，门控方向不变。
+    #[cfg(not(windows))]
+    VoiceProbe::unavailable(no_english_voice_reason())
 }
 
 /// 探测并选定英文音色。**任何失败一律返回 available=false**，不向上抛错

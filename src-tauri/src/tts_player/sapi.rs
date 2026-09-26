@@ -19,7 +19,8 @@ use windows::core::PWSTR;
 use windows::Win32::Media::Speech::ISpVoice;
 use windows::Win32::System::Com::CoTaskMemFree;
 
-/// SAPI5 音色类别的注册表路径。`ISpObjectTokenCategory::SetId` 收的就是这个字符串。
+/// SAPI5 音色类别的注册表路径。`ISpObjectToken::SetId` 的第一个参数收的就是这个字符串
+/// （`speak_on_this_thread` 里选音色那次）。
 pub const SAPI_VOICES_CATEGORY: &str =
     r"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech\Voices";
 
@@ -35,9 +36,13 @@ pub const SAPI_VOICES_CATEGORY: &str =
 /// SAPI5 的 **token id**（整条注册表路径），做的是**分隔符包围的子串**比对。两者在各自的
 /// 输入域上给出一致的结论——这也是回退后端存在的意义；但输入域之外它们不等价，
 /// 例如 `is_english_voice("de-DE-en")` 为 false 而本函数返回 true。
-/// 另有一处**故意**不同：裸 `"en"`（无分隔符、无前缀）在本函数下为 **false**——
-/// 一条只写着 `en` 的 token id 不存在，宽松放行只会引入误判。想放宽须显式改这里，
-/// 别顺手把两条判定「统一」成同一份实现。
+/// 另有一处**故意**不同：裸 `"en"`（无分隔符）在本函数下为 **true**——两侧的
+/// bounds 检查把「串首」和「串尾」也当作合法分隔符，所以 `"en"` 这种整串就是一个
+/// 语言码的输入会被收下。这是有意宽松的：真正的 token id 不会只有 `en`（真实形态是
+/// `TTS_MS_<lang>_<name>_<ver>`），而把一个明显写着 `en` 的 token 判成非英文没有好处。
+/// 「算不算英文」两边在**各自真实的输入域**上给出一致结论，这才是回退后端要的东西；
+/// 但输入域之外它们不等价，别把两条判定「统一」成同一份实现——那边的前缀语义
+/// （`de-DE-en` 判 false）搬过来会把 token id 里的路径片段也当语言码。
 pub fn token_has_english_language(id: &str) -> bool {
     let lower = id.to_ascii_lowercase();
     let bytes = lower.as_bytes();
@@ -184,7 +189,7 @@ fn list_english_on_this_thread() -> Result<Vec<(String, String)>, String> {
         let category: ISpObjectTokenCategory = CoCreateInstance(&SpObjectTokenCategory, None, CLSCTX_ALL)
             .map_err(|e| format!("建立音色类别失败：{e}"))?;
         // SPCAT_VOICES 已经是 PCWSTR，而 HSTRING 没有 From<PCWSTR>，故走
-        // PCWSTR::to_hstring() 这条由宽串建 HSTRING 的路（windows-strings-0.1.0/src/pcwstr.rs:68）。
+        // PCWSTR::to_hstring() 这条由宽串建 HSTRING 的路（windows-strings-0.1.0/src/pcwstr.rs:73）。
         category
             .SetId(&SPCAT_VOICES.to_hstring().map_err(|e| format!("转换类别 id 失败：{e}"))?, false)
             .map_err(|e| format!("设置类别 id 失败：{e}"))?;
@@ -257,11 +262,19 @@ fn speak_on_this_thread(
         // 连续点「播放读音」时先清空待播队列，否则上一个词会排在这次前面，两条音轨叠着念。
         // WinRT 侧靠 `let _ = t.stop()` 达成同一效果，这里没有 stop 可调，只能靠这个 flag。
         // 第三参 None = 不要 stream number（SPF_IS_FILENAME 未置，本就是纯文本）。
-        let _ = v.Speak(
+        //
+        // 这个 HRESULT 是整条 SAPI 路径**唯一**能告诉我们「到底有没有排上」的信号：
+        // Speak 不等结果，故下面的 Err 不会外抛到命令（`speak` 是「已受理」语义），
+        // 但它必须留下来——否则「点了没声音」在诊断面上是无声的。`SPF_PURGEBEFORESPEAK`
+        // 正是为避免播放中重入而设，所以这里期望它成功；真失败时打一行，
+        // 让用户的出声验收至少能指出是 COM 这一层出的问题。
+        if let Err(e) = v.Speak(
             &HSTRING::from(text),
             (SPF_ASYNC.0 | SPF_PURGEBEFORESPEAK.0) as u32,
             None,
-        );
+        ) {
+            eprintln!("[tts] sapi5 Speak failed: {e}");
+        }
         Ok(())
     }
 }
