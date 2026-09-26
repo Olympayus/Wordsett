@@ -58,3 +58,24 @@ export function canStartFreeScope(kind: 'category' | 'random' | 'today' | 'weak'
   if (kind !== 'category') return true
   return categoryIds.length > 0
 }
+
+/**
+ * 分类强化页的底部汇总文案（v0.6.2 条目 10）。
+ *
+ * 抽出来是为了让「口径」两个字可以被断言——本仓库没有组件测试 harness，
+ * 模板里的字符串没法在单测里摸到（与 accuracyText / scopeLabel 同一个理由）。
+ *
+ * 口径必须写在句子里：M 是**已到期**的词数（spec §4.3 的 Σ 待复习数），
+ * 而出题走 getAllCandidates（含未到期的熟词），所以 M 可能是 0 而按钮照样可用。
+ * 只写「预计可出 0 题」等于对用户许了一个假的承诺；括号里点明「已到期」，
+ * 句子就变成真的——0 张到期卡是事实，没试过的词也不与它矛盾。
+ */
+export function freeScopeSummaryText(
+  selectedCategoryIds: string[],
+  rows: { id: string; dueCount: number }[],
+): string {
+  const due = rows
+    .filter(r => selectedCategoryIds.includes(r.id))
+    .reduce((n, r) => n + r.dueCount, 0)
+  return `共选 ${selectedCategoryIds.length} 个分类 · 预计可出（已到期）${due} 题`
+}

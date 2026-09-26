@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateCategoryCounts, canStartFreeScope, selectByCategories } from './categoryCounts'
+import { aggregateCategoryCounts, canStartFreeScope, freeScopeSummaryText, selectByCategories } from './categoryCounts'
 
 const cats = [
   { id: 'c1', name: '四级核心' },
@@ -83,5 +83,38 @@ describe('selectByCategories（spec §8.1：FreeScope 多分类）', () => {
 
   it('保持候选池的原有顺序', () => {
     expect(selectByCategories(['w3', 'w1', 'w2'], ['c1', 'c2'], map)).toEqual(['w3', 'w1', 'w2'])
+  })
+})
+
+describe('freeScopeSummaryText：汇总句必须点明口径（v0.6.2 条目 10）', () => {
+  const countRows = [
+    { id: 'c1', name: '四级核心', wordCount: 3, dueCount: 2 },
+    { id: 'c2', name: '阅读生词', wordCount: 2, dueCount: 1 },
+    { id: 'c3', name: '写作替换', wordCount: 0, dueCount: 0 },
+  ]
+
+  it('句子里带着「已到期」这个口径，不是裸的「预计可出 N 题」', () => {
+    const text = freeScopeSummaryText(['c1'], countRows)
+    expect(text).toContain('预计可出（已到期）')
+    // 少一个口径括号就退回「对用户许了个假承诺」的状态，故直接钉住整句
+    expect(text).toBe('共选 1 个分类 · 预计可出（已到期）2 题')
+  })
+
+  it('有词但没到期的分类：M 是 0，而句子仍然成立（闸门看的是词数，不是 M）', () => {
+    // 这正是页面上会出现「已到期 0 题 + 按钮可用」的那一格。文案不许把它读成「没有题」。
+    const text = freeScopeSummaryText(['c3'], countRows)
+    expect(text).toBe('共选 1 个分类 · 预计可出（已到期）0 题')
+    expect(text).toContain('已到期')
+  })
+
+  it('只累加勾中的分类，且累加的是待复习数', () => {
+    expect(freeScopeSummaryText(['c1', 'c2'], countRows))
+      .toBe('共选 2 个分类 · 预计可出（已到期）3 题')
+    // 没勾的分类不进和
+    expect(freeScopeSummaryText(['c1'], countRows)).not.toContain('3 题')
+  })
+
+  it('一个都没勾：句子照样给出口径，不是空串', () => {
+    expect(freeScopeSummaryText([], countRows)).toBe('共选 0 个分类 · 预计可出（已到期）0 题')
   })
 })

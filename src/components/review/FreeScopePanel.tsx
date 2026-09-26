@@ -4,7 +4,7 @@ import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
 import { getWeakWords, getDueWordIds, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import { getWordCategoryMap } from '../../services/categoryService'
-import { aggregateCategoryCounts, canStartFreeScope } from '../../lib/review/categoryCounts'
+import { aggregateCategoryCounts, canStartFreeScope, freeScopeSummaryText } from '../../lib/review/categoryCounts'
 import type { FreeScopeKind } from '../../lib/review/types'
 import { jumpToWord } from '../../lib/review/jumpToWord'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -166,8 +166,12 @@ export default function FreeScopePanel({ categories, onStart }: {
                 )
               })}
             </div>
+            {/* M = Σ 已勾选分类的**待复习**数（spec §4.3 的口径），不是可出题数：
+                出题走 getAllCandidates（含未到期的熟词），所以 M 可能是 0 而按钮照样可用
+                ——那是「没有到期的词」，不是「没有题」。括号里点明口径，免得读成承诺；
+                也免得下一个人把这里改成求和闸门用的那个数（那是词数，含义不同）。 */}
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-secondary)' }}>
-              共选 {categoryIds.length} 个分类 · 预计可出 {rows.filter(r => categoryIds.includes(r.id)).reduce((n, r) => n + r.dueCount, 0)} 题
+              {freeScopeSummaryText(categoryIds, rows)}
             </div>
           </div>
         )}
