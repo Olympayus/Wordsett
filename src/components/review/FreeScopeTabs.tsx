@@ -1,10 +1,11 @@
 import type { FreeScopeKind } from '../../lib/review/types'
+import { FREE_SCOPE_LABEL } from '../../lib/review/scopeLabel'
 
 export const SCOPE_TABS: { key: FreeScopeKind; label: string }[] = [
-  { key: 'random', label: '全库随机' },
-  { key: 'today', label: '今日队列重练' },
-  { key: 'weak', label: '薄弱词专项' },
-  { key: 'category', label: '某个分类' },
+  { key: 'random', label: FREE_SCOPE_LABEL.random },
+  { key: 'today', label: FREE_SCOPE_LABEL.today },
+  { key: 'weak', label: FREE_SCOPE_LABEL.weak },
+  { key: 'category', label: FREE_SCOPE_LABEL.category },   // v0.6.2 条目 6：某个分类 → 分类强化
 ]
 
 /**
@@ -16,9 +17,11 @@ export const SCOPE_TABS: { key: FreeScopeKind; label: string }[] = [
  * 色值已全部换成色板 token（四个 hex 与 tokens.css 逐字节相同，渲染结果不变）。
  * word/TabBar.tsx 里的同四个值仍是硬编码——那是它自己的既有代码，本次不动。
  */
-export default function FreeScopeTabs({ active, onSelect }: {
+export default function FreeScopeTabs({ active, onSelect, right }: {
   active: FreeScopeKind
   onSelect: (k: FreeScopeKind) => void
+  /** 右侧插槽（v0.6.2 条目 17）：不计分提示放这里，不再挤在标题旁边 */
+  right?: React.ReactNode
 }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: '4px 24px 0', background: 'var(--color-canvas)', borderBottom: '2px solid var(--color-border-strong)' }}>
@@ -45,6 +48,7 @@ export default function FreeScopeTabs({ active, onSelect }: {
           </button>
         )
       })}
+      {right && <div style={{ marginLeft: 'auto', paddingBottom: 6, paddingRight: 4 }}>{right}</div>}
     </div>
   )
 }

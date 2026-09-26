@@ -6,6 +6,7 @@ import { getWeakWords, getDueWordIds, REVIEW_DEFAULTS, type ReviewParams } from 
 import { getWordCategoryMap } from '../../services/categoryService'
 import { aggregateCategoryCounts, canStartFreeScope, freeScopeEmptyText, freeScopeSummaryText } from '../../lib/review/categoryCounts'
 import type { FreeScopeKind } from '../../lib/review/types'
+import { FREE_SCOPE_LABEL } from '../../lib/review/scopeLabel'
 import { jumpToWord } from '../../lib/review/jumpToWord'
 import { useSettingsStore } from '../../stores/settingsStore'
 
@@ -74,17 +75,24 @@ export default function FreeScopePanel({ categories, onStart }: {
 
   return (
     <div className="flex flex-col" style={{ minHeight: '100%' }}>
-      <FreeScopeTabs active={kind} onSelect={setKind} />
-
-      <div className="flex flex-col items-start gap-5 p-8" style={{ maxWidth: '620px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 600, fontFamily: 'var(--font-serif)' }}>自由练习</h2>
+      <FreeScopeTabs
+        active={kind}
+        onSelect={setKind}
+        right={
           <Tooltip content="自由练习不计分，不影响各单词的掌握程度">
             <span style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'default' }}>
               <Icon name="info" size={14} />
             </span>
           </Tooltip>
-        </div>
+        }
+      />
+
+      <div className="flex flex-col items-start gap-5 p-8" style={{ maxWidth: '620px' }}>
+        {/* 标题随标签页变（v0.6.2 条目 17）：原来写死「自由练习」，
+            与上面的页签对不上。文案与 SCOPE_TABS / 控制台的「本次范畴」同源。 */}
+        <h2 style={{ fontSize: '20px', fontWeight: 600, fontFamily: 'var(--font-serif)' }}>
+          {FREE_SCOPE_LABEL[kind]}
+        </h2>
 
         {kind === 'weak' && (
           weak.length === 0 ? (

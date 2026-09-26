@@ -11,7 +11,7 @@ export function scopeLabel(strategy: ReviewStrategy, scope: FreeScopeKind | null
   return FREE_SCOPE_LABEL[scope]
 }
 
-/** Task 13 起与 `FreeScopeTabs` 的 `SCOPE_TABS` 同源（该文件现仍写死「某个分类」，本表在 v0.6.2 统一两处）。 */
+/** 自由练习四个范围的中文名。`FreeScopeTabs` 的 `SCOPE_TABS` 与 `FreeScopePanel` 的标题都引这里（v0.6.2 条目 17），三处同一个名字。 */
 export const FREE_SCOPE_LABEL: Record<FreeScopeKind, string> = {
   category: '分类强化',
   weak: '薄弱词专项',
