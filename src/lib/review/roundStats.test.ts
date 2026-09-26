@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
-  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor,
+  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, isSkipped,
 } from './roundStats'
 import type { ReviewCardDTO } from '../../services/reviewService'
+import { TEMPLATE_DIFFICULTY } from './template'
 
 const card = (cardId: string, template: ReviewCardDTO['template'], prompt: any, answer: any): ReviewCardDTO =>
   ({ cardId, wordId: `w-${cardId}`, template, prompt, answer, sched: { dueAt: 0, reps: 0, lapses: 0, lastReviewAt: null, mastery: null, rNow: 0 } })
@@ -26,6 +27,12 @@ describe('roundSummary', () => {
     ])
     expect(s.skippedCount).toBe(1)
   })
+
+  it('total 是队列长度——分母，别把未作答的题从本轮里抹掉', () => {
+    const q = [card('1', 'recognize', {}, {}), card('2', 'cloze', {}, {}), card('3', 'listen', {}, {})]
+    // 只答了两张：已答 2 / 共 3，未作答那张仍在本轮里
+    expect(roundSummary(q, [{ cardId: '1', rating: 3, template: 'recognize', input: 'x' }, { cardId: '2', rating: 1, template: 'cloze', input: '' }]).total).toBe(3)
+  })
 })
 
 describe('templateCounts', () => {
@@ -36,6 +43,12 @@ describe('templateCounts', () => {
     expect(rows.find(r => r.template === 'cloze')?.count).toBe(1)
     expect(rows.find(r => r.template === 'listen')?.count).toBe(0)
     expect(rows.find(r => r.template === 'recognize')?.label).toBe('认读')
+  })
+
+  it('行序跟 TEMPLATE_DIFFICULTY 一致，而不是本文件自己抄一份顺序', () => {
+    // 抄一份顺序的话，改动只会静默重排本轮小结：改 template.ts 的人看不到这里。
+    expect(templateCounts([]).map(r => r.template)).toEqual(TEMPLATE_DIFFICULTY)
+    expect(templateAccuracy([]).map(r => r.template)).toEqual(TEMPLATE_DIFFICULTY)
   })
 })
 
@@ -92,5 +105,20 @@ describe('wordLabelFor（Review Focus 4）', () => {
 
   it('字段存在但是空串时继续往下找，不把空串当结果', () => {
     expect(wordLabelFor(card('zzz', 'recognize', { lemma: '' }, { lemma: '   ', translation: '光' }))).toBe('光')
+  })
+})
+
+describe('isSkipped（明细表那一列的判据，与「跳过」Stat 同一处）', () => {
+  it('跳过＝rating 1 且 input 为空串（与 roundSummary.skippedCount 同一判据）', () => {
+    expect(isSkipped({ rating: 1, input: '' })).toBe(true)
+    expect(isSkipped({ rating: 1, input: '答错了' })).toBe(false)
+  })
+
+  it('揭示型答题（rating 2/3 且 input 为空）不是跳过——按了「揭示答案」并正常评分', () => {
+    // AnswerInput 的揭示键提交的就是 ''（reviewSessionStore 的 input 注释同款说明）：
+    // 早先明细表只看 input 为空就印「（跳过）」，于是每张 english_def 都自称跳过，
+    // 而 Stat 用的是 rating === 1 —— 数字说跳过 1 张，表里却有 3 行写着跳过。
+    expect(isSkipped({ rating: 2, input: '' })).toBe(false)
+    expect(isSkipped({ rating: 3, input: '' })).toBe(false)
   })
 })

@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useViewStore } from '../../stores/viewStore'
 import { jumpToWord } from '../../lib/review/jumpToWord'
+import { RATING_LABELS } from '../../lib/review/scopeLabel'
 import { getAbsent } from '../../services/reviewService'
 import {
-  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor,
+  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, isSkipped,
 } from '../../lib/review/roundStats'
 
 /**
@@ -36,7 +37,7 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
     <div className="flex flex-col gap-5 p-8" style={{ maxWidth: '760px' }}>
       <h2 style={{ fontSize: '20px', fontWeight: 600 }}>本轮小结</h2>
       <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-        用时 {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')}
+        用时 {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')} · 共 {summary.total} 张
       </p>
 
       <SectionTitle>统计</SectionTitle>
@@ -58,7 +59,7 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
         <RoundCard title="本轮评分分布" subtitle={`忘了 ${dist.again} · 模糊 ${dist.hard} · 记得 ${dist.good}`}>
           <StackedBars rows={[{ label: '忘了', n: dist.again }, { label: '模糊', n: dist.hard }, { label: '记得', n: dist.good }]} />
         </RoundCard>
-        <RoundCard title="本轮题型正确率" subtitle={accs.filter(a => a.count > 0).map(a => `${a.label} ${Math.round((a.accuracy ?? 0) * 100)}%`).join(' · ') || '本轮没有题'}>
+        <RoundCard title="本轮题型正确率" subtitle={accuracySubtitle(accs)}>
           <AccuracyRows rows={accs} />
         </RoundCard>
       </div>
@@ -84,7 +85,7 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
                   </button>
                 </td>
                 <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12px', color: 'var(--color-text-secondary)' }}>{counts.find(x => x.template === c.template)?.label ?? c.template}</td>
-                <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12.5px' }}>{entry ? (entry.input || '（跳过）') : '（未作答）'}</td>
+                <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12.5px' }}>{entry ? (entry.input || (isSkipped(entry) ? '（跳过）' : '（揭示后评分）')) : '（未作答）'}</td>
                 <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12px', fontWeight: 600, color: ok === null ? 'var(--color-text-tertiary)' : ok ? 'var(--color-success)' : 'var(--color-danger)' }}>
                   {ok === null ? '—' : ok ? '正确' : '不正确'}
                 </td>
@@ -123,8 +124,20 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
   )
 }
 
-/** 评分档位的中文标签（与 ReviewArena 的 RATING_LABELS 同源；4 是预留档，本期无 UI）。 */
-const RATING_LABELS: Record<number, string> = { 1: '忘了', 2: '模糊', 3: '记得', 4: '轻松' }
+/**
+ * 题型正确率卡的补充文字。**没出的题型不出现**，而不是印 0%——
+ * 0% 的意思是「出了但全错」（见 roundStats.templateAccuracy 的注释）。
+ *
+ * 判据是 `accuracy !== null` 而不是 `count > 0`：两者当前等价，但只有前者能把
+ * `number | null` 收窄成 `number`，从而让下面不必再写 `?? 0` 兜底。早先那行
+ * `Math.round((a.accuracy ?? 0) * 100)` 里的兜底是死的，却正好是 Review Focus 2
+ * 禁掉的那个 0%——谁把两个表达式的顺序一换，「没出」就静默变成「全错」。
+ */
+function accuracySubtitle(accs: { label: string; accuracy: number | null }[]): string {
+  const drawn = accs.filter((a): a is { label: string; accuracy: number } => a.accuracy !== null)
+  if (drawn.length === 0) return '本轮没有题'
+  return drawn.map(a => `${a.label} ${Math.round(a.accuracy * 100)}%`).join(' · ')
+}
 
 function avg(xs: number[]): number {
   return xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length

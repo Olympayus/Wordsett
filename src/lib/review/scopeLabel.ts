@@ -41,3 +41,15 @@ export function accuracyText(answeredCount: number, correctCount: number): strin
 export function correctCount(answered: { rating: number }[]): number {
   return answered.filter(a => a.rating >= 3).length
 }
+
+/**
+ * 评分档位的中文标签。复习区有两处要显示它：ReviewArena 的回看态
+ * 「本题评分：X」与本轮小结明细表的「记忆评分」列。
+ *
+ * 两处原先各抄一份，注释还写「与另一处同源」——抄的本就不是源，注释只会把找源的人引到
+ * 一份复制品上。放在这里是因为本文件已经是复习区的中文标签堆（FREE_SCOPE_LABEL 在隔壁），
+ * 而 rating 的档位与 scope 的档位是同一类东西。加档位只改这一处。
+ *
+ * 4（轻松）是预留档，数据层已算「记得」（见上面的 correctCount），本期没有 UI。
+ */
+export const RATING_LABELS: Record<number, string> = { 1: '忘了', 2: '模糊', 3: '记得', 4: '轻松' }

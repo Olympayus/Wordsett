@@ -9,10 +9,8 @@ import { useUiStore } from '../../stores/uiStore'
 import { rateCard, type CardContent, type RateCardResult } from '../../services/reviewService'
 import { compareTyped } from '../../lib/review/typed'
 import { currentAnswered, canGoBack, canGoForward, answeredCount, revealedInputFor } from '../../lib/review/nav'
+import { RATING_LABELS } from '../../lib/review/scopeLabel'
 import { getWordContent } from '../../db/review'
-
-// 评分档位的中文标签（回看态只读标签用）。4 是预留的「轻松」档，本期无 UI。
-const RATING_LABELS: Record<number, string> = { 1: '忘了', 2: '模糊', 3: '记得', 4: '轻松' }
 
 /**
  * 答题态。三段：作答（红绿提示）→ 三键评分 → 结果区块停在屏上等「下一题」推进。

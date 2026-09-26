@@ -1,4 +1,5 @@
 import type { Template } from './types'
+import { TEMPLATE_DIFFICULTY } from './template'
 import type { ReviewCardDTO } from '../../services/reviewService'
 import type { AnsweredEntry } from '../../stores/reviewSessionStore'
 
@@ -11,7 +12,10 @@ import type { AnsweredEntry } from '../../stores/reviewSessionStore'
  * queue 给构型，answered 的 rating + template 给走势、分布与正确率。
  */
 
-/** 与 ReviewConsole 的题型中文名同源；本文件自带一份以免跨组件依赖。 */
+/**
+ * 题型中文名。**这份表全仓只有这一处**——`template.ts` 导出的是顺序与依赖，不含中文名。
+ * 所以要加题型或改中文名时，改这一处即可，别处没有第二份可以漏改。
+ */
 const TEMPLATE_LABEL: Record<Template, string> = {
   recognize: '认读',
   cloze: '填空',
@@ -20,9 +24,8 @@ const TEMPLATE_LABEL: Record<Template, string> = {
   listen: '听辨',
 }
 
-const TEMPLATE_ORDER: Template[] = ['recognize', 'cloze', 'recall', 'english_def', 'listen']
-
 export interface RoundSummary {
+  /** 本轮队列长度＝分母。答题行与用时行都要报它，否则「已答 3」读不出本轮多大。 */
   total: number
   answeredCount: number
   correctCount: number
@@ -34,17 +37,28 @@ export interface RoundSummary {
 export function roundSummary(queue: ReviewCardDTO[], answered: AnsweredEntry[]): RoundSummary {
   const correctCount = answered.filter(a => a.rating >= 3).length
   return {
+    // 分母是队列长度而非已答数：未作答的题仍属于本轮（v0.6.1 起如此，未作答计入总分母）
     total: queue.length,
     answeredCount: answered.length,
     correctCount,
     accuracy: answered.length > 0 ? `${Math.round((correctCount / answered.length) * 100)}%` : '—',
-    // 跳过＝记了「忘了」但没留下作答原文，与「答错」区分开
-    skippedCount: answered.filter(a => a.rating === 1 && a.input === '').length,
+    skippedCount: answered.filter(isSkipped).length,
   }
 }
 
+/**
+ * 跳过＝按了「跳过」键：`rating === 1` 且没留下作答原文。
+ *
+ * 判据只认 rating 1，**不能只看 input 为空**——揭示型题（中译英 / 英文释义题）的「揭示答案」
+ * 键提交的也是空串（见 AnswerInput 的 reveal 分支），用户是揭示后正常评分的。
+ * 只看 input 会让每张 english_def 都自称「（跳过）」，与统计段的跳过张数对不上。
+ */
+export function isSkipped(entry: { rating: number; input: string }): boolean {
+  return entry.rating === 1 && entry.input === ''
+}
+
 export function templateCounts(queue: ReviewCardDTO[]): { template: Template; label: string; count: number }[] {
-  return TEMPLATE_ORDER.map(t => ({
+  return TEMPLATE_DIFFICULTY.map(t => ({
     template: t,
     label: TEMPLATE_LABEL[t],
     count: queue.filter(c => c.template === t).length,
@@ -52,7 +66,7 @@ export function templateCounts(queue: ReviewCardDTO[]): { template: Template; la
 }
 
 export function templateAccuracy(answered: AnsweredEntry[]): { template: Template; label: string; count: number; accuracy: number | null }[] {
-  return TEMPLATE_ORDER.map(t => {
+  return TEMPLATE_DIFFICULTY.map(t => {
     const rows = answered.filter(a => a.template === t)
     return {
       template: t,
