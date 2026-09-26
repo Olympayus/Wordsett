@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { letterMatches } from '../../lib/review/typed'
+import SquareButton from '../ui/SquareButton'
 
 export type InputKind = 'choice' | 'typed' | 'reveal'
 
@@ -86,13 +87,12 @@ export default function AnswerInput({
 
   if (kind === 'reveal') {
     return (
-      <button
-        type="button"
-        onClick={() => onSubmit('')}
-        style={{ padding: '8px 16px', borderRadius: 'var(--radius-lg)', border: `1px solid ${ORANGE_BORDER}`, background: ORANGE_BG, color: ORANGE_TEXT, cursor: 'pointer', fontSize: '13px' }}
-      >
-        揭示答案
-      </button>
+      /* 保持原来的撑满宽：这一支原先直接作为 <section className="flex flex-col"> 的 flex 项，
+         靠 align-items 默认的 stretch 铺满，与下面「提交」那支的 flex-start 是两回事。
+         本任务只换按钮形态，不改此处原有的排布，故不套 alignSelf 包裹。
+         tone='surface'：该 section 与 PromptCard 都不设底，最近一个设了底的祖先是
+         <main> 的 --color-surface（纯白）。 */
+      <SquareButton tone="surface" onClick={() => onSubmit('')}>揭示答案</SquareButton>
     )
   }
 
@@ -126,14 +126,13 @@ export default function AnswerInput({
           </div>
         )}
       </div>
-      <button
-        type="button"
-        disabled={disabled || !value.trim()}
-        onClick={() => onSubmit(value.trim())}
-        style={{ alignSelf: 'flex-start', padding: '6px 14px', borderRadius: 'var(--radius-lg)', border: `1px solid ${ORANGE_BORDER}`, background: ORANGE_BG, color: ORANGE_TEXT, cursor: disabled || !value.trim() ? 'default' : 'pointer', fontSize: '12px' }}
-      >
-        提交
-      </button>
+      {/* alignSelf 落在包裹用的 <div> 上而非按钮本身：SquareButton 是 inline-flex，
+          放进上面这个 flex-col 里默认会被拉满宽（原来的原生 <button> 靠 alignSelf 躲过）。 */}
+      <div style={{ alignSelf: 'flex-start' }}>
+        <SquareButton tone="surface" disabled={disabled || !value.trim()} onClick={() => onSubmit(value.trim())}>
+          提交
+        </SquareButton>
+      </div>
     </div>
   )
 }

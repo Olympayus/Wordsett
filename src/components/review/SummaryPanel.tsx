@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import SquareButton from '../ui/SquareButton'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useViewStore } from '../../stores/viewStore'
 import { jumpToWord } from '../../lib/review/jumpToWord'
@@ -112,13 +113,11 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
         </div>
       )}
 
+      {/* 两个出口同形同位：v0.6.2 起复习区不再有实底主色按钮（spec §2.3），
+          「回工作台」与「继续练」的先后靠位置与文案区分。所在是 flex 行，不涉及拉伸。 */}
       <div className="flex gap-2">
-        <button type="button" onClick={onRestart} style={{ padding: '8px 16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'var(--color-surface)', cursor: 'pointer', fontSize: '13px' }}>
-          继续练 → 自由练习
-        </button>
-        <button type="button" onClick={() => { useReviewSessionStore.getState().reset(); useViewStore.getState().showModule('workbench') }} style={{ padding: '8px 16px', borderRadius: 'var(--radius-lg)', border: 'none', background: 'var(--color-brand)', color: '#fff', cursor: 'pointer', fontSize: '13px' }}>
-          回工作台
-        </button>
+        <SquareButton tone="surface" onClick={onRestart}>继续练 → 自由练习</SquareButton>
+        <SquareButton tone="surface" onClick={() => { useReviewSessionStore.getState().reset(); useViewStore.getState().showModule('workbench') }}>回工作台</SquareButton>
       </div>
     </div>
   )

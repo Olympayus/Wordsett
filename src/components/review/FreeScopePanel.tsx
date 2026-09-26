@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import FreeScopeTabs from './FreeScopeTabs'
 import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
+import SquareButton from '../ui/SquareButton'
 import { getWeakWords, getDueWordIds, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import { getWordCategoryMap } from '../../services/categoryService'
 import { aggregateCategoryCounts, canStartFreeScope, freeScopeEmptyText, freeScopeSummaryText } from '../../lib/review/categoryCounts'
@@ -195,19 +196,20 @@ export default function FreeScopePanel({ categories, onStart }: {
           />
         </label>
 
-        <button
-          type="button"
-          // 判据抽在 canStartFreeScope 里（Review Focus 3），组件只消费结果
+        {/* 判据抽在 canStartFreeScope 里（Review Focus 3），组件只消费结果；
+            禁用观感（灰底 + 0.55 不透明度 + default 光标）交给 SquareButton 自带的
+            BUTTON_DISABLED，不再在本处另写一份 opacity。 */}
+        <SquareButton
+          tone="surface"
           disabled={!canStartFreeScope(kind, categoryIds)}
           onClick={() => onStart({
             kind,
             categoryIds: kind === 'category' ? categoryIds : undefined,
             limit,
           })}
-          style={{ padding: '8px 20px', borderRadius: 'var(--radius-lg)', border: 'none', background: 'var(--color-brand)', color: '#fff', cursor: 'pointer', fontSize: '13px', opacity: canStartFreeScope(kind, categoryIds) ? 1 : 0.5 }}
         >
           开始练习
-        </button>
+        </SquareButton>
       </div>
     </div>
   )

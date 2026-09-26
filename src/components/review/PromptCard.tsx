@@ -1,5 +1,6 @@
 import type { ReviewCardDTO } from '../../services/reviewService'
 import { formatPhonetic } from '../../lib/phonetic'
+import SquareButton from '../ui/SquareButton'
 import AnswerInput, { type InputKind } from './AnswerInput'
 
 /** 模板 → 作答形态与题面渲染方式。 */
@@ -31,17 +32,10 @@ function PromptRow({ children, onSkip, showSkip }: { children: React.ReactNode; 
     <div className="flex items-start gap-3">
       <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
       {showSkip && (
-        <button
-          type="button"
-          onClick={onSkip}
-          style={{
-            flexShrink: 0, padding: '3px 10px', borderRadius: 6, fontSize: 11,
-            border: '1px solid var(--color-border)', background: 'var(--color-surface-hover)',
-            color: 'var(--color-text-secondary)', cursor: 'pointer', fontFamily: 'var(--font-sans)',
-          }}
-        >
-          跳过
-        </button>
+        /* tone='surface'：本行与题面区都不设背景，最近一个设了底色的祖先是 ReviewModule
+           的 <main>（--color-surface，纯白），故走白底套。所在的是 flex 行（items-start）
+           而非 flex 列，不存在拉伸问题，无需 alignSelf 包裹。 */
+        <SquareButton size="nav" tone="surface" onClick={onSkip}>跳过</SquareButton>
       )}
     </div>
   )
@@ -99,19 +93,21 @@ export default function PromptCard({
       {dto.template === 'listen' && (
         <PromptRow onSkip={onSkip} showSkip={!disabled}>
           {/* 听辨题面只有播放按钮：lemma 不得早渲染（v0.6 spec §4.1）。
-              命令缺失 / 无音色时静默降级，不产生未捕获拒绝（Review Focus #5）。 */}
-          <button
-            type="button"
-            onClick={async () => {
-              try {
-                const { invoke } = await import('@tauri-apps/api/core')
-                await invoke('speak', { text: String(dto.answer.lemma ?? ''), rate: 1.0 })
-              } catch { /* 静默降级 */ }
+              命令缺失 / 无音色时静默降级，不产生未捕获拒绝（Review Focus #5）。
+              tone='surface'：这层与 PromptRow 都不设底，最近一个设了底的祖先是 <main> 的白。 */}
+          <SquareButton
+            tone="surface"
+            onClick={() => {
+              void (async () => {
+                try {
+                  const { invoke } = await import('@tauri-apps/api/core')
+                  await invoke('speak', { text: String(dto.answer.lemma ?? ''), rate: 1.0 })
+                } catch { /* 静默降级 */ }
+              })()
             }}
-            style={{ padding: '10px 18px', borderRadius: 'var(--radius-lg)', border: '1px solid color-mix(in srgb, var(--color-accent) 35%, white)', background: 'var(--color-accent-soft)', color: 'color-mix(in srgb, var(--color-accent) 70%, black)', cursor: 'pointer', fontSize: '13px' }}
           >
             播放读音
-          </button>
+          </SquareButton>
         </PromptRow>
       )}
       {/* 词性的独立灰行：填空题的词性已入句（见上），此处再显示一次就是同一信息说两遍。

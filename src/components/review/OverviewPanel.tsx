@@ -1,4 +1,5 @@
 import StatsMini from './StatsMini'
+import SquareButton from '../ui/SquareButton'
 import type { ReviewStats } from './StatsMini'
 
 export default function OverviewPanel({ title, total, newCount, estimateMinutes, stats, onStart, startLabel = '开始复习', empty }: {
@@ -26,18 +27,9 @@ export default function OverviewPanel({ title, total, newCount, estimateMinutes,
         {total} 张 · 含新词 {newCount} · 预计 {estimateMinutes} 分钟
       </p>
       <StatsMini stats={stats} />
-      <button
-        type="button"
-        onClick={onStart}
-        disabled={total === 0}
-        style={{
-          padding: '8px 20px', borderRadius: 'var(--radius-lg)', border: 'none',
-          background: total === 0 ? 'var(--color-border)' : 'var(--color-brand)', color: '#fff',
-          cursor: total === 0 ? 'default' : 'pointer', fontSize: '13px',
-        }}
-      >
-        {startLabel}
-      </button>
+      {/* tone='surface'：本行所在的 flex-col 容器不设底，最近一个设了底的祖先是
+          ReviewModule 的 <main>（--color-surface 纯白）。容器是 items-start，按钮不会被拉伸。 */}
+      <SquareButton tone="surface" onClick={onStart} disabled={total === 0}>{startLabel}</SquareButton>
     </div>
   )
 }

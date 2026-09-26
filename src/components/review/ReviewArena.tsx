@@ -3,6 +3,7 @@ import PromptCard, { inputKindFor, typedTarget } from './PromptCard'
 import RatingBar from './RatingBar'
 import ResultBlock from './ResultBlock'
 import ArenaNavBar from './ArenaNavBar'
+import SquareButton from '../ui/SquareButton'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useUiStore } from '../../stores/uiStore'
@@ -206,26 +207,22 @@ export default function ReviewArena() {
             // 「查看小结」：它调的正是 advance()，在队尾会把 phase 置成 'summary'。
             // 按钮与「下一题」同形同位（下一题本就是这一态的正常控件），两态互斥。
             atTail ? (
-              <button
-                type="button"
-                onClick={() => advance()}
-                style={{ alignSelf: 'flex-start', padding: '8px 20px', borderRadius: 'var(--radius-lg)', border: 'none', background: 'var(--color-brand)', color: '#fff', cursor: 'pointer', fontSize: '13px' }}
-              >
-                查看小结
-              </button>
+              // alignSelf 移到包裹的 <div> 上：SquareButton 是 inline-flex，
+              // 在本组件的 flex-col 里默认会被拉满宽（见「下一题」处的同款说明）。
+              // tone='surface'：外层这层 <div> 与 <section data-arena-region> 都不设底，
+              // 最近一个设了底的祖先是 ReviewModule 的 <main>（--color-surface 纯白）。
+              <div style={{ alignSelf: 'flex-start' }}>
+                <SquareButton tone="surface" onClick={() => advance()}>查看小结</SquareButton>
+              </div>
             ) : (
               <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
                 本题评分：{RATING_LABELS[pastEntry?.rating ?? 0] ?? '—'}
               </span>
             )
           ) : rated ? (
-            <button
-              type="button"
-              onClick={() => advance()}
-              style={{ alignSelf: 'flex-start', padding: '8px 20px', borderRadius: 'var(--radius-lg)', border: 'none', background: 'var(--color-brand)', color: '#fff', cursor: 'pointer', fontSize: '13px' }}
-            >
-              下一题
-            </button>
+            <div style={{ alignSelf: 'flex-start' }}>
+              <SquareButton tone="surface" onClick={() => advance()}>下一题</SquareButton>
+            </div>
           ) : null}
         </>
       )}

@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import Icon from '../icons'
+import SquareButton from '../ui/SquareButton'
 
 // 导航按钮（与 word/WorkbenchNavBar.tsx 的 navBtn 同形）：28×28、无边框无底色，hover 才起底色
 const navBtn = (disabled: boolean): CSSProperties => ({
@@ -53,17 +54,9 @@ export default function ArenaNavBar({ index, total, canBack, canForward, onBack,
       </button>
       <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginLeft: 4 }}>第 {index + 1} / {total} 题</span>
       <span style={{ flex: 1 }} />
-      <button
-        type="button"
-        onClick={onEnd}
-        style={{
-          padding: '5px 12px', border: '1px solid var(--color-border)', borderRadius: 6,
-          background: 'transparent', color: 'var(--color-text-secondary)', fontSize: 11,
-          cursor: 'pointer', fontFamily: 'var(--font-sans)',
-        }}
-      >
-        结束回合
-      </button>
+      {/* tone='canvas'（v0.6.2 条目 1）：整条导航条自带 --color-canvas 底（上方第 43 行），
+          故脚下说了算——外面那块纯白内容区不参与判断。外层 <main> 虽是 surface，跨过它取。 */}
+      <SquareButton size="nav" tone="canvas" onClick={onEnd}>结束回合</SquareButton>
     </div>
   )
 }
