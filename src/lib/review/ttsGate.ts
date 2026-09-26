@@ -52,7 +52,7 @@ export function subscribe(fn: () => void): () => void {
   return () => { listeners.delete(fn) }
 }
 
-/** 仅供测试：把开关复位到「未探测」状态。 */
+/** 仅供测试：把探测结果复位到「未探测」状态。 */
 export function resetListenEnabled(): void {
   probe = null
   emit()

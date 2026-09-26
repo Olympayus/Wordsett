@@ -3,10 +3,11 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { Toggle } from '../ui/Toggle'
 import { subscribe, getProbe, type VoiceProbe } from '../../lib/review/ttsGate'
 
-/** 后端 → 面向用户的来源说法。不暴露 winrt / sapi 这类实现名。 */
+/** 后端 → 面向用户的来源说法。用用户能读懂的话点名后端，「装了却读不到」的反馈
+ *  才能说清当时走的是哪条路（spec §6.4 的验收文案：来源写作「系统 SAPI5」等）。 */
 const BACKEND_LABEL: Record<string, string> = {
-  winrt: '系统语音（Windows）',
-  sapi: '系统语音（旧版接口）',
+  winrt: 'Windows 系统语音',
+  sapi: '系统 SAPI5',
   native: '系统语音',
 }
 
@@ -68,10 +69,16 @@ export default function ReviewSettings() {
 /**
  * 听辨题型的状态块（spec §6.4）。
  *
+ * 三态而非两态。探测结果是异步 Tauri IPC 落地的，设置页可能在它落地**之前**就被打开
+ * （冷启动后一次导航即到），所以「还没探测」必须与「探测了、不可用」分开讲：
+ * 早先的 `??` 回退把永久态的标题（「已下线」）和临时态的正文（「正在检测…」）叠在一起，
+ * 同一屏既说功能已下线、又说正在检测。探测未返回时同样不该甩出安装指引——
+ * 在还不知道系统里有没有英文音色之前，让用户去装语音包和事后说「装好了还是不行」一样误导。
+ *
+ * 已下线的版式与文案由 spec §2.6 定死，不随本段改动漂移：标题、Rust 侧 reason、
+ * 「装好后重启软件即可上线」单独成行，其下 Windows / macOS 两条并列。
  * 可用时显示生效的音色与来源——这才是「装了却读不到」这类问题的可诊断形态：
  * 用户能看到应用到底看见了什么，而不是只被告知「没检测到」。
- * 不可用时把 Rust 侧给的 reason 原样透出，并给两条安装指引（条目 8 的版式：
- * 「装好后重启软件即可上线」单独成行，其下 Windows / macOS 两条并列）。
  */
 function ListenStatus({ probe }: { probe: VoiceProbe | null }) {
   return (
@@ -80,7 +87,9 @@ function ListenStatus({ probe }: { probe: VoiceProbe | null }) {
       background: 'var(--color-surface-raised)', padding: '10px 12px',
       fontSize: '12px', lineHeight: 1.8, color: 'var(--color-text-secondary)',
     }}>
-      {probe?.available ? (
+      {probe === null ? (
+        <div>正在检测系统语音…</div>
+      ) : probe.available ? (
         <>
           <div style={{ fontSize: '13px', color: 'var(--color-text-primary)', marginBottom: 4 }}>
             听辨题型可用
