@@ -3,6 +3,7 @@ import StrategyList, { type StrategyMeta } from './StrategyList'
 import OverviewPanel from './OverviewPanel'
 import FreeScopePanel from './FreeScopePanel'
 import ReviewArena from './ReviewArena'
+import SessionGuard from './SessionGuard'
 import SummaryPanel from './SummaryPanel'
 import ReviewConsole from './ReviewConsole'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
@@ -25,12 +26,14 @@ export default function ReviewModule() {
   const reqIdRef = useRef(0)
 
   // 会话进行中：有会话（phase 非概览/小结）且正在看它所属的策略。
-  // 切到别的策略只看那个策略的概览，被切走的会话原地保留在 store 里，切回即续（规格 §2.4）。
+  // 切到别的策略只看那个策略的概览；被切走的会话仍留在 store 里，
+  // 但 v0.6.2 起 SessionGuard 会拦下这次点击并询问——不再原地保留、切回即续（§2.4 已废）。
   const sessionLive = phase !== 'overview' && phase !== 'summary' && sessionStrategy !== null
   const live = sessionLive && strategy === sessionStrategy
   // 小结属于会话自己那一栏：它可见时压过概览面板（否则自由练习的小结会与范围面板同时出现）
   const summaryVisible = phase === 'summary' && sessionStrategy === strategy
-  // 概览态 = 没有正在展示的会话、也不在看小结：看别的策略时，它自己的概览照常出现（规格 §2.4）
+  // 概览态 = 没有正在展示的会话、也不在看小结：看别的策略时，它自己的概览照常出现。
+  // v0.6.2 起会话进行中点别的策略会被 SessionGuard 拦下并询问——不再有「切走即续」。
   const showOverview = !live && !summaryVisible
   // 进度挂在「会话所属策略」上：看着别的策略时，原会话仍显示题号与题型
   const progressFor = (key: ReviewStrategy) =>
@@ -97,6 +100,7 @@ export default function ReviewModule() {
       />
       {/* 右栏用 surface（白）铺底，左栏留在 canvas 上——与设置页、工作台同一套「nav 米色 / 内容白」分栏 */}
       <main className="flex-1 overflow-auto" style={{ background: 'var(--color-surface)' }}>
+        <SessionGuard />
         {emptyNotice && (
           <span style={{ display: 'block', padding: '12px 32px 0', fontSize: '12px', color: '#c0705a' }}>{emptyNotice}</span>
         )}

@@ -52,6 +52,7 @@ export default function ActivityRail() {
         type="button"
         title="工作台"
         aria-label="工作台"
+        data-session-guard="module:workbench"
         aria-current={activeModule === 'workbench' ? 'page' : undefined}
         onClick={() => showModule('workbench')}
         style={btnStyle(activeModule === 'workbench')}
@@ -63,6 +64,7 @@ export default function ActivityRail() {
         type="button"
         title="复习"
         aria-label="复习"
+        data-session-guard="module:review"
         aria-current={activeModule === 'review' ? 'page' : undefined}
         onClick={() => showModule('review')}
         style={{ ...btnStyle(activeModule === 'review'), position: 'relative' }}
@@ -87,6 +89,7 @@ export default function ActivityRail() {
         type="button"
         title="设置"
         aria-label="设置"
+        data-session-guard="module:settings"
         aria-current={activeModule === 'settings' ? 'page' : undefined}
         onClick={() => showModule('settings')}
         style={{ ...btnStyle(activeModule === 'settings'), marginTop: 'auto' }}

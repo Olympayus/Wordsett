@@ -158,7 +158,7 @@ export default function ReviewArena() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-8" style={{ maxWidth: '960px' }}>
+    <div data-arena-region className="flex flex-col gap-6 p-8" style={{ maxWidth: '960px' }}>
       <div>
         <ArenaNavBar
           index={index}

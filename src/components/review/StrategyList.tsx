@@ -28,6 +28,7 @@ export default function StrategyList({ strategies, active, onSelect, header, foo
             key={s.key}
             type="button"
             aria-current={on ? 'true' : undefined}
+            data-session-guard={`strategy:${s.key}`}
             onClick={() => onSelect(s.key)}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
