@@ -1,28 +1,27 @@
+import { useSyncExternalStore } from 'react'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { Toggle } from '../ui/Toggle'
-import { isListenEnabled } from '../../lib/review/ttsGate'
+import { subscribe, getProbe, type VoiceProbe } from '../../lib/review/ttsGate'
 
-// 复习设置（v0.6 §7 + v0.6.1 §2.6 / §2.7）。
+/** 后端 → 面向用户的来源说法。不暴露 winrt / sapi 这类实现名。 */
+const BACKEND_LABEL: Record<string, string> = {
+  winrt: '系统语音（Windows）',
+  sapi: '系统语音（旧版接口）',
+  native: '系统语音',
+}
+
+// 复习设置（v0.6 §7 + v0.6.1 §2.6 / §2.7 + v0.6.2 §2.6 / §6.4）。
 // 版式：左列＝标签（第一行）＋ 说明（第二行）两行一栏，右侧控件垂直居中于那两行。
 export default function ReviewSettings() {
   const review = useSettingsStore(s => s.review)
   const setReview = useSettingsStore(s => s.setReview)
-  // 探测结果在启动时写入，这里是纯读；探测失败 / 未返回一律视为不可用（与组卷同一口径）
-  const listenOn = isListenEnabled()
+  // 探测结果在启动时异步写入，故用订阅而不是直接读——否则设置页在结果落地前挂载时
+  // 会一直显示「未探测」，用户看不到诊断信息（v0.6.2 §6.4）。
+  const probe = useSyncExternalStore(subscribe, getProbe)
 
   return (
     <div className="flex flex-col gap-5">
-      {!listenOn && (
-        <div style={{
-          border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
-          background: 'var(--color-surface-raised)', padding: '10px 12px',
-          fontSize: '12px', lineHeight: 1.8, color: 'var(--color-text-secondary)',
-        }}>
-          <div style={{ fontSize: '13px', color: 'var(--color-text-primary)', marginBottom: 4 }}>未检测到英文语音，听辨题型已下线</div>
-          装好后重启即可上线：Windows 设置 → 时间和语言 → 语言和区域 → English (US) → 语言选项 → 下载「语音」包。
-          macOS：系统设置 → 辅助功能 → 朗读内容 → 系统声音 → 管理声音，免费下载 Ava / Zoe 等增强音色。
-        </div>
-      )}
+      <ListenStatus probe={probe} />
 
       <NumberRow
         label="期望记忆保留率"
@@ -62,6 +61,46 @@ export default function ReviewSettings() {
           <Toggle aria-label="键入题逐字母标红" checked={review.letterHighlight} onChange={v => setReview('letterHighlight', v)} />
         </div>
       </div>
+    </div>
+  )
+}
+
+/**
+ * 听辨题型的状态块（spec §6.4）。
+ *
+ * 可用时显示生效的音色与来源——这才是「装了却读不到」这类问题的可诊断形态：
+ * 用户能看到应用到底看见了什么，而不是只被告知「没检测到」。
+ * 不可用时把 Rust 侧给的 reason 原样透出，并给两条安装指引（条目 8 的版式：
+ * 「装好后重启软件即可上线」单独成行，其下 Windows / macOS 两条并列）。
+ */
+function ListenStatus({ probe }: { probe: VoiceProbe | null }) {
+  return (
+    <div style={{
+      border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
+      background: 'var(--color-surface-raised)', padding: '10px 12px',
+      fontSize: '12px', lineHeight: 1.8, color: 'var(--color-text-secondary)',
+    }}>
+      {probe?.available ? (
+        <>
+          <div style={{ fontSize: '13px', color: 'var(--color-text-primary)', marginBottom: 4 }}>
+            听辨题型可用
+          </div>
+          <div>
+            英文音色：{probe.voice ?? '系统默认'}
+            {probe.backend ? `（来源：${BACKEND_LABEL[probe.backend] ?? probe.backend}）` : ''}
+          </div>
+        </>
+      ) : (
+        <>
+          <div style={{ fontSize: '13px', color: 'var(--color-text-primary)', marginBottom: 4 }}>
+            听辨题型已下线
+          </div>
+          <div>{probe?.reason ?? '正在检测系统语音…'}</div>
+          <div style={{ marginTop: 6 }}>装好后重启软件即可上线</div>
+          <div>Windows：设置 → 时间和语言 → 语言和区域 → English (US) → 语言选项 → 下载「语音」包</div>
+          <div>macOS：系统设置 → 辅助功能 → 朗读内容 → 系统声音 → 管理声音，免费下载 Ava / Zoe 等增强音色</div>
+        </>
+      )}
     </div>
   )
 }

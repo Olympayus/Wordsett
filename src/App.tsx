@@ -4,7 +4,7 @@ import ErrorBoundary from './components/ui/ErrorBoundary'
 import TextContextMenu from './components/ui/TextContextMenu'
 import IndexPage from './routes/IndexPage'
 import { useUpdaterStore } from './stores/updaterStore'
-import { setListenEnabled } from './lib/review/ttsGate'
+import { setProbe, type VoiceProbe } from './lib/review/ttsGate'
 
 export default function App() {
   // 启动静默检查：发现新版只点亮顶栏徽标，不弹窗
@@ -19,10 +19,11 @@ export default function App() {
     void (async () => {
       try {
         const { invoke } = await import('@tauri-apps/api/core')
-        const ok = await invoke<boolean>('tts_english_voice_available')
-        if (alive) setListenEnabled(ok === true)
+        const result = await invoke<VoiceProbe>('tts_english_voice_available')
+        if (alive) setProbe(result)
       } catch {
-        if (alive) setListenEnabled(false)
+        // 命令缺失 / 非 Tauri 环境（浏览器里跑 vitest）：按未探测处理，fail-closed。
+        if (alive) setProbe(null)
       }
     })()
     return () => { alive = false }
