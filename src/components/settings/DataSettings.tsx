@@ -90,7 +90,7 @@ export default function DataSettings() {
           <div style={{ marginTop: '10px', padding: '10px 12px', background: 'var(--color-brand-soft)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)' }}>
             <div>{fmt(plan)}</div>
             {/* 「确认导入」与上方两个按钮同款，不再单列品牌底 + 白字变体：
-                变体色（--color-brand 浅品牌底 + 白字）与 SquareButton 的深品牌底 + 黑字
+                变体色（--color-brand 浅品牌底 + 白字）与 SquareButton 的暖中性底 + 深字
                 并列会让同一区块里出现两种按钮语言，且它所在的内嵌 plan 盒本身就是品牌色底，
                 再压一个品牌按钮会糊在一起。统一底样后，唯一的区分靠它在 plan 盒内的位置。 */}
             <div style={{ marginTop: '8px' }}>

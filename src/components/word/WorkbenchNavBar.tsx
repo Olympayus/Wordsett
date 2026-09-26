@@ -106,7 +106,7 @@ export default function WorkbenchNavBar({
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
         {region === 'workbench' ? (
           <>
-            {/* 编者模式（v0.5.3 §4.1 第 16 条重做）：形态开关，开 = 品牌蓝底、关 = 强调橙底，
+            {/* 编者模式（v0.5.3 §4.1 第 16 条重做）：形态开关，开 = 浅品牌蓝底 + 深字、关 = 暖中性底，
                 两态只差底色，几何完全一致，故切换时导航条不跳动。role="switch" + aria-checked
                 保留语义（不用 aria-pressed：它与 aria-checked 语义重复且优先级不明）。
                 hover 与按压回弹由 SquareButton 内部处理，这里不再手写 onMouse*。

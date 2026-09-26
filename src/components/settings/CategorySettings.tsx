@@ -68,7 +68,8 @@ export default function CategorySettings() {
 
   return (
     <div>
-      {/* 「新建分类」用 SquareButton（v0.5.3 §4.1 第 16 条）：深品牌底 + 黑色无衬线、不加粗，
+      {/* 「新建分类」用 SquareButton（v0.5.3 §4.1 第 16 条）：暖中性底 + 深色无衬线、半粗
+          （字重 600 由 SquareButton 统一给），
           旧的虚线描边 + hover 反色一并去掉——统一样式下按钮不反色（与 WorkbenchNavBar 一致）。
           SquareButton 自身不是 flex 行，图标与文字直接并列会贴在一起，故 children 包一层
           inline-flex + gap（同 WorkbenchNavBar 的「合并添加」按钮写法）。 */}
