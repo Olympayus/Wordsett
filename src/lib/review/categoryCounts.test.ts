@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { aggregateCategoryCounts, canStartFreeScope, freeScopeSummaryText, selectByCategories } from './categoryCounts'
+import { aggregateCategoryCounts, canStartFreeScope, freeScopeEmptyText, freeScopeSummaryText, selectByCategories } from './categoryCounts'
 
 const cats = [
   { id: 'c1', name: '四级核心' },
@@ -116,5 +116,34 @@ describe('freeScopeSummaryText：汇总句必须点明口径（v0.6.2 条目 10�
 
   it('一个都没勾：句子照样给出口径，不是空串', () => {
     expect(freeScopeSummaryText([], countRows)).toBe('共选 0 个分类 · 预计可出（已到期）0 题')
+  })
+})
+
+describe('freeScopeEmptyText：三种空态必须分得开（v0.6.2 条目 10）', () => {
+  it('还在读（库里有分类、也没失败）：什么都不说——它不空，只是还没到', () => {
+    // 这是被评审点出的那一支：`rows` 初值是 []，旧判据（rows.length === 0 && categoryKey !== ''）
+    // 在这里会说「这个库里还没有分类」。库里有分类，那是句假话，而且恰好在最贵的一次读（EXISTS 扫描）期间说。
+    expect(freeScopeEmptyText(true, false)).toBeNull()
+  })
+
+  it('库里确实没有分类（不是还没读到）：说「还没有分类」，下一步指工作台', () => {
+    const text = freeScopeEmptyText(false, false)
+    expect(text).toContain('还没有分类')
+    // 这句话给出的下一步必须是真的存在的地方
+    expect(text).toContain('工作台')
+  })
+
+  it('读失败：说读不到，且只指页面上真有的那个控件', () => {
+    const text = freeScopeEmptyText(true, true)
+    expect(text).toContain('读不到分类')
+    // 这个 effect 只在 kind / categoryKey / leechThreshold 变化时重跑，页面上没有「重试」按钮；
+    // 唯一的再读路径是切走范围再切回来（范围标签）。句子必须指这个真的控件，
+    // 不能像原来那样说「再回来重试」——那会让用户去找一个不存在的按钮。
+    expect(text).toContain('切到别的范围')
+    expect(text).not.toContain('再回来重试')
+  })
+
+  it('读失败压过「没有分类」：失败时至少有话可说，不落回空白盒子', () => {
+    expect(freeScopeEmptyText(false, true)).toContain('读不到分类')
   })
 })

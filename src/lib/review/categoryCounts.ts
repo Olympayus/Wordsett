@@ -79,3 +79,30 @@ export function freeScopeSummaryText(
     .reduce((n, r) => n + r.dueCount, 0)
   return `共选 ${selectedCategoryIds.length} 个分类 · 预计可出（已到期）${due} 题`
 }
+
+/**
+ * 分类强化页列表里的那一行空态文案（v0.6.2 条目 10）；`null` = **什么都不说**。
+ *
+ * 三种情形必须分得开，因为用户下一步不同：
+ * - 读失败 → 「读不到分类」，先确认词库已打开；
+ * - 库里确实没有分类 → 「还没有分类」，去工作台建一个；
+ * - 还在读（有分类、也没失败）→ **不说话**。`rows` 初值是 `[]`，单看它等于把「还没读到」
+ *   当成「是空的」，会在两次 db 读（其中一次是逐词 EXISTS 扫描）飞完之前先闪一句假话。
+ *
+ * `hasCategories` 传 `categories.length > 0`（与 effect 里的 `categoryKey !== ''` 同一个值）。
+ * 空分类列表只可能是「这个库真没有分类」，与面板自己读没读完无关，所以第二支在飞行中也是真话；
+ * 反过来「有分类」是绝大多数情形，那才是必须保持沉默的一支——这正是上一版判据答错的地方：
+ * 它的 `categoryKey !== ''` 对每个有分类的库都为真，于是把「还在读」那一支当成了空态。
+ *
+ * 抽成纯函数与 freeScopeSummaryText 同一个理由：本仓库没有组件测试 harness，
+ * 只写在 JSX 里的句子钉不住，而这一处恰恰错过一次。
+ */
+export function freeScopeEmptyText(hasCategories: boolean, rowsFailed: boolean): string | null {
+  if (rowsFailed) {
+    // 文案里的「重试」必须落在真有这个控件的地方：这个 effect 只在 kind / categoryKey /
+    // leechThreshold 变化时重跑，页面上没有重试按钮，切走范围再切回来（范围标签）才是唯一的再读路径。
+    return '读不到分类。先确认词库已打开，切到别的范围再切回来会重读一次；换个范围也能继续练。'
+  }
+  if (!hasCategories) return '这个库里还没有分类。到工作台建一个，或换个范围继续练。'
+  return null
+}

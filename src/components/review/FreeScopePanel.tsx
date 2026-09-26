@@ -4,7 +4,7 @@ import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
 import { getWeakWords, getDueWordIds, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import { getWordCategoryMap } from '../../services/categoryService'
-import { aggregateCategoryCounts, canStartFreeScope, freeScopeSummaryText } from '../../lib/review/categoryCounts'
+import { aggregateCategoryCounts, canStartFreeScope, freeScopeEmptyText, freeScopeSummaryText } from '../../lib/review/categoryCounts'
 import type { FreeScopeKind } from '../../lib/review/types'
 import { jumpToWord } from '../../lib/review/jumpToWord'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -22,8 +22,8 @@ export default function FreeScopePanel({ categories, onStart }: {
   const [rows, setRows] = useState<{ id: string; name: string; wordCount: number; dueCount: number }[]>([])
   // 分类计数读失败：与「库里没有分类」分开讲——前者用户只能重试或换个范围，
   // 后者要去工作台建分类，混成同一个空盒子两边都答不上来。
-  // 顺带承担「还在读」的判据：rows 初值是 []，拿它当「读完了且是空」会在查询期间
-  // 先闪一下「读不到分类」。有分类 id 才谈得上这两种空态之一。
+  // 三态判据抽在 freeScopeEmptyText 里（见下）：读失败 / 库里确实没有分类 / 还在读。
+  // 最后一支必须**不说话**——rows 初值是 []，把它当「空」会在读到之前先闪一句假话。
   const [rowsFailed, setRowsFailed] = useState(false)
   const [limit, setLimit] = useState(20)
   const [weak, setWeak] = useState<Awaited<ReturnType<typeof getWeakWords>>>([])
@@ -42,6 +42,10 @@ export default function FreeScopePanel({ categories, onStart }: {
   // 现造的数组，每次渲染都是新身份，直接进依赖会让这个 effect 每渲染都重跑一遍。
   // 用 id 拼成的字符串做稳定 key。
   const categoryKey = categories.map(c => c.id).join('|')
+  // 空态文案（null = 什么都不说）：读失败 / 库里真的没有分类 / 还在读（这一支沉默）。
+  // `categories.length > 0` 与下面 effect 依赖里的 `categoryKey !== ''` 是同一个值；
+  // 三支之间为什么这样分、哪一支曾经答错，都写在 freeScopeEmptyText 的注释与它的用例里。
+  const emptyText = freeScopeEmptyText(categories.length > 0, rowsFailed)
   useEffect(() => {
     if (kind !== 'category') return
     let alive = true
@@ -127,11 +131,9 @@ export default function FreeScopePanel({ categories, onStart }: {
               勾选要出题的分类，可多选
             </div>
             <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-              {rows.length === 0 && categoryKey !== '' && (
+              {emptyText !== null && (
                 <div style={{ padding: '12px', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
-                  {rowsFailed
-                    ? '读不到分类。先确认词库已打开，再回来重试；换个范围也能继续练。'
-                    : '这个库里还没有分类。到工作台建一个，或换个范围继续练。'}
+                  {emptyText}
                 </div>
               )}
               {rows.map(r => {
