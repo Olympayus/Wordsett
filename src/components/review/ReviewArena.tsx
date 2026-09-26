@@ -174,7 +174,13 @@ export default function ReviewArena() {
         dto={dto}
         letterHighlight={letterHighlight}
         disabled={revealed}
-        revealedInput={pastEntry?.input}
+        // 已揭示就传本次的作答原文，让选项**立刻**着对错色（v0.6.2 条目 11）。
+        // 原先只传 pastEntry?.input，而它取自 store 的 answered——只有评分完才会有
+        // 这条记录，于是着色要等三级评分。handleSubmit 已经 setRevealed(true)，
+        // 所以点选项那一帧起 shown 即为真。
+        // 跳过路径（onSkip → handleRate(1, '')）会让 lastInput 为 ''，于是跳过后
+        // 选项也着色并标出正确答案——与下方「评分成功即视为已揭示」同向，是要的行为。
+        revealedInput={revealed ? lastInput : pastEntry?.input}
         onSkip={() => void handleRate(1, '')}
         onSubmit={handleSubmit}
       />

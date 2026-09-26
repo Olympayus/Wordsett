@@ -50,3 +50,32 @@ describe('lib/review/nav', () => {
     expect(answeredCount([])).toBe(0)
   })
 })
+
+describe('选项判色的驱动值（v0.6.2 条目 11）', () => {
+  /**
+   * AnswerInput 用 `revealedInput !== undefined` 决定是否着对错色（AnswerInput.tsx:42）。
+   * 故「点完选项立刻着色」等价于「提交后立即给出一个非 undefined 的 revealedInput」。
+   * 这里把 ReviewArena 的取值规则抽出来钉住：它在两种场景下都必须给出有值的结果。
+   */
+  const revealedInputFor = (
+    revealed: boolean, lastInput: string, pastInput: string | undefined,
+  ): string | undefined => (revealed ? lastInput : pastInput)
+
+  it('刚提交（revealed 为真、pastInput 未定义）时立刻有值 —— 选项即刻着色', () => {
+    expect(revealedInputFor(true, '散布，扩散', undefined)).toBe('散布，扩散')
+  })
+
+  it('跳过路径（提交空串）时也是「已揭示」—— 着色并标出正确答案', () => {
+    expect(revealedInputFor(true, '', undefined)).toBe('')
+    // 关键：'' !== undefined，AnswerInput 的 shown 判据要的正是这个差别
+    expect(revealedInputFor(true, '', undefined) !== undefined).toBe(true)
+  })
+
+  it('回看旧题时回放当时的作答原文', () => {
+    expect(revealedInputFor(true, '无关', 'implication')).toBe('无关')
+  })
+
+  it('未揭示时不传 —— 保持橙色的「待选」形态', () => {
+    expect(revealedInputFor(false, '', undefined)).toBeUndefined()
+  })
+})
