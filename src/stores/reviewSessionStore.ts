@@ -17,7 +17,8 @@ export interface AnsweredEntry {
 
 export interface FreeScope {
   kind: 'category' | 'random' | 'today' | 'weak'
-  categoryId?: string
+  /** 分类强化的多选目标（v0.6.2 条目 10）。并集出题；其他 kind 不用。 */
+  categoryIds?: string[]
   limit?: number
 }
 

@@ -23,10 +23,10 @@ export interface ReviewParams {
   queueLimit: number
 }
 
-/** 自由练习的范围（与 Task 10 的 FreeScopePanel 载荷一致）。 */
+/** 自由练习的范围（与 FreeScopePanel 的载荷一致）。v0.6.2 起分类改多选。 */
 export interface FreeScope {
   kind: 'category' | 'random' | 'today' | 'weak'
-  categoryId?: string
+  categoryIds?: string[]
   limit: number
 }
 
@@ -317,13 +317,15 @@ async function filterFree(
   if (!scope) return []
   if (scope.kind === 'today') return candidates
   if (scope.kind === 'weak') return filterWeak(candidates, params, now)
-  if (scope.kind === 'category' && scope.categoryId) {
-    // 复用现有 getAllWordCategoryMap（src/db/categories.ts），不新增查询
+  if (scope.kind === 'category' && scope.categoryIds && scope.categoryIds.length > 0) {
+    // 复用现有 getAllWordCategoryMap（src/db/categories.ts），不新增查询。
+    // 多选：任一所选分类命中即入题，故用 some 而不是 includes。
     const { getAllWordCategoryMap } = await import('../db/categories')
     const res = await getAllWordCategoryMap()
     if (!res.ok) return []
+    const wanted = new Set(scope.categoryIds)
     const ids = Object.entries(res.data)
-      .filter(([, cats]) => cats.includes(scope.categoryId as string))
+      .filter(([, cats]) => cats.some(c => wanted.has(c)))
       .map(([wordId]) => wordId)
     return candidates.filter(c => ids.includes(c.wordId))
   }
@@ -451,6 +453,16 @@ export async function getOverview(params: ReviewParams) {
     // 三图与近 14 天趋势都要 dueByDay / recentRatings，故整包透出而非只给 masteryBuckets
     stats,
   }
+}
+
+/**
+ * 当前有候选的 wordId 集（v0.6.2 条目 10）。分类强化要报「点这个分类能出多少题」，
+ * 而候选口径必须与出题一致，故复用同一条候选链（含 allowListen 门控）。
+ */
+export async function getDueWordIds(params: ReviewParams): Promise<Set<string>> {
+  void params
+  const r = await reviewDb.getCandidates(Date.now(), undefined, { allowListen: isListenEnabled() })
+  return new Set(r.ok ? r.data.map(c => c.wordId) : [])
 }
 
 export { masteryTier, templateAccuracy }
