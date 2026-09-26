@@ -112,3 +112,36 @@ export async function renumberWordByTemplate(wordId: string): Promise<boolean> {
   assign(sorted)
   return (await fieldsDb.reorderFieldValues(flat)).ok
 }
+
+/**
+ * 取一个词的全部字段值，连同字段定义的 key（v0.6.2 条目 12）。
+ *
+ * 复习模块的「完整词条」要复刻工作台「词性」标签页的树，而树的分组依据是**字段 key**
+ * （part_of_speech / chinese_definition / …），`FieldValue` 里只有 `fieldId`。
+ * 故这里把 definitions 的 id→key 映射拼上。定义有缓存（getDefinitions），不自查库。
+ *
+ * 逐字段（而非整词）查词条内容，故不取缓存。这里返回**摊平**的行：`getValues` 只返回
+ * 根节点、子级挂在 `children` 上，而 buildPosTree 要按 parentId 逐层走，须自己摊开。
+ * 保留传入的 displayOrder，不改排序。
+ */
+export async function getValuesWithKeys(wordId: string): Promise<{
+  id: string; key: string; value: string; parentId: string | null; displayOrder: number
+}[]> {
+  const [values, defs] = await Promise.all([getValues(wordId), getDefinitions()])
+  const keyOf = new Map(defs.map(d => [d.id, d.key]))
+  const flat: { id: string; key: string; value: string; parentId: string | null; displayOrder: number }[] = []
+  const walk = (nodes: FieldValue[]) => {
+    for (const n of nodes) {
+      flat.push({
+        id: n.id,
+        key: keyOf.get(n.fieldId) ?? '',
+        value: n.value,
+        parentId: n.parentId,
+        displayOrder: n.displayOrder,
+      })
+      if (n.children?.length) walk(n.children)
+    }
+  }
+  walk(values)
+  return flat.filter(v => v.key !== '')
+}
