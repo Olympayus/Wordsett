@@ -155,16 +155,25 @@ function RoundCard({ title, subtitle, children }: { title: string; subtitle: str
   )
 }
 
-/** 本轮评分走势：纵轴固定 1..3，横轴是作答顺序。 */
+/**
+ * 本轮评分走势：纵轴固定 1..3，横轴是作答顺序。
+ *
+ * W / H 是几何基准尺寸，不是渲染宽度：svg 铺满卡片（width 100%），用 viewBox 保比例，
+ * 横轴随之拉伸。与 StatsMini.RatingSpark 同一处写法——写死 width={W} 会让 svg 的固有
+ * 宽度变成 1fr 1fr 栅格的 min-width 下限，窗口一窄就把两列撑破、横向溢出。
+ * preserveAspectRatio="none" 让折线随卡片宽度横向拉伸；配套 non-scaling-stroke 把线宽
+ * 钉在 2.5px，否则横向拉伸会把线也一起拉粗。
+ * 纵轴仍是 1:1：viewBox 高与渲染高都是 H，只有 x 方向被拉伸，故 1..3 的三档间距不失真。
+ */
 function SeriesLine({ data }: { data: number[] }) {
   if (data.length === 0) return <div style={{ fontSize: '12px', color: 'var(--color-text-tertiary)' }}>还没有作答</div>
   const W = 300, H = 46
   const step = data.length > 1 ? W / (data.length - 1) : W
   const pts = data.map((r, i) => `${i * step},${H - ((r - 1) / 2) * H}`).join(' ')
   return (
-    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label="本轮评分走势" style={{ display: 'block', maxWidth: '100%' }}>
+    <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="本轮评分走势" style={{ display: 'block' }}>
       <line x1="0" y1={H} x2={W} y2={H} stroke="var(--color-surface-sunken)" strokeWidth="1" />
-      <polyline points={pts} fill="none" stroke="var(--color-brand)" strokeWidth="2.5" />
+      <polyline points={pts} fill="none" stroke="var(--color-brand)" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
     </svg>
   )
 }
