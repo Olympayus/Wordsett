@@ -20,6 +20,11 @@ export default function FreeScopePanel({ categories, onStart }: {
   const [kind, setKind] = useState<FreeScopeKind>('random')
   const [categoryIds, setCategoryIds] = useState<string[]>([])
   const [rows, setRows] = useState<{ id: string; name: string; wordCount: number; dueCount: number }[]>([])
+  // 分类计数读失败：与「库里没有分类」分开讲——前者用户只能重试或换个范围，
+  // 后者要去工作台建分类，混成同一个空盒子两边都答不上来。
+  // 顺带承担「还在读」的判据：rows 初值是 []，拿它当「读完了且是空」会在查询期间
+  // 先闪一下「读不到分类」。有分类 id 才谈得上这两种空态之一。
+  const [rowsFailed, setRowsFailed] = useState(false)
   const [limit, setLimit] = useState(20)
   const [weak, setWeak] = useState<Awaited<ReturnType<typeof getWeakWords>>>([])
 
@@ -41,11 +46,23 @@ export default function FreeScopePanel({ categories, onStart }: {
     if (kind !== 'category') return
     let alive = true
     void (async () => {
-      const [wordCategoryMap, dueWordIds] = await Promise.all([
-        getWordCategoryMap(),
-        getDueWordIds(params),
-      ])
-      if (alive) setRows(aggregateCategoryCounts(categories, wordCategoryMap, dueWordIds))
+      // try/catch 与 ReviewModule 的取数同款：读失败时落到确定的空值，
+      // 让页面显示「读不到分类」，而不是一直空转、按钮永远灰着又没话说。
+      // 两个读都可能 reject（getWordCategoryMap 背后是 getDb()，未初始化时直接抛），
+      // Promise.all 会把任一个的失败一起带上来，一处 catch 够用。
+      try {
+        const [wordCategoryMap, dueWordIds] = await Promise.all([
+          getWordCategoryMap(),
+          getDueWordIds(params),
+        ])
+        if (!alive) return
+        setRows(aggregateCategoryCounts(categories, wordCategoryMap, dueWordIds))
+        setRowsFailed(false)
+      } catch {
+        if (!alive) return
+        setRows([])
+        setRowsFailed(true)
+      }
     })()
     return () => { alive = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- categories 的身份不稳定，用 categoryKey 代
@@ -110,10 +127,20 @@ export default function FreeScopePanel({ categories, onStart }: {
               勾选要出题的分类，可多选
             </div>
             <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
+              {rows.length === 0 && categoryKey !== '' && (
+                <div style={{ padding: '12px', fontSize: 12, color: 'var(--color-text-secondary)', lineHeight: 1.8 }}>
+                  {rowsFailed
+                    ? '读不到分类。先确认词库已打开，再回来重试；换个范围也能继续练。'
+                    : '这个库里还没有分类。到工作台建一个，或换个范围继续练。'}
+                </div>
+              )}
               {rows.map(r => {
-                // 待复习 0 的分类置灰且不可勾选——它贡献不了候选，勾上只会让
-                // 「预计可出」与「开始练习」的结果对不上（Review Focus 3）。
-                const disabled = r.dueCount === 0
+                // 闸门看的是**词数**而不是待复习数（v0.6.2 条目 10 的闸门，评审修正）：
+                // 自由练习的候选池是 getAllCandidates（含未到期的熟词），
+                // 所以「待复习 0」的分类照样可能出一整轮卡——按它置灰会把能用的分类
+                // 整片挡掉。只有一个词都没有的分类才是真的出不了题。
+                // 待复习数仍然显示：它是「现在就该复习的有几个」，与闸门的判据不是一回事。
+                const disabled = r.wordCount === 0
                 const on = categoryIds.includes(r.id)
                 return (
                   <label

@@ -5,7 +5,8 @@ import type { QueueCandidate } from '../lib/review/queue'
 const {
   invokeMock, getStateMock, applyReviewMock, insertPracticeLogMock,
   registerAllWordsMock, getCandidatesMock, getWordContentMock, getStatsMock,
-  getWeakWordsWithCountsMock,
+  getWeakWordsWithCountsMock, getAllCandidatesMock, getAbsentWordsMock,
+  getTemplateLogsMock, getCardMetaMock, getAllWordCategoryMapMock,
 } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   getStateMock: vi.fn(),
@@ -16,10 +17,17 @@ const {
   getWordContentMock: vi.fn(),
   getStatsMock: vi.fn(),
   getWeakWordsWithCountsMock: vi.fn(),
+  getAllCandidatesMock: vi.fn(),
+  getAbsentWordsMock: vi.fn(),
+  getTemplateLogsMock: vi.fn(),
+  getCardMetaMock: vi.fn(),
+  getAllWordCategoryMapMock: vi.fn(),
 }))
 
 // rateCard 只碰这三个 db 入口，直接打桩；fsrs_next 走 Tauri invoke，单独打桩。
 // getOverview 另走 registerAllWords / getCandidates / getWordContent / getStats。
+// getQueue 走自由练习那一路：getAllCandidates 取池、getTemplateLogs + getCardMeta 取题型、
+// getAbsentWords 收尾；分类范围还要 getAllWordCategoryMap（另一个 db 模块，动态 import）。
 vi.mock('../db/review', () => ({
   getState: getStateMock,
   applyReview: applyReviewMock,
@@ -29,10 +37,15 @@ vi.mock('../db/review', () => ({
   getWordContent: getWordContentMock,
   getStats: getStatsMock,
   getWeakWordsWithCounts: getWeakWordsWithCountsMock,
+  getAllCandidates: getAllCandidatesMock,
+  getAbsentWords: getAbsentWordsMock,
+  getTemplateLogs: getTemplateLogsMock,
+  getCardMeta: getCardMetaMock,
 }))
+vi.mock('../db/categories', () => ({ getAllWordCategoryMap: getAllWordCategoryMapMock }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }))
 
-const { rateCard, getOverview, REVIEW_DEFAULTS, getWeakWords } = await import('./reviewService')
+const { rateCard, getOverview, getQueue, REVIEW_DEFAULTS, getWeakWords } = await import('./reviewService')
 
 const scoringInput = {
   cardId: 'c1', rating: 3, template: 'cloze' as const, mode: 'review' as const,
@@ -292,5 +305,68 @@ describe('reviewService 薄弱词列表', () => {
     getWeakWordsWithCountsMock.mockResolvedValue({ ok: false, error: 'SQLITE_BUSY' })
     const r = await getWeakWords(REVIEW_DEFAULTS)
     expect(r).toEqual([])
+  })
+})
+
+describe('reviewService.getQueue 自由练习的分类范围（v0.6.2 条目 10）', () => {
+  beforeEach(() => {
+    registerAllWordsMock.mockReset(); getAllCandidatesMock.mockReset(); getAbsentWordsMock.mockReset()
+    getTemplateLogsMock.mockReset(); getCardMetaMock.mockReset()
+    getWordContentMock.mockReset(); getAllWordCategoryMapMock.mockReset()
+    registerAllWordsMock.mockResolvedValue(undefined)
+    getAbsentWordsMock.mockResolvedValue({ ok: true, data: [] })
+    getTemplateLogsMock.mockResolvedValue({ ok: true, data: {} })
+    getCardMetaMock.mockResolvedValue({ ok: true, data: null })
+    getWordContentMock.mockResolvedValue(content)
+  })
+
+  it('空选区出 0 题，不是整库（fail-closed 的服务层守卫）', async () => {
+    // 池子里有 3 张卡；空选区必须一张都不出。这条断言钉的是 filterFree 自己的
+    // `categoryIds.length === 0 → []` 守卫——没有它就会掉到末尾的 'random' 分支交出整库。
+    // selectByCategories 自己的空数组守卫够不着这里（filterFree 先一步就 return 了）。
+    getAllCandidatesMock.mockResolvedValue({ ok: true, data: [
+      candidate({ cardId: 'c1', wordId: 'w1' }),
+      candidate({ cardId: 'c2', wordId: 'w2' }),
+      candidate({ cardId: 'c3', wordId: 'w3' }),
+    ] })
+    const { queue } = await getQueue('free', REVIEW_DEFAULTS, { kind: 'category', categoryIds: [], limit: 20 })
+    expect(queue).toEqual([])
+  })
+
+  it('空选区时连分类映射都不必读：守卫在读库之前就短路了', async () => {
+    getAllCandidatesMock.mockResolvedValue({ ok: true, data: [candidate({ cardId: 'c1', wordId: 'w1' })] })
+    await getQueue('free', REVIEW_DEFAULTS, { kind: 'category', limit: 20 })
+    expect(getAllWordCategoryMapMock).not.toHaveBeenCalled()
+  })
+
+  it('并集出题：勾两个分类，两个分类各自命中的词都进，同一个词只出一张卡', async () => {
+    // w2 同属 c1 与 c2 —— 只能出一张
+    getAllCandidatesMock.mockResolvedValue({ ok: true, data: [
+      candidate({ cardId: 'c1', wordId: 'w1' }),
+      candidate({ cardId: 'c2', wordId: 'w2' }),
+      candidate({ cardId: 'c3', wordId: 'w3' }),
+    ] })
+    getAllWordCategoryMapMock.mockResolvedValue({ ok: true, data: { w1: ['c1'], w2: ['c1', 'c2'], w3: ['c2'] } })
+    const { queue } = await getQueue('free', REVIEW_DEFAULTS, { kind: 'category', categoryIds: ['c1', 'c2'], limit: 20 })
+    expect(queue.map(c => c.wordId).sort()).toEqual(['w1', 'w2', 'w3'])
+  })
+
+  it('单分类只出该分类的词；没勾中的分类一个都不出', async () => {
+    getAllCandidatesMock.mockResolvedValue({ ok: true, data: [
+      candidate({ cardId: 'c1', wordId: 'w1' }),
+      candidate({ cardId: 'c2', wordId: 'w2' }),
+    ] })
+    getAllWordCategoryMapMock.mockResolvedValue({ ok: true, data: { w1: ['c1'], w2: ['c2'] } })
+    const only = await getQueue('free', REVIEW_DEFAULTS, { kind: 'category', categoryIds: ['c1'], limit: 20 })
+    expect(only.queue.map(c => c.wordId)).toEqual(['w1'])
+    const none = await getQueue('free', REVIEW_DEFAULTS, { kind: 'category', categoryIds: ['c9'], limit: 20 })
+    expect(none.queue).toEqual([])
+  })
+
+  it('分类映射读失败：出 0 题，不把整库当成分类强化的结果', async () => {
+    getAllCandidatesMock.mockResolvedValue({ ok: true, data: [candidate({ cardId: 'c1', wordId: 'w1' })] })
+    getAllWordCategoryMapMock.mockResolvedValue({ ok: false, error: 'SQLITE_BUSY' })
+    const { queue } = await getQueue('free', REVIEW_DEFAULTS, { kind: 'category', categoryIds: ['c1'], limit: 20 })
+    expect(queue).toEqual([])
   })
 })
