@@ -209,7 +209,7 @@ export default function ReviewArena() {
             atTail ? (
               // alignSelf 移到包裹的 <div> 上：SquareButton 是 inline-flex，
               // 在本组件的 flex-col 里默认会被拉满宽（见「下一题」处的同款说明）。
-              // tone='surface'：外层这层 <div> 与 <section data-arena-region> 都不设底，
+              // tone='surface'：外层这层 <div> 与 <div data-arena-region> 都不设底，
               // 最近一个设了底的祖先是 ReviewModule 的 <main>（--color-surface 纯白）。
               <div style={{ alignSelf: 'flex-start' }}>
                 <SquareButton tone="surface" onClick={() => advance()}>查看小结</SquareButton>

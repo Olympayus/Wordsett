@@ -54,8 +54,8 @@ export default function ArenaNavBar({ index, total, canBack, canForward, onBack,
       </button>
       <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginLeft: 4 }}>第 {index + 1} / {total} 题</span>
       <span style={{ flex: 1 }} />
-      {/* tone='canvas'（v0.6.2 条目 1）：整条导航条自带 --color-canvas 底（上方第 43 行），
-          故脚下说了算——外面那块纯白内容区不参与判断。外层 <main> 虽是 surface，跨过它取。 */}
+      {/* tone='canvas'（v0.6.2 条目 1）：整条导航条自带 --color-canvas 底（本 div 的
+          background），故脚下说了算——外面那块纯白内容区不参与判断。外层 <main> 虽是 surface，跨过它取。 */}
       <SquareButton size="nav" tone="canvas" onClick={onEnd}>结束回合</SquareButton>
     </div>
   )

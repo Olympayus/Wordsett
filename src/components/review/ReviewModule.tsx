@@ -15,7 +15,7 @@ import { isSessionLive } from '../../lib/review/sessionGuard'
 import { scopeLabel, correctCount } from '../../lib/review/scopeLabel'
 
 export default function ReviewModule() {
-  const { strategy, sessionStrategy, phase, queue, answered, freeScope, setStrategy, setFreeScope, startSession, reset } = useReviewSessionStore()
+  const { strategy, sessionStrategy, phase, queue, answered, freeScope, setStrategy, startSession, reset } = useReviewSessionStore()
   const reviewSettings = useSettingsStore(s => s.review)
   const categories = useCategoryStore(s => s.categories)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
@@ -85,7 +85,8 @@ export default function ReviewModule() {
     setEmptyNotice(null)
     const { queue: q } = await getQueue(strategy, params)
     if (q.length === 0) { setEmptyNotice(NO_CARDS); return }
-    startSession(q)
+    // 今日复习没有范围：显式传 null，别让上一轮自由练习的 freeScope 靠 reset 才清掉
+    startSession(q, null)
   }
 
   const handleFreeStart = async (scope: { kind: 'category' | 'random' | 'today' | 'weak'; categoryIds?: string[]; limit: number }) => {
@@ -93,10 +94,9 @@ export default function ReviewModule() {
     const { queue: q } = await getQueue('free', params, scope)
     if (q.length === 0) { setEmptyNotice(NO_CARDS); return }
     // 控制台的「本次范畴」读的是 store 里的 freeScope（spec §4.1 的四个自由练习名）。
-    // 不写这里它恒为 null，只会显示通用的「自由练习」——四种范围分不出来。
-    // 队列非空才写：没有会话就没有「本次」可言。
-    setFreeScope(scope)
-    startSession(q)
+    // 不传范围它恒为 null，只会显示通用的「自由练习」——四种范围分不出来。
+    // 范围交给 startSession 一起写：队列非空才开本轮，没有会话就没有「本次」可言。
+    startSession(q, scope)
   }
 
   return (

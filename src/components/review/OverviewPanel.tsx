@@ -28,7 +28,10 @@ export default function OverviewPanel({ title, total, newCount, estimateMinutes,
       </p>
       <StatsMini stats={stats} />
       {/* tone='surface'：本行所在的 flex-col 容器不设底，最近一个设了底的祖先是
-          ReviewModule 的 <main>（--color-surface 纯白）。容器是 items-start，按钮不会被拉伸。 */}
+          ReviewModule 的 <main>（--color-surface 纯白）。容器是 items-start，按钮不会被拉伸。
+          disabled={total === 0} 保留但当前走不到：上面 empty 为真时已提前返回，而 empty 与
+          total 同源于 overview?.total ?? 0。留它是给将来「概览不空、但没有可出的卡」那种
+          独立判据留的位置——那时把它删了会重新引入一次「按钮能按、点了没反应」。 */}
       <SquareButton tone="surface" onClick={onStart} disabled={total === 0}>{startLabel}</SquareButton>
     </div>
   )

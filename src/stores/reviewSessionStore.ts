@@ -25,7 +25,13 @@ export interface FreeScope {
 interface ReviewSessionStore {
   /** 当前查看的策略 */
   strategy: ReviewStrategy
-  /** 会话所属策略；null = 没有进行中的会话。切走的会话仍保留 queue/answered，切回即续。 */
+  /**
+   * 会话所属策略；null = 没有进行中的会话。
+   *
+   * 本 store 的 setStrategy 确实原样保留 queue / answered——但那只是这一层字段的行为，
+   * **不是用户能摸到的行为**：v0.6.2 起 SessionGuard 会拦下切走的点击并询问，确认后走
+   * reset()，刚保留下的队列当场被清掉（§2.4 已废）。别把这里的「保留」当产品承诺写进文案。
+   */
   sessionStrategy: ReviewStrategy | null
   phase: SessionPhase
   queue: ReviewCardDTO[]
@@ -37,7 +43,7 @@ interface ReviewSessionStore {
   setStrategy: (s: ReviewStrategy) => void
   setPhase: (p: SessionPhase) => void
   setFreeScope: (s: FreeScope | null) => void
-  startSession: (queue: ReviewCardDTO[]) => void
+  startSession: (queue: ReviewCardDTO[], scope?: FreeScope | null) => void
   answerCurrent: (rating: number, input: string) => void
   advance: () => void
   /** 导航条跳题：只改题号并把 phase 拨回 'answering'（不重排 answered，只读导航不记账）。 */
@@ -55,11 +61,15 @@ export const useReviewSessionStore = create<ReviewSessionStore>((set, get) => ({
   freeScope: null,
   startedAt: null,
 
-  // 只切「看哪个策略」；进行中的会话原地保留，切回该策略即续（规格 §2.4）
+  // 只切「看哪个策略」；本 store 确实不动进行中的会话（queue / answered 原样留着）。
+  // 但用户走不到「切回即续」那条路：SessionGuard 会先拦下这次点击、确认后 reset() 清场（v0.6.2 §5.2，取代 v0.6 spec §2.4）
   setStrategy: (strategy) => set({ strategy }),
   setPhase: (phase) => set({ phase }),
   setFreeScope: (freeScope) => set({ freeScope }),
-  startSession: (queue) => set({ queue, index: 0, answered: [], phase: 'answering', startedAt: Date.now(), sessionStrategy: get().strategy }),
+  // scope 是本轮的范围（null = 无范围的今日复习）。收进这一次 set：范围与队列同一刻落定，
+  // 调用方就不必记得在 startSession 之前先写一次 freeScope——两处分写时，正确性会吊在
+  // 另一个模块 scopeLabel 的 strategy === 'today' 短路分支上。
+  startSession: (queue, scope = null) => set({ queue, index: 0, answered: [], phase: 'answering', startedAt: Date.now(), sessionStrategy: get().strategy, freeScope: scope }),
   answerCurrent: (rating, input) => {
     const { queue, index, answered } = get()
     const card = queue[index]

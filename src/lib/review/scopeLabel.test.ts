@@ -51,7 +51,8 @@ describe('correctCount（spec §8.1 控制台：正确数 = rating >= 3 计数�
     expect(correctCount([{ rating: 1 }, { rating: 1 }])).toBe(0)
   })
 
-  // 上一条正是「写成 === 3 也会过」的用例集合；这条不是——4 分必须在正确数里
+  // 上一条并非整组都对两种写法放过：只有「全 1 分 → 0」那半在写成 === 3 时也过，
+  // 「全 4 分 → 2」那半在 === 3 下得 0、会挂。这条要的是 4 分单独也得算数
   it('4 分单独计入（=== 3 会漏掉这一条）', () => {
     expect(correctCount([{ rating: 4 }])).toBe(1)
   })
