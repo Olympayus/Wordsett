@@ -598,12 +598,16 @@ describe('getWordContent 的例句 / 释义 / 词性三者对位（v0.6.2 条目
    *
    * 字段层级（与 WordNet 导入形状一致）：
    *   adj.(order 0)
-   *     └ english_definition  "existing in a highly concentrated form"  (order 1)
+   *     ├ english_definition  "existing in a highly concentrated form"  (order 1)
+   *     └ chinese_definition  "弥漫的"                                   (order 1)
    *   v.(order 2)
    *     └ english_definition  "to spread or cause to spread"            (order 3)
    *          └ example_sentence ""                                       (order 4)
    *               └ example  "The diffuse light filled the room."        (order 5)
    *     └ chinese_definition "散布，扩散"                                 (order 6)
+   *
+   * 两条中文释义刻意取不同的值：order 1 的「弥漫的」是全局第一条（即 `translation`），
+   * order 6 的「散布，扩散」挂在例句自己的词性下。两者不等，中文侧那条取法才有被测到的意义。
    */
   async function seedMultiPos() {
     const db = await createTestDb()
@@ -627,6 +631,7 @@ describe('getWordContent 的例句 / 释义 / 词性三者对位（v0.6.2 条目
     }
     await put('pos-adj', 'part_of_speech', 'adj.', 0, null)
     await put('def-adj', 'english_definition', 'existing in a highly concentrated form', 1, 'pos-adj')
+    await put('zh-adj', 'chinese_definition', '弥漫的', 1, 'pos-adj')
     await put('pos-v', 'part_of_speech', 'v.', 2, null)
     await put('def-v', 'english_definition', 'to spread or cause to spread', 3, 'pos-v')
     await put('exs-v', 'example_sentence', '', 4, 'def-v')
@@ -649,12 +654,15 @@ describe('getWordContent 的例句 / 释义 / 词性三者对位（v0.6.2 条目
     expect(c?.matchedPos).toBe('v.')
   })
 
-  it('例句所属词性下没有中文释义时回落到该词第一条中文释义', async () => {
+  it('释义取例句所属词性下的中文释义，不是该词第一条中文释义', async () => {
     const db = await seedMultiPos()
-    // 把 v. 下的中文释义挪到 adj. 下，模拟「例句所属义项只有英文释义」
-    await db.execute(`UPDATE field_values SET parent_id = 'pos-adj' WHERE id = 'zh-v'`)
+    // 抽掉英文那一档：把 v. 下的英文释义置空（父行还在，ancestorWithKey 仍能命中，但值是空串），
+    // 于是链条落到「该词性父下的中文释义」这一档。
+    await db.execute(`UPDATE field_values SET value = '' WHERE id = 'def-v'`)
     const c = await getWordContent('w1', db)
-    expect(c?.exampleGloss).toBe('to spread or cause to spread')
+    // 这条断言只有走词性下作用域查找才可能过：若 zhUnderPos 被去掉，链条会落到全局第一条中文
+    // 释义 `translation`（= order 1 的「弥漫的」），值不同，测试即红。
+    expect(c?.exampleGloss).toBe('散布，扩散')
   })
 
   it('例句行的 parent_id 为 NULL 时退到扁平规则，不让整张卡消失（Review Focus 1）', async () => {
@@ -664,8 +672,9 @@ describe('getWordContent 的例句 / 释义 / 词性三者对位（v0.6.2 条目
     const c = await getWordContent('w1', db)
     // 题面仍在（这是关键：不能因为祖先链断了就返回 null 或空 example）
     expect(c?.example).toBe('The diffuse light filled the room.')
-    // 释义回落到该词第一条英文释义
-    expect(c?.exampleGloss).toBe('existing in a highly concentrated form')
+    // 释义回落到该词第一条中文释义（沿用 v0.6.1 的扁平兜底；spec §3.2 的第三档是中文，
+    // 不是「该词第一条英文释义」——本任务的计划书在这里与自己的代码矛盾，以 spec 为准）
+    expect(c?.exampleGloss).toBe('弥漫的')
     // 词性回落到该词第一个词性
     expect(c?.matchedPos).toBe('adj.')
   })

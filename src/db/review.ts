@@ -183,8 +183,10 @@ export async function getCardMeta(
  *
  * 例句与释义的取法（v0.6.2，条目 5——取代 v0.6.1 的 display_order 近似）：
  *
- * 例句只取含有目标词的那一条；取不到就让 `example` 为空——空 `example` 会让
- * getAvailabilityMask 把 `example` 组判为不可用，于是填空题从该词的可用题型里自动消失。
+ * 例句只取含有目标词的那一条；取不到就让 `example` 为空。注意空 `example` **不会**让填空题
+ * 从可用题型里消失——getAvailabilityMask 判的是 `example` 字段「有没有行」而非「值是不是非空」
+ * （`src/db/review.ts:37-38` 的 EXISTS 不带 value 过滤），所以这种词照样会出填空题，只是题面退化成
+ * `blankOut('')` 返回的那一条横线。例句里的词能否挖出来由 blankOut 保证。
  *
  * 配对释义与词性都由**选中那条例句**沿 `parent_id` 上溯而来。层级事实（已核源码）：
  * WordNet 的例句挂三层之下 `part_of_speech → english_definition → example_sentence → example`
@@ -193,7 +195,8 @@ export async function getCardMeta(
  * 祖先是它的词性——这是精确解，不再是「序位之后的第一条」这种近似。
  *
  * 祖先链断掉时（例句行的 parent_id 为 NULL，或历史数据里 example 直接挂在词性下）不抛错、
- * 也不让整张卡消失：释义退回该词第一条英文释义、再退到第一条中文释义，词性退回该词第一个词性。
+ * 也不让整张卡消失：释义按 spec §3.2 的三档兜底退到该词第一条中文释义，词性退到该词第一个词性。
+ * 注意第三档是中文、不是「该词第一条英文释义」——加了英文那档反而会把 spec 写明的兜底架空。
  *
  * 为什么不在 SQL 里做：上溯是变深度的树遍历，用相关子查询写出来既难读又难测；
  * 本函数的调用频率是「每张卡一次」，一次多取几十行 field_values 完全可以接受。
@@ -212,7 +215,7 @@ export async function getWordContent(wordId: string, h?: DbHandle): Promise<Card
     `SELECT fv.id, fv.parent_id, fd.key, fv.value, fv.display_order
        FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
       WHERE fv.word_id = ?1
-      ORDER BY fv.display_order`,
+      ORDER BY fv.display_order, fv.id`,
     [wordId],
   )).map(r => ({ ...r, value: r.value ?? '' }))
 
@@ -253,9 +256,10 @@ export async function getWordContent(wordId: string, h?: DbHandle): Promise<Card
     ? allOf('chinese_definition').find(r => r.parent_id === posRow.id && r.value !== '')
     : undefined
 
-  // 英文优先于中文（与 v0.6.1 的 gloss_en → translation 同优先级）：上溯不到英文释义时先退到
-  // 该词第一条英文释义，再退到第一条中文释义——祖先链断掉时也不至于把中文义项当成例句释义。
-  const exampleGloss = glossRow?.value || zhUnderPos?.value || definition || translation
+  // spec §3.2 的三档兜底，顺序不变：① 例句所属词性下的英文释义 ② 该词性下的中文释义
+  // ③ 两者都无 → 沿用 v0.6.1 行为，该词第一条中文释义。不要在 ③ 之前插「该词第一条英文释义」
+  // 那一档：它会让 spec 写明的兜底对任何有英文释义的词都变成死代码。
+  const exampleGloss = glossRow?.value || zhUnderPos?.value || translation
   const matchedPos = posRow?.value || fallbackPos
 
   return {
