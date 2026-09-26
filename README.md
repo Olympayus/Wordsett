@@ -4,7 +4,7 @@
 
 Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查询**、**词汇语义网络**与**结构化词汇管理**合二为一：搜索并合并 ECDICT / WordNet 的权威释义，借助 WordNet 语义关系构建词汇网络，再用分层字段、分类系统把你自己的理解沉淀成长期可复用的知识。
 
-![version](https://img.shields.io/badge/version-0.6.0-4A6FA5)
+![version](https://img.shields.io/badge/version-0.6.1-4A6FA5)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![offline](https://img.shields.io/badge/offline-first-yes-6B8E7F)
 ![license](https://img.shields.io/badge/license-MIT-4A6FA5)
@@ -88,9 +88,9 @@ Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查
 
 | 系统 | 安装包 |
 |------|--------|
-| **Windows** | `Wordsett_0.6.0_x64-setup.exe`（当前发布提供；MSI 暂未随包） |
-| **macOS** | `Wordsett_0.6.0_x64.dmg`（在 macOS 上构建） |
-| **Linux** | `Wordsett_0.6.0_x86_64.AppImage` / `.deb`（在 Linux 上构建；暂未提供） |
+| **Windows** | `Wordsett_0.6.1_x64-setup.exe`（当前发布提供；MSI 暂未随包） |
+| **macOS** | `Wordsett_0.6.1_x64.dmg`（在 macOS 上构建） |
+| **Linux** | `Wordsett_0.6.1_x86_64.AppImage` / `.deb`（在 Linux 上构建；暂未提供） |
 
 下载后**双击运行安装程序**，跟随向导即可完成安装；开始菜单会出现 **Wordsett** 图标。
 
