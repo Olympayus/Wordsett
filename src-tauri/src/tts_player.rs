@@ -11,6 +11,15 @@ use tts::Tts;
 #[cfg(windows)]
 pub mod sapi;
 
+/// 后端枚举。选定后不再变：探测跑过一次就定下走哪条路，`speak` 复用同一实例。
+enum Backend {
+    /// WinRT（`SpeechSynthesizer`）。agile，可从任意线程调用，故直接放静态量。
+    WinRt(Tts),
+    /// SAPI5。单元线程，内部自带专属线程，外部调用是投递消息。
+    #[cfg(windows)]
+    Sapi(sapi::SapiWorker),
+}
+
 /// 全局单例。Tts 不是 Send 友好的并发对象，用 Mutex 串行化全部访问。
 ///
 /// tts 0.26 内部是 `Rc<RwLock<..>>` 却用 `unsafe impl Send/Sync` 放行
@@ -18,7 +27,7 @@ pub mod sapi;
 /// 真实约束靠「不注册任何 utterance 回调」守住：回调由 WinRT 事件线程触发、
 /// 闭包不受 Send 约束，一旦注册就可能绕过这把锁。同步的 speak/stop/voices
 /// 全部经此锁串行，不与事件线程并发触碰同一实例。
-static ENGINE: Mutex<Option<Tts>> = Mutex::new(None);
+static ENGINE: Mutex<Option<Backend>> = Mutex::new(None);
 
 /// 语言标识是否算英文。容错匹配：`en` / `en-US` / `en_GB` / `EN-us` 都收。
 ///
@@ -28,6 +37,41 @@ static ENGINE: Mutex<Option<Tts>> = Mutex::new(None);
 pub fn is_english_voice<L: AsRef<str>>(language: L) -> bool {
     let l = language.as_ref().trim().to_ascii_lowercase();
     l == "en" || l.starts_with("en-") || l.starts_with("en_")
+}
+
+/// 探测结果（spec §6.2）。**前端契约，字段名不可变**（camelCase，见 lib.rs:79-81 的同款约束）。
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceProbe {
+    /// 是否可用。门控方向不变：false 时听辨题下线（fail-closed）。
+    available: bool,
+    /// 生效的后端：`"winrt"` / `"sapi"` / `"native"`（非 Windows）。不可用时为 None。
+    backend: Option<String>,
+    /// 音色显示名，如 `"Microsoft Zira Desktop"`。不可用时为 None。
+    voice: Option<String>,
+    /// 不可用的原因（诊断面用，spec §6.4）。可用时为 None。
+    reason: Option<String>,
+}
+
+impl VoiceProbe {
+    fn unavailable(reason: impl Into<String>) -> Self {
+        Self {
+            available: false,
+            backend: None,
+            voice: None,
+            reason: Some(reason.into()),
+        }
+    }
+
+    /// 本次可用、音色名已知。
+    fn available(backend: &str, voice: Option<String>) -> Self {
+        Self {
+            available: true,
+            backend: Some(backend.into()),
+            voice,
+            reason: None,
+        }
+    }
 }
 
 /// 探测结果：**除了**判定「系统里有没有英文音色」，还要把这个音色选中。
@@ -53,69 +97,139 @@ fn english_voice(engine: &mut Tts) -> std::result::Result<Option<tts::Voice>, St
     }
 }
 
-/// 系统里是否存在英文音色。**任何失败一律返回 false**，不向上抛错
-/// （保守：听辨题下线好过用中文音色读英文）。
-#[tauri::command]
-pub fn tts_english_voice_available() -> Result<bool, String> {
-    // 锁中毒 / 建引擎失败 / 枚举失败 / 选中失败，都归为「不可用」——前端拿到的永远是
-    // 一个可信的 bool，不会因为 Err 走上另一条分支。但「这台机器没有英文音色」和
-    // 「引擎根本建不起来」对用户是两回事，诊断行让它们在日志里可分（item 5）。
-    let Ok(mut guard) = ENGINE.lock() else {
-        eprintln!("[tts] engine mutex poisoned; treating as no english voice");
-        return Ok(false);
-    };
-    let engine = match guard.as_mut() {
-        Some(e) => e,
-        None => match Tts::default() {
-            Ok(e) => guard.insert(e),
+/// 已选定 WinRT 后的可用性回报。只读引擎状态，不改后端。
+///
+/// `voice` 取 None：音色名要重新遍历一遍音色表才拿得到，而那正是
+/// `english_voice` 做的事——后端一旦选定就不再重跑（见 `probe` 的开头）。
+/// 探测命令的第一次调用走的是带名字的那条路径，只有重复调用才落到这里，
+/// 此时前端已经拿到过音色名，不需要再补一次。
+fn winrt_english_voice_available() -> VoiceProbe {
+    VoiceProbe::available("winrt", None)
+}
+
+/// 取（必要时建立）WinRT 引擎。锁由调用方持有。
+#[cfg(windows)]
+fn winrt_engine(engine: &mut Option<Backend>) -> Result<&mut Tts, String> {
+    if engine.is_none() {
+        let t = Tts::default().map_err(|e| e.to_string())?;
+        *engine = Some(Backend::WinRt(t));
+    }
+    match engine.as_mut() {
+        Some(Backend::WinRt(t)) => Ok(t),
+        // 已选定 SAPI5 后不可能走到这里——probe 在选定后端后直接复用，不再调本函数。
+        Some(Backend::Sapi(_)) => Err("引擎已切到 SAPI5".to_string()),
+        None => unreachable!("上一行刚建过引擎"),
+    }
+}
+
+/// 取（必要时建立）引擎，并按需选中英文音色。返回可用性与其原因。
+///
+/// 两条路：先 WinRT（`AllVoices`，只读 OneCore hive），拿不到英文音色就回退 SAPI5
+/// （读旧 Speech hive，见 sapi.rs 的模块注释）。回退不改变门控方向——两条都不行才判不可用。
+#[cfg(windows)]
+fn probe(engine: &mut Option<Backend>) -> VoiceProbe {
+    // 已经选定过后端就直接复用
+    if let Some(b) = engine.as_ref() {
+        return match b {
+            Backend::WinRt(_) => winrt_english_voice_available(),
+            Backend::Sapi(w) => match w.list_english_voices() {
+                Ok(v) if !v.is_empty() => VoiceProbe::available("sapi", Some(v[0].1.clone())),
+                Ok(_) => VoiceProbe::unavailable("SAPI5 音色里没有英文音色"),
+                Err(e) => VoiceProbe::unavailable(format!("SAPI5 枚举失败：{e}")),
+            },
+        };
+    }
+
+    // WinRT 优先
+    match winrt_engine(engine) {
+        Ok(t) => match english_voice(t) {
+            Ok(Some(v)) => {
+                eprintln!("[tts] winrt english voice selected: {} ({})", v.name(), v.language());
+                return VoiceProbe::available("winrt", Some(v.name().to_string()));
+            }
+            Ok(None) => {
+                eprintln!("[tts] winrt has no english voice; falling back to sapi5");
+            }
             Err(e) => {
-                eprintln!("[tts] could not construct engine: {e}");
-                return Ok(false);
+                eprintln!("[tts] winrt could not select an english voice: {e}");
             }
         },
-    };
-    // voices() 取 &self，不可变借用即可；选中需要 &mut，故 english_voice 收 &mut Tts。
-    match english_voice(engine) {
-        Ok(Some(v)) => {
-            eprintln!("[tts] english voice selected: {} ({})", v.name(), v.language());
-            Ok(true)
-        }
-        Ok(None) => Ok(false),
         Err(e) => {
-            eprintln!("[tts] could not select an english voice: {e}");
-            Ok(false)
+            eprintln!("[tts] could not construct winrt engine: {e}");
         }
     }
+
+    // 回退 SAPI5（失败即换后端，已建立的 WinRT 实例作废）
+    match sapi::SapiWorker::spawn() {
+        Ok(w) => match w.list_english_voices() {
+            Ok(v) if !v.is_empty() => {
+                eprintln!("[tts] sapi5 english voice selected: {}", v[0].1);
+                let out = VoiceProbe::available("sapi", Some(v[0].1.clone()));
+                *engine = Some(Backend::Sapi(w));
+                out
+            }
+            Ok(_) => VoiceProbe::unavailable(
+                "WinRT 与 SAPI5 里都没有英文音色；按设置页指引装一个英文语音包后重启",
+            ),
+            Err(e) => VoiceProbe::unavailable(format!("SAPI5 枚举失败：{e}")),
+        },
+        Err(e) => VoiceProbe::unavailable(format!("SAPI5 线程起不来：{e}")),
+    }
+}
+
+/// 非 Windows 只有一个后端（系统原生朗读），无需探测音色，恒定报可用（spec §6.3）。
+#[cfg(not(windows))]
+fn probe(_engine: &mut Option<Backend>) -> VoiceProbe {
+    VoiceProbe::available("native", None)
+}
+
+/// 探测并选定英文音色。**任何失败一律返回 available=false**，不向上抛错
+/// （保守：听辨题下线好过用中文音色读英文）。
+#[tauri::command]
+pub fn tts_english_voice_available() -> Result<VoiceProbe, String> {
+    let Ok(mut guard) = ENGINE.lock() else {
+        eprintln!("[tts] engine mutex poisoned; treating as no english voice");
+        return Ok(VoiceProbe::unavailable("内部状态异常（锁中毒）"));
+    };
+    Ok(probe(&mut guard))
 }
 
 /// 朗读一段文本。rate 缺省 1.0（正常语速）。
 ///
-/// 用的是单例上**已选中的音色**——`tts_english_voice_available` 选中英文音色后
-/// 一直留在 ENGINE 里，这里不再逐次 set_voice（逐次重选反而会让一次播放与下一次
-/// 之间出现音色漂移）。探测没跑过或没找到英文音色时，这里就是后端默认音色，
-/// 但那种机器上听辨题本就不在线。
+/// WinRT 走单例上已选中的音色（探测时 set_voice 过，见 `english_voice` 的注释）；
+/// SAPI5 走工作线程，音色在枚举时已记下。
 #[tauri::command]
 pub fn speak(text: String, rate: Option<f32>) -> Result<(), String> {
     let mut guard = ENGINE.lock().map_err(|e| e.to_string())?;
     let engine = match guard.as_mut() {
         Some(e) => e,
         None => {
-            let e = Tts::default().map_err(|e| e.to_string())?;
-            guard.insert(e)
+            // 探测没跑过（或跑失败）：建 WinRT 用后端默认音色。
+            // 这种机器上听辨题本就不在线，此处只求不 panic。
+            let t = Tts::default().map_err(|e| e.to_string())?;
+            guard.insert(Backend::WinRt(t))
         }
     };
-    if let Some(r) = rate {
-        // tts 的 set_rate 越界是**报错**不钳制（lib.rs:421-422），直接透传会让
-        // 越界的 rate 变成「点了没声音」。这里先按后端自己的 min/max 夹住
-        // （不硬编码常量，WinRT 为 0.5..=6.0），再调，永远不落进 Err 分支。
-        let (min, max) = (engine.min_rate(), engine.max_rate());
-        engine.set_rate(r.clamp(min, max)).map_err(|e| e.to_string())?;
+    match engine {
+        #[cfg(windows)]
+        Backend::Sapi(w) => w.speak(text),
+        Backend::WinRt(t) => {
+            if let Some(r) = rate {
+                // tts 的 set_rate 越界是**报错**不钳制（lib.rs:421-422），直接透传会让
+                // 越界的 rate 变成「点了没声音」。这里先按后端自己的 min/max 夹住
+                // （不硬编码常量，WinRT 为 0.5..=6.0），再调，永远不落进 Err 分支。
+                let (min, max) = (t.min_rate(), t.max_rate());
+                t.set_rate(r.clamp(min, max)).map_err(|e| e.to_string())?;
+            }
+            // 先停旧播放再读新的：连续出题时不叠读。stop 清空整个待播队列
+            // （winrt.rs:213-233），故随后 interrupt=false 入队即从头播。
+            // SAPI 侧没有 stop，engine 级不变式由 Speak 的 SPF_PURGEBEFORESPEAK 守住
+            // （见 sapi.rs 的 speak_on_this_thread）。
+            let _ = t.stop();
+            // 丢弃 UtteranceId：前端不关心单次播报的句柄，只要「已受理」。
+            t.speak(text, false).map(|_| ()).map_err(|e| e.to_string())
+        }
     }
-    // 先停旧播放再读新的：连续出题时不叠读。stop 清空整个待播队列
-    // （winrt.rs:213-233），故随后 interrupt=false 入队即从头播。
-    let _ = engine.stop();
-    // 丢弃 UtteranceId：前端不关心单次播报的句柄，只要「已受理」。
-    engine.speak(text, false).map(|_| ()).map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

@@ -11,9 +11,13 @@
 //! 这与 winrt 后端不同——那里能用 `static Mutex<Option<Tts>>` 是因为
 //! `SpeechSynthesizer` 是 agile 的，SAPI 没这个性质。
 //!
-//! 本模块整体在本步是「已备好、尚未接线」：枚举与朗读要到下一步才接上后端分发，
-//! 故下面每个对外项都会触发 dead_code。**Task 2 接完线就删掉这一行。**
-#![allow(dead_code)]
+//! COM 返回的 `PWSTR` 由调用方用 `CoTaskMemFree` 释放。本模块在每个取值点都释放。
+
+use std::sync::mpsc::{self, Sender};
+
+use windows::core::PWSTR;
+use windows::Win32::Media::Speech::ISpVoice;
+use windows::Win32::System::Com::CoTaskMemFree;
 
 /// SAPI5 音色类别的注册表路径。`ISpObjectTokenCategory::SetId` 收的就是这个字符串。
 pub const SAPI_VOICES_CATEGORY: &str =
@@ -21,11 +25,19 @@ pub const SAPI_VOICES_CATEGORY: &str =
 
 /// token id 是否带英文语言。SAPI5 的 token id 形如
 /// `HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Speech\Voices\Tokens\TTS_MS_EN-US_ZIRA_11.0`，
-/// 语言码是 `EN-US` 这样的片段；容错匹配 `en` / `en-US` / `en_GB` / `EN-us`，与
-/// `tts_player::is_english_voice` 的口径一致（两条回退路径不应给出不同的「算不算英文」）。
+/// 语言码是 `EN-US` 这样的片段；容错匹配 `en` / `en-US` / `en_GB` / `EN-us`。
 ///
 /// 判定方式：用分隔符（`\` / `_` / `-` / 串首尾）把语言码切出来再比对，不能用裸
 /// `contains("en")`——那样 `GREEN` / `KAREN` / `HEDDA` 都会误判为英文。
+///
+/// 与 `tts_player::is_english_voice` 是一对**分工不同**的判定，不是同一口径的两种写法：
+/// 那边收的是 BCP 47 语言**标签**（`en-US`、`zh-CN`），做的是**前缀**比对；这边收的是
+/// SAPI5 的 **token id**（整条注册表路径），做的是**分隔符包围的子串**比对。两者在各自的
+/// 输入域上给出一致的结论——这也是回退后端存在的意义；但输入域之外它们不等价，
+/// 例如 `is_english_voice("de-DE-en")` 为 false 而本函数返回 true。
+/// 另有一处**故意**不同：裸 `"en"`（无分隔符、无前缀）在本函数下为 **false**——
+/// 一条只写着 `en` 的 token id 不存在，宽松放行只会引入误判。想放宽须显式改这里，
+/// 别顺手把两条判定「统一」成同一份实现。
 pub fn token_has_english_language(id: &str) -> bool {
     let lower = id.to_ascii_lowercase();
     let bytes = lower.as_bytes();
@@ -43,17 +55,27 @@ pub fn token_has_english_language(id: &str) -> bool {
     false
 }
 
-use std::sync::mpsc::{self, Sender};
+/// 把 COM 交回来的宽字符串指针转成 Rust `String`，并释放那块内存。
+///
+/// `ptr` 非空时返回解码结果（非法 UTF-16 退化为空串），空指针时返回 `fallback`。
+/// 调用方无论成败都不必再管这块内存。
+unsafe fn take_com_string(ptr: PWSTR, fallback: &str) -> String {
+    if ptr.is_null() {
+        return fallback.to_string();
+    }
+    let s = ptr.to_string().unwrap_or_default();
+    CoTaskMemFree(Some(ptr.as_ptr() as *const core::ffi::c_void));
+    s
+}
 
 /// 投给工作线程的请求。带 `reply` 的请求要等结果，`Speak` 不等（「已受理」语义，
 /// 与 `tts_player::speak` 一致）。
 enum Cmd {
-    /// 建立引擎。`reply` 回 `Ok(())` 或失败原因文本。
-    Init(Sender<Result<(), String>>),
-    /// 枚举英文音色，回 `Vec<(token_id, 显示名)>`。
+    /// 枚举英文音色。回 `Vec<(token_id, 显示名)>`，并在挑中第一条时顺带记住它的
+    /// token id（枚举即选中，与 winrt 那条的设计一致——见 `tts_player::english_voice`）。
     ListEnglish(Sender<Result<Vec<(String, String)>, String>>),
-    /// 朗读。不等结果。
-    Speak(String),
+    /// 用已选中的 token id 朗读。不等结果。音色由线程自己记着，不随消息传。
+    Speak { text: String },
 }
 
 /// SAPI5 工作线程的句柄。所有 COM 调用都发生在它自己那条线程上。
@@ -78,16 +100,41 @@ impl SapiWorker {
                         windows::Win32::System::Com::COINIT_APARTMENTTHREADED,
                     )
                 };
+                // HRESULT 判成功只看 `>= 0`（S_FALSE 也算成功）：RPC_E_CHANGED_MODE
+                // （0x80010106）会顺带把 apartment 切成 MTA，那样 SAPI 的单元语义就没了。
                 if init.is_err() {
                     let _ = ready_tx.send(Err(format!("CoInitializeEx 失败：{init:?}")));
                     return;
                 }
                 let _ = ready_tx.send(Ok(()));
+                // 选中的音色留在本线程上：SpVoice 只能从创建它的单元调用，
+                // 故既不建在外部也不放回外部。
+                let mut voice: Option<ISpVoice> = None;
+                let mut selected: String = String::new();
                 while let Ok(cmd) = rx.recv() {
                     match cmd {
-                        Cmd::Init(reply) => { let _ = reply.send(Ok(())); }
-                        Cmd::ListEnglish(reply) => { let _ = reply.send(Err("尚未实现".into())); }
-                        Cmd::Speak(_text) => { /* 尚未实现 */ }
+                        Cmd::ListEnglish(reply) => {
+                            match list_english_on_this_thread() {
+                                Ok(voices) => {
+                                    // 枚举即选中：记下第一条英文音色的 token id，
+                                    // 之后每次 Speak 都由 speak_on_this_thread 选上它。
+                                    selected = voices.first().map(|(id, _)| id.clone()).unwrap_or_default();
+                                    let _ = reply.send(Ok(voices));
+                                }
+                                Err(e) => {
+                                    let _ = reply.send(Err(e));
+                                }
+                            }
+                        }
+                        // 音色不在消息里传：SpVoice 只能从创建它的单元调用，
+                        // 外部拿不到这条线程上的实例，故由线程自己记着 `selected`。
+                        Cmd::Speak { text } => {
+                            // 枚举没跑过（或没选出英文音色）时 selected 为空，
+                            // speak_on_this_thread 会用系统默认音色，不因此让本次朗读失败。
+                            if let Err(e) = speak_on_this_thread(&mut voice, &selected, &text) {
+                                eprintln!("[tts] sapi5 speak failed: {e}");
+                            }
+                        }
                     }
                 }
                 unsafe { windows::Win32::System::Com::CoUninitialize() };
@@ -99,16 +146,129 @@ impl SapiWorker {
         Ok(Self { tx })
     }
 
+    /// 枚举本机 SAPI5 音色并挑出英文的那些，回 `(token_id, 显示名)`。
+    ///
+    /// 在工作线程上同步执行并等结果（枚举是毫秒级的，且只在探测时跑一次）。
+    /// **副作用**：线程内那条 `SpVoice` 在被用到时会按第一条英文音色建好；
+    /// 探测跑过之后本实例即固定走 SAPI5，音色也就此定格。
+    pub fn list_english_voices(&self) -> Result<Vec<(String, String)>, String> {
+        let (reply_tx, reply_rx) = mpsc::channel();
+        self.tx
+            .send(Cmd::ListEnglish(reply_tx))
+            .map_err(|_| "SAPI 线程已退出".to_string())?;
+        reply_rx
+            .recv()
+            .map_err(|e| format!("SAPI 线程未回报枚举结果：{e}"))?
+    }
+
     /// 朗读一段文本。不等发声完成——与 WinRT 后端同为「已受理」语义。
     pub fn speak(&self, text: String) -> Result<(), String> {
-        self.tx.send(Cmd::Speak(text)).map_err(|_| "SAPI 线程已退出".to_string())
+        self.tx
+            .send(Cmd::Speak { text })
+            .map_err(|_| "SAPI 线程已退出".to_string())
+    }
+}
+
+/// 在同一单元内枚举 SAPI5 音色并挑出英文的。
+///
+/// 只在本模块的工作线程内调用——`SpObjectTokenCategory` / `EnumTokens` 与 `SpVoice`
+/// 同属单元线程对象。
+fn list_english_on_this_thread() -> Result<Vec<(String, String)>, String> {
+    use windows::core::HSTRING;
+    use windows::Win32::Media::Speech::{
+        ISpObjectToken, ISpObjectTokenCategory, SpObjectTokenCategory, SPCAT_VOICES,
+    };
+    use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
+
+    unsafe {
+        let category: ISpObjectTokenCategory = CoCreateInstance(&SpObjectTokenCategory, None, CLSCTX_ALL)
+            .map_err(|e| format!("建立音色类别失败：{e}"))?;
+        // SPCAT_VOICES 已经是 PCWSTR，而 HSTRING 没有 From<PCWSTR>，故走
+        // PCWSTR::to_hstring() 这条由宽串建 HSTRING 的路（windows-strings-0.1.0/src/pcwstr.rs:68）。
+        category
+            .SetId(&SPCAT_VOICES.to_hstring().map_err(|e| format!("转换类别 id 失败：{e}"))?, false)
+            .map_err(|e| format!("设置类别 id 失败：{e}"))?;
+
+        // windows 0.58 把 COM 的 [out] 返回值收进返回值里，没有 `&mut` 出参位。
+        let tokens = category
+            .EnumTokens(None, None)
+            .map_err(|e| format!("枚举音色失败：{e}"))?;
+
+        let mut out = Vec::new();
+        // 每次只取一个：ISpObjectToken 不 Clone，取出即 move，取完就地判。
+        let mut one: Option<ISpObjectToken> = None;
+        loop {
+            let mut fetched = 0u32;
+            tokens
+                .Next(1, &mut one, Some(&mut fetched))
+                .map_err(|e| format!("取音色失败：{e}"))?;
+            if fetched == 0 {
+                break;
+            }
+            let Some(token) = one.take() else { break };
+
+            let id = take_com_string(token.GetId().map_err(|e| format!("取音色 id 失败：{e}"))?, "");
+            if !token_has_english_language(&id) {
+                continue;
+            }
+            // SAPI5 的显示名存在 token 的默认字符串值（valuename 传空串即取它），
+            // 取不到就退回 token id——诊断面要有个能显示的东西。
+            let name = token
+                .GetStringValue(&HSTRING::from(""))
+                .map(|p| take_com_string(p, &id))
+                .unwrap_or_else(|_| id.clone());
+            out.push((id, name));
+        }
+        Ok(out)
+    }
+}
+
+/// 在同一单元内建一个 `SpVoice` 并用指定音色朗读。`token_id` 为空时用系统默认音色。
+fn speak_on_this_thread(
+    voice: &mut Option<ISpVoice>,
+    token_id: &str,
+    text: &str,
+) -> Result<(), String> {
+    use windows::core::HSTRING;
+    use windows::Win32::Media::Speech::{ISpObjectToken, SpObjectToken, SpVoice, SPF_ASYNC, SPF_PURGEBEFORESPEAK};
+    use windows::Win32::System::Com::{CoCreateInstance, CLSCTX_ALL};
+
+    unsafe {
+        if voice.is_none() {
+            *voice = Some(
+                CoCreateInstance(&SpVoice, None, CLSCTX_ALL)
+                    .map_err(|e| format!("建立 SpVoice 失败：{e}"))?,
+            );
+        }
+        let v = voice.as_ref().expect("上一行刚建好");
+
+        if !token_id.is_empty() {
+            // SpObjectToken 的 SetId 与类别的 SetId 不同名：token 要**三个**参数
+            // （类别 id、token id、是否按需创建），少一个就选不上音色。
+            let token: ISpObjectToken = CoCreateInstance(&SpObjectToken, None, CLSCTX_ALL)
+                .map_err(|e| format!("建立音色 token 失败：{e}"))?;
+            token
+                .SetId(&HSTRING::from(SAPI_VOICES_CATEGORY), &HSTRING::from(token_id), false)
+                .map_err(|e| format!("设置音色 token id 失败：{e}"))?;
+            v.SetVoice(&token)
+                .map_err(|e| format!("选中音色失败：{e}"))?;
+        }
+        // SPF_PURGEBEFORESPEAK 是 engine 级不变式的 SAPI 侧对应物（见 tts_player.rs 顶部）：
+        // 连续点「播放读音」时先清空待播队列，否则上一个词会排在这次前面，两条音轨叠着念。
+        // WinRT 侧靠 `let _ = t.stop()` 达成同一效果，这里没有 stop 可调，只能靠这个 flag。
+        // 第三参 None = 不要 stream number（SPF_IS_FILENAME 未置，本就是纯文本）。
+        let _ = v.Speak(
+            &HSTRING::from(text),
+            (SPF_ASYNC.0 | SPF_PURGEBEFORESPEAK.0) as u32,
+            None,
+        );
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::token_has_english_language;
-    use super::SAPI_VOICES_CATEGORY;
+    use super::{token_has_english_language, SAPI_VOICES_CATEGORY};
 
     #[test]
     fn category_path_points_at_sapi5_not_onecore() {
@@ -127,6 +287,10 @@ mod tests {
         ] {
             assert!(token_has_english_language(id), "{id} 应算英文");
         }
+        // 「en」是唯一能同时踩中首部与尾部两个边界保护的输入：左边没有前一个字符可查
+        // （start == 0），右边也没有后一个字符可查（end == len）。其余用例都被前后至少
+        // 一侧的检查挡着，等于只覆盖了两个保护中的一个。
+        assert!(token_has_english_language("en"));
     }
 
     #[test]
