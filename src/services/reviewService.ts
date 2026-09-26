@@ -54,21 +54,41 @@ async function loadContent(wordId: string): Promise<CardContent | null> {
 }
 
 /**
- * 把目标词在例句中挖空（v0.6.1 后修）。
+ * 把目标词在例句中挖空。
  *
- * 只处理「例句里确实有目标词」这一种情况——例句的选用已由 `getWordContent` 保证（它只取含有
- * 目标词的条目，取不到就让 example 为空，填空题随之从该词的可用题型里消失）。所以这里的原样返回
- * 只作防御：真发生说明上游放行了不该放行的例句，宁可让题面退化也不虚构一个句子。
+ * 只处理「例句里确实有目标词」这一种情况——例句的选用已由 `getWordContent` 尽量保证（它只取含有
+ * 目标词的条目，取不到就让 example 为空）。但空 example **不会**让填空题从该词的可用题型里消失：
+ * getAvailabilityMask 判的是 `example` 字段「有没有行」而非「值是不是非空」
+ * （`src/db/review.ts:37-38` 的 EXISTS 不带 value 过滤），usableTemplates 又只看这份掩码，
+ * 所以这种词照样会出填空题，只是题面退化成这里 `BLANK` 那一条横线。
+ * 另外例句「含原词」在 db 层是 toLowerCase().includes 的近似判定，与这里的词边界正则未必一致，
+ * 故原样返回的分支是真会走到的：宁可让题面退化也不虚构一个句子。
  *
- * `gloss` = 该例句所在义项的释义，作为「____ 在句中意为 xxx」注在挖空旁；为空则只挖空、不标注。
+ * v0.6.2：不再拼接「在句中意为 xxx」（那改由 prompt.gloss 独立承载、前端另起一行渲染），
+ * 故删掉 gloss 参数。词性入句由 clozeSentence 负责。
  */
-export function blankOut(sentence: string, lemma: string, gloss = ''): string {
+export function blankOut(sentence: string, lemma: string): string {
   if (!sentence) return BLANK
   const re = new RegExp(`\\b${lemma.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\w*\\b`, 'gi')
   const out = sentence.replace(re, BLANK)
-  if (out === sentence) return sentence
-  const note = gloss ? `${BLANK} 在句中意为 ${gloss}` : out
-  return gloss ? `${out}\n${note}` : out
+  return out === sentence ? sentence : out
+}
+
+/**
+ * 填空题题面：挖空 + 词性入句（v0.6.2 条目 5）。
+ *
+ * 词性插在**第一个**挖空之后并带括号：`The soldiers ____ (v.) out.`
+ * ——括号紧跟空缺，读者不离开句子就知道该填什么词性。词性为空时不插，不留一对空括号。
+ *
+ * 句子为空（无例句）时 blankOut 返回单条横线，此处照常补括号，题面退化但不崩。
+ */
+export function clozeSentence(sentence: string, lemma: string, partOfSpeech: string): string {
+  const blanked = blankOut(sentence, lemma)
+  if (!partOfSpeech) return blanked
+  const at = blanked.indexOf(BLANK)
+  if (at < 0) return blanked
+  const end = at + BLANK.length
+  return `${blanked.slice(0, end)} (${partOfSpeech})${blanked.slice(end)}`
 }
 
 /** 组装题面与答案。严格按模板声明字段，题面不含答案字段。 */
@@ -94,8 +114,14 @@ export function assembleCardDTO(
       break
     }
     case 'cloze': {
-      // 挖空旁注明「____ 在句中意为 xxx」——xxx 是该例句所在义项的释义（见 getWordContent）
-      prompt = { sentence: blankOut(content.example, content.lemma, content.exampleGloss), partOfSpeech: content.partOfSpeech }
+      // 题面：挖空 + 词性入句；释义作为独立字段下行渲染（v0.6.2 条目 5）。
+      // 词性用 matchedPos 而不是 content.partOfSpeech——两者此值相同，但 matchedPos
+      // 显式表达「这个括号是跟着例句走的」，读代码的人不必回 db 层确认。
+      prompt = {
+        sentence: clozeSentence(content.example, content.lemma, content.matchedPos),
+        gloss: content.exampleGloss,
+        partOfSpeech: content.matchedPos,
+      }
       answer = { lemma: content.lemma, sentence: content.example, phonetic: content.phonetic }
       break
     }

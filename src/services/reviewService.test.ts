@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { assembleCardDTO } from './reviewService'
+import { assembleCardDTO, blankOut, clozeSentence } from './reviewService'
 import type { QueueCandidate } from '../lib/review/queue'
 
 const {
@@ -131,19 +131,23 @@ describe('reviewService.assembleCardDTO', () => {
     expect((dto.answer as any).sentence).toBe(content.example)
   })
 
-  it('填空：挖空旁注明该义项释义，题面仍不含目标词', () => {
+  it('填空：词性以括号入句，释义独立成字段（v0.6.2 条目 5），题面仍不含目标词', () => {
+    // v0.6.2 起释义不再拼进 sentence，改由 prompt.gloss 承载、前端另起一行渲染。
     const dto = assembleCardDTO(candidate(), 'cloze', content, null)
-    const sentence = String((dto.prompt as any).sentence)
-    expect(sentence).toContain('____ 在句中意为 lasting for a very short time')
-    expect(sentence).not.toContain('ephemeral')
+    expect((dto.prompt as any).sentence).toBe('Fame in this business is ____ (adj.).')
+    expect((dto.prompt as any).gloss).toBe('lasting for a very short time')
+    expect((dto.prompt as any).partOfSpeech).toBe('adj.')
+    expect((dto.prompt as any).sentence).not.toContain('在句中意为')
+    expect((dto.prompt as any).sentence).not.toContain('ephemeral')
   })
 
-  it('填空：配对释义缺失时只挖空、不标注', () => {
+  it('填空：配对释义缺失时 gloss 为空串（前端据此不渲染释义行）', () => {
     const noGloss = { ...content, exampleGloss: '' }
     const dto = assembleCardDTO(candidate(), 'cloze', noGloss, null)
     const sentence = String((dto.prompt as any).sentence)
     expect(sentence).toContain('____')
     expect(sentence).not.toContain('在句中意为')
+    expect((dto.prompt as any).gloss).toBe('')
   })
 
   it('填空：例句不含目标词时不得虚构题面（只赔上原句，不追加空白）', () => {
@@ -201,6 +205,36 @@ describe('reviewService.assembleCardDTO', () => {
     expect(options).toHaveLength(4)
     expect(new Set(options).size).toBe(options.length)
     expect(options.filter(o => o === '短暂的')).toHaveLength(1)
+  })
+})
+
+describe('clozeSentence：挖空 + 词性入句（v0.6.2 条目 5）', () => {
+  it('词性以括号插在挖空之后', () => {
+    expect(clozeSentence('The soldiers fanned out.', 'fan', 'v.'))
+      .toBe('The soldiers ____ (v.) out.')
+  })
+
+  it('词性为空时不插括号', () => {
+    expect(clozeSentence('The soldiers fanned out.', 'fan', ''))
+      .toBe('The soldiers ____ out.')
+  })
+
+  it('挖空为目标词的词形变化（复数 / 时态）', () => {
+    expect(clozeSentence('The soldiers fanned out.', 'fan', 'v.'))
+      .toContain('____')
+    expect(clozeSentence('He implies things.', 'implication', 'n.'))
+      .toBe('He implies things.')   // 例句不含原词 → 原样返回，与 blankOut 同口径
+  })
+
+  it('句子为空时退化为一条横线，不抛异常', () => {
+    expect(clozeSentence('', 'fan', 'v.')).toBe('____ (v.)')
+  })
+
+  it('blankOut 不再接受 gloss 参数，只挖空', () => {
+    // 钉住签名收窄：第三参若还有人传，这里会因为 JS 忽略多余参数而静默通过，
+    // 所以真正的守卫是 TypeScript——这一条只钉住「返回值里不再有『在句中意为』」。
+    expect(blankOut('The soldiers fanned out.', 'fan')).toBe('The soldiers ____ out.')
+    expect(blankOut('The soldiers fanned out.', 'fan')).not.toContain('在句中意为')
   })
 })
 

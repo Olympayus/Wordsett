@@ -77,6 +77,13 @@ export default function PromptCard({
       {dto.template === 'cloze' && (
         <PromptRow onSkip={onSkip} showSkip={!disabled}>
           <p style={{ fontSize: '16px', lineHeight: 1.7 }}>{p.sentence}</p>
+          {/* 释义注在题面下方小字（v0.6.2 条目 5）：不再拼进句子里，
+              免得挖空旁挂一长串释义把句子读断。为空则不渲染。 */}
+          {p.gloss && (
+            <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: 6, lineHeight: 1.6 }}>
+              ____ 在句中意为 {String(p.gloss)}
+            </p>
+          )}
         </PromptRow>
       )}
       {dto.template === 'recall' && (
@@ -107,7 +114,9 @@ export default function PromptCard({
           </button>
         </PromptRow>
       )}
-      {p.partOfSpeech && dto.template !== 'listen' && (
+      {/* 词性的独立灰行：填空题的词性已入句（见上），此处再显示一次就是同一信息说两遍。
+          其余四个模板照旧。 */}
+      {p.partOfSpeech && dto.template !== 'listen' && dto.template !== 'cloze' && (
         <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>{p.partOfSpeech}</span>
       )}
 

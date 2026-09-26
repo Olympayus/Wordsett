@@ -24,10 +24,11 @@ export interface CardContent {
   example: string
   /**
    * 与 `example` 配对的释义（v0.6.2，条目 5 起改为沿 `parent_id` 上溯，取代 v0.6.1 的
-   * display_order 序位近似）。填空出题时会把「____ 在句中意为 xxx」注在挖空旁，所以这里必须是
-   * **该例句所在义项**的释义：最近的 `english_definition` 祖先 → 该词性父下的第一条
-   * `chinese_definition` → 该词第一条 `chinese_definition`（spec §3.2 的三档兜底）。
-   * 三档都取不到时为空串，此时填空只挖空、不标注含义。
+   * display_order 序位近似）。填空出题时它是 `prompt.gloss`：不再拼进挖空句，而是由前端
+   * 在句子下方另起一行渲染「____ 在句中意为 xxx」。所以这里必须是**该例句所在义项**的释义：
+   * 最近的 `english_definition` 祖先 → 该词性父下的第一条 `chinese_definition` →
+   * 该词第一条 `chinese_definition`（spec §3.2 的三档兜底）。
+   * 三档都取不到时为空串，此时该行不渲染，题面只剩挖空句。
    */
   exampleGloss: string
   /**
