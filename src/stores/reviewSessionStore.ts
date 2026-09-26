@@ -79,5 +79,8 @@ export const useReviewSessionStore = create<ReviewSessionStore>((set, get) => ({
     if (i < 0 || i >= queue.length) return
     set({ index: i, phase: 'answering' })
   },
-  reset: () => set({ phase: 'overview', sessionStrategy: null, queue: [], index: 0, answered: [], startedAt: null }),
+  // freeScope 随会话一起清：它描述的是「本轮的范围」，reset 就是结束本轮的地方。
+  // 不清的话，将来任何「保留 sessionStrategy 只重置 phase」的路径都会把上一轮的范围名
+  // 漏到新一轮的控制台上。
+  reset: () => set({ phase: 'overview', sessionStrategy: null, queue: [], index: 0, answered: [], freeScope: null, startedAt: null }),
 }))

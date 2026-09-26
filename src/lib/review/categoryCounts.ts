@@ -27,6 +27,26 @@ export function aggregateCategoryCounts(
 }
 
 /**
+ * 从候选里挑出属于任一所选分类的那些（spec §8.1）。空选区返回空数组——「没选」不等于「全选」。
+ *
+ * 并集落在 wordId 这一层：先把候选池过一遍，每个词最多留一次，所以同属多个所选分类的词
+ * 只会出一道卡（若按 (wordId × category) 展开就会重复，那是重复卡而不是并集）。
+ * 结果保持候选池的原有顺序，下游 buildQueue 的排序因此不受这里影响。
+ *
+ * 抽成纯函数是为了能脱离 db 断言：调用方要读的映射（getAllWordCategoryMap）跨两张表，
+ * 而这层选择本身只有六行——与 scopeLabel / correctCount 同样的取纯函数做单测的路子。
+ */
+export function selectByCategories(
+  candidateWordIds: string[],
+  categoryIds: string[],
+  wordCategoryMap: Record<string, string[]>,
+): string[] {
+  if (categoryIds.length === 0) return []
+  const wanted = new Set(categoryIds)
+  return candidateWordIds.filter(wordId => (wordCategoryMap[wordId] ?? []).some(c => wanted.has(c)))
+}
+
+/**
  * 「开始练习」能不能点（v0.6.2 条目 10，Review Focus 3）。
  *
  * 分类强化下**一个分类都没勾**时必须禁用：否则 handleFreeStart 会拿空 scope 去组卷，

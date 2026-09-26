@@ -2,6 +2,7 @@ import * as reviewDb from '../db/review'
 import type { WeakWordRow } from '../db/review'
 import { isListenEnabled } from '../lib/review/ttsGate'
 import { buildQueue, type QueueCandidate, type QueueResult } from '../lib/review/queue'
+import { selectByCategories } from '../lib/review/categoryCounts'
 import { pickTemplate, templateAccuracy, type TemplateLog } from '../lib/review/template'
 import { mastery, retrievability, elapsedDaysSince, NEW_CARD_RNOW, masteryTier } from '../lib/review/mastery'
 import type { CardContent, InitialFamiliarity, ReviewMode, ReviewStrategy, Template } from '../lib/review/types'
@@ -317,17 +318,17 @@ async function filterFree(
   if (!scope) return []
   if (scope.kind === 'today') return candidates
   if (scope.kind === 'weak') return filterWeak(candidates, params, now)
-  if (scope.kind === 'category' && scope.categoryIds && scope.categoryIds.length > 0) {
+  // 分类强化：即便一个分类都没勾也进这个分支（fail-closed）——空选区是「没选」，
+  // 不能掉到末尾的 'random' 那路把整库交出去。UI 侧另有按钮禁用兜底，两处各守一边。
+  // 选择本身是 selectByCategories 的纯逻辑（spec §8.1），这里只负责把映射读出来。
+  if (scope.kind === 'category') {
+    if (!scope.categoryIds || scope.categoryIds.length === 0) return []
     // 复用现有 getAllWordCategoryMap（src/db/categories.ts），不新增查询。
-    // 多选：任一所选分类命中即入题，故用 some 而不是 includes。
     const { getAllWordCategoryMap } = await import('../db/categories')
     const res = await getAllWordCategoryMap()
     if (!res.ok) return []
-    const wanted = new Set(scope.categoryIds)
-    const ids = Object.entries(res.data)
-      .filter(([, cats]) => cats.some(c => wanted.has(c)))
-      .map(([wordId]) => wordId)
-    return candidates.filter(c => ids.includes(c.wordId))
+    const wanted = new Set(selectByCategories(candidates.map(c => c.wordId), scope.categoryIds, res.data))
+    return candidates.filter(c => wanted.has(c.wordId))
   }
   // 'random'：全部候选交给 buildQueue 截断，乱序在 getQueue 末尾统一做
   return candidates

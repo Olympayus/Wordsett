@@ -91,6 +91,7 @@ describe('reviewSessionStore 策略切换保留会话（规格 §2.4）', () => 
     useReviewSessionStore.getState().startSession(QUEUE)
     useReviewSessionStore.getState().answerCurrent(3, '')
     useReviewSessionStore.getState().setStrategy('free')
+    useReviewSessionStore.getState().setFreeScope({ kind: 'category', categoryIds: ['c1'], limit: 20 })
 
     useReviewSessionStore.getState().reset()
 
@@ -102,6 +103,9 @@ describe('reviewSessionStore 策略切换保留会话（规格 §2.4）', () => 
     expect(s.index).toBe(0)
     expect(s.startedAt).toBeNull()
     expect(s.strategy).toBe('free')
+    // freeScope 描述的是本轮的范围，会话结束即失效——否则控制台会把上一轮的
+    // 范畴名（分类强化 / 薄弱词专项 / …）漏到下一轮。
+    expect(s.freeScope).toBeNull()
   })
 
   it('advance 走完最后一题转 summary，summary 态下切策略不丢会话', () => {
