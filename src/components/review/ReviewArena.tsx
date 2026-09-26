@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import PromptCard, { inputKindFor, typedTarget } from './PromptCard'
 import RatingBar from './RatingBar'
 import ResultBlock from './ResultBlock'
@@ -8,7 +8,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { useUiStore } from '../../stores/uiStore'
 import { rateCard, type CardContent, type RateCardResult } from '../../services/reviewService'
 import { compareTyped } from '../../lib/review/typed'
-import { currentAnswered, canGoBack, canGoForward, answeredCount } from '../../lib/review/nav'
+import { currentAnswered, canGoBack, canGoForward, answeredCount, revealedInputFor } from '../../lib/review/nav'
 import { getWordContent } from '../../db/review'
 
 // 评分档位的中文标签（回看态只读标签用）。4 是预留的「轻松」档，本期无 UI。
@@ -52,7 +52,13 @@ export default function ReviewArena() {
 
   const dto = queue[index]
 
-  useEffect(() => {
+  // 必须是 useLayoutEffect，不能用 useEffect：换卡时 dto 先变、这一轮 render 发生在
+  // 上面这个重置之前，此刻 revealed / lastInput 还是**上一张卡**的值。key 让 PromptCard
+  // 同帧重挂，新 AnswerInput（picked 初值 null）于是先拿到上一张卡的 revealedInput，
+  // 按 isRight 把本卡尚未作答的正确答案标绿（「正确」标签）——是每次推进都会闪的错误态。
+  // 布局 effect 在绘制前同步重置，用户看不到那一帧。下面的 getWordContent 是异步的、
+  // 只填 snapshot 且必然落在绘制之后，不受这个时序影响，故留在同一个 effect 里不动。
+  useLayoutEffect(() => {
     // 换卡（或从别的模块回到本模块）时重置；这张卡在 answered 里就直接落在结果态（揭示 + 回放）
     const st = useReviewSessionStore.getState()
     const done = st.answered.find(a => a.cardId === dto?.cardId)
@@ -174,13 +180,10 @@ export default function ReviewArena() {
         dto={dto}
         letterHighlight={letterHighlight}
         disabled={revealed}
-        // 已揭示就传本次的作答原文，让选项**立刻**着对错色（v0.6.2 条目 11）。
-        // 原先只传 pastEntry?.input，而它取自 store 的 answered——只有评分完才会有
-        // 这条记录，于是着色要等三级评分。handleSubmit 已经 setRevealed(true)，
-        // 所以点选项那一帧起 shown 即为真。
-        // 跳过路径（onSkip → handleRate(1, '')）会让 lastInput 为 ''，于是跳过后
-        // 选项也着色并标出正确答案——与下方「评分成功即视为已揭示」同向，是要的行为。
-        revealedInput={revealed ? lastInput : pastEntry?.input}
+        // 已揭示就传本次的作答原文，让选项**立刻**着对错色，而不必等 store 的 answered
+        // （那条记录要评分完才有）。跳过时 lastInput 为 ''，判据要的正是这个 '' 而非
+        // undefined 的差别——取值规则见 revealedInputFor 的文档注释。
+        revealedInput={revealedInputFor(revealed, lastInput, pastEntry?.input)}
         onSkip={() => void handleRate(1, '')}
         onSubmit={handleSubmit}
       />

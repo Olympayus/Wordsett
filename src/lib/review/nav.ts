@@ -41,3 +41,24 @@ export function canGoForward(
 export function answeredCount(answered: { cardId: string }[]): number {
   return answered.length
 }
+
+/**
+ * 选择题判色的驱动值（v0.6.2 条目 11）。
+ *
+ * `AnswerInput` 以 `revealedInput !== undefined` 决定是否切到「已判分」形态并着对错色，
+ * 而 `''` 也算已揭示。故「点完选项立刻着色」等价于「一提交就给出非 undefined 的值」——
+ * 判据不是「有内容」，是这个 undefined / 非 undefined 的差别。
+ *
+ * 关键在跳过路径：跳过交上来的是 `''`，刻意**不**取 undefined，于是跳过后选项同样着色
+ * 并标出正确答案，与 ReviewArena 里「评分成功即视为已揭示」同向。若这里写成
+ * `lastInput || pastInput` 之类把 `''` 吞掉的判断，跳过就会退回未着色的形态。
+ *
+ * @param revealed  本次作答是否已揭示（handleSubmit / 评分成功都会置起）
+ * @param lastInput 本次作答原文；跳过时为 `''`
+ * @param pastInput 回看态从 store 的 answered 里回放的作答原文；未揭示时为 undefined
+ */
+export function revealedInputFor(
+  revealed: boolean, lastInput: string, pastInput: string | undefined,
+): string | undefined {
+  return revealed ? lastInput : pastInput
+}

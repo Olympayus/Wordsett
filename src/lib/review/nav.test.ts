@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { currentAnswered, canGoBack, canGoForward, answeredCount } from './nav'
+import { currentAnswered, canGoBack, canGoForward, answeredCount, revealedInputFor } from './nav'
 
 const q = (n: number) => Array.from({ length: n }, (_, i) => ({ cardId: `c${i + 1}` }))
 const ans = (...ids: string[]) => ids.map(cardId => ({ cardId }))
@@ -52,15 +52,8 @@ describe('lib/review/nav', () => {
 })
 
 describe('选项判色的驱动值（v0.6.2 条目 11）', () => {
-  /**
-   * AnswerInput 用 `revealedInput !== undefined` 决定是否着对错色（AnswerInput.tsx:42）。
-   * 故「点完选项立刻着色」等价于「提交后立即给出一个非 undefined 的 revealedInput」。
-   * 这里把 ReviewArena 的取值规则抽出来钉住：它在两种场景下都必须给出有值的结果。
-   */
-  const revealedInputFor = (
-    revealed: boolean, lastInput: string, pastInput: string | undefined,
-  ): string | undefined => (revealed ? lastInput : pastInput)
-
+  // 断言的是 ReviewArena 真正调用的那个 revealedInputFor（见 ReviewArena.tsx 里
+  // revealedInput=… 那一行），不是这里另写一份：改动生产取值规则时它必须跟着失败。
   it('刚提交（revealed 为真、pastInput 未定义）时立刻有值 —— 选项即刻着色', () => {
     expect(revealedInputFor(true, '散布，扩散', undefined)).toBe('散布，扩散')
   })
