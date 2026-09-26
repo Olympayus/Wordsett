@@ -101,6 +101,7 @@ const content = {
   translation: '短暂的',
   definition: 'lasting for a very short time',
   example: 'Fame in this business is ephemeral.',
+  exampleGloss: 'lasting for a very short time',
   distractors: ['持久的', '明显的', '丰富的'],
 }
 
@@ -127,6 +128,30 @@ describe('reviewService.assembleCardDTO', () => {
     expect((dto.prompt as any).sentence).not.toContain('ephemeral')
     expect((dto.answer as any).lemma).toBe('ephemeral')
     expect((dto.answer as any).sentence).toBe(content.example)
+  })
+
+  it('填空：挖空旁注明该义项释义，题面仍不含目标词', () => {
+    const dto = assembleCardDTO(candidate(), 'cloze', content, null)
+    const sentence = String((dto.prompt as any).sentence)
+    expect(sentence).toContain('____ 在句中意为 lasting for a very short time')
+    expect(sentence).not.toContain('ephemeral')
+  })
+
+  it('填空：配对释义缺失时只挖空、不标注', () => {
+    const noGloss = { ...content, exampleGloss: '' }
+    const dto = assembleCardDTO(candidate(), 'cloze', noGloss, null)
+    const sentence = String((dto.prompt as any).sentence)
+    expect(sentence).toContain('____')
+    expect(sentence).not.toContain('在句中意为')
+  })
+
+  it('填空：例句不含目标词时不得虚构题面（只赔上原句，不追加空白）', () => {
+    // 上游 getWordContent 本不该放行这种例句；这里钉住防御分支，避免回归成
+    // 「整句 + 空白」那种看起来像空单词的题面。
+    const unmatched = { ...content, example: 'The soldiers fanned out', exampleGloss: '' }
+    const dto = assembleCardDTO(candidate(), 'cloze', unmatched, null)
+    expect((dto.prompt as any).sentence).toBe('The soldiers fanned out')
+    expect((dto.prompt as any).sentence).not.toContain('____')
   })
 
   it('中译英：题面是中文释义，答案是单词与音标', () => {
@@ -163,7 +188,7 @@ describe('reviewService.assembleCardDTO', () => {
   })
 
   it('填空题干缺例句时回退：挖空失败不产生空题面', () => {
-    const noExample = { ...content, example: '' }
+    const noExample = { ...content, example: '', exampleGloss: '' }
     const dto = assembleCardDTO(candidate(), 'cloze', noExample, null)
     expect((dto.prompt as any).sentence.length).toBeGreaterThan(0)
   })

@@ -53,12 +53,22 @@ async function loadContent(wordId: string): Promise<CardContent | null> {
   try { return await reviewDb.getWordContent(wordId) } catch { return null }
 }
 
-/** 把目标词在例句中挖空；找不到目标词时退回「整句 + 空白」形态，保证题干非空。 */
-export function blankOut(sentence: string, lemma: string): string {
+/**
+ * 把目标词在例句中挖空（v0.6.1 后修）。
+ *
+ * 只处理「例句里确实有目标词」这一种情况——例句的选用已由 `getWordContent` 保证（它只取含有
+ * 目标词的条目，取不到就让 example 为空，填空题随之从该词的可用题型里消失）。所以这里的原样返回
+ * 只作防御：真发生说明上游放行了不该放行的例句，宁可让题面退化也不虚构一个句子。
+ *
+ * `gloss` = 该例句所在义项的释义，作为「____ 在句中意为 xxx」注在挖空旁；为空则只挖空、不标注。
+ */
+export function blankOut(sentence: string, lemma: string, gloss = ''): string {
   if (!sentence) return BLANK
   const re = new RegExp(`\\b${lemma.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\w*\\b`, 'gi')
   const out = sentence.replace(re, BLANK)
-  return out === sentence ? `${sentence} ${BLANK}` : out
+  if (out === sentence) return sentence
+  const note = gloss ? `${BLANK} 在句中意为 ${gloss}` : out
+  return gloss ? `${out}\n${note}` : out
 }
 
 /** 组装题面与答案。严格按模板声明字段，题面不含答案字段。 */
@@ -84,7 +94,8 @@ export function assembleCardDTO(
       break
     }
     case 'cloze': {
-      prompt = { sentence: blankOut(content.example, content.lemma), partOfSpeech: content.partOfSpeech }
+      // 挖空旁注明「____ 在句中意为 xxx」——xxx 是该例句所在义项的释义（见 getWordContent）
+      prompt = { sentence: blankOut(content.example, content.lemma, content.exampleGloss), partOfSpeech: content.partOfSpeech }
       answer = { lemma: content.lemma, sentence: content.example, phonetic: content.phonetic }
       break
     }

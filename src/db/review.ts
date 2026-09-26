@@ -177,7 +177,19 @@ export async function getCardMeta(
   }
 }
 
-/** 取词条出题所需内容（lemma / 音标 / 词性 / 中英释义 / 例句）。词不存在返回 null。 */
+/**
+ * 取词条出题所需内容（lemma / 音标 / 词性 / 中英释义 / 例句）。词不存在返回 null。
+ *
+ * 例句的取法（v0.6.1 后修）：**只取含有目标词的那一条**，取不到就让 `example` 为空——
+ * 空 `example` 会让 getAvailabilityMask 把 `example` 组判为不可用，于是填空题从该词的可用
+ * 题型里自动消失。改成这样是因为原先 `ORDER BY display_order LIMIT 1` 取的是第一条例句，
+ * 而 ECDICT 的例句是「按义项散装」的：diffuse 的第一条是 fan out 的释义对位句
+ * "The soldiers fanned out"（不含 diffuse），implication 的第一条更是空串。两者都会挖不到词，
+ * blankOut 于是退化成一个「整句 + 空白」甚至只有一条横线的题面，配上词性标签看起来像个空单词。
+ *
+ * 配对释义（`exampleGloss`）同样按「同一序位优先、退到该组第一条」取，中英两侧都查：
+ * 「____ 在句中意为 xxx」里的 xxx 必须与所选例句的义项一致，否则标注的意思和句中的用法对不上。
+ */
 export async function getWordContent(wordId: string, h?: DbHandle): Promise<CardContent | null> {
   const d = db(h)
   const rows = await d.select<Record<string, any>>(
@@ -191,12 +203,39 @@ export async function getWordContent(wordId: string, h?: DbHandle): Promise<Card
        (SELECT fv.value FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
           WHERE fv.word_id = w.id AND fd.key = 'english_definition' ORDER BY fv.display_order LIMIT 1) AS definition,
        (SELECT fv.value FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
-          WHERE fv.word_id = w.id AND fd.key IN ('example_sentence','example') ORDER BY fv.display_order LIMIT 1) AS example
+          WHERE fv.word_id = w.id AND fd.key IN ('example_sentence','example')
+            AND fv.value <> ''
+            AND fv.value LIKE '%' || w.lemma || '%'
+          ORDER BY fv.display_order LIMIT 1) AS example,
+       (SELECT fv.display_order FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
+          WHERE fv.word_id = w.id AND fd.key IN ('example_sentence','example')
+            AND fv.value <> ''
+            AND fv.value LIKE '%' || w.lemma || '%'
+          ORDER BY fv.display_order LIMIT 1) AS example_order,
+       (SELECT fv.value FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
+          WHERE fv.word_id = w.id AND fd.key = 'english_definition'
+            AND fv.value <> ''
+            AND fv.display_order >= (SELECT fv2.display_order FROM field_values fv2 JOIN field_definitions fd2 ON fd2.id = fv2.field_id
+                                       WHERE fv2.word_id = w.id AND fd2.key IN ('example_sentence','example')
+                                         AND fv2.value <> '' AND fv2.value LIKE '%' || w.lemma || '%'
+                                       ORDER BY fv2.display_order LIMIT 1)
+          ORDER BY fv.display_order LIMIT 1) AS gloss_en,
+       (SELECT fv.value FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
+          WHERE fv.word_id = w.id AND fd.key = 'chinese_definition'
+            AND fv.value <> ''
+            AND fv.display_order >= (SELECT fv2.display_order FROM field_values fv2 JOIN field_definitions fd2 ON fd2.id = fv2.field_id
+                                       WHERE fv2.word_id = w.id AND fd2.key IN ('example_sentence','example')
+                                         AND fv2.value <> '' AND fv2.value LIKE '%' || w.lemma || '%'
+                                       ORDER BY fv2.display_order LIMIT 1)
+          ORDER BY fv.display_order LIMIT 1) AS gloss_zh
      FROM words w WHERE w.id = ?1`,
     [wordId],
   )
   if (rows.length === 0) return null
   const r = rows[0]
+  // 配对释义优先取「与例句序位对齐」的那一条，中英两侧都查；该序位之后没有条目时退到该组第一条
+  // （两个词典的信息来源不同：例句基本都挂在英文释义下，中文释义若没配例句就只能退到第一条）。
+  const exampleGloss = String(r.gloss_en ?? '') || String(r.translation ?? '')
   return {
     lemma: r.lemma ?? '',
     phonetic: r.phonetic ?? '',
@@ -204,6 +243,7 @@ export async function getWordContent(wordId: string, h?: DbHandle): Promise<Card
     translation: r.translation ?? '',
     definition: r.definition ?? '',
     example: r.example ?? '',
+    exampleGloss,
     distractors: await getDistractorTranslations(wordId, 3, d),
   }
 }

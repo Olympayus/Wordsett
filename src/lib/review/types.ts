@@ -17,5 +17,11 @@ export interface CardContent {
   translation: string
   definition: string
   example: string
+  /**
+   * 与 `example` 配对的释义（v0.6.1 后修）。填空出题时会把「____ 在句中意为 xxx」注在挖空旁，
+   * 所以这里必须是**该例句所在义项**的释义——两个词典的例句都挂在英文释义下，中文释义若无
+   * 例句则取同一序位的中文条目。取不到配对时为空串，此时填空只挖空、不标注含义。
+   */
+  exampleGloss: string
   distractors: string[]
 }
