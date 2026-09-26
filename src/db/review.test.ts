@@ -589,3 +589,84 @@ describe('db/review 听辨门控与薄弱词计数', () => {
     expect([...words].sort()).toEqual([...new Set(rows.data.map(w => w.wordId))].sort())
   })
 })
+
+describe('getWordContent 的例句 / 释义 / 词性三者对位（v0.6.2 条目 5）', () => {
+  /**
+   * 造一个「前一个词性没有例句、后一个词性有例句」的 fixture。
+   * 这正是 display_order 近似会出错的形状：近似法取「例句序位之后的第一条英文释义」，
+   * 而第一个词性排在最前，于是会取到错的释义；词性更是恒取第一个。
+   *
+   * 字段层级（与 WordNet 导入形状一致）：
+   *   adj.(order 0)
+   *     └ english_definition  "existing in a highly concentrated form"  (order 1)
+   *   v.(order 2)
+   *     └ english_definition  "to spread or cause to spread"            (order 3)
+   *          └ example_sentence ""                                       (order 4)
+   *               └ example  "The diffuse light filled the room."        (order 5)
+   *     └ chinese_definition "散布，扩散"                                 (order 6)
+   */
+  async function seedMultiPos() {
+    const db = await createTestDb()
+    const wordId = 'w1'
+    await db.execute(
+      `INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at)
+       VALUES (?1, 'diffuse', 'diffuse', 'en', 0, 0)`,
+      [wordId],
+    )
+    const defs = await db.select<{ id: string; key: string }>(
+      `SELECT id, key FROM field_definitions WHERE key IN
+         ('part_of_speech','english_definition','chinese_definition','example_sentence','example')`,
+    )
+    const fid = (key: string) => defs.find(d => d.key === key)!.id
+    const put = async (id: string, key: string, value: string, order: number, parent: string | null) => {
+      await db.execute(
+        `INSERT INTO field_values (id, word_id, field_id, value, source, edited, display_order, parent_id, created_at, updated_at)
+         VALUES (?1, ?2, ?3, ?4, 'wordnet', 0, ?5, ?6, 0, 0)`,
+        [id, wordId, fid(key), value, order, parent],
+      )
+    }
+    await put('pos-adj', 'part_of_speech', 'adj.', 0, null)
+    await put('def-adj', 'english_definition', 'existing in a highly concentrated form', 1, 'pos-adj')
+    await put('pos-v', 'part_of_speech', 'v.', 2, null)
+    await put('def-v', 'english_definition', 'to spread or cause to spread', 3, 'pos-v')
+    await put('exs-v', 'example_sentence', '', 4, 'def-v')
+    await put('ex-v', 'example', 'The diffuse light filled the room.', 5, 'exs-v')
+    await put('zh-v', 'chinese_definition', '散布，扩散', 6, 'pos-v')
+    return db
+  }
+
+  it('释义取例句所属词性下的那一条，不是序位之后的任意一条', async () => {
+    const db = await seedMultiPos()
+    const c = await getWordContent('w1', db)
+    expect(c?.example).toBe('The diffuse light filled the room.')
+    expect(c?.exampleGloss).toBe('to spread or cause to spread')
+  })
+
+  it('词性取例句所属词性，不是该词的第一个词性', async () => {
+    const db = await seedMultiPos()
+    const c = await getWordContent('w1', db)
+    // 第一个词性是 adj.，但例句挂在 v. 下——这里必须是 v.
+    expect(c?.matchedPos).toBe('v.')
+  })
+
+  it('例句所属词性下没有中文释义时回落到该词第一条中文释义', async () => {
+    const db = await seedMultiPos()
+    // 把 v. 下的中文释义挪到 adj. 下，模拟「例句所属义项只有英文释义」
+    await db.execute(`UPDATE field_values SET parent_id = 'pos-adj' WHERE id = 'zh-v'`)
+    const c = await getWordContent('w1', db)
+    expect(c?.exampleGloss).toBe('to spread or cause to spread')
+  })
+
+  it('例句行的 parent_id 为 NULL 时退到扁平规则，不让整张卡消失（Review Focus 1）', async () => {
+    const db = await seedMultiPos()
+    // 断开例句的祖先链：example 直接挂在词下、无父
+    await db.execute(`UPDATE field_values SET parent_id = NULL WHERE id = 'ex-v'`)
+    const c = await getWordContent('w1', db)
+    // 题面仍在（这是关键：不能因为祖先链断了就返回 null 或空 example）
+    expect(c?.example).toBe('The diffuse light filled the room.')
+    // 释义回落到该词第一条英文释义
+    expect(c?.exampleGloss).toBe('existing in a highly concentrated form')
+    // 词性回落到该词第一个词性
+    expect(c?.matchedPos).toBe('adj.')
+  })
+})

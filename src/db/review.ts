@@ -178,72 +178,95 @@ export async function getCardMeta(
 }
 
 /**
- * 取词条出题所需内容（lemma / 音标 / 词性 / 中英释义 / 例句）。词不存在返回 null。
+ * 取词条出题所需内容（lemma / 音标 / 词性 / 中英释义 / 例句 / 配对释义）。
+ * 词不存在返回 null。
  *
- * 例句的取法（v0.6.1 后修）：**只取含有目标词的那一条**，取不到就让 `example` 为空——
- * 空 `example` 会让 getAvailabilityMask 把 `example` 组判为不可用，于是填空题从该词的可用
- * 题型里自动消失。改成这样是因为原先 `ORDER BY display_order LIMIT 1` 取的是第一条例句，
- * 而 ECDICT 的例句是「按义项散装」的：diffuse 的第一条是 fan out 的释义对位句
- * "The soldiers fanned out"（不含 diffuse），implication 的第一条更是空串。两者都会挖不到词，
- * blankOut 于是退化成一个「整句 + 空白」甚至只有一条横线的题面，配上词性标签看起来像个空单词。
+ * 例句与释义的取法（v0.6.2，条目 5——取代 v0.6.1 的 display_order 近似）：
  *
- * 配对释义（`exampleGloss`）同样按「同一序位优先、退到该组第一条」取，中英两侧都查：
- * 「____ 在句中意为 xxx」里的 xxx 必须与所选例句的义项一致，否则标注的意思和句中的用法对不上。
+ * 例句只取含有目标词的那一条；取不到就让 `example` 为空——空 `example` 会让
+ * getAvailabilityMask 把 `example` 组判为不可用，于是填空题从该词的可用题型里自动消失。
+ *
+ * 配对释义与词性都由**选中那条例句**沿 `parent_id` 上溯而来。层级事实（已核源码）：
+ * WordNet 的例句挂三层之下 `part_of_speech → english_definition → example_sentence → example`
+ * （src/lib/wordnetParse.ts:85-95），而 ECDICT 不产例句（src/lib/ecdictParse.ts:100-118）。
+ * 所以例句行最近的 `english_definition` 祖先就是它的释义、最近的 `part_of_speech`
+ * 祖先是它的词性——这是精确解，不再是「序位之后的第一条」这种近似。
+ *
+ * 祖先链断掉时（例句行的 parent_id 为 NULL，或历史数据里 example 直接挂在词性下）不抛错、
+ * 也不让整张卡消失：释义退回该词第一条英文释义、再退到第一条中文释义，词性退回该词第一个词性。
+ *
+ * 为什么不在 SQL 里做：上溯是变深度的树遍历，用相关子查询写出来既难读又难测；
+ * 本函数的调用频率是「每张卡一次」，一次多取几十行 field_values 完全可以接受。
  */
 export async function getWordContent(wordId: string, h?: DbHandle): Promise<CardContent | null> {
   const d = db(h)
-  const rows = await d.select<Record<string, any>>(
-    `SELECT w.lemma,
-       (SELECT fv.value FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
-          WHERE fv.word_id = w.id AND fd.key = 'phonetic' ORDER BY fv.display_order LIMIT 1) AS phonetic,
-       (SELECT fv.value FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
-          WHERE fv.word_id = w.id AND fd.key = 'part_of_speech' ORDER BY fv.display_order LIMIT 1) AS part_of_speech,
-       (SELECT fv.value FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
-          WHERE fv.word_id = w.id AND fd.key = 'chinese_definition' ORDER BY fv.display_order LIMIT 1) AS translation,
-       (SELECT fv.value FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
-          WHERE fv.word_id = w.id AND fd.key = 'english_definition' ORDER BY fv.display_order LIMIT 1) AS definition,
-       (SELECT fv.value FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
-          WHERE fv.word_id = w.id AND fd.key IN ('example_sentence','example')
-            AND fv.value <> ''
-            AND fv.value LIKE '%' || w.lemma || '%'
-          ORDER BY fv.display_order LIMIT 1) AS example,
-       (SELECT fv.display_order FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
-          WHERE fv.word_id = w.id AND fd.key IN ('example_sentence','example')
-            AND fv.value <> ''
-            AND fv.value LIKE '%' || w.lemma || '%'
-          ORDER BY fv.display_order LIMIT 1) AS example_order,
-       (SELECT fv.value FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
-          WHERE fv.word_id = w.id AND fd.key = 'english_definition'
-            AND fv.value <> ''
-            AND fv.display_order >= (SELECT fv2.display_order FROM field_values fv2 JOIN field_definitions fd2 ON fd2.id = fv2.field_id
-                                       WHERE fv2.word_id = w.id AND fd2.key IN ('example_sentence','example')
-                                         AND fv2.value <> '' AND fv2.value LIKE '%' || w.lemma || '%'
-                                       ORDER BY fv2.display_order LIMIT 1)
-          ORDER BY fv.display_order LIMIT 1) AS gloss_en,
-       (SELECT fv.value FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
-          WHERE fv.word_id = w.id AND fd.key = 'chinese_definition'
-            AND fv.value <> ''
-            AND fv.display_order >= (SELECT fv2.display_order FROM field_values fv2 JOIN field_definitions fd2 ON fd2.id = fv2.field_id
-                                       WHERE fv2.word_id = w.id AND fd2.key IN ('example_sentence','example')
-                                         AND fv2.value <> '' AND fv2.value LIKE '%' || w.lemma || '%'
-                                       ORDER BY fv2.display_order LIMIT 1)
-          ORDER BY fv.display_order LIMIT 1) AS gloss_zh
-     FROM words w WHERE w.id = ?1`,
-    [wordId],
-  )
+  const rows = await d.select<{ lemma: string }>('SELECT lemma FROM words WHERE id = ?1', [wordId])
   if (rows.length === 0) return null
-  const r = rows[0]
-  // 配对释义优先取「与例句序位对齐」的那一条，中英两侧都查；该序位之后没有条目时退到该组第一条
-  // （两个词典的信息来源不同：例句基本都挂在英文释义下，中文释义若没配例句就只能退到第一条）。
-  const exampleGloss = String(r.gloss_en ?? '') || String(r.translation ?? '')
+  const lemma = rows[0].lemma ?? ''
+
+  // 一次性取全字段值 + 字段 key，上溯在内存里做。
+  // value 列可空（schema 未加 NOT NULL，导入路径也原样透传），统一成空串再参与后续比较。
+  const fvs = (await d.select<{
+    id: string; parent_id: string | null; key: string; value: string | null; display_order: number
+  }>(
+    `SELECT fv.id, fv.parent_id, fd.key, fv.value, fv.display_order
+       FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
+      WHERE fv.word_id = ?1
+      ORDER BY fv.display_order`,
+    [wordId],
+  )).map(r => ({ ...r, value: r.value ?? '' }))
+
+  const byId = new Map(fvs.map(r => [r.id, r]))
+  /** 从某行沿 parent_id 上溯，返回第一个满足 key 的祖先（不含自身）。带深度上限防环。 */
+  const ancestorWithKey = (fromId: string, key: string): typeof fvs[number] | null => {
+    let cur = byId.get(fromId)?.parent_id ?? null
+    for (let depth = 0; cur && depth < 8; depth++) {
+      const row = byId.get(cur)
+      if (!row) return null
+      if (row.key === key) return row
+      cur = row.parent_id
+    }
+    return null
+  }
+
+  const firstOf = (key: string) => fvs.find(r => r.key === key && r.value !== '')
+  const allOf = (key: string) => fvs.filter(r => r.key === key)
+
+  // 例句：只取含目标词的那一条（词边界近似——与 v0.6.1 的 LIKE 同口径，交由 blankOut 精确挖空）
+  const example = fvs.find(
+    r => (r.key === 'example_sentence' || r.key === 'example')
+      && r.value !== ''
+      && r.value.toLowerCase().includes(lemma.toLowerCase()),
+  ) ?? null
+
+  const translation = firstOf('chinese_definition')?.value ?? ''
+  const definition = firstOf('english_definition')?.value ?? ''
+  const phonetic = firstOf('phonetic')?.value ?? ''
+  const fallbackPos = firstOf('part_of_speech')?.value ?? ''
+
+  // 上溯：释义取最近的 english_definition 祖先；词性取最近的 part_of_speech 祖先。
+  const glossRow = example ? ancestorWithKey(example.id, 'english_definition') : null
+  const posRow = example ? ancestorWithKey(example.id, 'part_of_speech') : null
+
+  // 中文侧：优先取例句所属词性下的第一条中文释义，取不到退到该词第一条。
+  const zhUnderPos = posRow
+    ? allOf('chinese_definition').find(r => r.parent_id === posRow.id && r.value !== '')
+    : undefined
+
+  // 英文优先于中文（与 v0.6.1 的 gloss_en → translation 同优先级）：上溯不到英文释义时先退到
+  // 该词第一条英文释义，再退到第一条中文释义——祖先链断掉时也不至于把中文义项当成例句释义。
+  const exampleGloss = glossRow?.value || zhUnderPos?.value || definition || translation
+  const matchedPos = posRow?.value || fallbackPos
+
   return {
-    lemma: r.lemma ?? '',
-    phonetic: r.phonetic ?? '',
-    partOfSpeech: r.part_of_speech ?? '',
-    translation: r.translation ?? '',
-    definition: r.definition ?? '',
-    example: r.example ?? '',
+    lemma,
+    phonetic,
+    partOfSpeech: matchedPos,
+    translation,
+    definition,
+    example: example?.value ?? '',
     exampleGloss,
+    matchedPos,
     distractors: await getDistractorTranslations(wordId, 3, d),
   }
 }

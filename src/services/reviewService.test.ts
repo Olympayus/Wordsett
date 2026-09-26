@@ -102,6 +102,7 @@ const content = {
   definition: 'lasting for a very short time',
   example: 'Fame in this business is ephemeral.',
   exampleGloss: 'lasting for a very short time',
+  matchedPos: 'adj.',
   distractors: ['持久的', '明显的', '丰富的'],
 }
 
