@@ -23,6 +23,10 @@ const BUTTON_TRANSITION = 'transform 150ms cubic-bezier(.25,.1,.25,1), backgroun
 // 阶梯参考（L*）：#FFFFFF 100 → 画布 #F6F4EF 96.2 → 白底套 rest #E8E4DE 90.7
 //   → 白底套 hover #EFECE5 93.4；画布套 rest #E2DED7 88.6 → hover #E8E4DE 90.7。
 // 两套的 hover 阶差都在 2 L* 以上（v0.6.1 定下的可读门槛）。
+// NEUTRAL_HOVER_CANVAS 与 NEUTRAL_REST_SURFACE 是**同一档**（--color-border），
+// 这是两套阶梯各自右移一阶的必然结果，不是笔误。改动其一必须同时改另一处，
+// 否则 hover 的阶差会塌掉：但 BUTTON_TONES 的形状把两套摆成了彼此独立，
+// 只调一档不会报错、只会悄悄破坏这个对应关系。
 const NEUTRAL_REST_CANVAS = 'color-mix(in srgb, var(--color-border-strong) 60%, var(--color-surface-sunken))'  // #E2DED7
 const NEUTRAL_HOVER_CANVAS = 'var(--color-border)'                                                             // #E8E4DE
 const NEUTRAL_REST_SURFACE = 'var(--color-border)'                                                             // #E8E4DE
@@ -95,6 +99,28 @@ export const BUTTON_DISABLED: CSSProperties = {
 
 export type ButtonSize = 'default' | 'nav' | 'row'
 
+/** 按钮底色的两套取值：画布套 / 白底套。判据见 `Props.tone` 的注释。 */
+export type ButtonTone = 'canvas' | 'surface'
+
+/**
+ * 底色选择（v0.6.2 条目 1）。抽成纯函数是为了让「哪套底色 + 哪个态」这条规则
+ * 只有一份实现、且能被测试直接驱动——否则测试只能验常量，改接线它照样全绿。
+ * 组件与测试共用这一处，故组件里的 tone 分支不存在第二份。
+ *
+ * 返回 `null` 表示「不设 background」，让按钮回落到 BUTTON_BASE / BUTTON_DISABLED
+ * 各自的底色（禁用态因此不参与 tone 分选，与 v0.6.1 的行为一致）。
+ *
+ * 规则：生效态（on）优先于 hover——形态开关开到 hover 上时走生效色的亮一阶，
+ * 而不是掉回中性底。
+ */
+export function buttonBackground({ disabled, on, hover, tone }: { disabled?: boolean; on?: boolean; hover: boolean; tone?: ButtonTone }): string | null {
+  if (disabled) return null
+  if (on) return hover ? BRAND_ACTIVE_HOVER : BRAND_ACTIVE
+  return tone === 'surface'
+    ? (hover ? NEUTRAL_HOVER_SURFACE : NEUTRAL_REST_SURFACE)
+    : (hover ? NEUTRAL_HOVER_CANVAS : NEUTRAL_REST_CANVAS)
+}
+
 interface Props {
   children: ReactNode
   onClick: () => void
@@ -104,12 +130,20 @@ interface Props {
   pressed?: boolean
   size?: ButtonSize
   /**
-   * 底色变体（v0.6.2 条目 1）。判据是**按钮的直接父级背景**，不是更外层：
-   * 画布底（--color-canvas，如复习 / 工作台导航条、左栏）用 `canvas`；
-   * 纯白底（--color-surface，如设置页各行、复习 / 工作台的内容区）用 `surface`。
+   * 底色变体（v0.6.2 条目 1）。判据是**按钮的直接父级背景**，不是更外层。
+   *
+   * 规则一句话：`surface` 只表示「我的直接父级就是 `--color-surface`」，
+   * 其余一律 `canvas`。项目里容器底有五六个 token 而变体只有两个，
+   * 所以只要父级不是纯白，就走 `canvas`（画布套压在任何较深／带色的底上都还读得出来，
+   * 白底套压在非纯白底上则可能与容器糊在一起）。
+   *
+   * 反例，别照着外层背景标：`ArenaNavBar` 整个浮在复习区右侧那块**纯白**内容区之上，
+   * 但它自身带 `background: var(--color-canvas)`（`ArenaNavBar.tsx:43`），
+   * 所以它里面的按钮是 `canvas` 而不是 `surface`——外面是白的，脚下是画布，脚下说了算。
+   *
    * 缺省 `canvas`＝v0.6.1 的现状行为，调用点可逐个迁移。
    */
-  tone?: 'canvas' | 'surface'
+  tone?: ButtonTone
   /** 透传语义属性：形态开关需要 role="switch" + aria-checked，普通瞬时按钮不需要 */
   role?: 'switch' | 'button'
   'aria-checked'?: boolean
@@ -122,6 +156,8 @@ export default function SquareButton({ children, onClick, disabled, title, press
   const [hover, setHover] = useState(false)
   const [pressing, setPressing] = useState(false)
   const on = Boolean(pressed)
+  // 底色规则在 buttonBackground 里（含「为什么合成单值」）；此处只消费它的结果。
+  const background = buttonBackground({ disabled, on, hover, tone })
   return (
     <button
       type="button"
@@ -141,15 +177,7 @@ export default function SquareButton({ children, onClick, disabled, title, press
         ...(size === 'nav' ? BUTTON_SIZE_NAV : null),
         ...(size === 'row' ? BUTTON_SIZE_ROW : null),
         ...(disabled ? BUTTON_DISABLED : null),
-        // 底色只求值一次：生效态优先于 hover，二者正交时走「生效色的亮一阶」。
-        // 写成三段条件展开会互相覆盖（后展开的赢），所以在这里合成单值。
-        ...(!disabled ? {
-          background: on
-            ? (hover ? BRAND_ACTIVE_HOVER : BRAND_ACTIVE)
-            : (hover
-                ? (tone === 'surface' ? NEUTRAL_HOVER_SURFACE : NEUTRAL_HOVER_CANVAS)
-                : (tone === 'surface' ? NEUTRAL_REST_SURFACE : NEUTRAL_REST_CANVAS)),
-        } : null),
+        ...(background !== null ? { background } : null),
         ...(pressing && !disabled ? { transform: 'scale(.96)' } : null),
       }}
     >

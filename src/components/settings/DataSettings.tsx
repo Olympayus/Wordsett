@@ -89,12 +89,17 @@ export default function DataSettings() {
         {plan && (
           <div style={{ marginTop: '10px', padding: '10px 12px', background: 'var(--color-brand-soft)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)' }}>
             <div>{fmt(plan)}</div>
-            {/* 「确认导入」与上方两个按钮同款，不再单列品牌底 + 白字变体：
+            {/* 「确认导入」与上方两个按钮同语言（暖中性底 + 深字），不再单列品牌底 + 白字变体：
                 变体色（--color-brand 浅品牌底 + 白字）与 SquareButton 的暖中性底 + 深字
                 并列会让同一区块里出现两种按钮语言，且它所在的内嵌 plan 盒本身就是品牌色底，
-                再压一个品牌按钮会糊在一起。统一底样后，唯一的区分靠它在 plan 盒内的位置。 */}
+                再压一个品牌按钮会糊在一起。区分靠它在 plan 盒内的位置。
+                但 tone 走 canvas 而非 surface——判据是**直接父级**：它压的盒是
+                --color-brand-soft（L* 93.9），不是纯白（100）。白底套的 hover 是
+                --color-surface-sunken（L* 93.4），压在这个 93.9 的盒上只差 0.5 L*，
+                一 hover 就糊进容器里、读不出来了；画布套则留 5.3（静止）/ 3.2（hover）。
+                「比兄弟按钮重一档」是这条规则的代价，认。 */}
             <div style={{ marginTop: '8px' }}>
-              <SquareButton tone="surface" onClick={handleApply} disabled={busy}>确认导入</SquareButton>
+              <SquareButton tone="canvas" onClick={handleApply} disabled={busy}>确认导入</SquareButton>
             </div>
           </div>
         )}
