@@ -1,11 +1,11 @@
 {
-  "version": "0.6.0",
-  "notes": "间隔复习模块 · FSRS 智能排程。\n\n【复习模块】\n- 新增独立的「复习」模块：词库里的每个词自动成为一张复习卡，按 FSRS 间隔重复算法排定下次到期时间，越熟悉的词间隔越长\n- 三种策略：今日复习（到期 + 新词额度，计分）、薄弱词专项（连错 ≥ 阈值 ∪ 近 7 天答错，不计分）、自由练习（自选分类或范围，不计分）\n- 五种题型按词条已有字段自动选取：认读 / 填空 / 中译英 / 英释义 / 听辨；缺对应字段的题型自动跳过，不会出无解题\n- 键入题逐字母标红比对，评分后展示完整词条（音标、释义、例句）与下次到期时间\n- 切换策略不丢进度：切到别处时原会话原地保留，切回即续\n- 每轮结束给出小结：成绩分布、正确率、用时；复习统计以只读模式接入既有统计页\n\n【设置】\n- 新增复习设置区：目标记忆保持率、新词额度、每日题量上限、连错阈值\n\n【界面】\n- 复习模块右栏改为白底，与工作台、设置页统一为「导航米色 / 内容白」分栏\n- 音标紧跟单词标题显示并自动补全斜杠，字体与字号与全应用一致\n\n【数据】\n- 数据库 schema 升至 v4（新增 review_cards / review_states / review_logs 三张表），旧库自动迁移，词库数据无损",
-  "pub_date": "2026-09-25T03:04:00.499Z",
+  "version": "0.6.1",
+  "notes": "复习模块打磨 · 听辨题型上线\n\n【复习】\n- 复习策略收敛为「今日复习 / 自由练习」两项；原「薄弱词专项」并入自由练习的范围选项\n- 自由练习新增四种范围：按分类 / 薄弱词 / 今日 / 随机\n- 复习页新增导航栏，可返回上一轮；新增「跳过」按钮（跳过后仍可补评，不计入作答内容）\n- 新增迷你控制台：显示当前题型的中文名称、各题型正确率与本轮题型构成\n- 概览新增三张图：熟知度分布、到期日历（未来 7 天）、近 14 天评分趋势\n- 本轮小结修正：未作答的卡片计入总分母，不再只统计已作答卡片\n- 复习设置布局与文案调整，并补充语音包安装指引\n\n【听辨】\n- 新增听辨题型（TTS 朗读 + 选出对应单词）\n- 启动时自动探测系统英文语音；未探测到时听辨题型自动下线，其余题型不受影响\n- 「编者模式」等开关按语言分别探测\n\n【填空】\n- 填空题改为只选取「确实包含目标词」的例句；若无此类例句，该词不再下发填空题\n- 挖空旁注明「____ 在句中意为 xxx」，帮助判断该词在句中的义项\n- 修正：挖不到目标词时不再拼出「整句 + 空白」的空题面\n\n【界面】\n- 方块按钮配色重调：中性底 + 生效态浅品牌蓝，hover 阶差加大到肉眼可辨\n- 生效态蓝色降低明度以满足 AA 对比度；清理不再使用的旧按钮色\n- 复习模块切换开关右对齐，并恢复其无障碍名称\n\n【修复】\n- 跳过的卡片在补评时记录作答内容，此前记录的是被放弃的输入\n- 修复 speak 命令的返回类型，此前导致 TTS 无法编译",
+  "pub_date": "2026-09-26T04:24:06.486Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZGRWQ1U0U0JvTmdPNEN0SlFpeEtlbGVXU0pjcjk4YnFDbEhvS1F3UjJUWE5Kd25OMThFNWc2MEIwL1Rtc1JsOEsrY0R5b0Q4YnhNMkdwZWNJcUJiQ3dRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzA1Mzg3CWZpbGU6V29yZHNldHRfMC42LjBfeDY0LXNldHVwLmV4ZQorNEdYK0xRa3B3Q25PUk1xa2k4WHplOGZYNzhteUpVb0IrQ0lpY01TVW8yNk5JU3NYK1VFQmNaWTNuUmlPTGQyWE9WUjArQVBaMi9ySnM5RWRjQ0FBdz09Cg==",
-      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.6.0/Wordsett_0.6.0_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFg1bUFzR2NGVjg2RDNtYldKOUg4QlJWYUZ5dTRPSUFBK0krYTcyZlozY0xEVnoxQlhrWk5aVDFRdFZwTmRsTWRyQlBkYmM4WERrNlhISU1ZT1lJYWdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzk2NDI3CWZpbGU6V29yZHNldHRfMC42LjFfeDY0LXNldHVwLmV4ZQorbnR3M2ZCVFFGYTM4ZnNlQmFUYkRFZTJKdVRTYTBhMmlIMmVZQ3NQQXNqTUFkOFYvQXdoNVoxUjZ4OGhSRXhhUGtxS1F4TmJNRExhZHJKWWtCUVlCQT09Cg==",
+      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.6.1/Wordsett_0.6.1_x64-setup.exe"
     }
   }
 }
