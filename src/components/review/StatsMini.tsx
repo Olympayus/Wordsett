@@ -6,8 +6,18 @@ export interface ReviewStats {
   recentRatings: { day: string; again: number; hard: number; good: number }[]
 }
 
-/** 四张卡的标题。稀疏态的占位卡与非稀疏态的图卡用同一份，免得两边次序对不上。 */
-const TITLES = ['遗忘曲线变动', '明日压力', '熟知度分布', '近 14 天 · 复习量 / 正确率'] as const
+/**
+ * 四张卡的标题与其补充文字口径，合成一张表。
+ * 早先是两个平行数组（标题一份、subtitleFor('…') 四次调用），对调任意相邻两项照样编译、
+ * 过类型检查、过 lint、渲染也像模像样，只在卡面写错数字。kind 写错则更隐蔽——趋势图搬进来时
+ * 就差点把 TrendBar 带着上一张卡的 kind 一起改名。标题字面取自 spec §4.2 的表，不改。
+ */
+const CARDS = [
+  { title: '遗忘曲线变动', kind: 'rating', render: (d: ReviewStats) => <RatingSpark data={d.recentRatings} /> },
+  { title: '明日压力', kind: 'due', render: (d: ReviewStats) => <DueBars data={d.dueByDay} /> },
+  { title: '熟知度分布', kind: 'mastery', render: (d: ReviewStats) => <MasteryBuckets data={d.masteryBuckets} /> },
+  { title: '近 14 天 · 复习量 / 正确率', kind: 'trend', render: (d: ReviewStats) => <TrendBars data={d.recentRatings} /> },
+] as const
 
 /**
  * 复习统计的四宫格（v0.6.1 三图 → v0.6.2 条目 9 四图）。
@@ -17,28 +27,22 @@ const TITLES = ['遗忘曲线变动', '明日压力', '熟知度分布', '近 14
  * 而 hover tooltip 在触控板上等于没有。
  */
 export default function StatsMini({ stats }: { stats: ReviewStats }) {
-  // 稀疏判据直接调 isTrendSparse，不在此处重抄一遍——它就是为「两张卡各自判一次稀疏，
+  // 稀疏判据直接调 isTrendSparse，不在此处重抄一遍——它就是为「两处各自判一次稀疏，
   // 判出互相矛盾的结果」而抽出来的（trend.ts），抄一份等于把这个坑重新埋回去。
+  // 稀疏时四张一起换成占位卡（spec §4.2）。
   const sparse = isTrendSparse(stats.recentRatings, stats.dueByDay)
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', width: '100%' }}>
-      {sparse ? (
-        <>
-          {TITLES.map(t => (
-            <div key={t} style={{ padding: '10px 12px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{t}</div>
+      {sparse
+        ? CARDS.map(c => (
+            <div key={c.kind} style={{ padding: '10px 12px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{c.title}</div>
               <div style={{ fontSize: '12px', marginTop: '6px', color: 'var(--color-text-secondary)' }}>数据积累中</div>
             </div>
+          ))
+        : CARDS.map(c => (
+            <MiniCard key={c.kind} title={c.title} subtitle={subtitleFor(c.kind, stats)}>{c.render(stats)}</MiniCard>
           ))}
-        </>
-      ) : (
-        <>
-          <MiniCard title={TITLES[0]} subtitle={subtitleFor('rating', stats)}><RatingSpark data={stats.recentRatings} /></MiniCard>
-          <MiniCard title={TITLES[1]} subtitle={subtitleFor('due', stats)}><DueBars data={stats.dueByDay} /></MiniCard>
-          <MiniCard title={TITLES[2]} subtitle={subtitleFor('mastery', stats)}><MasteryBuckets data={stats.masteryBuckets} /></MiniCard>
-          <MiniCard title={TITLES[3]} subtitle={subtitleFor('trend', stats)}><TrendBars data={stats.recentRatings} /></MiniCard>
-        </>
-      )}
     </div>
   )
 }

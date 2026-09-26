@@ -31,9 +31,11 @@ export function dayAccuracy(d: DayRating): number {
 }
 
 /**
- * 稀疏判定：与三枚迷你图（StatsMini）同一条——评分样本 < 3 天**且**未来 8 日无一到期时
- * 视为「数据积累中」。两张卡各自判一次稀疏，加一个 14 天窗口内 0 评分的库，
- * 就会出现「上面画着曲线、下面写着数据积累中」的自相矛盾（spec §3.6 要求兜底一致）。
+ * 稀疏判定：评分样本 < 3 天**且**未来 8 日无一到期时视为「数据积累中」。
+ * 全四宫格只判这一次（v0.6.2 条目 9 之前，StatsMini 的三张图与 OverviewPanel 的 TrendBar
+ * 各自判一次，于是同一个库会在上面画着曲线、下面写着「数据积累中」；现在趋势已并入四宫格，
+ * 两个容器只剩一个，这条判据随之成为 spec §4.2 要求的「稀疏态四张占位卡同样 2×2」的唯一开关，
+ * 改动前先想清楚四张卡会不会因此一起消失。
  */
 export function isTrendSparse(recentRatings: DayRating[], dueByDay: number[]): boolean {
   return recentRatings.length < 3 && dueByDay.every(n => n === 0)
@@ -58,10 +60,12 @@ export function subtitleFor(kind: 'rating' | 'due' | 'mastery' | 'trend', stats:
     case 'rating': {
       const total = stats.recentRatings.reduce((n, r) => n + dayTotal(r), 0)
       if (total === 0) return '近 14 天还没有评分记录'
-      // 与 RatingSpark 的纵轴同一个加权口径（StatsMini 的 (good + hard * 0.5) / max），
-      // 改这里必须同时改那里，否则图与文字互相矛盾。
+      // 权重与 RatingSpark 的纵轴刻意相同（again=0、hard=0.5、good=1）：图与文字讲的是同一件事，
+      // 改权重必须两处一起改。但归一化基准**不同**——图除以最忙的一天（RatingSpark 的 max，
+      // 目的是让 14 天的相对起伏看得出来），这里除以量表本身（1.0），所以数字不随哪天最忙而变。
+      // 图上没有纵轴刻度，量表只能在这里说，字符串因此带上「满分 1」。
       const weighted = stats.recentRatings.reduce((n, r) => n + (r.good + r.hard * 0.5), 0)
-      return `近 14 天评分走势 · 合计 ${total} 张 · 均值 ${(weighted / total).toFixed(1)}`
+      return `近 14 天评分走势 · 合计 ${total} 张 · 均值 ${(weighted / total).toFixed(1)}（满分 1）`
     }
     case 'due': {
       // dueByDay[0] 是今天，未来 7 天从索引 1 起
