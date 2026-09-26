@@ -30,3 +30,9 @@ tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"
 fsrs = "6"
 tts = "0.26"
+
+# SAPI5 回退后端（spec §6.3）。windows 0.58 已由 Tauri 传递引入并锁在 Cargo.lock 里，
+# 这里只是显式声明并开启 Speech/Com 两个 feature——不引新依赖树。
+# 注意：版本号与 Tauri 的传递版本绑在一起，升级 Tauri 时须一并核对。
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.58", features = ["Win32_Media_Speech", "Win32_System_Com"] }

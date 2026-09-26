@@ -6,6 +6,11 @@
 use std::sync::Mutex;
 use tts::Tts;
 
+/// SAPI5 回退后端。只在 Windows 上编译：`windows` crate 与 SAPI5 本身都是 Win32 专属，
+/// 而 release.yml 也要出 macOS 包（`.github/workflows/release.yml`），故按 target 门掉。
+#[cfg(windows)]
+pub mod sapi;
+
 /// 全局单例。Tts 不是 Send 友好的并发对象，用 Mutex 串行化全部访问。
 ///
 /// tts 0.26 内部是 `Rc<RwLock<..>>` 却用 `unsafe impl Send/Sync` 放行
