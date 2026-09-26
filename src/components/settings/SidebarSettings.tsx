@@ -24,10 +24,10 @@ export default function SidebarSettings() {
   const setSidebarMode = useSettingsStore(s => s.setSidebarMode)
   return (
     <>
-      <div style={{ ...SECTION_TITLE, marginBottom: '16px' }}>
+      <div id="sidebar-mode-heading" style={{ ...SECTION_TITLE, marginBottom: '16px' }}>
         侧边栏显示模式
       </div>
-      <div style={{ display: 'flex', gap: '12px' }}>
+      <div role="radiogroup" aria-labelledby="sidebar-mode-heading" style={{ display: 'flex', gap: '12px' }}>
         {MODES.map(m => {
           const selected = sidebarMode === m.mode
           return (
