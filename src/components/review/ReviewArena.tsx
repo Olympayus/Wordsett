@@ -11,7 +11,25 @@ import { rateCard, type CardContent, type RateCardResult } from '../../services/
 import { compareTyped } from '../../lib/review/typed'
 import { currentAnswered, canGoBack, canGoForward, answeredCount, revealedInputFor } from '../../lib/review/nav'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
+import { RESULT_BREAKPOINT } from '../../lib/review/resultLayout'
 import { getWordContent } from '../../db/review'
+
+/**
+ * 当前视口是否窄于结果区断点。用 matchMedia 而不是量 DOM：需要它的两处
+ * （内容区上限、ResultBlock 的列数）在同一个渲染里读同一个值，量 DOM 会有两帧不同步。
+ */
+function useNarrowResults(): boolean {
+  const query = `(max-width: ${RESULT_BREAKPOINT - 1}px)`
+  const [narrow, setNarrow] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const on = () => setNarrow(mq.matches)
+    on()   // 初值可能在首次 effect 之前就已过期，落地时重算一次
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [query])
+  return narrow
+}
 
 /**
  * 答题态。三段：作答（红绿提示）→ 三键评分 → 结果区块停在屏上等「下一题」推进。
@@ -22,6 +40,8 @@ export default function ReviewArena() {
   const { queue, index, phase, answerCurrent, advance, reset, setIndex } = useReviewSessionStore()
   const letterHighlight = useSettingsStore(s => s.review.letterHighlight)
   const retention = useSettingsStore(s => s.review.retention)
+  // 结果区两栏的断点（v0.6.3 条目 16）：同一个值既决定内容区上限、也决定词条并排还是置底
+  const narrow = useNarrowResults()
 
   // 当前这张卡已作答——回看旧题与刚评完分都为真，用 phase 再分开
   const answeredNow = currentAnswered(queue, answeredList, index)
@@ -155,7 +175,7 @@ export default function ReviewArena() {
   }
 
   return (
-    <div data-arena-region className="flex flex-col gap-6 p-8" style={{ maxWidth: '960px' }}>
+    <div data-arena-region className="flex flex-col gap-6 p-8" style={{ maxWidth: narrow ? '960px' : '1100px' }}>
       <div>
         <ArenaNavBar
           index={index}
@@ -195,7 +215,7 @@ export default function ReviewArena() {
 
       {revealed && (
         <>
-          <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} />
+          <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} narrow={narrow} />
           {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
           {!answeredNow && <RatingBar onRate={r => void handleRate(r, lastInput)} disabled={rating} />}
           {past ? (

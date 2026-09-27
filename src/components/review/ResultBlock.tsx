@@ -1,6 +1,7 @@
 import type { ReviewCardDTO, CardContent } from '../../services/reviewService'
 import { inputKindFor } from './PromptCard'
 import { correctnessLabel } from '../../lib/review/roundStats'
+import { resultGridColumns } from '../../lib/review/resultLayout'
 import EntrySnapshot from './EntrySnapshot'
 
 /**
@@ -14,35 +15,48 @@ import EntrySnapshot from './EntrySnapshot'
  * 作答原文恒为空串，原先一律印「（未作答）」会读成「我跳过了这题」。
  * SummaryPanel 的明细表早就有「（跳过）/（揭示后评分）」两支，这里索性整行不渲染——
  * 揭示型题没有作答可展示，correct 也恒为 null，两个内容都不存在。
+ *
+ * 版式（v0.6.3 条目 16）：作答与词条并排成两栏。宽屏左栏是「你的作答」、右栏是完整词条，
+ * 窄屏回到单列、词条落到最下方——列定义见 lib/review/resultLayout，断点由 ReviewArena 传入。
  */
-export default function ResultBlock({ dto, snapshot, lastInput, correct }: {
+export default function ResultBlock({ dto, snapshot, lastInput, correct, narrow = false }: {
   dto: ReviewCardDTO
   snapshot: CardContent | null
   lastInput: string
   correct: boolean | null
+  /** 视口窄于 RESULT_BREAKPOINT：完整词条落到最下方（单列） */
+  narrow?: boolean
 }) {
   const revealOnly = inputKindFor(dto.template) === 'reveal'
   return (
-    <section aria-label="答题复盘" className="flex flex-col gap-4" style={{ maxWidth: '560px' }}>
-      {!revealOnly && (
-        <div className="flex flex-col gap-1">
-          <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>你的作答</span>
-          <span style={{ fontSize: '14px' }}>
-            {lastInput || '（未作答）'}
-            {correct !== null && (
-              <span style={{ marginLeft: '8px', color: correct ? '#5a8a6a' : '#c0705a', fontSize: '12px' }}>
-                {correctnessLabel(correct)}
-              </span>
-            )}
-          </span>
-        </div>
-      )}
-
-      <EntrySnapshot
-        wordId={dto.wordId}
-        lemma={snapshot?.lemma ?? String(dto.answer.lemma ?? '')}
-        phonetic={snapshot?.phonetic ?? ''}
-      />
+    <section
+      aria-label="答题复盘"
+      className="flex flex-col gap-4"
+      // 两栏时 560px 装不下（左栏 + 268 + 22 间距），故只在窄屏保留限宽
+      style={{ maxWidth: narrow ? '560px' : undefined }}
+    >
+      <div style={{ display: 'grid', gridTemplateColumns: resultGridColumns(narrow), gap: 22, alignItems: 'start' }}>
+        {/* 左：作答（揭示型题不渲染，见上） */}
+        {!revealOnly && (
+          <div className="flex flex-col gap-1">
+            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>你的作答</span>
+            <span style={{ fontSize: '14px' }}>
+              {lastInput || '（未作答）'}
+              {correct !== null && (
+                <span style={{ marginLeft: '8px', color: correct ? '#5a8a6a' : '#c0705a', fontSize: '12px' }}>
+                  {correctnessLabel(correct)}
+                </span>
+              )}
+            </span>
+          </div>
+        )}
+        {/* 右（宽屏）/ 下（窄屏）：完整词条 */}
+        <EntrySnapshot
+          wordId={dto.wordId}
+          lemma={snapshot?.lemma ?? String(dto.answer.lemma ?? '')}
+          phonetic={snapshot?.phonetic ?? ''}
+        />
+      </div>
     </section>
   )
 }
