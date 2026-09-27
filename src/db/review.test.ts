@@ -201,6 +201,26 @@ describe('db/review 读路径', () => {
     expect(c?.example).toBe('')
   })
 
+  it('firstSensePos 与 translation 同源，不跟例句走（v0.6.3 条目 4a）', async () => {
+    await seedWord(db, 'w1', 'detrimental')
+    // 义项 1：n. 有害性（无例句）；义项 2：adj. 有害的（例句挂在这一支）
+    await seedValue(db, 'p1', 'w1', 'part_of_speech', 'n.')
+    await seedValue(db, 'z1', 'w1', 'chinese_definition', '有害性')
+    await db.execute("UPDATE field_values SET parent_id = 'p1' WHERE id = 'z1'")
+    await seedValue(db, 'p2', 'w1', 'part_of_speech', 'adj.')
+    await seedValue(db, 'z2', 'w1', 'chinese_definition', '有害的')
+    await db.execute("UPDATE field_values SET parent_id = 'p2' WHERE id = 'z2'")
+    await seedValue(db, 'e1', 'w1', 'example_sentence', 'Smoking is detrimental.')
+    await db.execute("UPDATE field_values SET parent_id = 'p2' WHERE id = 'e1'")
+
+    const c = await getWordContent('w1', db)
+    // 中译英题面印的是 translation + firstSensePos：两者必须同一义项
+    expect(c?.translation).toBe('有害性')
+    expect(c?.firstSensePos).toBe('n.')
+    // matchedPos 仍跟着例句走（adj.）——两个字段语义不同，不该被合并
+    expect(c?.matchedPos).toBe('adj.')
+  })
+
   it('getDistractorTranslations 随机采样：同样输入多次取数不会总是同一组', async () => {
     await seedWord(db, 'w1', 'alpha')
     for (const [i, w] of ['beta', 'gamma', 'delta', 'epsilon'].entries()) await seedWord(db, `w${i + 2}`, w)

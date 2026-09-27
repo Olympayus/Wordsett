@@ -269,6 +269,12 @@ export async function getWordContent(wordId: string, h?: DbHandle): Promise<Card
   const exampleGloss = glossRow?.value || zhUnderPos?.value || translation
   const matchedPos = posRow?.value || fallbackPos
 
+  // 第一个义项的词性：中文释义那一支自己的 part_of_speech 祖先。
+  // 与 `translation` 用的是**同一行**（firstOf('chinese_definition') 的语义），故必然同源；
+  // 取不到祖先再退到该词第一个词性，与 translation 的兜底方向一致（都是「该词第一条」）。
+  const firstZhRow = fvs.find(r => r.key === 'chinese_definition' && r.value !== '')
+  const firstSensePos = (firstZhRow && ancestorWithKey(firstZhRow.id, 'part_of_speech')?.value) || fallbackPos
+
   return {
     lemma,
     phonetic,
@@ -278,6 +284,7 @@ export async function getWordContent(wordId: string, h?: DbHandle): Promise<Card
     example: example?.value ?? '',
     exampleGloss,
     matchedPos,
+    firstSensePos,
     distractors: await getDistractorTranslations(wordId, 3, d),
   }
 }

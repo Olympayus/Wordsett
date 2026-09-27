@@ -38,5 +38,17 @@ export interface CardContent {
    * 使填空题的括号有值可标，而不是留空。
    */
   matchedPos: string
+  /**
+   * 第一个义项的词性（v0.6.3 条目 4a）。与 `translation` **同源**：两者都取自该词第一条
+   * `chinese_definition` 及其 `part_of_speech` 祖先。
+   *
+   * 与另外两个 pos 字段的区别是刻意的，**别合并**：
+   *   - `partOfSpeech` / `matchedPos` = 跟着**例句**走的词性
+   *   - `firstSensePos`             = 跟着**中文释义**走的词性
+   * 中译英题面同时印出中文释义与词性（条目 3 之后是「释义 (词性)」并排），两者必须同一义项，
+   * 否则会出现「第一义项的释义 + 第二义项的词性」。填空用前者，中译英用这个。
+   * 取不到祖先时沿用 `partOfSpeech`（该词第一个词性），使括号有值可标。
+   */
+  firstSensePos: string
   distractors: string[]
 }

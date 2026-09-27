@@ -130,7 +130,9 @@ export function assembleCardDTO(
       break
     }
     case 'recall': {
-      prompt = { translation: content.translation, partOfSpeech: content.partOfSpeech }
+      // 释义与词性同源（v0.6.3 条目 4a）：都用第一个义项那一支，不用 matchedPos
+      // ——后者跟着例句走，多义项词会与 translation 错配成「第一义项的释义 + 第二义项的词性」。
+      prompt = { translation: content.translation, partOfSpeech: content.firstSensePos }
       answer = { lemma: content.lemma, phonetic: content.phonetic }
       break
     }
