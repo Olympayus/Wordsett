@@ -82,6 +82,9 @@ export function blankOut(sentence: string, lemma: string): string {
  * ——括号紧跟空缺，读者不离开句子就知道该填什么词性。词性为空时不插，不留一对空括号。
  *
  * 句子为空（无例句）时 blankOut 返回单条横线，此处照常补括号，题面退化但不崩。
+ * v0.6.3 条目 4c 起，取不到例句的词条不再拿到填空题（templatesWithExampleGate 在组卷时剔掉），
+ * 这条退化分支因此不再是出题路径上的常态，只作为防御保留：万一有别的调用方直接调
+ * clozeSentence，它也不该崩。
  */
 export function clozeSentence(sentence: string, lemma: string, partOfSpeech: string): string {
   const blanked = blankOut(sentence, lemma)
@@ -427,17 +430,25 @@ export async function getStats() {
 }
 
 /**
- * 概览承诺的张数必须等于点得动的张数：getQueue 逐卡过 templatesWithDistractorGate，
- * 概览若只数 buildQueue 的长度，小库上会出现「承诺 3 张、按钮却什么都不出」。
- * 只有候选词含 recognize 时才需要读内容——闸门只可能剔除这一个模板。
+ * 概览承诺的张数必须等于点得动的张数：getQueue 逐卡过 templatesWithDistractorGate 与
+ * templatesWithExampleGate，概览若只数 buildQueue 的长度，小库上会出现「承诺 3 张、按钮却什么都不出」。
+ * 只有候选词含 recognize 或 cloze 时才需要读内容——两道闸门只可能剔除这两个模板。
  */
 async function deliverable(candidates: QueueCandidate[]): Promise<QueueCandidate[]> {
   const out: QueueCandidate[] = []
   for (const c of candidates) {
-    if (!c.availableTemplates.includes('recognize')) { out.push(c); continue }
+    // 与 getQueue 同一组闸门：干扰项不够 → 不出认读题；例句取不到 → 不出填空题（v0.6.3 条目 4c）。
+    // 两道闸门都只可能剔除 recognize / cloze，故不含这两者的词不必读内容。
+    if (!c.availableTemplates.includes('recognize') && !c.availableTemplates.includes('cloze')) {
+      out.push(c); continue
+    }
     const content = await loadContent(c.wordId)
     if (!content) continue
-    if (templatesWithDistractorGate(c.availableTemplates, content.distractors.length).length === 0) continue
+    const templates = templatesWithExampleGate(
+      templatesWithDistractorGate(c.availableTemplates, content.distractors.length),
+      content.example,
+    )
+    if (templates.length === 0) continue
     out.push(c)
   }
   return out

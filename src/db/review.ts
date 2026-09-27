@@ -189,10 +189,11 @@ export async function getCardMeta(
  *
  * 例句与释义的取法（v0.6.2，条目 5——取代 v0.6.1 的 display_order 近似）：
  *
- * 例句只取含有目标词的那一条；取不到就让 `example` 为空。注意空 `example` **不会**让填空题
- * 从可用题型里消失——getAvailabilityMask 判的是 `example` 字段「有没有行」而非「值是不是非空」
- * （`src/db/review.ts:37-38` 的 EXISTS 不带 value 过滤），所以这种词照样会出填空题，只是题面退化成
- * `blankOut('')` 返回的那一条横线。例句里的词能否挖出来由 blankOut 保证。
+ * 例句只取含有目标词的那一条；取不到就让 `example` 为空。掩码层（getAvailabilityMask）要求
+ * example 字段的值非空，内容层（本函数）要求那条例句含目标词——两层各判一半，交集才是
+ * 能挖空的句子。空 `example` 会让该词拿不到填空题：templatesWithExampleGate 在组卷时剔掉
+ * cloze（v0.6.3 条目 4c），所以这种词不会出填空题，题面也不会退化成 blankOut('') 那一条横线。
+ * 例句里的词能否挖出来由 blankOut 保证。
  *
  * 配对释义与词性都由**选中那条例句**沿 `parent_id` 上溯而来。层级事实（已核源码）：
  * WordNet 的例句挂三层之下 `part_of_speech → english_definition → example_sentence → example`

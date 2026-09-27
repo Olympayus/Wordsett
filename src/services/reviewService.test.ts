@@ -287,6 +287,52 @@ describe('reviewService.getOverview 用组卷同一道认读闸门', () => {
     expect(o.total).toBe(1)
     expect(o.newCount).toBe(0)
   })
+
+  it('只有 cloze 可出、例句取不到：承诺 0 张（与 getQueue 一致，v0.6.3 条目 4c）', async () => {
+    // 概览与组卷必须给出同一个数：deliverable() 也要过 templatesWithExampleGate。
+    // 修复前 deliverable() 只过干扰项闸门，会把这张词算进承诺张数，而 getQueue 出 0 题。
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [candidate({ availableTemplates: ['cloze'] })] })
+    getWordContentMock.mockResolvedValue({ ...content, example: '' })
+    const o = await getOverview(REVIEW_DEFAULTS)
+    expect(o.total).toBe(0)
+    expect(o.estimateMinutes).toBe(1)
+  })
+
+  it('只有 cloze 可出、例句取不到：getQueue 同样出 0 题（钉住概览 = 组卷）', async () => {
+    // 与上一条同一夹具，走 getQueue 的 today 路径：概览承诺 0 张时，组卷必须也是 0 题。
+    registerAllWordsMock.mockResolvedValue(undefined)
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [candidate({ availableTemplates: ['cloze'] })] })
+    getTemplateLogsMock.mockResolvedValue({ ok: true, data: {} })
+    getCardMetaMock.mockResolvedValue({ ok: true, data: null })
+    getAbsentWordsMock.mockResolvedValue({ ok: true, data: [] })
+    getWordContentMock.mockResolvedValue({ ...content, example: '' })
+    const { queue } = await getQueue('today', REVIEW_DEFAULTS)
+    expect(queue).toEqual([])
+  })
+
+  it('概览承诺张数 = getQueue 实际出题数（同一夹具，v0.6.3 条目 4c）', async () => {
+    // 三条候选：一条只有 cloze 且例句取不到（两道闸门都过不了），一条只有 cloze 但例句可用，
+    // 一条只有 recognize 且干扰项够。概览必须承诺 2 张，组卷必须出 2 题。
+    registerAllWordsMock.mockResolvedValue(undefined)
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [
+      candidate({ cardId: 'c1', wordId: 'w1', availableTemplates: ['cloze'] }),
+      candidate({ cardId: 'c2', wordId: 'w2', availableTemplates: ['cloze'] }),
+      candidate({ cardId: 'c3', wordId: 'w3', availableTemplates: ['recognize'] }),
+    ] })
+    getTemplateLogsMock.mockResolvedValue({ ok: true, data: {} })
+    getCardMetaMock.mockResolvedValue({ ok: true, data: null })
+    getAbsentWordsMock.mockResolvedValue({ ok: true, data: [] })
+    getWordContentMock.mockImplementation(async (wordId: string) => {
+      if (wordId === 'w1') return { ...content, example: '' }   // 例句取不到 → 两道闸门都过不了
+      if (wordId === 'w2') return content                        // cloze 可出
+      return { ...content, distractors: ['持久的', '明显的', '丰富的'] } // recognize 可出
+    })
+    const o = await getOverview(REVIEW_DEFAULTS)
+    const { queue } = await getQueue('today', REVIEW_DEFAULTS)
+    expect(o.total).toBe(2)
+    expect(queue).toHaveLength(2)
+    expect(o.total).toBe(queue.length)
+  })
 })
 
 describe('reviewService 薄弱词列表', () => {
