@@ -72,11 +72,14 @@ export default function AnswerInput({
   const [hover, setHover] = useState<string | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
   const [columns, setColumns] = useState<1 | 2>(2)
-  /** 上次量列数时的容器宽度。只认「宽度变了」才重量，见下面 ResizeObserver 处的说明。 */
+  /** 上次量列数时的容器宽度。RO 只认「宽度变了」才重量——理由见下面 ResizeObserver 处。 */
   const measuredWidthRef = useRef(-1)
 
-  // 量一次实际高度判定是否换行（v0.6.3 条目 8）。
+  // 重量一次实际高度判定是否换行（v0.6.3 条目 8）。
   // 必须在 layout effect 里做：绘制前定下列数，否则用户会看到先 2×2 再跳成 1×4 的一帧。
+  // 注意 `options` 是每次渲染都新建的数组（PromptCard 那边 `p.options.map(...)` 现算），
+  // 所以这个 effect 实际跟着**父组件的每一次渲染**都重量，不是只量一次。
+  // `picked` / `hover` 不在依赖里：它们只改颜色（背景 / 描边 / 文字色），不改任何高度。
   useLayoutEffect(() => {
     const el = gridRef.current
     if (kind !== 'choice' || !el) return
@@ -84,10 +87,28 @@ export default function AnswerInput({
     setColumns(choiceColumns(optionHeightsOf(el), CHOICE_LINE_HEIGHT))
   }, [kind, options, revealedInput, disabled])
 
+  // 上面两处量的是「量的时候那一版」的列数，列数本身可能刚变过，所以量出来的结论未必是
+  // 2 列下的真实排布：窗口拖宽到「单列放得下、两列放不下」的那一段时，会在 1 列下量出
+  // 「不换行」→ 判 2 列 → 回到半宽的格子里又换行；换题时若上一张卡是 1 列，同理。
+  // 换行只改高度、不改宽度，下面的 RO 宽度去重挡不住它，于是就会停在「2×2 里有一颗换行」——
+  // 正是本功能要消灭的那种参差。所以补上这个复核：**进了 2 列就在 2 列下再量一次**。
+  // 它不可能两周期：本 effect 只会把列数往 1 推（量到不换行时 setColumns(2) 是同值、React 直接跳过），
+  // 推到 1 之后 columns !== 2 就此停手，不再从 1 回头；回到 2 只可能由上面两处外部触发
+  // （换题 / 父组件重渲染 / 拖窗口）发起，而每一次外部触发最多带来 2 次状态变更（先进 2、再回落 1）。
+  // 另外这两次都发生在 layout effect 里、浏览器绘制之前，中间那个 2 列态不会被画出来，不会有闪烁。
+  useLayoutEffect(() => {
+    const el = gridRef.current
+    if (kind !== 'choice' || !el || columns !== 2) return
+    setColumns(choiceColumns(optionHeightsOf(el), CHOICE_LINE_HEIGHT))
+  }, [kind, columns])
+
   // 依赖里**不能**带 columns：换列数本身就会改变格子宽度，于是「2 列下换行 → 回落 1 列 →
   // 1 列下不换行 → 又回 2 列」是一个真的两周期，setColumns 会来回不止，表现为抖动乃至
   // React 的更新层数上限报错。改由容器宽度驱动：格子宽度是父级给的（display:grid 是块级盒，
   // auto 宽），改列数不会反过来改容器宽度，所以这里没有反馈环。
+  // 宽度去重是有意的：改列数会改高度、RO 因高度变化也会回调，若照单全收就把上面那个
+  // 真正的两周期请回来了。「进了 2 列要复核」由上面那个 effect 负责，它由列数驱动、
+  // 不经过这里，所以不会被这次去重挡掉。
   // RO 的首次通知里宽度与上面刚量到的相同，会被下面这行挡掉，不会补一次重量。
   useLayoutEffect(() => {
     const el = gridRef.current
