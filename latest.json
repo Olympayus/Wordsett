@@ -1,11 +1,11 @@
 {
-  "version": "0.6.1",
-  "notes": "复习模块打磨 · 听辨题型上线\n\n【复习】\n- 复习策略收敛为「今日复习 / 自由练习」两项；原「薄弱词专项」并入自由练习的范围选项\n- 自由练习新增四种范围：按分类 / 薄弱词 / 今日 / 随机\n- 复习页新增导航栏，可返回上一轮；新增「跳过」按钮（跳过后仍可补评，不计入作答内容）\n- 新增迷你控制台：显示当前题型的中文名称、各题型正确率与本轮题型构成\n- 概览新增三张图：熟知度分布、到期日历（未来 7 天）、近 14 天评分趋势\n- 本轮小结修正：未作答的卡片计入总分母，不再只统计已作答卡片\n- 复习设置布局与文案调整，并补充语音包安装指引\n\n【听辨】\n- 新增听辨题型（TTS 朗读 + 选出对应单词）\n- 启动时自动探测系统英文语音；未探测到时听辨题型自动下线，其余题型不受影响\n- 「编者模式」等开关按语言分别探测\n\n【填空】\n- 填空题改为只选取「确实包含目标词」的例句；若无此类例句，该词不再下发填空题\n- 挖空旁注明「____ 在句中意为 xxx」，帮助判断该词在句中的义项\n- 修正：挖不到目标词时不再拼出「整句 + 空白」的空题面\n\n【界面】\n- 方块按钮配色重调：中性底 + 生效态浅品牌蓝，hover 阶差加大到肉眼可辨\n- 生效态蓝色降低明度以满足 AA 对比度；清理不再使用的旧按钮色\n- 复习模块切换开关右对齐，并恢复其无障碍名称\n\n【修复】\n- 跳过的卡片在补评时记录作答内容，此前记录的是被放弃的输入\n- 修复 speak 命令的返回类型，此前导致 TTS 无法编译",
-  "pub_date": "2026-09-26T04:24:06.486Z",
+  "version": "0.6.2",
+  "notes": "复习模块打磨 · TTS 双后端\n\n【复习】\n- 答题中点做题区之外的控件（切策略、回工作台、点顶栏）会先弹确认框，确认才结束本轮；已答的题照常保存，但本轮不再生成小结。此行为取代 v0.6 的「切回即续」\n- 选完选项立即着对错色，不必等三级评分；换卡那一帧不再闪出本卡正确答案\n- 左栏控制台改报做题进度（已答数）与正确率，与顶部导航栏的「第 n / N 题」（光标位置）刻意分开——用箭头翻看旧题时进度不变\n- 概览改四宫格（遗忘曲线 / 明日压力 / 熟知度 / 近 14 天），图表放大，卡面补上小图读不准的数值\n- 本轮小结改三段式：统计、图表、逐题明细；答错的词清单并入明细表的「正误」列\n- 自由练习的「某个分类」改称「分类强化」并支持多选勾选，分类行上直接显示词数与待复习数；标签页标题随标签变，不计分提示移到标签栏最右\n- 评分后展示「完整词条」：只读复刻工作台「词性」标签页的树，可点跳回工作台\n\n【听辨】\n- TTS 改双后端：WinRT 拿不到英文音色时回退 SAPI5。系统自带的英文音色注册在旧 SAPI5 下、WinRT 看不到，这条回退让听辨题在更多机器上真的出声\n- 设置页显示探测实况（所用后端与音色名），不再只甩一句「未检测到」；探测未返回时与「探测了、不可用」分开讲\n- 探测复用分支改为真探测，拿不到英文音色时听辨题型照旧自动下线，其余题型不受影响\n\n【填空】\n- 例句 / 释义 / 词性三者沿 parent_id 上溯对位，不再用 display_order 近似——多词性词的填空括号词性与例句一致\n- 词性以括号入句，释义另起小字行置于题面下方，不再拼进句子里把句子读断\n\n【界面】\n- 方块按钮按所在容器底色分画布套 / 白底套两套配色，白底套整体浅一阶；复习区动作按钮收敛到这套\n- 侧边栏模式框补 radiogroup 角色与组名，设置页模式框改同族两阶\n- 复习模块图标改书本\n\n【修复】\n- 分类强化空选区 fail-closed，不再能开出空一轮；分类计数读失败有话可说，不再谎报「还没有分类」\n- 分类强化的置灰判据从待复习数改为词数——「待复习 0」的分类照样可能出一整轮卡\n- 走势图改铺满卡片宽度，窄窗口不再撑破栅格\n- 均值标明 1 分量表，标题与补充文字口径合成一张卡表",
+  "pub_date": "2026-09-27T02:29:32.699Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFg1bUFzR2NGVjg2RDNtYldKOUg4QlJWYUZ5dTRPSUFBK0krYTcyZlozY0xEVnoxQlhrWk5aVDFRdFZwTmRsTWRyQlBkYmM4WERrNlhISU1ZT1lJYWdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMzk2NDI3CWZpbGU6V29yZHNldHRfMC42LjFfeDY0LXNldHVwLmV4ZQorbnR3M2ZCVFFGYTM4ZnNlQmFUYkRFZTJKdVRTYTBhMmlIMmVZQ3NQQXNqTUFkOFYvQXdoNVoxUjZ4OGhSRXhhUGtxS1F4TmJNRExhZHJKWWtCUVlCQT09Cg==",
-      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.6.1/Wordsett_0.6.1_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFpyUXgrZngzRUcwNzJGeUhaVnJkeTJjOE5KSFFLcUgrRlpIc2E4a3lsMUtoN1hLL1pKbis1aFp2dEJ4Snp2RWc2L0s2SUR4VWNhdVk4UWZKSEJlK0FZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNDc1OTU5CWZpbGU6V29yZHNldHRfMC42LjJfeDY0LXNldHVwLmV4ZQo2MXMvL1R5eHJQbHNyOGJyMXl4UEwzOTZONXZFZ2JWWDh0eUd1WGpLVEFNa3pORmJDSUllQnE0ZlRTanRhV3FKTnVYMzVtWjJQWGlzZjlxWFFEVUJDZz09Cg==",
+      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.6.2/Wordsett_0.6.2_x64-setup.exe"
     }
   }
 }
