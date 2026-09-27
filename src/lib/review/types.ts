@@ -14,9 +14,10 @@ export interface CardContent {
   lemma: string
   phonetic: string
   /**
-   * 题面要标的词性（v0.6.2，条目 5）。有例句时等于 `matchedPos`（跟着例句走），
-   * 否则是该词第一个词性。`recognize` / `recall` / `english_def` 三个模板读的是这个字段
-   * （services/reviewService.ts:93,103,108），不是 `matchedPos`——后者是填空专用的显式名字。
+   * 认读与英文释义题的题面词性（v0.6.2，条目 5）。有例句时等于 `matchedPos`（跟着例句走），
+   * 否则是该词第一个词性。只有 `recognize`（answer）与 `english_def`（prompt）读的是这个字段
+   * ——`recall` 自 v0.6.3 条目 4a 起改读 `firstSensePos`，填空读 `matchedPos`。
+   * 这三处刻意各取所需，**别合并**。
    */
   partOfSpeech: string
   translation: string
@@ -47,7 +48,9 @@ export interface CardContent {
    *   - `firstSensePos`             = 跟着**中文释义**走的词性
    * 中译英题面同时印出中文释义与词性（条目 3 之后是「释义 (词性)」并排），两者必须同一义项，
    * 否则会出现「第一义项的释义 + 第二义项的词性」。填空用前者，中译英用这个。
-   * 取不到祖先时沿用 `partOfSpeech`（该词第一个词性），使括号有值可标。
+   * 取不到祖先时退到 `fallbackPos`（该词第一个 `part_of_speech`），与 `translation` 的兜底
+   * 方向一致（都是「该词第一条」），使括号有值可标。**不是** `partOfSpeech`——那个值跟着
+   * 例句走，有例句时与这里不同源。
    */
   firstSensePos: string
   distractors: string[]

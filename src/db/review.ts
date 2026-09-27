@@ -272,7 +272,8 @@ export async function getWordContent(wordId: string, h?: DbHandle): Promise<Card
   // 第一个义项的词性：中文释义那一支自己的 part_of_speech 祖先。
   // 与 `translation` 用的是**同一行**（firstOf('chinese_definition') 的语义），故必然同源；
   // 取不到祖先再退到该词第一个词性，与 translation 的兜底方向一致（都是「该词第一条」）。
-  const firstZhRow = fvs.find(r => r.key === 'chinese_definition' && r.value !== '')
+  // 这里复用 firstOf 而不是另写一份 find 谓词：选择规则只有一处实现，不重判第二次。
+  const firstZhRow = firstOf('chinese_definition')
   const firstSensePos = (firstZhRow && ancestorWithKey(firstZhRow.id, 'part_of_speech')?.value) || fallbackPos
 
   return {

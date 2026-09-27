@@ -179,6 +179,15 @@ describe('reviewService.assembleCardDTO', () => {
     expect(dto.answer).toMatchObject({ lemma: 'ephemeral', phonetic: '/ɪˈfem(ə)rəl/' })
   })
 
+  it('中译英：题面词性读 firstSensePos，不读 partOfSpeech（v0.6.3 条目 4a）', () => {
+    // 夹具里 partOfSpeech 与 firstSensePos 取不同的值：若 recall 退回读 content.partOfSpeech，
+    // 这条会红。两个字段语义不同（前者跟例句走、后者跟中文释义走），不该被合并。
+    const mixed = { ...content, partOfSpeech: 'n.', firstSensePos: 'adj.' }
+    const dto = assembleCardDTO(candidate(), 'recall', mixed, null)
+    expect((dto.prompt as any).partOfSpeech).toBe('adj.')
+    expect((dto.prompt as any).partOfSpeech).not.toBe(mixed.partOfSpeech)
+  })
+
   it('英文释义题：题面是英文释义，答案是单词与音标', () => {
     const dto = assembleCardDTO(candidate(), 'english_def', content, null)
     expect((dto.prompt as any).definition).toBe(content.definition)

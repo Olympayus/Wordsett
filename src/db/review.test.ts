@@ -221,6 +221,36 @@ describe('db/review 读路径', () => {
     expect(c?.matchedPos).toBe('adj.')
   })
 
+  it('firstSensePos 取不到祖先时退到该词第一个词性（fallbackPos）', async () => {
+    await seedWord(db, 'w1', 'detrimental')
+    // 第一条中文释义「有害的」直接挂在词下（parent_id 为 NULL），没有 part_of_speech 祖先。
+    // 该词第一个词性是 n. —— 兜底必须是它，使括号有值可标，且与 translation 的兜底方向一致。
+    await seedValue(db, 'p1', 'w1', 'part_of_speech', 'n.')
+    await seedValue(db, 'z1', 'w1', 'chinese_definition', '有害的')
+
+    const c = await getWordContent('w1', db)
+    expect(c?.translation).toBe('有害的')
+    expect(c?.firstSensePos).toBe('n.')
+  })
+
+  it('firstSensePos 与 translation 同源的正面用例：首义项词性 ≠ 该词第一个词性', async () => {
+    await seedWord(db, 'w1', 'detrimental')
+    // 该词第一个 part_of_speech 是 n.，第一条中文释义「有害的」却挂在 adj. 下。
+    // 只断言「不是 matchedPos」不够：fallback-only 的实现同样会拿到 n. 而蒙混过关。
+    await seedValue(db, 'p1', 'w1', 'part_of_speech', 'n.')
+    await seedValue(db, 'p2', 'w1', 'part_of_speech', 'adj.')
+    await seedValue(db, 'z1', 'w1', 'chinese_definition', '有害的')
+    await db.execute("UPDATE field_values SET parent_id = 'p2' WHERE id = 'z1'")
+    await seedValue(db, 'z2', 'w1', 'chinese_definition', '有害性')
+    await db.execute("UPDATE field_values SET parent_id = 'p1' WHERE id = 'z2'")
+
+    const c = await getWordContent('w1', db)
+    expect(c?.translation).toBe('有害的')
+    // 必须是 adj.（释义那一支的词性）：fallback-only 实现给 n.，跟例句走的实现给 n.
+    expect(c?.firstSensePos).toBe('adj.')
+    expect(c?.firstSensePos).not.toBe(c?.matchedPos)
+  })
+
   it('getDistractorTranslations 随机采样：同样输入多次取数不会总是同一组', async () => {
     await seedWord(db, 'w1', 'alpha')
     for (const [i, w] of ['beta', 'gamma', 'delta', 'epsilon'].entries()) await seedWord(db, `w${i + 2}`, w)
