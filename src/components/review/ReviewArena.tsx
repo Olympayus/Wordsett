@@ -11,7 +11,7 @@ import { rateCard, type CardContent, type RateCardResult } from '../../services/
 import { compareTyped } from '../../lib/review/typed'
 import { currentAnswered, canGoBack, canGoForward, answeredCount, revealedInputFor } from '../../lib/review/nav'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
-import { RESULT_BREAKPOINT } from '../../lib/review/resultLayout'
+import { RESULT_BREAKPOINT, RESULT_CONTENT_WIDTH } from '../../lib/review/resultLayout'
 import { getWordContent } from '../../db/review'
 
 /**
@@ -175,7 +175,7 @@ export default function ReviewArena() {
   }
 
   return (
-    <div data-arena-region className="flex flex-col gap-6 p-8" style={{ maxWidth: narrow ? '960px' : '1100px' }}>
+    <div data-arena-region className="flex flex-col gap-6 p-8" style={{ maxWidth: narrow ? '960px' : RESULT_CONTENT_WIDTH }}>
       <div>
         <ArenaNavBar
           index={index}
@@ -214,8 +214,9 @@ export default function ReviewArena() {
       )}
 
       {revealed && (
-        <>
-          <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} narrow={narrow} />
+        // 三键与「下一题」递进 ResultBlock 的左栏：宽屏时它们与完整词条并排（spec §6.5），
+        // 否则会落在两栏之下、跟改动前一样被词条顶到屏幕下半。评分状态仍留在这里。
+        <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} narrow={narrow}>
           {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
           {!answeredNow && <RatingBar onRate={r => void handleRate(r, lastInput)} disabled={rating} />}
           {past ? (
@@ -242,7 +243,7 @@ export default function ReviewArena() {
               <SquareButton tone="surface" onClick={() => advance()}>下一题</SquareButton>
             </div>
           ) : null}
-        </>
+        </ResultBlock>
       )}
     </div>
   )
