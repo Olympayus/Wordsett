@@ -1,4 +1,4 @@
-import type { FreeScopeKind, ReviewStrategy } from './types'
+import type { FreeScopeKind, ReviewStrategy, Template } from './types'
 
 /**
  * 「本次范畴」的中文名（v0.6.2 条目 15）。控制台与自由练习的标签页标题共用这一处，
@@ -53,3 +53,18 @@ export function correctCount(answered: { rating: number }[]): number {
  * 4（轻松）是预留档，数据层已算「记得」（见上面的 correctCount），本期没有 UI。
  */
 export const RATING_LABELS: Record<number, string> = { 1: '忘了', 2: '模糊', 3: '记得', 4: '轻松' }
+
+/**
+ * 题型中文名（v0.6.3 条目 2 从 roundStats 迁来）。
+ *
+ * **这份表全仓只有这一处**——`template.ts` 导出的是顺序与依赖，不含中文名。
+ * 与 `FREE_SCOPE_LABEL` / `RATING_LABELS` 放在一起：面向用户的标签表都住在这个文件，
+ * 别处没有第二份可以漏改。
+ */
+export const TEMPLATE_LABEL: Record<Template, string> = {
+  recognize: '认读',
+  cloze: '填空',
+  recall: '中译英',
+  english_def: '英文释义题',
+  listen: '听辨',
+}

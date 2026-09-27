@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { scopeLabel, accuracyText, correctCount } from './scopeLabel'
+import { scopeLabel, accuracyText, correctCount, TEMPLATE_LABEL } from './scopeLabel'
 
 describe('scopeLabel（v0.6.2 条目 15 / 17）', () => {
   it('今日复习策略', () => {
@@ -55,5 +55,14 @@ describe('correctCount（spec §8.1 控制台：正确数 = rating >= 3 计数�
   // 「全 4 分 → 2」那半在 === 3 下得 0、会挂。这条要的是 4 分单独也得算数
   it('4 分单独计入（=== 3 会漏掉这一条）', () => {
     expect(correctCount([{ rating: 4 }])).toBe(1)
+  })
+})
+
+describe('TEMPLATE_LABEL 的位置（v0.6.3 条目 2）', () => {
+  it('五个题型各有一个非空中文名，且互不相同', () => {
+    const keys = ['recognize', 'cloze', 'recall', 'english_def', 'listen'] as const
+    const labels = keys.map(k => TEMPLATE_LABEL[k])
+    expect(labels.every(v => typeof v === 'string' && v.length > 0)).toBe(true)
+    expect(new Set(labels).size).toBe(5)
   })
 })

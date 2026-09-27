@@ -18,6 +18,10 @@
   --color-wordnet: #5B8C5A;  /* WordNet 词典来源品牌绿（DictDetailCard） */
   --color-accent: #C17A4E;
   --color-accent-soft: #F5E8DC;
+  /* 复习控制台「今日」等标题用的深暖棕（v0.6.3 条目 1）。
+     与分类色板第 8 色同值：一个值两个名字，不复制 hex——
+     直接借用 --color-cat-8 会让读代码的人去找一个根本不存在的「标题与分类第 8 色」的关系。 */
+  --color-warm-deep: var(--color-cat-8);
 
   /* 词性标签色（低饱和深夜蓝，方角描边标签；与品牌蓝 #4A6FA5 靠明度拉开） */
   --color-pos: #3F4B63;

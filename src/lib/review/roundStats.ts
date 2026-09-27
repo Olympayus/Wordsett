@@ -1,5 +1,6 @@
 import type { Template } from './types'
 import { TEMPLATE_DIFFICULTY } from './template'
+import { TEMPLATE_LABEL } from './scopeLabel'
 import type { ReviewCardDTO } from '../../services/reviewService'
 import type { AnsweredEntry } from '../../stores/reviewSessionStore'
 
@@ -11,18 +12,6 @@ import type { AnsweredEntry } from '../../stores/reviewSessionStore'
  * 「本轮题型构成」与「本轮题型正确率」。四张图都不需要新增状态——
  * queue 给构型，answered 的 rating + template 给走势、分布与正确率。
  */
-
-/**
- * 题型中文名。**这份表全仓只有这一处**——`template.ts` 导出的是顺序与依赖，不含中文名。
- * 所以要加题型或改中文名时，改这一处即可，别处没有第二份可以漏改。
- */
-const TEMPLATE_LABEL: Record<Template, string> = {
-  recognize: '认读',
-  cloze: '填空',
-  recall: '中译英',
-  english_def: '英文释义题',
-  listen: '听辨',
-}
 
 export interface RoundSummary {
   /** 本轮队列长度＝分母。答题行与用时行都要报它，否则「已答 3」读不出本轮多大。 */

@@ -12,10 +12,10 @@ import { useCategoryStore } from '../../stores/categoryStore'
 import { getStrategyCounts, getOverview, getQueue, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import type { ReviewStrategy } from '../../lib/review/types'
 import { isSessionLive } from '../../lib/review/sessionGuard'
-import { scopeLabel, correctCount } from '../../lib/review/scopeLabel'
+import { scopeLabel, correctCount, TEMPLATE_LABEL } from '../../lib/review/scopeLabel'
 
 export default function ReviewModule() {
-  const { strategy, sessionStrategy, phase, queue, answered, freeScope, setStrategy, startSession, reset } = useReviewSessionStore()
+  const { strategy, sessionStrategy, phase, queue, answered, freeScope, index, setStrategy, startSession, reset } = useReviewSessionStore()
   const reviewSettings = useSettingsStore(s => s.review)
   const categories = useCategoryStore(s => s.categories)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
@@ -47,6 +47,8 @@ export default function ReviewModule() {
         answeredCount: answered.length,
         correctCount: correctCount(answered),
         scopeLabel: scopeLabel(sessionStrategy, freeScope?.kind ?? null),
+        // 当前卡的题型。上面的 length > 0 已挡住空队列，index 越界时给「—」兜底
+        templateLabel: queue[index] ? TEMPLATE_LABEL[queue[index].template] : '—',
       }
     : null
 
