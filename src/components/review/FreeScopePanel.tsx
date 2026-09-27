@@ -15,14 +15,16 @@ import { useSettingsStore } from '../../stores/settingsStore'
 export type { FreeScopeKind } from '../../lib/review/types'
 
 export default function FreeScopePanel({ categories, onStart }: {
-  categories: { id: string; name: string }[]
+  // color 一并带进来（v0.6.3 条目 6）：分类行的勾选框要按分类走色，
+  // 写进 prop 类型而不是在面板里另取一份，是为了让别的调用点漏传时编译器先叫。
+  categories: { id: string; name: string; color: string }[]
   onStart: (scope: { kind: FreeScopeKind; categoryIds?: string[]; limit: number }) => void
 }) {
   const reviewSettings = useSettingsStore(s => s.review)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
   const [kind, setKind] = useState<FreeScopeKind>('random')
   const [categoryIds, setCategoryIds] = useState<string[]>([])
-  const [rows, setRows] = useState<{ id: string; name: string; wordCount: number; dueCount: number }[]>([])
+  const [rows, setRows] = useState<{ id: string; name: string; color: string; wordCount: number; dueCount: number }[]>([])
   // 分类计数读失败：与「库里没有分类」分开讲——前者用户只能重试或换个范围，
   // 后者要去工作台建分类，混成同一个空盒子两边都答不上来。
   // 三态判据抽在 freeScopeEmptyText 里（见下）：读失败 / 库里确实没有分类 / 还在读。
@@ -167,12 +169,13 @@ export default function FreeScopePanel({ categories, onStart }: {
                     <CheckBox
                       checked={on}
                       disabled={disabled}
+                      color={r.color}
                       onChange={() => setCategoryIds(prev => on ? prev.filter(x => x !== r.id) : [...prev, r.id])}
                       label={`选择分类 ${r.name}`}
                     />
                     <span style={{ fontWeight: 600, fontSize: 13, fontFamily: 'var(--font-serif)', minWidth: 96 }}>{r.name}</span>
                     <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                      {r.wordCount} 词 · 待复习 {r.dueCount}
+                      {r.wordCount} 词 · 待复习 <span className="stat-num">{r.dueCount}</span>
                     </span>
                   </label>
                 )

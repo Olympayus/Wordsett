@@ -117,7 +117,7 @@ export default function ReviewModule() {
         )}
         {showOverview && strategy === 'free' && (
           <FreeScopePanel
-            categories={categories.map(c => ({ id: c.id, name: c.name }))}
+            categories={categories.map(c => ({ id: c.id, name: c.name, color: c.color }))}
             onStart={handleFreeStart}
           />
         )}

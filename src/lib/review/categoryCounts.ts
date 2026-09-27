@@ -6,10 +6,10 @@
  * 不新增表、不新增查询：两个输入都是既有的（getAllWordCategoryMap / getCandidates）。
  */
 export function aggregateCategoryCounts(
-  categories: { id: string; name: string }[],
+  categories: { id: string; name: string; color: string }[],
   wordCategoryMap: Record<string, string[]>,
   dueWordIds: Set<string>,
-): { id: string; name: string; wordCount: number; dueCount: number }[] {
+): { id: string; name: string; color: string; wordCount: number; dueCount: number }[] {
   const wordCount = new Map<string, number>()
   const dueCount = new Map<string, number>()
   for (const [wordId, catIds] of Object.entries(wordCategoryMap)) {
@@ -21,6 +21,8 @@ export function aggregateCategoryCounts(
   return categories.map(c => ({
     id: c.id,
     name: c.name,
+    // 颜色原样带出（v0.6.3 条目 6）：分类强化行的色块要用它，它不参与任何计数
+    color: c.color,
     wordCount: wordCount.get(c.id) ?? 0,
     dueCount: dueCount.get(c.id) ?? 0,
   }))

@@ -1,10 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { aggregateCategoryCounts, canStartFreeScope, freeScopeEmptyText, freeScopeSummaryText, selectByCategories } from './categoryCounts'
 
+// 补 color 是**夹具补全**（v0.6.3 条目 6），不是行为变化：aggregateCategoryCounts 的
+// 入参与输出行都多了一个原样透传的 color 字段，夹具不补上就通不过类型检查。
 const cats = [
-  { id: 'c1', name: '四级核心' },
-  { id: 'c2', name: '阅读生词' },
-  { id: 'c3', name: '写作替换' },
+  { id: 'c1', name: '四级核心', color: '#7A7368' },
+  { id: 'c2', name: '阅读生词', color: '#6B8E7F' },
+  { id: 'c3', name: '写作替换', color: '#4A6FA5' },
 ]
 // wordId → categoryIds
 const map = { w1: ['c1'], w2: ['c1', 'c2'], w3: ['c2'], w4: [], w5: ['c1'] }
@@ -31,6 +33,19 @@ describe('aggregateCategoryCounts（v0.6.2 条目 10）', () => {
   it('空输入不抛异常', () => {
     expect(aggregateCategoryCounts([], {}, new Set())).toEqual([])
     expect(aggregateCategoryCounts(cats, {}, new Set()).every(r => r.wordCount === 0)).toBe(true)
+  })
+})
+
+describe('分类颜色透传（v0.6.3 条目 6）', () => {
+  it('输出行原样带上分类的颜色，不参与任何计算', () => {
+    const rows = aggregateCategoryCounts(
+      [{ id: 'k1', name: '学术写作', color: 'var(--color-cat-5)' }],
+      {},          // wordCategoryMap：空映射，故两个计数都是 0
+      new Set(),   // dueWordIds
+    )
+    expect(rows[0].color).toBe('var(--color-cat-5)')
+    expect(rows[0].wordCount).toBe(0)
+    expect(rows[0].dueCount).toBe(0)
   })
 })
 
