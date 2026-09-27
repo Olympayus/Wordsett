@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { scopeLabel, accuracyText, correctCount, TEMPLATE_LABEL } from './scopeLabel'
+import { scopeLabel, accuracyText, correctCount, TEMPLATE_LABEL, promptTypeLabel, posNoteText } from './scopeLabel'
 
 describe('scopeLabel（v0.6.2 条目 15 / 17）', () => {
   it('今日复习策略', () => {
@@ -64,5 +64,21 @@ describe('TEMPLATE_LABEL 的位置（v0.6.3 条目 2）', () => {
     const labels = keys.map(k => TEMPLATE_LABEL[k])
     expect(labels.every(v => typeof v === 'string' && v.length > 0)).toBe(true)
     expect(new Set(labels).size).toBe(5)
+  })
+})
+
+describe('题面文案（v0.6.3 条目 3、18）', () => {
+  it('promptTypeLabel 带前缀与全角冒号', () => {
+    expect(promptTypeLabel('recognize')).toBe('题型：认读')
+    expect(promptTypeLabel('cloze')).toBe('题型：填空')
+  })
+
+  it('posNoteText 有值才给括号，空值给空串', () => {
+    expect(posNoteText('adj.')).toBe(' (adj.)')
+    expect(posNoteText('')).toBe('')
+  })
+
+  it('posNoteText 不重复加括号（值本身带括号时原样透传，不叠一层）', () => {
+    expect(posNoteText('(n.)')).toBe(' ((n.))')
   })
 })

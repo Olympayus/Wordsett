@@ -1,5 +1,6 @@
 import type { ReviewCardDTO } from '../../services/reviewService'
 import { formatPhonetic } from '../../lib/phonetic'
+import { promptTypeLabel, posNoteText } from '../../lib/review/scopeLabel'
 import SquareButton from '../ui/SquareButton'
 import AnswerInput, { type InputKind } from './AnswerInput'
 
@@ -23,22 +24,29 @@ export function typedTarget(dto: ReviewCardDTO): string | undefined {
 }
 
 /**
- * 题面行 + 右端「跳过」（spec §2.4）：五种题型统一把跳过放在题面块的右上角。
- * 跳过＝直接记「忘了」（走与评分同一条事务），不落作答原文。
- * showSkip 跟随 disabled：已揭示 / 已作答的卡上按钮消失。
+ * 释义右侧的词性（v0.6.3 条目 3）。衬线斜体 + 次要色——它是释义的注，不是独立信息。
+ *
+ * 范围限定在**题面区**：结果区的完整词条快照（EntrySnapshot）有自己的词性窗格，
+ * 那是词条的原貌，不套用题面的排版规则。
+ * `cloze` 不适用——它的词性已由 clozeSentence 放进句子里；`listen` 不显示词性
+ * （lemma 不得早渲染，词性会泄露答案）。
  */
-function PromptRow({ children, onSkip, showSkip }: { children: React.ReactNode; onSkip: () => void; showSkip: boolean }) {
+function PosNote({ pos }: { pos: string }) {
+  const text = posNoteText(pos)
+  if (!text) return null
   return (
-    <div className="flex items-start gap-3">
-      <div style={{ flex: 1, minWidth: 0 }}>{children}</div>
-      {showSkip && (
-        /* tone='surface'：本行与题面区都不设背景，最近一个设了底色的祖先是 ReviewModule
-           的 <main>（--color-surface，纯白），故走白底套。所在的是 flex 行（items-start）
-           而非 flex 列，不存在拉伸问题，无需 alignSelf 包裹。 */
-        <SquareButton size="nav" tone="surface" onClick={onSkip}>跳过</SquareButton>
-      )}
-    </div>
+    <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--color-text-secondary)', fontSize: '0.86em' }}>
+      {text}
+    </span>
   )
+}
+
+/**
+ * 题面行（v0.6.3 条目 18 起**不含**跳过按钮——跳过移到了题面上方的题型行右端，与题型同行。
+ * 本组件只负责把题面按统一内边距排出来）。
+ */
+function PromptRow({ children }: { children: React.ReactNode }) {
+  return <div style={{ minWidth: 0 }}>{children}</div>
 }
 
 export default function PromptCard({
@@ -56,8 +64,27 @@ export default function PromptCard({
   const p = dto.prompt as Record<string, any>
   return (
     <section aria-label="题目" className="flex flex-col gap-4" style={{ maxWidth: '560px' }}>
+      {/* 题型行（v0.6.3 条目 18）：左题型、右跳过，同一行。
+          跳过从题面块右上角上移到这里——位置几乎没变（只高一行），但题型因此有了固定落点，
+          且五种题型共用一套。 */}
+      <div className="flex items-center gap-3">
+        <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+          {promptTypeLabel(dto.template)}
+        </span>
+        {!disabled && (
+          <button
+            type="button"
+            onClick={onSkip}
+            style={{
+              marginLeft: 'auto', padding: '4px 12px', borderRadius: '6px',
+              border: '1px solid var(--color-border)', background: 'var(--color-surface)',
+              color: 'var(--color-text-primary)', fontSize: '12.5px', fontFamily: 'var(--font-sans)', cursor: 'pointer',
+            }}
+          >跳过</button>
+        )}
+      </div>
       {dto.template === 'recognize' && (
-        <PromptRow onSkip={onSkip} showSkip={!disabled}>
+        <PromptRow>
           <div className="flex flex-wrap items-baseline gap-2">
             <h3 style={{ fontSize: '28px', fontWeight: 600 }}>{p.lemma}</h3>
             {p.phonetic && (
@@ -65,11 +92,12 @@ export default function PromptCard({
                 {formatPhonetic(String(p.phonetic))}
               </span>
             )}
+            {p.partOfSpeech && <PosNote pos={String(p.partOfSpeech)} />}
           </div>
         </PromptRow>
       )}
       {dto.template === 'cloze' && (
-        <PromptRow onSkip={onSkip} showSkip={!disabled}>
+        <PromptRow>
           <p style={{ fontSize: '16px', lineHeight: 1.7 }}>{p.sentence}</p>
           {/* 释义注在题面下方小字（v0.6.2 条目 5）：不再拼进句子里，
               免得挖空旁挂一长串释义把句子读断。为空则不渲染。 */}
@@ -81,17 +109,21 @@ export default function PromptCard({
         </PromptRow>
       )}
       {dto.template === 'recall' && (
-        <PromptRow onSkip={onSkip} showSkip={!disabled}>
-          <h3 style={{ fontSize: '22px', fontWeight: 500 }}>{p.translation}</h3>
+        <PromptRow>
+          <h3 style={{ fontSize: '22px', fontWeight: 500 }}>
+            {p.translation}<PosNote pos={String(p.partOfSpeech ?? '')} />
+          </h3>
         </PromptRow>
       )}
       {dto.template === 'english_def' && (
-        <PromptRow onSkip={onSkip} showSkip={!disabled}>
-          <p style={{ fontSize: '16px', lineHeight: 1.7 }}>{p.definition}</p>
+        <PromptRow>
+          <p style={{ fontSize: '16px', lineHeight: 1.7 }}>
+            {p.definition}<PosNote pos={String(p.partOfSpeech ?? '')} />
+          </p>
         </PromptRow>
       )}
       {dto.template === 'listen' && (
-        <PromptRow onSkip={onSkip} showSkip={!disabled}>
+        <PromptRow>
           {/* 听辨题面只有播放按钮：lemma 不得早渲染（v0.6 spec §4.1）。
               命令缺失 / 无音色时静默降级，不产生未捕获拒绝（Review Focus #5）。
               tone='surface'：这层与 PromptRow 都不设底，最近一个设了底的祖先是 <main> 的白。 */}
@@ -109,11 +141,6 @@ export default function PromptCard({
             播放读音
           </SquareButton>
         </PromptRow>
-      )}
-      {/* 词性的独立灰行：填空题的词性已入句（见上），此处再显示一次就是同一信息说两遍。
-          其余四个模板照旧。 */}
-      {p.partOfSpeech && dto.template !== 'listen' && dto.template !== 'cloze' && (
-        <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>{p.partOfSpeech}</span>
       )}
 
       <AnswerInput

@@ -68,3 +68,18 @@ export const TEMPLATE_LABEL: Record<Template, string> = {
   english_def: '英文释义题',
   listen: '听辨',
 }
+
+/** 题面上方的题型标签（v0.6.3 条目 18）。前缀与全角冒号都在这里，组件不拼字符串。 */
+export function promptTypeLabel(t: Template): string {
+  return `题型：${TEMPLATE_LABEL[t]}`
+}
+
+/**
+ * 释义右侧的词性括号（v0.6.3 条目 3）。前导空格在这里，调用方直接内联在释义后。
+ *
+ * 空串返回空串——调用方据此决定不渲染，而不是渲染一对空括号。
+ * 不去重已有的括号（YAGNI）：数据层的 part_of_speech 不带括号，多一层判断是给不存在的输入写代码。
+ */
+export function posNoteText(pos: string): string {
+  return pos ? ` (${pos})` : ''
+}
