@@ -34,8 +34,14 @@ export async function getAvailabilityMask(
     const selects = groups
       .map(([group, keys]) => {
         const keyList = keys.map(k => `'${k}'`).join(',')
+        // value 非空这一半在 SQL 判掉：getWordContent 的 firstOf(key) 要求 value !== ''，
+        // 掩码若只看「有没有行」，就会出现「掩码说能出认读题、取内容拿到空释义」的空题
+        // （v0.6.3 条目 4c 的同一类缺陷在另外三组上的翻版）。
+        // 「含目标词」那一半**不放这里**：LIKE '%lemma%' 遇到 lemma 里带 % / _ 必须写 ESCAPE，
+        // 口径会与内容层的 includes() 漂移；内容层用的就是同一个值，不会漂。
         return `EXISTS(SELECT 1 FROM field_values fv JOIN field_definitions fd ON fd.id = fv.field_id
-                       WHERE fv.word_id = w.id AND fd.key IN (${keyList})) AS ${group}`
+                       WHERE fv.word_id = w.id AND fd.key IN (${keyList})
+                         AND fv.value IS NOT NULL AND fv.value <> '') AS ${group}`
       })
       .join(',\n  ')
     const rows = await d.select<Record<string, number>>(

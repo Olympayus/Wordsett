@@ -3,7 +3,7 @@ import type { WeakWordRow } from '../db/review'
 import { isListenEnabled } from '../lib/review/ttsGate'
 import { buildQueue, type QueueCandidate, type QueueResult } from '../lib/review/queue'
 import { selectByCategories } from '../lib/review/categoryCounts'
-import { pickTemplate, templateAccuracy, type TemplateLog } from '../lib/review/template'
+import { pickTemplate, templateAccuracy, templatesWithExampleGate, type TemplateLog } from '../lib/review/template'
 import { mastery, retrievability, elapsedDaysSince, NEW_CARD_RNOW, masteryTier } from '../lib/review/mastery'
 import type { CardContent, InitialFamiliarity, ReviewMode, ReviewStrategy, Template } from '../lib/review/types'
 
@@ -58,10 +58,10 @@ async function loadContent(wordId: string): Promise<CardContent | null> {
  * 把目标词在例句中挖空。
  *
  * 只处理「例句里确实有目标词」这一种情况——例句的选用已由 `getWordContent` 尽量保证（它只取含有
- * 目标词的条目，取不到就让 example 为空）。但空 example **不会**让填空题从该词的可用题型里消失：
- * getAvailabilityMask 判的是 `example` 字段「有没有行」而非「值是不是非空」
- * （`src/db/review.ts:37-38` 的 EXISTS 不带 value 过滤），usableTemplates 又只看这份掩码，
- * 所以这种词照样会出填空题，只是题面退化成这里 `BLANK` 那一条横线。
+ * 目标词的条目，取不到就让 example 为空）。
+ * v0.6.3 条目 4c 起，取不到例句的词条**不再**拿到填空题（templatesWithExampleGate 在组卷时剔掉），
+ * 下面这条「退化分支」因此不再是出题路径上的常态，只作为防御保留：万一有别的调用方
+ * 直接调 blankOut，它也不该崩。
  * 另外例句「含原词」在 db 层是 toLowerCase().includes 的近似判定，与这里的词边界正则未必一致，
  * 故原样返回的分支是真会走到的：宁可让题面退化也不虚构一个句子。
  *
@@ -275,7 +275,12 @@ export async function getQueue(
     const lastTemplate = meta.ok && meta.data ? meta.data.lastTemplate : null
     const content = await loadContent(c.wordId)
     if (!content) continue
-    const templates = templatesWithDistractorGate(c.availableTemplates, content.distractors.length)
+    // 两道闸门串联，各自只判一件事：干扰项不够 → 不出认读题；例句取不到 → 不出填空题。
+    // 分成两个纯函数而不是合成一个，是为了让每种「为什么不出这道题」都有一条独立用例。
+    const templates = templatesWithExampleGate(
+      templatesWithDistractorGate(c.availableTemplates, content.distractors.length),
+      content.example,
+    )
     const template = pickTemplate(templates, logMap[c.cardId] ?? [], lastTemplate)
     if (!template) continue
     queue.push(assembleCardDTO(c, template, content, lastTemplate))

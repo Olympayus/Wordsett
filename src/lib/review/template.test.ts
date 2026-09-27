@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import {
-  pickTemplate, templateAccuracy, usableTemplates, TEMPLATE_DIFFICULTY, FIELD_KEY_GROUPS,
+  pickTemplate, templateAccuracy, usableTemplates, templatesWithExampleGate,
+  TEMPLATE_DIFFICULTY, FIELD_KEY_GROUPS,
 } from './template'
 import type { Template, TemplateLog } from './template'
 
@@ -92,5 +93,23 @@ describe('usableTemplates 的听辨门控', () => {
 
   it('listen 排在难度序末位（从易到难：认读 → 填空 → 中译英 → 英文释义题 → 听辨）', () => {
     expect(TEMPLATE_DIFFICULTY).toEqual(['recognize', 'cloze', 'recall', 'english_def', 'listen'])
+  })
+})
+
+describe('templatesWithExampleGate（v0.6.3 条目 4c）', () => {
+  it('例句为空串时剔掉 cloze，其余题型不动', () => {
+    const available: Template[] = ['recognize', 'cloze', 'recall', 'english_def']
+    expect(templatesWithExampleGate(available, '')).toEqual(['recognize', 'recall', 'english_def'])
+  })
+
+  it('例句非空时原样返回（含空数组）', () => {
+    const available: Template[] = ['recognize', 'cloze']
+    expect(templatesWithExampleGate(available, 'alpha is first')).toBe(available)
+    expect(templatesWithExampleGate([], 'alpha is first')).toEqual([])
+  })
+
+  it('本来就没有 cloze 时，空例句不改变列表', () => {
+    const available: Template[] = ['recognize', 'recall']
+    expect(templatesWithExampleGate(available, '')).toEqual(['recognize', 'recall'])
   })
 })

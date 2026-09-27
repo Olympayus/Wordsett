@@ -70,6 +70,32 @@ describe('db/review 读路径', () => {
     expect(r.ok && r.data.w1.example).toBe(true)
   })
 
+  it('getAvailabilityMask 值为空串的字段不计入掩码（v0.6.3 条目 4c）', async () => {
+    await seedWord(db, 'w1', 'alpha')
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '')
+    await seedValue(db, 'fv2', 'w1', 'english_definition', '')
+    await seedValue(db, 'fv3', 'w1', 'example_sentence', '')
+    await seedValue(db, 'fv4', 'w1', 'phonetic', '')
+    const r = await getAvailabilityMask(['w1'], db)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    // 有行但值为空 → 四组全部 false。getWordContent 的 firstOf 要求 value !== ''，
+    // 掩码若说 true，取内容就会拿到空串 → 出空题（与条目 4c 同一类缺陷的另外三组翻版）。
+    expect(r.data.w1).toEqual({ translation: false, definition: false, example: false, phonetic: false })
+  })
+
+  it('getAvailabilityMask 值非空时四组照常为 true', async () => {
+    await seedWord(db, 'w1', 'alpha')
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
+    await seedValue(db, 'fv2', 'w1', 'english_definition', 'the first letter')
+    await seedValue(db, 'fv3', 'w1', 'example_sentence', 'alpha is first')
+    await seedValue(db, 'fv4', 'w1', 'phonetic', '/ˈælfə/')
+    const r = await getAvailabilityMask(['w1'], db)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.data.w1).toEqual({ translation: true, definition: true, example: true, phonetic: true })
+  })
+
   it('getCandidates 只返回到期卡与未首评新卡，并带可用模板', async () => {
     await seedWord(db, 'w1', 'alpha')   // 到期
     await seedWord(db, 'w2', 'beta')    // 新卡
@@ -164,6 +190,15 @@ describe('db/review 读路径', () => {
 
   it('getWordContent 词不存在返回 null', async () => {
     expect(await getWordContent('nope', db)).toBeNull()
+  })
+
+  it('getWordContent 的 example 只取含目标词的例句（v0.6.3 条目 4c）', async () => {
+    await seedWord(db, 'w1', 'detrimental')
+    // 有 example 行、值非空，但句子里没有目标词——用户实测的反例
+    await seedValue(db, 'fv1', 'w1', 'example_sentence', 'Smoking harms your health.')
+    const c = await getWordContent('w1', db)
+    // Task 1 Step 11 那个闸门依赖的正是这个契约：example 为空串 → 剔掉 cloze
+    expect(c?.example).toBe('')
   })
 
   it('getDistractorTranslations 随机采样：同样输入多次取数不会总是同一组', async () => {
