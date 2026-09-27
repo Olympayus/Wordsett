@@ -20,6 +20,8 @@ export interface ReviewSettings {
   newCardQuota: number
   queueLimit: number
   letterHighlight: boolean
+  /** 标题栏是否显示待复习数量 chip（v0.6.3 条目 5）。默认开。 */
+  showDueBadge: boolean
 }
 
 export interface SettingsStore {
@@ -50,7 +52,7 @@ export const DEFAULT_TITLE_INFO: Record<TitleInfoKey, boolean> = {
 // 与 reviewService.REVIEW_DEFAULTS 保持同值，但刻意不复用：import service 会把数据库层
 // 拖进本 store 的模块图。两侧不同步时以本处为准排查。
 export const DEFAULT_REVIEW: ReviewSettings = {
-  retention: 0.9, leechThreshold: 4, newCardQuota: 10, queueLimit: 30, letterHighlight: true,
+  retention: 0.9, leechThreshold: 4, newCardQuota: 10, queueLimit: 30, letterHighlight: true, showDueBadge: true,
 }
 
 export const useSettingsStore = create<SettingsStore>()(
@@ -69,7 +71,10 @@ export const useSettingsStore = create<SettingsStore>()(
     }),
     {
       name: 'wordsett-settings',
-      version: 6,
+      // v0.6.3：加 showDueBadge 后升到 7，让旧数据（v0.6.2 写盘为 6）触发一次 migrate 补上该字段。
+      // migrate 里的 `review: { ...DEFAULT_REVIEW, ...state.review }` 本就兜住新字段缺省，
+      // 但 zustand 仅在「存档 version ≠ 本处 version」时才调 migrate，不升版旧用户拿到的就是 undefined。
+      version: 7,
       storage: createJSONStorage(() => localStorage),
       migrate: (persisted) => {
         const state = (persisted ?? {}) as Partial<SettingsStore> & { displayFields?: Record<string, boolean> }

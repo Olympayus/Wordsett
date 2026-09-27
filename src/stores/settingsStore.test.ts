@@ -146,10 +146,19 @@ it('旧设置无 showCollinsStars 键时经 migrate 合并默认开启，且保�
 })
 
 describe('settingsStore 复习分区', () => {
-  it('默认值：保留率 0.9 / 阈值 4 / 新词 10 / 上限 30 / 逐字母开', () => {
+  it('默认值：保留率 0.9 / 阈值 4 / 新词 10 / 上限 30 / 逐字母开 / 标题栏待复习 chip 开', () => {
     expect(DEFAULT_REVIEW).toEqual({
-      retention: 0.9, leechThreshold: 4, newCardQuota: 10, queueLimit: 30, letterHighlight: true,
+      retention: 0.9, leechThreshold: 4, newCardQuota: 10, queueLimit: 30,
+      letterHighlight: true, showDueBadge: true,
     })
+  })
+
+  it('showDueBadge 默认开，且能被 setReview 关掉（v0.6.3 条目 5）', () => {
+    useSettingsStore.setState({ review: DEFAULT_REVIEW })
+    const s = useSettingsStore.getState()
+    expect(s.review.showDueBadge).toBe(true)
+    s.setReview('showDueBadge', false)
+    expect(useSettingsStore.getState().review.showDueBadge).toBe(false)
   })
 
   it('setReview 只改指定键', () => {
@@ -157,5 +166,24 @@ describe('settingsStore 复习分区', () => {
     expect(useSettingsStore.getState().review.newCardQuota).toBe(5)
     expect(useSettingsStore.getState().review.queueLimit).toBe(30)
     useSettingsStore.getState().setReview('newCardQuota', 10)
+  })
+
+  // persist 的 migrate 只在「存档 version ≠ 本处 version」时才跑（zustand persist 的守卫），
+  // 故加 review 字段必须升 version，否则 v0.6.2 写盘的对象 rehydrate 后该字段是 undefined。
+  it('迁移：v0.6.2 写盘的 review（无 showDueBadge）补齐默认开启并保留旧键（v0.6.3 条目 5）', async () => {
+    const legacyReview = {
+      retention: 0.85, leechThreshold: 6, newCardQuota: 20, queueLimit: 40, letterHighlight: false,
+    }
+    expect('showDueBadge' in legacyReview).toBe(false)
+    localStorage.setItem('wordsett-settings', JSON.stringify({
+      state: { sidebarMode: 'alphabet', review: legacyReview },
+      version: 6,
+    }))
+    await useSettingsStore.persist.rehydrate()
+    const s = useSettingsStore.getState()
+    expect(s.review.showDueBadge).toBe(true)
+    for (const [k, v] of Object.entries(legacyReview)) {
+      expect(s.review[k as keyof typeof legacyReview]).toBe(v)
+    }
   })
 })

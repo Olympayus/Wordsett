@@ -1,4 +1,3 @@
-import { useEffect, useState } from 'react'
 import { useViewStore } from '../../stores/viewStore'
 import Icon from '../icons'
 
@@ -12,21 +11,8 @@ export default function ActivityRail() {
   const activeModule = useViewStore(s => s.activeModule)
   const showModule = useViewStore(s => s.showModule)
 
-  // 今日到期数角标：进入活动栏即取一次，之后每分钟轮询（动态 import 避免拉起数据库层）
-  const [badge, setBadge] = useState(0)
-  useEffect(() => {
-    let alive = true
-    const refresh = async () => {
-      const { getStrategyCounts, REVIEW_DEFAULTS } = await import('../../services/reviewService')
-      // getStrategyCounts 的 today 只数到期且有可用题型的卡，不读 newCardQuota / queueLimit，
-      // 所以这里传 REVIEW_DEFAULTS 与传用户设置结果相同。
-      const c = await getStrategyCounts(REVIEW_DEFAULTS)
-      if (alive) setBadge(c.today)
-    }
-    refresh()
-    const timer = setInterval(refresh, 60_000)
-    return () => { alive = false; clearInterval(timer) }
-  }, [activeModule])
+  // v0.6.3 条目 5：今日到期数的角标已移到标题栏的 DueBadge（同一个数只在一处出现）。
+  // 本栏只剩模块切换，不再取数。
 
   const btnStyle = (on: boolean): React.CSSProperties => ({
     width: '32px', height: '32px', flexShrink: 0,
@@ -67,22 +53,9 @@ export default function ActivityRail() {
         data-session-guard="module:review"
         aria-current={activeModule === 'review' ? 'page' : undefined}
         onClick={() => showModule('review')}
-        style={{ ...btnStyle(activeModule === 'review'), position: 'relative' }}
+        style={btnStyle(activeModule === 'review')}
       >
         <Icon name="book" size={17} />
-        {badge > 0 && (
-          <span
-            aria-label={`今日剩余 ${badge} 张`}
-            style={{
-              position: 'absolute', top: '1px', right: '1px',
-              minWidth: '14px', height: '14px', padding: '0 3px',
-              borderRadius: '7px', background: 'var(--color-brand)', color: '#fff',
-              fontSize: '9px', lineHeight: '14px', textAlign: 'center', fontWeight: 600,
-            }}
-          >
-            {badge > 99 ? '99+' : badge}
-          </span>
-        )}
       </button>
 
       <button

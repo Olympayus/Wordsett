@@ -24,6 +24,20 @@ export default function ReviewSettings() {
     <div className="flex flex-col gap-5">
       <ListenStatus probe={probe} />
 
+      {/* 开关行只有单行标签，控件右端与下面四个数字框的右边缘对齐（flex-end，不是居中） */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: '13px' }}>标题栏显示待复习数量</div>
+        </div>
+        <div style={{ width: 90, display: 'flex', justifyContent: 'flex-end' }}>
+          <Toggle
+            aria-label="标题栏显示待复习数量"
+            checked={review.showDueBadge}
+            onChange={v => setReview('showDueBadge', v)}
+          />
+        </div>
+      </div>
+
       <NumberRow
         label="期望记忆保留率"
         hint="调高 ＝ 记得更牢、复习更频繁；调低 ＝ 复习更少、更容易忘。只影响新产生的间隔，历史到期不回溯重算。右侧可填 0.80 – 0.95。"

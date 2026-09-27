@@ -9,6 +9,7 @@ import { useWordStore } from '../../stores/wordStore'
 import { useClickOutside } from '../../lib/useClickOutside'
 import { SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
 import { ACTIVITY_RAIL_WIDTH } from './ActivityRail'
+import DueBadge from './DueBadge'
 import Icon from '../icons'
 
 // 搜索框几何：可用宽度两侧各扣「活动栏 + 展开侧栏 + 边距」，保证搜索框与建议下拉都不侵入侧栏。
@@ -169,6 +170,10 @@ export default function TopBar() {
           </svg>
         </button>
       </div>
+
+      {/* 待复习提示（v0.6.3 条目 5）：logo 右侧。count = 0 或设置关掉时组件自己返回 null，
+          故这里无需条件渲染。 */}
+      <DueBadge />
 
       {/* 中：搜索框默认按窗口中心绝对居中；宽度与左缘下限都保证它（及其下拉）不侵入展开侧栏。
           原先只按 (侧边栏 300 + 16) × 2 减宽，漏掉了活动栏 46px，且靠 50% 居中——
