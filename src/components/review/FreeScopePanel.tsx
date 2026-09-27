@@ -11,6 +11,7 @@ import type { FreeScopeKind } from '../../lib/review/types'
 import { FREE_SCOPE_LABEL } from '../../lib/review/scopeLabel'
 import { jumpToWord } from '../../lib/review/jumpToWord'
 import { useSettingsStore } from '../../stores/settingsStore'
+import { useWordStore } from '../../stores/wordStore'
 
 export type { FreeScopeKind } from '../../lib/review/types'
 
@@ -22,6 +23,9 @@ export default function FreeScopePanel({ categories, onStart }: {
 }) {
   const reviewSettings = useSettingsStore(s => s.review)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
+  // 词库总数：与侧栏「单词总数」同源（useWordStore 的 words.length）。
+  // 数据在启动时已加载、SidebarFooter 也订阅着同一份，故不新增 db 查询。
+  const wordCount = useWordStore(s => s.words.length)
   const [kind, setKind] = useState<FreeScopeKind>('random')
   const [categoryIds, setCategoryIds] = useState<string[]>([])
   const [rows, setRows] = useState<{ id: string; name: string; color: string; wordCount: number; dueCount: number }[]>([])
@@ -106,8 +110,20 @@ export default function FreeScopePanel({ categories, onStart }: {
             </div>
           ) : (
             <div style={{ width: '100%' }}>
-              <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginBottom: 8 }}>
-                连错 ≥ {params.leechThreshold} 次，或近 7 天答错过的词 · 共 {weak.length} 个
+              <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                共 <span className="stat-num">{weak.length}</span> 词
+                <Tooltip click content="连错达到阈值，或近 7 天答错的词会优先出现在这里。阈值在设置 → 复习里调。">
+                  <button
+                    type="button"
+                    aria-label="薄弱词的判定说明"
+                    style={{
+                      width: 14, height: 14, padding: 0, borderRadius: '50%', cursor: 'pointer',
+                      border: '1px solid var(--color-border-strong)', background: 'var(--color-surface)',
+                      color: 'var(--color-text-tertiary)', fontSize: 9.5, fontStyle: 'italic',
+                      fontFamily: 'var(--font-serif)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                  >i</button>
+                </Tooltip>
               </div>
               <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
                 {weak.map(w => (
@@ -188,6 +204,12 @@ export default function FreeScopePanel({ categories, onStart }: {
             <div style={{ marginTop: 8, fontSize: 12, color: 'var(--color-text-secondary)' }}>
               {freeScopeSummaryText(categoryIds, rows)}
             </div>
+          </div>
+        )}
+
+        {kind === 'random' && (
+          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+            词库共 <span className="stat-num">{wordCount}</span> 词
           </div>
         )}
 
