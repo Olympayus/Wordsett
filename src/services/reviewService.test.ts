@@ -131,10 +131,14 @@ describe('reviewService.assembleCardDTO', () => {
     expect((dto.answer as any).lemma).toBeUndefined()
   })
 
-  it('认读：题面不含 answer 字段', () => {
+  it('认读：题面不含 answer 字段，但带词性（v0.6.3 条目 3，评审修复 F1）', () => {
+    // 词性必须落在 prompt 上：认读卡面把它渲染在音标之后（design doc §6.2），
+    // 缺了这个字段那段渲染就永远走不到（分支恒假）。answer 侧那份保留不动。
     const dto = assembleCardDTO(candidate(), 'recognize', content, null)
     expect(Object.keys(dto.prompt)).not.toContain('translation')
     expect(Object.keys(dto.prompt)).not.toContain('definition')
+    expect((dto.prompt as any).partOfSpeech).toBe('adj.')
+    expect(dto.answer).toMatchObject({ partOfSpeech: 'adj.' })
   })
 
   it('填空：题面是挖空例句，答案是完整例句与目标词', () => {

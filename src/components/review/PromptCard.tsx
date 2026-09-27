@@ -92,7 +92,7 @@ export default function PromptCard({
                 {formatPhonetic(String(p.phonetic))}
               </span>
             )}
-            {p.partOfSpeech && <PosNote pos={String(p.partOfSpeech)} />}
+            <PosNote pos={String(p.partOfSpeech ?? '')} />
           </div>
         </PromptRow>
       )}

@@ -14,10 +14,10 @@ export interface CardContent {
   lemma: string
   phonetic: string
   /**
-   * 认读与英文释义题的题面词性（v0.6.2，条目 5）。有例句时等于 `matchedPos`（跟着例句走），
-   * 否则是该词第一个词性。只有 `recognize`（answer）与 `english_def`（prompt）读的是这个字段
-   * ——`recall` 自 v0.6.3 条目 4a 起改读 `firstSensePos`，填空读 `matchedPos`。
-   * 这三处刻意各取所需，**别合并**。
+   * 认读与英文释义题用的词性（v0.6.2，条目 5）。有例句时等于 `matchedPos`（跟着例句走），
+   * 否则是该词第一个词性。`recognize`（prompt 与 answer 两侧）与 `english_def`（prompt）
+   * 读的是这个字段——`recall` 自 v0.6.3 条目 4a 起改读 `firstSensePos`，填空读 `matchedPos`。
+   * 这几处刻意各取所需，**别合并**。
    */
   partOfSpeech: string
   translation: string

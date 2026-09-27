@@ -113,7 +113,13 @@ export function assembleCardDTO(
   switch (template) {
     case 'recognize': {
       const options = shuffleDeterministic(recognizeOptions(content), candidate.cardId)
-      prompt = { lemma: content.lemma, phonetic: content.phonetic, options }
+      // 词性同时挂 prompt 与 answer（v0.6.3 条目 3，评审修复 F1）。
+      // prompt 侧：认读卡面把词性渲染在音标之后，缺了它那段渲染就是永远走不到的死分支。
+      //   这**不构成泄题**——该卡面本来就把目标词（lemma）大字渲染出来了，词性是已知词的注，
+      //   与 `listen` 不同：那边 lemma 不得早渲染，词性会反过来提示答案。
+      // answer 侧：揭示时读的那份，**保留不动**（同一来源的复制，不是搬家）——
+      //   是否有人读它做揭示内容无法确定，复制是最容易回退的改法。
+      prompt = { lemma: content.lemma, phonetic: content.phonetic, partOfSpeech: content.partOfSpeech, options }
       answer = { translation: content.translation, partOfSpeech: content.partOfSpeech }
       break
     }
