@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dayTotal, dayAccuracy, isTrendSparse, subtitleFor, periodFor, splitCaptionNumbers, type DayRating, type RoundStatsInput } from './trend'
+import { dayTotal, dayAccuracy, isTrendSparse, subtitleFor, periodFor, splitCaptionNumbers, shortDay, type DayRating, type RoundStatsInput } from './trend'
 
 const day = (again: number, hard: number, good: number): DayRating => ({ day: '2026-09-25', again, hard, good })
 
@@ -189,5 +189,22 @@ describe('splitCaptionNumbers（v0.6.3 条目 7 的数字包 stat-num）', () =>
 
   it('空串切出空数组（调用方据此不渲染）', () => {
     expect(splitCaptionNumbers('')).toEqual([])
+  })
+})
+
+describe('shortDay（v0.6.3 条目 7 的时间轴端点刻度）', () => {
+  it('db 给的 YYYY-MM-DD 截成 spec §7.4 的 MM-DD', () => {
+    // db/review.ts 的 date(…, 'localtime') 产出 10 字符，这里取末五位
+    expect(shortDay('2026-09-14')).toBe('09-14')
+    expect(shortDay('2026-08-27')).toBe('08-27')
+  })
+
+  it('已经是短形态就原样返回（不重复截断成 -14-）', () => {
+    expect(shortDay('08-27')).toBe('08-27')
+  })
+
+  it('空值退成空串——刻度退化成没有，不显示 - 或 NaN', () => {
+    expect(shortDay('')).toBe('')
+    expect(shortDay(undefined)).toBe('')
   })
 })

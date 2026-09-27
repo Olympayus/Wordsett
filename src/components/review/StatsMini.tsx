@@ -1,4 +1,4 @@
-import { dayTotal, dayAccuracy, isTrendSparse, subtitleFor, periodFor, splitCaptionNumbers } from '../../lib/review/trend'
+import { dayTotal, dayAccuracy, isTrendSparse, subtitleFor, periodFor, splitCaptionNumbers, shortDay } from '../../lib/review/trend'
 
 export interface ReviewStats {
   masteryBuckets: number[]
@@ -83,7 +83,7 @@ function Caption({ text }: { text: string }) {
  * 图表容器：固定 46px 高 + 底部基线 + 左右端点刻度（v0.6.3 条目 7）。
  *
  * marginBottom 16px 给刻度文字留出它自己的band——刻度绝对定位在 bottom: -14px，
- * 不占图表本体的高度，故高度仍是 46px、没有被这一项改高。
+ * 不占**这个图表本体**（46px 的框）的高度；是外面那张卡靠它多出了 16px。
  */
 function ChartFrame({ left, right, children }: { left: string; right: string; children: React.ReactNode }) {
   return (
@@ -113,7 +113,7 @@ function RatingSpark({ data }: { data: ReviewStats['recentRatings'] }) {
   return (
     // preserveAspectRatio="none" 让折线随卡片宽度横向拉伸；配套 non-scaling-stroke
     // 把线宽钉在 1.5px——否则横向拉伸会把线也一起拉粗。纵轴是 viewBox 高原样渲染。
-    <ChartFrame left={data[0]?.day ?? ''} right={data[data.length - 1]?.day ?? ''}>
+    <ChartFrame left={shortDay(data[0]?.day)} right={shortDay(data[data.length - 1]?.day)}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="100%" preserveAspectRatio="none" role="img" aria-label="近期评分走势（均值满分 1）" style={{ display: 'block' }}>
         <polyline points={pts} fill="none" stroke="var(--color-brand)" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
       </svg>
@@ -139,8 +139,15 @@ function MasteryBuckets({ data }: { data: number[] }) {
   const colors = ['var(--color-border)', '#c9d4e0', '#a9bccf', '#7f9bb8', '#5a7d9e']
   return (
     <ChartFrame left="陌生" right="熟练">
-      <div style={{ display: 'flex', alignItems: 'flex-end', height: '100%' }}>
-        {data.map((n, i) => <div key={i} style={{ width: `${(n / total) * 100}%`, background: colors[i] }} />)}
+      {/* 外层只负责把色带压到框底（贴住基线），色带本身仍是 10px 的设计常量。
+          早先这里是 `alignItems: 'flex-end'; height: '100%'`：那会取消 flex 的 stretch，
+          5 个分段都是空 div、没有任何数据驱动的高度，交叉轴尺寸退回内容尺寸＝0px，
+          整条色带渲染成零高。分段不给 `height: '100%'`——那会把 10px 摊成 46px，改掉图表几何。
+          也不能靠 `marginTop: 'auto'`：框是块容器，auto 外边距在那里算 0。 */}
+      <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%' }}>
+        <div style={{ display: 'flex', height: '10px', borderRadius: '5px', overflow: 'hidden' }}>
+          {data.map((n, i) => <div key={i} style={{ width: `${(n / total) * 100}%`, background: colors[i] }} />)}
+        </div>
       </div>
     </ChartFrame>
   )
@@ -150,7 +157,7 @@ function MasteryBuckets({ data }: { data: number[] }) {
 function TrendBars({ data }: { data: ReviewStats['recentRatings'] }) {
   const max = Math.max(1, ...data.map(dayTotal))
   return (
-    <ChartFrame left={data[0]?.day ?? ''} right={data[data.length - 1]?.day ?? ''}>
+    <ChartFrame left={shortDay(data[0]?.day)} right={shortDay(data[data.length - 1]?.day)}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: '100%' }}>
         {data.map(r => {
           const n = dayTotal(r)

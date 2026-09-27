@@ -122,3 +122,19 @@ export function splitCaptionNumbers(text: string): { text: string; isNum: boolea
   // 而「这一串看起来是不是数字」本来就是可以直接判定的。
   return text.split(/(\d+(?:\.\d+)?%?)/).filter(s => s !== '').map(s => ({ text: s, isNum: /^\d+(?:\.\d+)?%?$/.test(s) }))
 }
+
+/**
+ * 时间轴端点刻度上的短日期（v0.6.3 条目 7，spec §7.4 的「如 08-27 / 09-09」）。
+ *
+ * 数据的 day 是 db/review.ts 的 `date(reviewed_at/1000,'unixepoch','localtime')`，
+ * 也就是 10 字符的 YYYY-MM-DD——10 字符的等宽字在约 282px 的卡里一侧就占掉 57px，
+ * 远超刻度该有的分量。这里只做展示截断，不改 day 的产出，也不改 day 的其他用法
+ * （TrendBars 的 title、key 仍用原串），故这个函数只被 ChartFrame 的两个刻度调用。
+ *
+ * 短于等于 5 字符（空串、已经是 MM-DD）原样返回：早先的 brief 以为 day 已经是 MM-DD，
+ * 于是刻度直接渲染了 10 字符。把这个分支钉住，短形态将来由谁产出都不会被截成 `-14-`。
+ */
+export function shortDay(day: string | undefined): string {
+  if (!day) return ''
+  return day.length > 5 ? day.slice(-5) : day
+}
