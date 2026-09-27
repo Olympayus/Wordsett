@@ -102,11 +102,12 @@ export default function DueBadge() {
         }}
       >
         {/* 不套 .stat-num（index.css:23）——这是一次明确的豁免，不是漏掉。
-            .stat-num 只定义三件事：等宽字体、主文字色、semibold 字重。这两个数三件都覆盖：
+            .stat-num 只定义三件事：等宽字体、主文字色、semibold 字重。这个数三条全覆盖：
             衬线（--font-serif）因为它要当展示性标题看，不为跟别的读数对齐；字重 700；
             **颜色**——分档色承载信息，档位就靠这个数本身的颜色说（t1 深暖棕 / t2 暖橙），
             换回主文字色等于把档位抹掉。三条定义全被有意覆盖时挂这个类只是噪音。
-            .stat-num 那条约定要的是「统计读数彼此长得一样」，而按档位变色的展示标题是另一回事。 */}
+            .stat-num 那条约定要的是「统计读数彼此长得一样」，而按档位变色的展示标题是另一回事。
+            窗口里那个大数字豁免同一类，但只覆盖两条（见下）。 */}
         <span
           style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 700, lineHeight: 1, color: model.numColor }}
         >{count}</span>
@@ -125,7 +126,10 @@ export default function DueBadge() {
               borderLeft: '1px solid var(--color-border)', borderTop: '1px solid var(--color-border)', transform: 'rotate(45deg)',
             }} />
             <div style={{ fontSize: 11.5, color: 'var(--color-text-tertiary)', marginBottom: 8 }}>今日队列</div>
-            {/* 下面这个大数字同 chip 内那个数：同样不套 .stat-num，理由见上面的说明。 */}
+            {/* 同样不套 .stat-num，还是一次明确的豁免：理由与 chip 里那个数一致——
+                分档色承载档位信息，衬线是展示性处理而非等宽读数，两条都按自己的定法覆盖。
+                唯独字重不同：这个数没有指定 font-weight，就按 .stat-num 的 semibold 走，
+                所以这里只覆盖 .stat-num 三条定义里的两条（字体与颜色），不覆盖字重。 */}
             <div style={{ fontFamily: 'var(--font-serif)', fontSize: 30, lineHeight: 1, color: model.numColor }}>
               {count}{' '}
               <small style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 6 }}>张待复习</small>
@@ -136,12 +140,14 @@ export default function DueBadge() {
             <div style={{ marginTop: 11, display: 'flex' }}>
               <button
                 type="button"
-                // 与活动栏「复习」同一个意图标记：会话进行中时守卫在捕获阶段拦下这次点击、
-                // 弹确认窗，确认后它自己 reset() 再重放 showModule('review')
-                // （SessionGuard.tsx:55-65）。故这里**不能**自己调 reset()：提前 reset
-                // 会把「答题中」这条判据抹掉，守卫就判成放行、拦不住；而确认后守卫那一次
-                // 本来就带 reset + 切模块，自己再 reset 一次纯属多余（reset 幂等，
-                // 但多余就意味着这条入口的行为得靠两处代码一起才说得清）。
+                // 与活动栏「复习」同一个意图标记：这里只负责**请求**导航，会话是否结束不归这条
+                // 入口决定——那是守卫的事。reset 归守卫所有：它拦下点击、弹确认窗，用户确认后
+                // 由它自己 reset() 再重放 showModule('review')（SessionGuard.tsx:51-62），
+                // 确认与否都在用户手里。所以这里**不能**自己调 reset()：那是替用户把「答到一半」
+                // 判成可以走，等于绕过确认；就算不绕，也只是把守卫的职责复制一份，
+                // 这条入口的语义从此要靠两处代码一起才说得清。
+                // （守卫在 window 捕获阶段监听并 stopPropagation，会话进行中这个按钮的
+                //   onClick 压根不会执行——上面说的「不能自己 reset」是归属问题，不是先后问题。）
                 data-session-guard="module:review"
                 onClick={() => { setOpen(false); showModule('review') }}
                 style={{
