@@ -38,7 +38,8 @@ const SOURCE_NAMES: Record<string, string> = {
  * 卡片已经有来源标签的文字区分，再叠一层颜色等于让装饰与内容争注意力。
  * 统一到基础字色，让释义成为唯一被看的东西。
  *
- * 抽成函数而不是留一个常量表：调用点（左侧竖条、徽标底色、徽标文字）都经它取名，
+ * 抽成函数而不是留一个常量表：调用点只有三处（左侧竖条、徽标底色、「＋ 添加此词典」按钮文字），
+ * 徽标上的文字色是硬编码的 `'white'`，本来就不经这里——
  * 「改接线」这类错误才有地方可测——与 SquareButton 的 buttonBackground 同一考虑。
  */
 export function sourceAccent(_source: string): string {

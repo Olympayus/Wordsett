@@ -49,6 +49,10 @@ export default function SidebarSettings() {
                 fontFamily: 'var(--font-sans)',
                 transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
               }}
+              // v0.6.3 条目 19：未选框的常态描边与下面两个 hover 赋值**是同一档**
+              // （--color-border-strong），三处必须同步，否则鼠标一移开就掉回更浅的一档。
+              // 因此这两个 handler 目前没有可见效果，保留只为标记「未来的 hover 档写在这里」——
+              // 卡片现在没有 hover 反馈，这是本任务的结果，不是待修的缺陷。
               onMouseEnter={e => { if (!selected) e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
               onMouseLeave={e => { if (!selected) e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
             >
