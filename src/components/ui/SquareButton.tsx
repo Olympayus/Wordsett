@@ -144,13 +144,21 @@ interface Props {
    * 缺省 `canvas`＝v0.6.1 的现状行为，调用点可逐个迁移。
    */
   tone?: ButtonTone
+  /**
+   * 撑满所在 flex 行的一份（v0.6.3 条目 13 的三级评分键）。
+   * BUTTON_BASE 的 minWidth: 88 与 flexShrink: 0 是为「按内容宽、不被压扁」定的；
+   * 三颗等宽的评分键要的恰好相反，故用一个具名开关覆盖它们，而不是给调用方开 style 透传。
+   */
+  grow?: boolean
+  /** 快捷键提示（三级评分键的 1 / 2 / 3）。读屏会念出来 */
+  'aria-keyshortcuts'?: string
   /** 透传语义属性：形态开关需要 role="switch" + aria-checked，普通瞬时按钮不需要 */
   role?: 'switch' | 'button'
   'aria-checked'?: boolean
   'aria-label'?: string
 }
 
-export default function SquareButton({ children, onClick, disabled, title, pressed, size = 'default', tone = 'canvas', role, 'aria-checked': ariaChecked, 'aria-label': ariaLabel }: Props) {
+export default function SquareButton({ children, onClick, disabled, title, pressed, size = 'default', tone = 'canvas', grow, role, 'aria-checked': ariaChecked, 'aria-label': ariaLabel, 'aria-keyshortcuts': ariaKeyshortcuts }: Props) {
   // hover / 按压必须用 JS 模拟：项目视觉一律走内联 style，不引 CSS class（见文件头注释）。
   // 按压用三事件配对而非 click —— 指针在按钮上松开才算有效，避免按下后滑出仍触发视觉反馈。
   const [hover, setHover] = useState(false)
@@ -166,6 +174,7 @@ export default function SquareButton({ children, onClick, disabled, title, press
       role={role}
       aria-checked={ariaChecked}
       aria-label={ariaLabel}
+      aria-keyshortcuts={ariaKeyshortcuts}
       onClick={onClick}
       onPointerDown={() => { if (!disabled) setPressing(true) }}
       onPointerUp={() => setPressing(false)}
@@ -174,6 +183,7 @@ export default function SquareButton({ children, onClick, disabled, title, press
       onMouseLeave={() => { setHover(false); setPressing(false) }}
       style={{
         ...BUTTON_BASE,
+        ...(grow ? { flex: '1 1 0', minWidth: 0 } : null),
         ...(size === 'nav' ? BUTTON_SIZE_NAV : null),
         ...(size === 'row' ? BUTTON_SIZE_ROW : null),
         ...(disabled ? BUTTON_DISABLED : null),

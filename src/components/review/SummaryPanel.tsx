@@ -6,7 +6,7 @@ import { jumpToWord } from '../../lib/review/jumpToWord'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
 import { getAbsent } from '../../services/reviewService'
 import {
-  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, isSkipped,
+  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, isSkipped, correctnessLabel,
 } from '../../lib/review/roundStats'
 
 /**
@@ -20,7 +20,7 @@ import {
  * 的词」，不是本轮出过的题，塞不进逐题表。
  */
 export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
-  const { queue, answered, startedAt } = useReviewSessionStore()
+  const { queue, answered } = useReviewSessionStore()
   const [absent, setAbsent] = useState<{ wordId: string; lemma: string }[]>([])
 
   useEffect(() => {
@@ -32,14 +32,10 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
   const accs = templateAccuracy(answered)
   const dist = ratingDistribution(answered)
   const series = ratingSeries(answered)
-  const seconds = startedAt ? Math.round((Date.now() - startedAt) / 1000) : 0
 
   return (
     <div className="flex flex-col gap-5 p-8" style={{ maxWidth: '760px' }}>
       <h2 style={{ fontSize: '20px', fontWeight: 600 }}>本轮小结</h2>
-      <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
-        用时 {Math.floor(seconds / 60)}:{String(seconds % 60).padStart(2, '0')} · 共 {summary.total} 张
-      </p>
 
       <SectionTitle>统计</SectionTitle>
       <div style={{ display: 'flex', gap: 10 }}>
@@ -88,7 +84,7 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
                 <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12px', color: 'var(--color-text-secondary)' }}>{counts.find(x => x.template === c.template)?.label ?? c.template}</td>
                 <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12.5px' }}>{entry ? (entry.input || (isSkipped(entry) ? '（跳过）' : '（揭示后评分）')) : '（未作答）'}</td>
                 <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12px', fontWeight: 600, color: ok === null ? 'var(--color-text-tertiary)' : ok ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                  {ok === null ? '—' : ok ? '正确' : '不正确'}
+                  {correctnessLabel(ok)}
                 </td>
                 <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
                   {entry ? RATING_LABELS[entry.rating] ?? '—' : '—'}

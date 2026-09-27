@@ -45,7 +45,6 @@ export default function ReviewArena() {
   const [startedAt, setStartedAt] = useState(Date.now())
   const [rating, setRating] = useState(false)
   const [rateError, setRateError] = useState<string | null>(null)
-  const [nextDueAt, setNextDueAt] = useState<number | null>(null)
   // 同步置位的重入闸：键盘监听闭包里的 rating state 有滞后，连按两下会重复提交评分
   const ratingRef = useRef(false)
 
@@ -64,7 +63,7 @@ export default function ReviewArena() {
     setRevealed(Boolean(done))
     setLastInput(done?.input ?? ''); setCorrect(null); setSnapshot(null)
     setStartedAt(Date.now()); setRating(false); ratingRef.current = false
-    setRateError(null); setNextDueAt(null)
+    setRateError(null)
     if (!dto) return
     let alive = true
     // getWordContent 本身不吞异常（可能 reject），快照失败按「暂无快照」降级
@@ -118,7 +117,6 @@ export default function ReviewArena() {
       return
     }
     setRateError(null)
-    setNextDueAt(res.dueAt)
     // 「跳过」在揭示前就能按，那条路径没有 handleSubmit 把 revealed 置起；
     // 评分成功即视为已揭示，好让「刚评完待推进」这一态真的露出来（结果区 +「下一题」，无三键）。
     // 常规评分路径 revealed 本就为 true，这句是幂等的。
@@ -197,7 +195,7 @@ export default function ReviewArena() {
 
       {revealed && (
         <>
-          <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} nextDueAt={nextDueAt} />
+          <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} />
           {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
           {!answeredNow && <RatingBar onRate={r => void handleRate(r, lastInput)} disabled={rating} />}
           {past ? (

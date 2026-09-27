@@ -14,7 +14,7 @@ import type { AnsweredEntry } from '../../stores/reviewSessionStore'
  */
 
 export interface RoundSummary {
-  /** 本轮队列长度＝分母。答题行与用时行都要报它，否则「已答 3」读不出本轮多大。 */
+  /** 本轮队列长度＝分母。「已答 n」读不出本轮多大，队列长度是唯一的对照。 */
   total: number
   answeredCount: number
   correctCount: number
@@ -44,6 +44,16 @@ export function roundSummary(queue: ReviewCardDTO[], answered: AnsweredEntry[]):
  */
 export function isSkipped(entry: { rating: number; input: string }): boolean {
   return entry.rating === 1 && entry.input === ''
+}
+
+/**
+ * 「正误」的说法（v0.6.3 条目 17）：错误写「错误」不写「不正确」。
+ *
+ * 抽出来是因为同一份文案有两处消费点——ResultBlock 的作答行与 SummaryPanel 的明细表列。
+ * 两处各写一份时，「不正确」就是从这里漏出去的：改了明细表、忘了作答行。
+ */
+export function correctnessLabel(ok: boolean | null): string {
+  return ok === null ? '—' : ok ? '正确' : '错误'
 }
 
 export function templateCounts(queue: ReviewCardDTO[]): { template: Template; label: string; count: number }[] {

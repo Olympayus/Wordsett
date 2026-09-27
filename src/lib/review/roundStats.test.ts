@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, isSkipped,
+  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, isSkipped, correctnessLabel,
 } from './roundStats'
 import type { ReviewCardDTO } from '../../services/reviewService'
 import { TEMPLATE_DIFFICULTY } from './template'
@@ -120,5 +120,17 @@ describe('isSkipped（明细表那一列的判据，与「跳过」Stat 同一�
     // 而 Stat 用的是 rating === 1 —— 数字说跳过 1 张，表里却有 3 行写着跳过。
     expect(isSkipped({ rating: 2, input: '' })).toBe(false)
     expect(isSkipped({ rating: 3, input: '' })).toBe(false)
+  })
+})
+
+describe('correctnessLabel（v0.6.3 条目 17）', () => {
+  it('对 / 错 / 未判分三态', () => {
+    expect(correctnessLabel(true)).toBe('正确')
+    expect(correctnessLabel(false)).toBe('错误')
+    expect(correctnessLabel(null)).toBe('—')
+  })
+
+  it('判错写「错误」不写「不正确」——两处消费点必须同一份文案', () => {
+    expect(correctnessLabel(false)).not.toContain('不正确')
   })
 })
