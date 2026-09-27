@@ -5,6 +5,7 @@ import WordTitleExtras from './WordTitleExtras'
 import SemanticNetwork from './SemanticNetwork'
 import TitleChips, { CollinsStars } from './TitleChips'
 import WorkbenchNavBar from '../word/WorkbenchNavBar'
+import SpeakButton from '../ui/SpeakButton'
 import { lookupTitleMeta, lookupWord } from '../../services/searchService'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
@@ -149,6 +150,11 @@ export default function DictDetailPanel({ word }: Props) {
             </span>
             <CollinsStars meta={meta} />
           </div>
+          {/* items-baseline 的组里放 16px 图标会跟着基线飘，故外面这层用 items-baseline、
+              图标自身靠 alignSelf 居中 */}
+          <span style={{ alignSelf: 'center', display: 'inline-flex' }}>
+            <SpeakButton text={word} />
+          </span>
           <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>
             <TitleChips meta={meta} />
           </div>

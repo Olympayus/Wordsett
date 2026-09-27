@@ -2,6 +2,7 @@ import type { ReviewCardDTO } from '../../services/reviewService'
 import { formatPhonetic } from '../../lib/phonetic'
 import { promptTypeLabel, posNoteText } from '../../lib/review/scopeLabel'
 import SquareButton from '../ui/SquareButton'
+import SpeakButton from '../ui/SpeakButton'
 import AnswerInput, { type InputKind } from './AnswerInput'
 
 /** 模板 → 作答形态与题面渲染方式。 */
@@ -87,6 +88,7 @@ export default function PromptCard({
         <PromptRow>
           <div className="flex flex-wrap items-baseline gap-2">
             <h3 style={{ fontSize: '28px', fontWeight: 600 }}>{p.lemma}</h3>
+            <SpeakButton text={String(p.lemma)} size={16} />
             {p.phonetic && (
               <span style={{ fontFamily: 'var(--font-phonetic)', fontSize: 15, color: 'var(--color-text-secondary)' }}>
                 {formatPhonetic(String(p.phonetic))}

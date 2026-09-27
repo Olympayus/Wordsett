@@ -19,6 +19,7 @@ import { selectWordRootItems } from '../../lib/phonetic'
 import { fieldState, FIELD_STATE_BG, type FieldState } from '../../lib/fieldState'
 import { Button } from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
+import SpeakButton from '../ui/SpeakButton'
 import Icon from '../icons'
 import CategoryCapsule from './CategoryCapsule'
 import PhoneticArea from './PhoneticArea'
@@ -1128,6 +1129,7 @@ export default function WordWorkbench() {
                 >
                   {selectedWord.lemma}
                 </div>
+                <SpeakButton text={selectedWord.lemma} />
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
