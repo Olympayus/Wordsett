@@ -218,7 +218,7 @@ export default function FreeScopePanel({ categories, onStart }: {
           <input
             type="number" min={1} max={100} value={limit}
             onChange={e => setLimit(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
-            style={{ width: '80px', padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'transparent', color: 'inherit', fontSize: '13px' }}
+            style={{ width: '80px', padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)', background: 'transparent', color: 'inherit', fontSize: '13px' }}
           />
         </label>
 

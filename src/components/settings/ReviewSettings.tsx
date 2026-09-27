@@ -150,7 +150,7 @@ function NumberRow({ label, hint, value, min, max, step, integer, onChange }: {
           const clamped = Math.min(max, Math.max(min, v))
           onChange(integer ? Math.round(clamped) : clamped)
         }}
-        style={{ width: '90px', flexShrink: 0, padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)', background: 'transparent', color: 'inherit', fontSize: '13px' }}
+        style={{ width: '90px', flexShrink: 0, padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)', background: 'transparent', color: 'inherit', fontSize: '13px' }}
       />
     </div>
   )

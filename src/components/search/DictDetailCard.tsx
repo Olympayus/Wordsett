@@ -31,10 +31,18 @@ const SOURCE_NAMES: Record<string, string> = {
   wordnet: 'WordNet',
 }
 
-// V2 词典身份色：单一主色，白底卡片以左边框 + 徽章底色承载身份
-const SOURCE_ACCENTS: Record<string, { color: string }> = {
-  ecdict: { color: '#c17b5c' },
-  wordnet: { color: '#5b8a82' },
+/**
+ * 来源色（v0.6.3 条目 15）。
+ *
+ * 原先两种来源各带一个色相（ecdict 赭红 / wordnet 墨绿）。色相在这里只是装饰——
+ * 卡片已经有来源标签的文字区分，再叠一层颜色等于让装饰与内容争注意力。
+ * 统一到基础字色，让释义成为唯一被看的东西。
+ *
+ * 抽成函数而不是留一个常量表：调用点（左侧竖条、徽标底色、徽标文字）都经它取名，
+ * 「改接线」这类错误才有地方可测——与 SquareButton 的 buttonBackground 同一考虑。
+ */
+export function sourceAccent(_source: string): string {
+  return 'var(--color-text-primary)'
 }
 
 // 字段类型 → 展示标签（词性节点用胶囊，故此处不映射）
@@ -62,7 +70,7 @@ export default function DictDetailCard({
   const mergeWordFields = useWordStore(s => s.mergeWordFields)
   const displayFields = useSettingsStore(s => s.displayFields)
   const sourceLabel = SOURCE_NAMES[source_] || source_
-  const accent = SOURCE_ACCENTS[source_] || { color: 'var(--color-text-secondary)' }
+  const accent = sourceAccent(source_)
 
   // 合并同词性父（跨 entry 显示为一窗格）
   const merged = useMemo(() => mergeEntryFields(entries.flatMap(e => e.fields)), [entries])
@@ -301,14 +309,14 @@ export default function DictDetailCard({
     <div className="rounded-lg border overflow-hidden"
       style={{
         borderColor: 'var(--color-border)',
-        borderLeft: `3px solid ${accent.color}`,
+        borderLeft: `3px solid ${accent}`,
         background: 'var(--color-surface)',
       }}>
       {/* 卡片头部：来源徽章 + 名称 + 条目计数 + 「全部展开/收起」 + 折叠 */}
       <div className="px-4 py-2.5 flex items-center gap-2">
         <span style={{
           width: 26, height: 26, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          borderRadius: 'var(--radius-sm)', background: accent.color, color: 'white',
+          borderRadius: 'var(--radius-sm)', background: accent, color: 'white',
           fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: 13, flexShrink: 0,
         }}>
           {sourceLabel[0]}
@@ -353,7 +361,7 @@ export default function DictDetailCard({
         <button
           type="button"
           className="text-xs font-medium"
-          style={{ color: accent.color, padding: '4px 10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: 'transparent', border: '1px solid transparent', fontFamily: 'var(--font-sans)' }}
+          style={{ color: accent, padding: '4px 10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: 'transparent', border: '1px solid transparent', fontFamily: 'var(--font-sans)' }}
           onClick={handleAdd}
           disabled={added || selected.size === 0}
         >{added ? '已添加 ✓' : '＋ 添加此词典'}</button>
