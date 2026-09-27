@@ -1,8 +1,41 @@
-import { useState } from 'react'
+import { useLayoutEffect, useRef, useState } from 'react'
 import { letterMatches } from '../../lib/review/typed'
 import SquareButton from '../ui/SquareButton'
 
 export type InputKind = 'choice' | 'typed' | 'reveal'
+
+/**
+ * 选项按钮「不算换行」的高度阈值（px，v0.6.3 条目 8）。
+ *
+ * **这个数是按构成推算的，不是实测的**（headless 环境读不到 offsetHeight）。
+ * 构成项全在能读到的地方：按钮体的内联样式给 padding 上下各 8、border 各 1、fontSize 13；
+ * 行高没写在内联样式里，继承 body 的 `line-height: var(--leading-relaxed)`，
+ * 而 tokens.css 里 `--leading-relaxed: 1.7`（不是 1.4）。于是
+ *   单行 = 13 × 1.7 + 8×2 + 1×2 = 22.1 + 18 = 40.1
+ *   两行 = 13 × 1.7 × 2 + 8×2 + 1×2 = 44.2 + 18 = 62.2
+ * 判据是 `h > 阈值` 即算换行，阈值必须落在 [40.1, 62.2) 内才不会两头出错：
+ * 取中点 51 —— 单行要涨到 51（再涨 11px）才误判为换行，两行要缩到 51（再缩 11px）才漏判，
+ * 两边都不可能发生。改了按钮的 padding / 字号 / --leading-relaxed，这个数要跟着重算。
+ */
+export const CHOICE_LINE_HEIGHT = 51
+
+/**
+ * 选项格数（v0.6.3 条目 8）：默认 2×2；**任一**选项会换行时整组回落 1×4。
+ *
+ * 判据按容器的**实际像素高度**量，不按字数——中英文混排、半角括号都会影响实际宽度。
+ * 回落是整组行为：半张 2×2 半张 1×4 会让选项宽度不一致，纵向扫读时对不齐行。
+ *
+ * 空列表给 2（不是 1）：没有选项时版式不该跟有选项时长得不一样。
+ */
+export function choiceColumns(optionHeights: number[], lineHeight: number): 1 | 2 {
+  if (optionHeights.length === 0) return 2
+  return optionHeights.some(h => h > lineHeight) ? 1 : 2
+}
+
+/** 取网格里每颗选项按钮的实测高度。offsetHeight 取整，舍入误差吃得下（阈值留了十几像素余量）。 */
+function optionHeightsOf(grid: HTMLElement): number[] {
+  return Array.from(grid.children).map(c => (c as HTMLElement).offsetHeight)
+}
 
 // 复习区可点击元素的暖橙体系（v0.6.1 §2.2）。四组值都从 --color-accent 派生：
 // 底色用 -soft，描边用 accent 往白里压一阶，文字是 accent 压暗后的同色相深色。
@@ -37,12 +70,50 @@ export default function AnswerInput({
   const [value, setValue] = useState('')
   const [picked, setPicked] = useState<string | null>(null)
   const [hover, setHover] = useState<string | null>(null)
+  const gridRef = useRef<HTMLDivElement>(null)
+  const [columns, setColumns] = useState<1 | 2>(2)
+  /** 上次量列数时的容器宽度。只认「宽度变了」才重量，见下面 ResizeObserver 处的说明。 */
+  const measuredWidthRef = useRef(-1)
+
+  // 量一次实际高度判定是否换行（v0.6.3 条目 8）。
+  // 必须在 layout effect 里做：绘制前定下列数，否则用户会看到先 2×2 再跳成 1×4 的一帧。
+  useLayoutEffect(() => {
+    const el = gridRef.current
+    if (kind !== 'choice' || !el) return
+    measuredWidthRef.current = el.getBoundingClientRect().width
+    setColumns(choiceColumns(optionHeightsOf(el), CHOICE_LINE_HEIGHT))
+  }, [kind, options, revealedInput, disabled])
+
+  // 依赖里**不能**带 columns：换列数本身就会改变格子宽度，于是「2 列下换行 → 回落 1 列 →
+  // 1 列下不换行 → 又回 2 列」是一个真的两周期，setColumns 会来回不止，表现为抖动乃至
+  // React 的更新层数上限报错。改由容器宽度驱动：格子宽度是父级给的（display:grid 是块级盒，
+  // auto 宽），改列数不会反过来改容器宽度，所以这里没有反馈环。
+  // RO 的首次通知里宽度与上面刚量到的相同，会被下面这行挡掉，不会补一次重量。
+  useLayoutEffect(() => {
+    const el = gridRef.current
+    if (kind !== 'choice' || !el) return
+    const ro = new ResizeObserver(() => {
+      const width = el.getBoundingClientRect().width
+      if (width === measuredWidthRef.current) return
+      measuredWidthRef.current = width
+      setColumns(choiceColumns(optionHeightsOf(el), CHOICE_LINE_HEIGHT))
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [kind])
 
   if (kind === 'choice') {
     const chosen = revealedInput ?? picked
     const shown = revealedInput !== undefined
     return (
-      <div className="flex flex-col gap-2">
+      // grid 取代原先的 flex flex-col gap-2：gap: 8 即 gap-2，行距与改版前一致。
+      // `minmax(0, 1fr)` 不能写成 `1fr`：`1fr` 的隐含 `min-width: auto` 会让长选项把格子顶宽、
+      // 网格横向溢出；`minmax(0, 1fr)` 才允许格子被压到内容宽以下、让选项真的换行。
+      // 这一条是本任务能否生效的关键——用 `1fr` 时回落判据永远量不出换行。
+      <div
+        ref={gridRef}
+        style={{ display: 'grid', gap: 8, gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+      >
         {(options ?? []).map(opt => {
           const isPicked = chosen === opt
           const isRight = shown && opt === String(target ?? '')
