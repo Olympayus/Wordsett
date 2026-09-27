@@ -61,11 +61,10 @@ export function subtitleFor(kind: 'rating' | 'due' | 'mastery' | 'trend', stats:
       const total = stats.recentRatings.reduce((n, r) => n + dayTotal(r), 0)
       if (total === 0) return '近 14 天还没有评分记录'
       // 权重与 RatingSpark 的纵轴刻意相同（again=0、hard=0.5、good=1）：图与文字讲的是同一件事，
-      // 改权重必须两处一起改。但归一化基准**不同**——图除以最忙的一天（RatingSpark 的 max，
-      // 目的是让 14 天的相对起伏看得出来），这里除以量表本身（1.0），所以数字不随哪天最忙而变。
-      // 图上没有纵轴刻度，量表只能在这里说，字符串因此带上「满分 1」。
+      // 改权重必须两处一起改。但归一化基准**不同**——图除以最忙的一天，这里除以量表本身（1.0），
+      // 所以数字不随哪天最忙而变。
       const weighted = stats.recentRatings.reduce((n, r) => n + (r.good + r.hard * 0.5), 0)
-      return `近 14 天评分走势 · 合计 ${total} 张 · 均值 ${(weighted / total).toFixed(1)}（满分 1）`
+      return `合计 ${total} 张，均值 ${(weighted / total).toFixed(1)}`
     }
     case 'due': {
       // dueByDay[0] 是今天，未来 7 天从索引 1 起
@@ -73,14 +72,14 @@ export function subtitleFor(kind: 'rating' | 'due' | 'mastery' | 'trend', stats:
       const sum = future.reduce((a, b) => a + b, 0)
       if (sum === 0) return '未来 7 天没有到期的卡'
       const peak = Math.max(...future)
-      return `未来 7 天到期 · 共 ${sum} 张 · 峰值在第 ${future.indexOf(peak) + 1} 天（${peak} 张）`
+      return `共 ${sum} 张，峰值在第 ${future.indexOf(peak) + 1} 天`
     }
     case 'mastery': {
       const total = stats.masteryBuckets.reduce((a, b) => a + b, 0)
       if (total === 0) return '全库还没有词'
       // 后三档（索引 2、3、4）算「熟悉及以上」
       const familiar = stats.masteryBuckets.slice(2).reduce((a, b) => a + b, 0)
-      return `全库 ${total} 词 · 熟悉及以上 ${familiar} 词（${Math.round((familiar / total) * 100)}%）`
+      return `全库词汇数: ${total}　熟悉及以上: ${familiar}　熟悉度: ${Math.round((familiar / total) * 100)}%`
     }
     case 'trend': {
       const total = stats.recentRatings.reduce((n, r) => n + dayTotal(r), 0)
@@ -88,7 +87,38 @@ export function subtitleFor(kind: 'rating' | 'due' | 'mastery' | 'trend', stats:
       // 按当日复习量加权，不能对每日正确率取简单平均——那会让只有 1 张的日子
       // 与有 20 张的日子等权。
       const accSum = stats.recentRatings.reduce((n, r) => n + dayAccuracy(r) * dayTotal(r), 0)
-      return `近 14 天合计 ${total} 张 · 平均正确率 ${Math.round((accSum / total) * 100)}%`
+      return `合计: ${total} 张 · 平均正确率: ${Math.round((accSum / total) * 100)}%`
     }
   }
+}
+
+/**
+ * 卡头的期间小字（v0.6.3 条目 7：从卡底补充文字里搬到卡头右上角）。
+ *
+ * 单独一个函数而不是从 subtitleFor 里切字符串：那是拿渲染结果反推结构，改一个标点就断。
+ * 四个 kind 与 StatsMini 的 CARDS 表同源。
+ * 「熟知度分布」没有期间（它是全库快照，不是时间窗），返回空串由调用方决定不渲染。
+ */
+export function periodFor(kind: 'rating' | 'due' | 'mastery' | 'trend'): string {
+  switch (kind) {
+    case 'rating': return '近 14 天评分走势'
+    case 'due': return '未来 7 天到期'
+    case 'mastery': return ''
+    case 'trend': return '近 14 天'
+  }
+}
+
+/**
+ * 把补充文字里的数字串切出来（v0.6.3 条目 7），供前端把数字段包上 .stat-num。
+ *
+ * 切分放在趋势算术这一层、而不是组件里，是因为「哪个子串算数字」是一条口径
+ * （含小数、含 %），它需要用例钉住；组件只消费结果、不重写正则。
+ *
+ * 空串返回空数组——调用方据此不渲染那一行，而不是渲染一个空 span。
+ */
+export function splitCaptionNumbers(text: string): { text: string; isNum: boolean }[] {
+  if (text === '') return []
+  // 用**正则复判**而不是依赖 split 捕获组的奇偶下标：filter 会打乱下标，
+  // 而「这一串看起来是不是数字」本来就是可以直接判定的。
+  return text.split(/(\d+(?:\.\d+)?%?)/).filter(s => s !== '').map(s => ({ text: s, isNum: /^\d+(?:\.\d+)?%?$/.test(s) }))
 }

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dayTotal, dayAccuracy, isTrendSparse, subtitleFor, type DayRating, type RoundStatsInput } from './trend'
+import { dayTotal, dayAccuracy, isTrendSparse, subtitleFor, periodFor, splitCaptionNumbers, type DayRating, type RoundStatsInput } from './trend'
 
 const day = (again: number, hard: number, good: number): DayRating => ({ day: '2026-09-25', again, hard, good })
 
@@ -47,31 +47,28 @@ describe('四宫格卡片的补充文字（v0.6.2 条目 9）', () => {
 
   it('熟知度分布卡报出总词数与两段计数', () => {
     const s = subtitleFor('mastery', stats)
-    expect(s).toContain('150 词')
+    // v0.6.3 条目 7：三段并列，全角空格分隔（不是 · 也不是普通空格）
+    expect(s).toBe('全库词汇数: 150　熟悉及以上: 120　熟悉度: 80%')
     // 熟悉及以上 = 后三档（索引 2、3、4）= 30+40+50
-    expect(s).toContain('120 词')
   })
 
   it('明日压力卡报出合计张数与峰值', () => {
     const s = subtitleFor('due', stats)
-    expect(s).toContain('62 张')      // 5+22+17+9+5+3+1=62，不含今天的 0（brief 写的 78 是笔误）
-    expect(s).toContain('第 2 天')     // 峰值 22 在 dueByDay 的索引 2
+    expect(s).toBe('共 62 张，峰值在第 2 天')   // 5+22+17+9+5+3+1=62，不含今天的 0（brief 写的 78 是笔误）；峰值 22 在 dueByDay 的索引 2
   })
 
   it('趋势卡报出合计与平均正确率', () => {
     const s = subtitleFor('trend', stats)
-    expect(s).toContain('12 张')      // 6 + 6
-    expect(s).toContain('%')
+    expect(s).toBe('合计: 12 张 · 平均正确率: 67%')   // 6 + 6；加权正确率 = 8 good / 12 = 66.7% → 67%
   })
 
   it('评分卡报出合计与加权均值', () => {
     const s = subtitleFor('rating', stats)
-    expect(s).toContain('12 张')
     // 加权 = Σ(good + hard×0.5) / Σ(again+hard+good)
     //       = (3+2×0.5 + 5+1×0.5) / 12 = 9.5/12 = 0.7916… → 0.8
-    expect(s).toContain('0.8')
-    // 量表必须写在字面上：图归一化到最忙的一天、且没有纵轴刻度，光看 0.8 不知道是满分几
-    expect(s).toContain('满分 1')
+    expect(s).toBe('合计 12 张，均值 0.8')
+    // v0.6.3 条目 7：「满分 1」不再是卡底文案——量表说明搬去了 RatingSpark 的 aria-label，
+    // 卡底只留合计与均值两个数。
   })
 
   it('均值是 0–1 量表上的期望评分：again 记 0、hard 记 0.5、good 记 1', () => {
@@ -128,10 +125,12 @@ describe('卡片标题与 subtitleFor 的 kind 一一对应（防对调）', () 
   }
 
   // 与 StatsMini 的 CARDS 同序；frag 是只有该 kind 才会产出的片段
+  // （v0.6.3 条目 7：rating 的区分片段随「近 14 天评分走势」一起搬到了 periodFor，
+  //  卡底那条线上它已无痕迹，所以这里改用同一条线上独有的「均值」）
   const CARDS = [
-    { kind: 'rating', frag: '评分走势' },
+    { kind: 'rating', frag: '均值' },
     { kind: 'due', frag: '峰值在第' },
-    { kind: 'mastery', frag: '全库' },
+    { kind: 'mastery', frag: '全库词汇数' },
     { kind: 'trend', frag: '平均正确率' },
   ] as const
 
@@ -150,5 +149,45 @@ describe('卡片标题与 subtitleFor 的 kind 一一对应（防对调）', () 
   it('四个 kind 恰好覆盖四张卡，不重不漏', () => {
     expect(CARDS.map(c => c.kind)).toEqual(['rating', 'due', 'mastery', 'trend'])
     expect(new Set(CARDS.map(c => c.kind)).size).toBe(4)
+  })
+})
+
+describe('periodFor（v0.6.3 条目 7）', () => {
+  it('逐项取值', () => {
+    expect(periodFor('rating')).toBe('近 14 天评分走势')
+    expect(periodFor('due')).toBe('未来 7 天到期')
+    expect(periodFor('mastery')).toBe('')
+    expect(periodFor('trend')).toBe('近 14 天')
+  })
+
+  it('四个值互不相同（空串也算一个不同值）——与 CARDS 的四个 kind 一一对上', () => {
+    const kinds = ['rating', 'due', 'mastery', 'trend'] as const
+    expect(new Set(kinds.map(periodFor)).size).toBe(4)
+  })
+})
+
+describe('splitCaptionNumbers（v0.6.3 条目 7 的数字包 stat-num）', () => {
+  it('把数字段与文字段交替切出来', () => {
+    expect(splitCaptionNumbers('合计 17 张，均值 2.3')).toEqual([
+      { text: '合计 ', isNum: false },
+      { text: '17', isNum: true },
+      { text: ' 张，均值 ', isNum: false },
+      { text: '2.3', isNum: true },
+    ])
+  })
+
+  it('百分数整个算数字段', () => {
+    expect(splitCaptionNumbers('正确率 88%')).toEqual([
+      { text: '正确率 ', isNum: false },
+      { text: '88%', isNum: true },
+    ])
+  })
+
+  it('没有数字时整段是文字', () => {
+    expect(splitCaptionNumbers('全库还没有词')).toEqual([{ text: '全库还没有词', isNum: false }])
+  })
+
+  it('空串切出空数组（调用方据此不渲染）', () => {
+    expect(splitCaptionNumbers('')).toEqual([])
   })
 })

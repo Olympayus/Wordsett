@@ -125,8 +125,6 @@ export default function ReviewModule() {
           <OverviewPanel
             title="今日复习"
             total={overview?.total ?? 0}
-            newCount={overview?.newCount ?? 0}
-            estimateMinutes={overview?.estimateMinutes ?? 0}
             stats={overview?.stats ?? { masteryBuckets: [], dueByDay: [], recentRatings: [] }}
             onStart={handleStart}
             startLabel="开始复习"
