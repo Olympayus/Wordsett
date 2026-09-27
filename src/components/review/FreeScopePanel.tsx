@@ -3,6 +3,7 @@ import FreeScopeTabs from './FreeScopeTabs'
 import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
+import CheckBox from '../ui/CheckBox'
 import { getWeakWords, getDueWordIds, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import { getWordCategoryMap } from '../../services/categoryService'
 import { aggregateCategoryCounts, canStartFreeScope, freeScopeEmptyText, freeScopeSummaryText } from '../../lib/review/categoryCounts'
@@ -163,11 +164,11 @@ export default function FreeScopePanel({ categories, onStart }: {
                       opacity: disabled ? 0.5 : 1,
                     }}
                   >
-                    <input
-                      type="checkbox"
+                    <CheckBox
                       checked={on}
                       disabled={disabled}
                       onChange={() => setCategoryIds(prev => on ? prev.filter(x => x !== r.id) : [...prev, r.id])}
+                      label={`选择分类 ${r.name}`}
                     />
                     <span style={{ fontWeight: 600, fontSize: 13, fontFamily: 'var(--font-serif)', minWidth: 96 }}>{r.name}</span>
                     <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-text-secondary)' }}>

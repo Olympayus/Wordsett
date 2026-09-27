@@ -3,6 +3,7 @@ import type { MergeFieldInput } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
 import { buildTitleMetaInputs, type TitleStripSelection } from '../../lib/titleStrip'
 import { useSettingsStore } from '../../stores/settingsStore'
+import CheckBox from '../ui/CheckBox'
 
 interface Props { meta: TitleMeta | null; onInputsChange: (inputs: MergeFieldInput[]) => void }
 
@@ -30,7 +31,7 @@ export default function WordTitleExtras({ meta, onInputsChange }: Props) {
 
   const checkable = (label: string, checked: boolean, onToggle: (v: boolean) => void) => (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
-      <input type="checkbox" checked={checked} onChange={e => onToggle(e.target.checked)} aria-label={label} />
+      <CheckBox checked={checked} onChange={onToggle} label={label} />
       <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-secondary)' }}>{label}</span>
     </span>
   )

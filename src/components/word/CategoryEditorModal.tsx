@@ -5,6 +5,7 @@ import { useUiStore } from '../../stores/uiStore'
 import type { Category } from '../../types/category'
 import Icon from '../icons'
 import { Button } from '../ui/Button'
+import CheckBox from '../ui/CheckBox'
 
 // 规格 §6.2 分类色板（8 色），与 tokens.css --color-cat-1..8 一致
 export const CATEGORY_COLORS = ['#7A7368', '#6B8E7F', '#4A6FA5', '#8B6A8B', '#C17A4E', '#B85450', '#5A7A8C', '#8B7355']
@@ -154,7 +155,7 @@ export default function CategoryEditorModal({ open, category, wordId, onClose, o
         </div>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: '16px', cursor: 'pointer' }}>
-          <input type="checkbox" checked={isDefault} onChange={e => setIsDefault(e.target.checked)} />
+          <CheckBox checked={isDefault} onChange={v => setIsDefault(v)} label="设为默认分类" />
           设为默认分类（新建单词自动归入）
         </label>
 

@@ -12,6 +12,7 @@ import { ensureWord } from '../../lib/ensureWord'
 import { mergeEntryFields, flattenTree, buildMergeInputs, toggleSubtreeSelection, shouldNumberField, countZhEn, countAllDefinitions } from '../../lib/dictPlan'
 import type { FlatNode } from '../../lib/dictPlan'
 import PosTag from '../ui/PosTag'
+import CheckBox from '../ui/CheckBox'
 
 interface Props {
   word: string
@@ -256,14 +257,16 @@ export default function DictDetailCard({
             onClick={() => (isContainer ? toggleCollapse(node.key) : toggle(node.key))}
             style={{ padding: '6px 4px' }}
           >
-            <input
-              type="checkbox"
-              aria-label={checkboxLabel}
-              checked={selected.has(node.key)}
+            <span
+              style={{ marginTop: 3, display: 'inline-flex', flexShrink: 0 }}
               onClick={e => e.stopPropagation()}
-              onChange={isContainer ? () => toggleSubtree(node.key) : () => toggle(node.key)}
-              style={{ marginTop: 3 }}
-            />
+            >
+              <CheckBox
+                checked={selected.has(node.key)}
+                label={checkboxLabel}
+                onChange={isContainer ? () => toggleSubtree(node.key) : () => toggle(node.key)}
+              />
+            </span>
             {isPos
               ? <div className="flex items-center gap-1.5">
                   <PosTag value={node.field.value} />

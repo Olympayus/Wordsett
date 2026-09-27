@@ -3,6 +3,7 @@ import { useFocusTrap } from '../../lib/useFocusTrap'
 import { useCategoryStore } from '../../stores/categoryStore'
 import Icon from '../icons'
 import { Button } from '../ui/Button'
+import CheckBox from '../ui/CheckBox'
 
 interface Props {
   open: boolean
@@ -69,7 +70,7 @@ export default function CategoryAssignModal({ open, wordId, onClose, onCreateNew
                 key={cat.id}
                 style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '8px 4px', cursor: 'pointer', borderRadius: 'var(--radius-sm)' }}
               >
-                <input type="checkbox" checked={assigned.has(cat.id)} onChange={() => toggle(cat.id)} />
+                <CheckBox checked={assigned.has(cat.id)} onChange={() => toggle(cat.id)} label={cat.name} />
                 <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
                 <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', flex: 1, minWidth: 0 }}>{cat.name}</span>
               </label>
