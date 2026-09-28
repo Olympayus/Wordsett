@@ -196,16 +196,19 @@ export default function ReviewArena() {
         </div>
       </div>
 
-      {/* 整个答题页两栏（v0.6.3 打磨）：左栏＝题面 + 作答 + 三键 + 下一题，
-          右栏＝完整词条并排、从顶端就开始。
-          先前两栏只做在结果区（ResultBlock），于是题面区——它占着从进度条到结果区之间的
-          整段——右半边一直是空的，而完整词条被压在它下面，看上去就是「完整词条上方有大片空白」。
-          网格提到这一层，空白就没有了；两栏宽度仍由 resultLayout 判（窄屏 / 快照放不下 → 单列），
-          故窄屏与长词条的退路原样保留。
-          导航条与进度条留在两栏**之外**、仍在整页顶端横跨：它是全局的队列位置，
-          分栏会让「第 n / N」缩到左半边。原先的 gap-6（24px）也一并不再作用于题面与结果之间
-          ——两者现在同处左栏、由 ResultBlock 内部的 gap-4 隔开，24px 会在作答行与题面之间
-          多留一道空档。 */}
+      {/*
+        整个答题页两栏（v0.6.3 打磨）：左栏＝题面 + 作答 + 三键 + 下一题，
+        右栏＝完整词条并排、从揭示那一刻起从顶端就开始。
+        先前两栏只做在结果区（ResultBlock），于是题面区——它占着从进度条到结果区之间的
+        整段——右半边一直是空的，而完整词条被压在它下面，看上去就是「完整词条上方有大片空白」。
+        网格提到这一层，空白就没有了；两栏宽度仍由 resultLayout 定（窄屏 → 单列、词条置底），
+        故窄屏的退路原样保留。
+        两栏的**摆位**在这里定、**出不出现在右栏**由下面那个 revealed 门控定——两者要分清：
+        门控丢了就是泄题（见下面 EntrySnapshot 处的注释），摆位丢了只是留白。
+        导航条与进度条留在两栏**之外**、仍在整页顶端横跨：它是全局的队列位置，
+        分栏会让「第 n / N」缩到左半边。原先的 gap-6（24px）也一并不再作用于题面与结果之间
+        ——两者现在同处左栏、由左栏自己的 gap-6 隔开，24px 会在作答行与题面之间多留一道空档。
+      */}
       <div style={{
         display: 'grid', gap: 22, alignItems: 'start',
         gridTemplateColumns: resultGridColumns(!narrow),
@@ -266,12 +269,19 @@ export default function ReviewArena() {
             </ResultBlock>
           )}
         </div>
-        {/* 右栏：完整词条。与题面同处顶端，两侧之间不再隔着题面区。 */}
-        <EntrySnapshot
-          wordId={dto.wordId}
-          lemma={snapshot?.lemma ?? String(dto.answer.lemma ?? '')}
-          phonetic={snapshot?.phonetic ?? ''}
-        />
+        {/* 右栏：完整词条。与题面同处顶端，两侧之间不再隔着题面区。
+            **必须由 revealed 门控**（v0.6.3 打磨修正）：原先词条在 ResultBlock 内、
+            而 ResultBlock 被 `{revealed && …}` 门控，提到页面层时若连这道门一起丢掉，
+            它就会在**未作答**时渲染——recall（中译英）的目标词、english_def 的目标词、
+            listen 的词、cloze 的空缺答案，全都被提前印在题面旁边。
+            揭示后它与题面顶端对齐并排，中间零空白；未揭示时右栏是空的，这是对的。 */}
+        {revealed && (
+          <EntrySnapshot
+            wordId={dto.wordId}
+            lemma={snapshot?.lemma ?? String(dto.answer.lemma ?? '')}
+            phonetic={snapshot?.phonetic ?? ''}
+          />
+        )}
       </div>
     </div>
   )
