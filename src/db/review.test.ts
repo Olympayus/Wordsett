@@ -142,12 +142,44 @@ describe('db/review 读路径', () => {
     await seedWord(db, 'w2', 'beta')
     await registerCards(['w1', 'w2'], db)
     await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
-    await db.execute("UPDATE review_cards SET initial_familiarity = 3 WHERE word_id = 'w1'")
+    await db.execute(
+      "INSERT INTO field_values (id, word_id, field_id, value, source, edited, display_order, created_at, updated_at) VALUES ('fv2','w1','f_initial_familiarity','3','user',0,0,1,1)"
+    )
     const r = await getCandidates(NOW, db)
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.data.find(c => c.wordId === 'w1')!.initialFamiliarity).toBe(3)
     expect(r.data.find(c => c.wordId === 'w2')!.initialFamiliarity).toBe(1)
+  })
+
+  it('getCandidates 对非法熟悉度值一律夹取为 1', async () => {
+    // 字段值是可编辑的自由文本，用户在工作台能改成任意内容——
+    // 组卷排序与档位映射都消费它，非法值必须在读进来的那一刻挡掉。
+    await seedWord(db, 'w1', 'alpha')
+    await registerCards(['w1'], db)
+    for (const bad of ['9', 'abc', '', '0', '2.7']) {
+      await db.execute("DELETE FROM field_values WHERE field_id = 'f_initial_familiarity'")
+      await db.execute(
+        "INSERT INTO field_values (id, word_id, field_id, value, source, edited, display_order, created_at, updated_at) VALUES ('fv1','w1','f_initial_familiarity',?1,'user',0,0,1,1)",
+        [bad],
+      )
+      const r = await getCandidates(NOW, db)
+      expect(r.ok).toBe(true)
+      if (!r.ok) return
+      expect(r.data.find(c => c.wordId === 'w1')!.initialFamiliarity).toBe(1)
+    }
+  })
+
+  it('卡片上的旧列 initial_familiarity 不再被读到', async () => {
+    // v0.6.4 起熟悉度的真相在词条级字段。旧列里即便有值也必须被忽略——
+    // 否则「改了字段没生效」这类问题会有一条看不见的第二数据源在后面顶着。
+    await seedWord(db, 'w1', 'alpha')
+    await registerCards(['w1'], db)
+    await db.execute("UPDATE review_cards SET initial_familiarity = 3 WHERE word_id = 'w1'")
+    const r = await getCandidates(NOW, db)
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.data.find(c => c.wordId === 'w1')!.initialFamiliarity).toBe(1)
   })
 
   it('getTemplateLogs 按卡分组返回日志，含 practice 模式', async () => {

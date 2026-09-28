@@ -76,6 +76,9 @@ function mapCandidate(
   opts: CandidateOpts,
 ): QueueCandidate {
   const m = mask[r.word_id] ?? { translation: false, definition: false, example: false, phonetic: false }
+  // fam 是**字段值**（自由文本），不是有约束的列：用户能在工作台把它改成任何内容。
+  // 这里的三值夹取因此从「防列默认值」变成了真正的闸门——非法值一律当完全陌生处理，
+  // 不能让 '9' / 'abc' 流进组卷排序与档位映射（Review Focus 2）。
   const fam = Number(r.initial_familiarity)
   return {
     cardId: r.card_id,
@@ -99,7 +102,10 @@ export async function getCandidates(
     const rows = await d.select<Record<string, any>>(
       `SELECT c.id AS card_id, c.word_id,
               s.stability, s.due_at, s.last_review_at,
-              c.initial_familiarity
+              (SELECT fv.value FROM field_values fv
+                 JOIN field_definitions fd ON fd.id = fv.field_id
+                WHERE fv.word_id = c.word_id AND fd.key = 'initial_familiarity'
+                ORDER BY fv.display_order LIMIT 1) AS initial_familiarity
        FROM review_cards c
        LEFT JOIN review_states s ON s.card_id = c.id
        WHERE s.card_id IS NULL OR (s.suspended = 0 AND s.due_at <= ?1)`,
@@ -120,7 +126,10 @@ export async function getAllCandidates(h?: DbHandle, opts: CandidateOpts = {}): 
     const rows = await d.select<Record<string, any>>(
       `SELECT c.id AS card_id, c.word_id,
               s.stability, s.due_at, s.last_review_at,
-              c.initial_familiarity
+              (SELECT fv.value FROM field_values fv
+                 JOIN field_definitions fd ON fd.id = fv.field_id
+                WHERE fv.word_id = c.word_id AND fd.key = 'initial_familiarity'
+                ORDER BY fv.display_order LIMIT 1) AS initial_familiarity
        FROM review_cards c
        LEFT JOIN review_states s ON s.card_id = c.id
        WHERE s.card_id IS NULL OR s.suspended = 0`,
