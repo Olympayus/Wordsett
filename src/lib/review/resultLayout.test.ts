@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  RESULT_BREAKPOINT, RESULT_CONTENT_WIDTH, NARROW_CONTENT_WIDTH, RESULT_HALF_WIDTH, fitsInHalf, resultGridColumns,
+  RESULT_BREAKPOINT, RESULT_CONTENT_WIDTH, NARROW_CONTENT_WIDTH, RESULT_HALF_WIDTH, resultGridColumns,
 } from './resultLayout'
 
 /** 切出顶层列定义。minmax() 的括号内自带空格，直接 split(' ') 会把「minmax(0, 1fr) 1fr」数成 3 列。 */
@@ -33,7 +33,7 @@ function assertShrinkable(track: string) {
   expect(m![1], `轨道没有长度：${track}`).toMatch(/^\d/)
 }
 
-describe('结果区版式常量', () => {
+describe('答题页版式常量', () => {
   it('断点 1100：与两栏内容区上限同一个数', () => {
     expect(RESULT_BREAKPOINT).toBe(1100)
   })
@@ -42,8 +42,9 @@ describe('结果区版式常量', () => {
     expect(RESULT_CONTENT_WIDTH).toBe(`${RESULT_BREAKPOINT}px`)
   })
 
-  it('单侧上限 550 ＝ 内容区上限的一半', () => {
-    // 「左右两侧的上限设为全部空间的 1/2」——1/2 是相对内容区上限，不是相对视口。
+  it('单侧上限 550 ＝ 内容区上限的一半：左侧占满左 1/2，不按内容伸缩', () => {
+    // 「如果左侧仍有空间（即没触及 1/2 的宽度）则占满左 1/2」——1/2 是相对内容区上限。
+    // 对分由 resultGridColumns 的 1fr 1fr 承担；这个数管的是单栏时左栏的上限。
     expect(RESULT_HALF_WIDTH).toBe(550)
   })
 
@@ -53,33 +54,10 @@ describe('结果区版式常量', () => {
   })
 })
 
-describe('快照能不能与之并排（按最宽不可断行的实测宽度）', () => {
-  it('刚好半栏（550）放得下：并排。判据是 <= 不是 <，差一个像素不该让版式翻面', () => {
-    expect(fitsInHalf(RESULT_HALF_WIDTH)).toBe(true)
-  })
-
-  it('短词条（lemma + 音标 + 词性标签，约 300）放得下', () => {
-    expect(fitsInHalf(300)).toBe(true)
-  })
-
-  it('超出一像素就置底：宁可整块挪下去，也不要在半栏里换行 / 溢出', () => {
-    expect(fitsInHalf(RESULT_HALF_WIDTH + 1)).toBe(false)
-  })
-
-  it('长单词 / 长音标（900）置底', () => {
-    expect(fitsInHalf(900)).toBe(false)
-  })
-
-  it('还没量到（0 ＝ 未测量 / 快照为空）当放得下：先并排，别让首帧闪一下单列', () => {
-    // 快照内容是异步取回的，首帧必然是「没量到」。若把 0 判成放不下，
-    // 每次换题都会先单列再跳成两列。放不下的那一帧本来也没有内容可错位。
-    expect(fitsInHalf(0)).toBe(true)
-  })
-})
-
-describe('结果区网格列定义', () => {
-  it('并排时两轨等分，且都可收缩', () => {
-    // 等分而非一轨定宽：定宽的窄轨会在宽窗口下留一大片空白，那正是「看起来对不齐」的来源。
+describe('答题页两栏网格列定义', () => {
+  it('并排时两轨**等分**且都可收缩', () => {
+    // 等分而非「左轨按内容、右轨吃余量」：后者在宽窗口下会在左侧留下一条空白带，
+    // 看上去就是错位。用户要的是「占满左 1/2」，不是「够宽就按内容」。
     const t = tracks(resultGridColumns(true))
     expect(t).toHaveLength(2)
     expect(t[0]).toBe(t[1])
@@ -87,7 +65,7 @@ describe('结果区网格列定义', () => {
     assertShrinkable(t[1])
   })
 
-  it('单列时一轨（DOM 顺序＝作答在前、快照在后，即「完整词条置底」）', () => {
+  it('单列时一轨（DOM 顺序＝左栏在前、完整词条在后，即「完整词条置底」）', () => {
     const t = tracks(resultGridColumns(false))
     expect(t).toHaveLength(1)
     assertShrinkable(t[0])

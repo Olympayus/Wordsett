@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import PromptCard, { inputKindFor, typedTarget } from './PromptCard'
 import RatingBar from './RatingBar'
 import ResultBlock from './ResultBlock'
+import EntrySnapshot from './EntrySnapshot'
 import ArenaNavBar from './ArenaNavBar'
 import SquareButton from '../ui/SquareButton'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
@@ -11,7 +12,7 @@ import { rateCard, type CardContent, type RateCardResult } from '../../services/
 import { compareTyped } from '../../lib/review/typed'
 import { currentAnswered, canGoBack, canGoForward, answeredCount, revealedInputFor } from '../../lib/review/nav'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
-import { RESULT_BREAKPOINT, RESULT_CONTENT_WIDTH, NARROW_CONTENT_WIDTH } from '../../lib/review/resultLayout'
+import { RESULT_BREAKPOINT, RESULT_CONTENT_WIDTH, NARROW_CONTENT_WIDTH, RESULT_HALF_WIDTH, resultGridColumns } from '../../lib/review/resultLayout'
 import { getWordContent } from '../../db/review'
 
 /**
@@ -179,7 +180,7 @@ export default function ReviewArena() {
   }
 
   return (
-    <div data-arena-region className="flex flex-col gap-6 p-8" style={{ maxWidth: narrow ? NARROW_CONTENT_WIDTH : RESULT_CONTENT_WIDTH }}>
+    <div data-arena-region className="flex flex-col gap-4 p-8" style={{ maxWidth: narrow ? NARROW_CONTENT_WIDTH : RESULT_CONTENT_WIDTH }}>
       <div>
         <ArenaNavBar
           index={index}
@@ -195,60 +196,83 @@ export default function ReviewArena() {
         </div>
       </div>
 
-      {/* key：换卡即重挂 PromptCard，否则 AnswerInput 的 value / picked 会跨卡残留 */}
-      <PromptCard
-        key={dto.cardId}
-        dto={dto}
-        letterHighlight={letterHighlight}
-        disabled={revealed}
-        // 已揭示就传本次的作答原文，让选项**立刻**着对错色，而不必等 store 的 answered
-        // （那条记录要评分完才有）。跳过时 lastInput 为 ''，判据要的正是这个 '' 而非
-        // undefined 的差别——取值规则见 revealedInputFor 的文档注释。
-        revealedInput={revealedInputFor(revealed, lastInput, pastEntry?.input)}
-        onSkip={() => void handleRate(1, '')}
-        onSubmit={handleSubmit}
-      />
+      {/* 整个答题页两栏（v0.6.3 打磨）：左栏＝题面 + 作答 + 三键 + 下一题，
+          右栏＝完整词条并排、从顶端就开始。
+          先前两栏只做在结果区（ResultBlock），于是题面区——它占着从进度条到结果区之间的
+          整段——右半边一直是空的，而完整词条被压在它下面，看上去就是「完整词条上方有大片空白」。
+          网格提到这一层，空白就没有了；两栏宽度仍由 resultLayout 判（窄屏 / 快照放不下 → 单列），
+          故窄屏与长词条的退路原样保留。
+          导航条与进度条留在两栏**之外**、仍在整页顶端横跨：它是全局的队列位置，
+          分栏会让「第 n / N」缩到左半边。原先的 gap-6（24px）也一并不再作用于题面与结果之间
+          ——两者现在同处左栏、由 ResultBlock 内部的 gap-4 隔开，24px 会在作答行与题面之间
+          多留一道空档。 */}
+      <div style={{
+        display: 'grid', gap: 22, alignItems: 'start',
+        gridTemplateColumns: resultGridColumns(!narrow),
+      }}>
+        <div className="flex flex-col gap-6" style={{ maxWidth: narrow ? `${RESULT_HALF_WIDTH}px` : undefined }}>
+          {/* key：换卡即重挂 PromptCard，否则 AnswerInput 的 value / picked 会跨卡残留 */}
+          <PromptCard
+            key={dto.cardId}
+            dto={dto}
+            letterHighlight={letterHighlight}
+            disabled={revealed}
+            // 已揭示就传本次的作答原文，让选项**立刻**着对错色，而不必等 store 的 answered
+            // （那条记录要评分完才有）。跳过时 lastInput 为 ''，判据要的正是这个 '' 而非
+            // undefined 的差别——取值规则见 revealedInputFor 的文档注释。
+            revealedInput={revealedInputFor(revealed, lastInput, pastEntry?.input)}
+            onSkip={() => void handleRate(1, '')}
+            onSubmit={handleSubmit}
+          />
 
-      {rateError && (
-        // 错误行放在 revealed 块**之外**、题面之下。「跳过」按钮在揭示前就能按（spec §2.4），
-        // 而 setRevealed(true) 只在评分成功后跑：跳过落库失败时 revealed 仍为假、整块结果区
-        // 不渲染，错误若只挂在块内就成「点了没反应」（题面不变、跳过还在、无提示）。
-        // 评分成功时 setRateError(null) 已把它清掉，故成功后的「跳过」不会留残影。
-        <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: '#c0705a' }}>{rateError}</span>
-      )}
+          {rateError && (
+            // 错误行放在揭示块**之外**、题面之下。「跳过」按钮在揭示前就能按（spec §2.4），
+            // 而 setRevealed(true) 只在评分成功后跑：跳过落库失败时 revealed 仍为假、整块结果区
+            // 不渲染，错误若只挂在块内就成「点了没反应」（题面不变、跳过还在、无提示）。
+            // 评分成功时 setRateError(null) 已把它清掉，故成功后的「跳过」不会留残影。
+            <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: '#c0705a' }}>{rateError}</span>
+          )}
 
-      {revealed && (
-        // 三键与「下一题」递进 ResultBlock 的左栏：宽屏时它们与完整词条并排（spec §6.5），
-        // 否则会落在两栏之下、跟改动前一样被词条顶到屏幕下半。评分状态仍留在这里。
-        <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} viewportWide={!narrow}>
-          {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
-          {!answeredNow && <RatingBar onRate={r => void handleRate(r, lastInput)} disabled={rating} />}
-          {past ? (
-            // 回看态：只读回放。一般位置向前靠导航条右箭头；但整轮已答完又翻回最后一题时
-            // canGoForward 在队尾恒为 false（nav.test.ts 钉住「箭头不越界」），右箭头被灰掉，
-            // 而「结束回合」按设计不出小结——那轮小结就彻底不可达了。补一颗尾部专属的
-            // 「查看小结」：它调的正是 advance()，在队尾会把 phase 置成 'summary'。
-            // 按钮与「下一题」同形同位（下一题本就是这一态的正常控件），两态互斥。
-            atTail ? (
-              // alignSelf 移到包裹的 <div> 上：SquareButton 是 inline-flex，
-              // 在本组件的 flex-col 里默认会被拉满宽（见「下一题」处的同款说明）。
-              // tone='surface'：外层这层 <div> 与 <div data-arena-region> 都不设底，
-              // 最近一个设了底的祖先是 ReviewModule 的 <main>（--color-surface 纯白）。
-              <div style={{ alignSelf: 'flex-start' }}>
-                <SquareButton tone="surface" onClick={() => advance()}>查看小结</SquareButton>
-              </div>
-            ) : (
-              <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-                本题评分：{RATING_LABELS[pastEntry?.rating ?? 0] ?? '—'}
-              </span>
-            )
-          ) : rated ? (
-            <div style={{ alignSelf: 'flex-start' }}>
-              <SquareButton tone="surface" onClick={() => advance()}>下一题</SquareButton>
-            </div>
-          ) : null}
-        </ResultBlock>
-      )}
+          {revealed && (
+            // 结果区现在只管左栏内部：作答行 + 三键 + 下一题。完整词条那一份提到外层网格的
+            // 右轨（本题的 snapshot 仍经它取，两个副本读的是同一个词条）。
+            <ResultBlock dto={dto} lastInput={lastInput} correct={correct}>
+              {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
+              {!answeredNow && <RatingBar onRate={r => void handleRate(r, lastInput)} disabled={rating} />}
+              {past ? (
+                // 回看态：只读回放。一般位置向前靠导航条右箭头；但整轮已答完又翻回最后一题时
+                // canGoForward 在队尾恒为 false（nav.test.ts 钉住「箭头不越界」），右箭头被灰掉，
+                // 而「结束回合」按设计不出小结——那轮小结就彻底不可达了。补一颗尾部专属的
+                // 「查看小结」：它调的正是 advance()，在队尾会把 phase 置成 'summary'。
+                // 按钮与「下一题」同形同位（下一题本就是这一态的正常控件），两态互斥。
+                atTail ? (
+                  // alignSelf 移到包裹的 <div> 上：SquareButton 是 inline-flex，
+                  // 在本组件的 flex-col 里默认会被拉满宽（见「下一题」处的同款说明）。
+                  // tone='surface'：外层这层 <div> 与 <div data-arena-region> 都不设底，
+                  // 最近一个设了底的祖先是 ReviewModule 的 <main>（--color-surface 纯白）。
+                  <div style={{ alignSelf: 'flex-start' }}>
+                    <SquareButton tone="surface" onClick={() => advance()}>查看小结</SquareButton>
+                  </div>
+                ) : (
+                  <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+                    本题评分：{RATING_LABELS[pastEntry?.rating ?? 0] ?? '—'}
+                  </span>
+                )
+              ) : rated ? (
+                <div style={{ alignSelf: 'flex-start' }}>
+                  <SquareButton tone="surface" onClick={() => advance()}>下一题</SquareButton>
+                </div>
+              ) : null}
+            </ResultBlock>
+          )}
+        </div>
+        {/* 右栏：完整词条。与题面同处顶端，两侧之间不再隔着题面区。 */}
+        <EntrySnapshot
+          wordId={dto.wordId}
+          lemma={snapshot?.lemma ?? String(dto.answer.lemma ?? '')}
+          phonetic={snapshot?.phonetic ?? ''}
+        />
+      </div>
     </div>
   )
 }
