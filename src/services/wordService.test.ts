@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { getDb } from '../db/connection'
 import * as wordsDb from '../db/words'
 import { createTestDb, type DbLike } from '../db/test-utils'
-import { deleteWord, getPreviews, mergeFields } from './wordService'
+import { deleteWord, getPreviews, mergeFields, setInitialFamiliarity } from './wordService'
 import { clearDefinitionsCache } from './fieldService'
 import { getFieldValuesForWord } from '../db/fields'
 import * as fieldsDb from '../db/fields'
@@ -216,6 +216,42 @@ describe('wordService.mergeFields 显式父子匹配键', () => {
     expect(zhuangli.parentId).toBe(adj.id)
     expect(dagangqin.parentId).toBe(n.id)
     expect(r.data.find(fv => fv.fieldId === 'f_english_definition' && fv.value === 'a piano with strings')!.parentId).toBe(n.id)
+  })
+})
+
+describe('setInitialFamiliarity', () => {
+  // 建词沿用本文件既有写法 wordsDb.createWord（不是 wordService.addWord）：
+  // addWord 还会串一句 assignDefaultToWord，把分类副作用带进一个词条级单测里没有意义。
+  const createTestWord = async (lemma: string) => {
+    const w = await wordsDb.createWord({ lemma })
+    if (!w.ok) throw new Error('createWord failed')
+    return w.data
+  }
+
+  it('首次写入产生一行；改值更新同一行且不产生第二行', async () => {
+    const word = await createTestWord('lucid')
+    const id = word.id
+
+    expect(await setInitialFamiliarity(id, 2)).toBe(true)
+    let rows = await getFieldValuesForWord(id)
+    let fam = rows.data.filter(v => v.fieldId === 'f_initial_familiarity')
+    expect(fam.length).toBe(1)
+    expect(fam[0].value).toBe('2')
+
+    // 关键断言：改值不能插出第二行。走 mergeFields 就会在这里得到 2。
+    expect(await setInitialFamiliarity(id, 3)).toBe(true)
+    rows = await getFieldValuesForWord(id)
+    fam = rows.data.filter(v => v.fieldId === 'f_initial_familiarity')
+    expect(fam.length).toBe(1)
+    expect(fam[0].value).toBe('3')
+  })
+
+  it('非法入参夹取到 1 / 2 / 3', async () => {
+    const word = await createTestWord('quaint')
+    const id = word.id
+    await setInitialFamiliarity(id, 9 as any)
+    const rows = await getFieldValuesForWord(id)
+    expect(rows.data.find(v => v.fieldId === 'f_initial_familiarity')!.value).toBe('1')
   })
 })
 

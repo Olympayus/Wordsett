@@ -10,7 +10,8 @@ import { lookupTitleMeta, lookupWord } from '../../services/searchService'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
 import { ensureWord } from '../../lib/ensureWord'
-import type { MergeFieldInput } from '../../services/wordService'
+import FamiliarityChoice from './FamiliarityChoice'
+import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
 import type { DictionaryEntry } from '../../types/dictionary'
 
@@ -52,9 +53,15 @@ export default function DictDetailPanel({ word }: Props) {
   // 标题信息区：TitleMeta + 勾选构建的 strip 合并输入（WordTitleExtras 上报）
   const [meta, setMeta] = useState<TitleMeta | null>(null)
   const [stripInputs, setStripInputs] = useState<MergeFieldInput[]>([])
+  // 在库判据与 ensureWord 同源（词表里按小写 lemma 匹配），但**在结果回来之前就得算**：
+  // 收录完成时 handleMergeAdd 会把新词塞进词表，若届时才求值，库外词也会算出「已在库」。
+  const [inLibrary, setInLibrary] = useState(false)
   const showWorkbench = useViewStore(s => s.showWorkbench)
   const selectWord = useWordStore(s => s.selectWord)
   const mergeWordFields = useWordStore(s => s.mergeWordFields)
+
+  // 初始熟悉度（spec 4.6）：只对库外词问一次，写入随「合并添加」一起发生。
+  const [familiarity, setFamiliarity] = useState<InitialFamiliarityChoice>(1)
 
   // 每张卡片的受控句柄 + 勾选数（卡片 ref/上报均为可选的，重复合并安全：mergeWordFields 幂等去重）
   const cardRefs = useRef<Record<string, DictDetailCardHandle | null>>({})
@@ -88,6 +95,9 @@ export default function DictDetailPanel({ word }: Props) {
       setMergeError(true)
       return
     }
+    // 熟悉度随收录一并写入。失败不算致命——词条与字段已经进去了，
+    // 熟悉度缺失只会让该词回落「完全陌生」，不值得把整次收录判为失败。
+    await setInitialFamiliarity(target.id, familiarity)
     void selectWord(target.id)
     showWorkbench()
   }
@@ -103,6 +113,8 @@ export default function DictDetailPanel({ word }: Props) {
     setNetworkCount(0)
     setMeta(null)
     setStripInputs([])
+    setFamiliarity(1)
+    setInLibrary(useWordStore.getState().words.some(w => w.lemma.toLowerCase() === word.toLowerCase()))
     lookupWord(word)
       .then(r => { if (!cancelled) setResults(r) })
       .catch(e => { console.error('Word lookup failed:', e); if (!cancelled) setLookupError(true) })
@@ -219,6 +231,25 @@ export default function DictDetailPanel({ word }: Props) {
         <div style={{ display: tab === 'network' ? 'block' : 'none' }}>
           <SemanticNetwork word={word} onCountChange={setNetworkCount} />
         </div>
+
+        {/* 收录区（spec 4.6 / 03 §2.10）：只在词不在库时出现。
+            与划词小窗（段三，未实现）同字段、同枚举、同默认值——
+            段三落地时共用 setInitialFamiliarity，不要另写一份。 */}
+        {!loading && !lookupError && results.length > 0 && (
+          <div style={{
+            marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--color-border)',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>初始熟悉度</span>
+            {inLibrary ? (
+              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                已在库 · 勾选字段后点「合并添加」收录
+              </span>
+            ) : (
+              <FamiliarityChoice value={familiarity} onChange={setFamiliarity} />
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

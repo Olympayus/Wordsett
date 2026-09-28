@@ -106,3 +106,30 @@ export async function getPreviews(): Promise<WordWithPreview[]> {
   const result = await wordsDb.getWordsWithPreviews()
   return result.ok ? result.data : []
 }
+
+/** 初始熟悉度：完全陌生 1 / 眼熟 2 / 认识 3（spec 4.6）。 */
+export type InitialFamiliarityChoice = 1 | 2 | 3
+
+/**
+ * 写入初始熟悉度（读-改-写）。
+ *
+ * **不要用 mergeFields 传这个字段**：它按 `root||fieldId||value` 去重，而这里改的正是 value
+ * ——换一档就会插出第二行，「这个词的熟悉度」变成两行。插不进去也删不掉，读取端还得挑一条。
+ *
+ * 因此本函数自己判断：已有该字段行就原地改，没有才插。
+ */
+export async function setInitialFamiliarity(wordId: string, value: InitialFamiliarityChoice): Promise<boolean> {
+  // 入参在类型上是 1|2|3，但调用方可能来自未经校验的 UI 状态，运行时再夹一次。
+  const v = value === 2 || value === 3 ? value : 1
+  const own = await getFieldValuesForWord(wordId)
+  if (!own.ok) return false
+  const existing = own.data.find(fv => fv.fieldId === 'f_initial_familiarity' && fv.parentId === null)
+  if (existing) {
+    const r = await fieldsDb.updateFieldValueById(existing.id, { value: String(v) })
+    return r.ok
+  }
+  const r = await fieldsDb.insertFieldValue({
+    wordId, fieldId: 'f_initial_familiarity', value: String(v), source: 'user',
+  })
+  return r.ok
+}
