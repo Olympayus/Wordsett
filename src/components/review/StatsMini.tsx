@@ -10,13 +10,18 @@ export interface ReviewStats {
  * 四张卡的标题与其补充文字口径，合成一张表。
  * 早先是两个平行数组（标题一份、subtitleFor('…') 四次调用），对调任意相邻两项照样编译、
  * 过类型检查、过 lint、渲染也像模像样，只在卡面写错数字。kind 写错则更隐蔽——趋势图搬进来时
- * 就差点把 TrendBar 带着上一张卡的 kind 一起改名。标题字面取自 spec §4.2 的表，不改。
+ * 就差点把 TrendBar 带着上一张卡的 kind 一起改名。标题字面取自 spec §4.2 的表。
+ *
+ * 趋势卡标题不带期间（v0.6.3 打磨）：spec §4.2 写的是「近 14 天 · 复习量 / 正确率」，
+ * 而卡头右上角自 v0.6.3 条目 7 起已由 periodFor('trend') 常驻「近 14 天」，
+ * 标题里再写一遍是同一句话印两次。故只删期间前缀，「 / 」两侧的空格保留——
+ * 全仓的斜杠写法都有空格（控制台的「已答 8 / 17」、本条原文）。
  */
 const CARDS = [
   { title: '遗忘曲线变动', kind: 'rating', render: (d: ReviewStats) => <RatingSpark data={d.recentRatings} /> },
   { title: '明日压力', kind: 'due', render: (d: ReviewStats) => <DueBars data={d.dueByDay} /> },
   { title: '熟知度分布', kind: 'mastery', render: (d: ReviewStats) => <MasteryBuckets data={d.masteryBuckets} /> },
-  { title: '近 14 天 · 复习量 / 正确率', kind: 'trend', render: (d: ReviewStats) => <TrendBars data={d.recentRatings} /> },
+  { title: '复习量 / 正确率', kind: 'trend', render: (d: ReviewStats) => <TrendBars data={d.recentRatings} /> },
 ] as const
 
 /**
