@@ -6,7 +6,7 @@ import type { ReviewCardDTO } from '../../services/reviewService'
 import { TEMPLATE_DIFFICULTY } from './template'
 
 const card = (cardId: string, template: ReviewCardDTO['template'], prompt: any, answer: any): ReviewCardDTO =>
-  ({ cardId, wordId: `w-${cardId}`, template, prompt, answer, sched: { dueAt: 0, reps: 0, lapses: 0, lastReviewAt: null, mastery: null, rNow: 0 } })
+  ({ cardId, wordId: `w-${cardId}`, template, prompt, answer, sched: { dueAt: 0, reps: 0, lapses: 0, lastReviewAt: null, mastery: null, rNow: 0, defaultRating: null } })
 
 describe('roundSummary', () => {
   it('答题数与正确数按 rating>=3 计', () => {

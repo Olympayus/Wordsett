@@ -10,7 +10,7 @@ function makeCard(i: number, template: Template = 'recall'): ReviewCardDTO {
     template,
     prompt: {},
     answer: {},
-    sched: { dueAt: 0, reps: 0, lapses: 0, lastReviewAt: null, mastery: null, rNow: 1 },
+    sched: { dueAt: 0, reps: 0, lapses: 0, lastReviewAt: null, mastery: null, rNow: 1, defaultRating: null },
   }
 }
 

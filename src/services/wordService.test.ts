@@ -228,20 +228,25 @@ describe('setInitialFamiliarity', () => {
     return w.data
   }
 
+  // 与 createTestWord 同一种收窄：DbResult 的失败分支上没有 data，不判一下就读不出来。
+  const famRows = async (id: string) => {
+    const r = await getFieldValuesForWord(id)
+    if (!r.ok) throw new Error('getFieldValuesForWord failed')
+    return r.data.filter(v => v.fieldId === 'f_initial_familiarity')
+  }
+
   it('首次写入产生一行；改值更新同一行且不产生第二行', async () => {
     const word = await createTestWord('lucid')
     const id = word.id
 
     expect(await setInitialFamiliarity(id, 2)).toBe(true)
-    let rows = await getFieldValuesForWord(id)
-    let fam = rows.data.filter(v => v.fieldId === 'f_initial_familiarity')
+    let fam = await famRows(id)
     expect(fam.length).toBe(1)
     expect(fam[0].value).toBe('2')
 
     // 关键断言：改值不能插出第二行。走 mergeFields 就会在这里得到 2。
     expect(await setInitialFamiliarity(id, 3)).toBe(true)
-    rows = await getFieldValuesForWord(id)
-    fam = rows.data.filter(v => v.fieldId === 'f_initial_familiarity')
+    fam = await famRows(id)
     expect(fam.length).toBe(1)
     expect(fam[0].value).toBe('3')
   })
@@ -250,8 +255,8 @@ describe('setInitialFamiliarity', () => {
     const word = await createTestWord('quaint')
     const id = word.id
     await setInitialFamiliarity(id, 9 as any)
-    const rows = await getFieldValuesForWord(id)
-    expect(rows.data.find(v => v.fieldId === 'f_initial_familiarity')!.value).toBe('1')
+    const fam = await famRows(id)
+    expect(fam.find(v => v.fieldId === 'f_initial_familiarity')!.value).toBe('1')
   })
 })
 
