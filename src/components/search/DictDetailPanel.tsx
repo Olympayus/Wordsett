@@ -95,9 +95,11 @@ export default function DictDetailPanel({ word }: Props) {
       setMergeError(true)
       return
     }
-    // 熟悉度随收录一并写入。失败不算致命——词条与字段已经进去了，
-    // 熟悉度缺失只会让该词回落「完全陌生」，不值得把整次收录判为失败。
-    await setInitialFamiliarity(target.id, familiarity)
+    // 熟悉度随收录一并写入，但**只在用户被问过时才写**（spec §4.6：单选与本写入同一个条件）。
+    // 在库词这里显示的是「已在库」、familiarity 恒为重置默认值 1，无条件写就会把用户当初选的档
+    // 覆写成「完全陌生」——不可撤销，且该值直通 Task 4 三键预填与 Task 6 冷启动档位徽标，
+    // 毁的正是本版要合上的那个环（spec §4.7）。
+    if (!inLibrary) await setInitialFamiliarity(target.id, familiarity)
     void selectWord(target.id)
     showWorkbench()
   }
