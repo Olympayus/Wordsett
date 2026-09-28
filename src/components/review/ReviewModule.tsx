@@ -95,7 +95,7 @@ export default function ReviewModule() {
     setEmptyNotice(null)
     const { queue: q } = await getQueue('free', params, scope)
     if (q.length === 0) { setEmptyNotice(NO_CARDS); return }
-    // 控制台的「本次范畴」读的是 store 里的 freeScope（spec §4.1 的四个自由练习名）。
+    // 控制台的「范围」读的是 store 里的 freeScope（spec §4.1 的四个自由练习名）。
     // 不传范围它恒为 null，只会显示通用的「自由练习」——四种范围分不出来。
     // 范围交给 startSession 一起写：队列非空才开本轮，没有会话就没有「本次」可言。
     startSession(q, scope)

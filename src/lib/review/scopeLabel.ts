@@ -1,8 +1,8 @@
 import type { FreeScopeKind, ReviewStrategy, Template } from './types'
 
 /**
- * 「本次范畴」的中文名（v0.6.2 条目 15）。控制台与自由练习的标签页标题共用这一处，
- * 免得同一个范围在两处写成两个名字。
+ * 控制台「范围」那一行的中文名（v0.6.2 条目 15；v0.6.3 条目 2 把行的标签从「本次范畴」改成「范围」）。
+ * 控制台与自由练习的标签页标题共用这一处，免得同一个范围在两处写成两个名字。
  */
 export function scopeLabel(strategy: ReviewStrategy, scope: FreeScopeKind | null): string {
   // 今日复习策略没有范围概念，直接给策略名

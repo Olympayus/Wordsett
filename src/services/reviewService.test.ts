@@ -45,7 +45,7 @@ vi.mock('../db/review', () => ({
 vi.mock('../db/categories', () => ({ getAllWordCategoryMap: getAllWordCategoryMapMock }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }))
 
-const { rateCard, getOverview, getQueue, REVIEW_DEFAULTS, getWeakWords } = await import('./reviewService')
+const { rateCard, getOverview, getTodayDeliverableCount, getQueue, REVIEW_DEFAULTS, getWeakWords } = await import('./reviewService')
 
 const scoringInput = {
   cardId: 'c1', rating: 3, template: 'cloze' as const, mode: 'review' as const,
@@ -117,6 +117,7 @@ const content = {
   exampleGloss: 'lasting for a very short time',
   matchedPos: 'adj.',
   firstSensePos: 'adj.',
+  firstDefPos: 'adj.',
   distractors: ['持久的', '明显的', '丰富的'],
 }
 
@@ -196,6 +197,16 @@ describe('reviewService.assembleCardDTO', () => {
     const dto = assembleCardDTO(candidate(), 'english_def', content, null)
     expect((dto.prompt as any).definition).toBe(content.definition)
     expect(dto.answer).toMatchObject({ lemma: 'ephemeral' })
+  })
+
+  it('英文释义题：题面词性读 firstDefPos，不读 partOfSpeech（v0.6.3 评审 F2）', () => {
+    // 夹具里两个字段取不同的值：若 english_def 退回读 content.partOfSpeech（跟着例句走的那个），
+    // 这条会红。题面把释义与词性印在同一行，两者必须同一义项——与 4a 在中译英上的要求同源。
+    const mixed = { ...content, partOfSpeech: 'adj.', firstDefPos: 'n.' }
+    const dto = assembleCardDTO(candidate(), 'english_def', mixed, null)
+    expect((dto.prompt as any).definition).toBe(content.definition)
+    expect((dto.prompt as any).partOfSpeech).toBe('n.')
+    expect((dto.prompt as any).partOfSpeech).not.toBe(mixed.partOfSpeech)
   })
 
   it('听辨：题面不含任何文本（只有播放意图），答案是词与释义', () => {
@@ -346,6 +357,56 @@ describe('reviewService.getOverview 用组卷同一道认读闸门', () => {
     expect(o.total).toBe(2)
     expect(queue).toHaveLength(2)
     expect(o.total).toBe(queue.length)
+  })
+})
+
+describe('reviewService.getTodayDeliverableCount 与控台同一个数（v0.6.3 评审 F1）', () => {
+  beforeEach(() => {
+    registerAllWordsMock.mockReset()
+    getCandidatesMock.mockReset()
+    getWordContentMock.mockReset()
+    getStatsMock.mockReset()
+    registerAllWordsMock.mockResolvedValue(undefined)
+    getStatsMock.mockResolvedValue({
+      ok: true,
+      data: { masteryBuckets: [1, 0, 0, 0, 0], dueByDay: Array(8).fill(0), recentRatings: [] },
+    })
+  })
+
+  it('到期积压 45 张、额度 30：标题栏 chip 与控台都是 30，不是 45', async () => {
+    // 修复前 chip 读 getStrategyCounts().today（只过字段掩码、不看 queueLimit），
+    // 同一行文案会在标题栏印 45、在控台印 30。两处现在共用 todayQueue，故必然同值。
+    getCandidatesMock.mockResolvedValue({
+      ok: true,
+      data: Array.from({ length: 45 }, (_, i) =>
+        candidate({ cardId: `c${i}`, wordId: `w${i}`, availableTemplates: ['recall'] })),
+    })
+    getWordContentMock.mockResolvedValue(content)
+    expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(30)
+    expect(await getTodayDeliverableCount(REVIEW_DEFAULTS)).toBe(30)
+  })
+
+  it('两道闸门同样作用在两处：例句取不到的词两处都不计（做完整轮才会一起归零）', async () => {
+    // chip 原先只过掩码，这种词永远算在它头上 → 本轮做完 chip 也归不了零（验收项 6）。
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [
+      candidate({ cardId: 'c1', wordId: 'w1', availableTemplates: ['cloze'] }),
+      candidate({ cardId: 'c2', wordId: 'w2', availableTemplates: ['cloze'] }),
+    ] })
+    getWordContentMock.mockImplementation(async (wordId: string) =>
+      wordId === 'w1' ? { ...content, example: '' } : content)
+    expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(1)
+    expect(await getTodayDeliverableCount(REVIEW_DEFAULTS)).toBe(1)
+  })
+
+  it('额度随参数变：两处必须传同一份参数，否则 chip 与控台又会分家', async () => {
+    // DueBadge 传的是 `{ ...REVIEW_DEFAULTS, ...用户设置 }` 的三个字段，与控台一致。
+    getCandidatesMock.mockResolvedValue({
+      ok: true,
+      data: Array.from({ length: 45 }, (_, i) =>
+        candidate({ cardId: `c${i}`, wordId: `w${i}`, availableTemplates: ['recall'] })),
+    })
+    expect(await getTodayDeliverableCount({ ...REVIEW_DEFAULTS, queueLimit: 10 })).toBe(10)
+    expect(await getTodayDeliverableCount({ ...REVIEW_DEFAULTS, queueLimit: 30 })).toBe(30)
   })
 })
 

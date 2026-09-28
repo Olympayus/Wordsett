@@ -44,7 +44,11 @@ export default function ReviewConsole({ overview, weakCount, session }: {
         </div>
         <div style={{ fontSize: '16px', fontWeight: 600, marginTop: '8px' }}>
           已答 <span className="stat-num">{answeredCount}</span>{' '}
-          <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--color-text-secondary)' }}>/ {total}</span>
+          {/* 分母也套 .stat-num（v0.6.3 评审 F3）：它是同一个数的另一半，
+              留在外面会让「已答 8 / 17」里两个数字两种字形——本组件的约定是两态所有数字一律套。 */}
+          <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--color-text-secondary)' }}>
+            / <span className="stat-num">{total}</span>
+          </span>
         </div>
         <div style={{ height: '3px', marginTop: '8px', background: 'var(--color-border)', borderRadius: '2px' }}>
           <div style={{ width: `${pct}%`, height: '100%', background: 'var(--color-brand)', borderRadius: '2px' }} />

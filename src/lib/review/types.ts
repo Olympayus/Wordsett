@@ -14,9 +14,10 @@ export interface CardContent {
   lemma: string
   phonetic: string
   /**
-   * 认读与英文释义题用的词性（v0.6.2，条目 5）。有例句时等于 `matchedPos`（跟着例句走），
-   * 否则是该词第一个词性。`recognize`（prompt 与 answer 两侧）与 `english_def`（prompt）
-   * 读的是这个字段——`recall` 自 v0.6.3 条目 4a 起改读 `firstSensePos`，填空读 `matchedPos`。
+   * 认读题用的词性（v0.6.2，条目 5）。有例句时等于 `matchedPos`（跟着例句走），
+   * 否则是该词第一个词性。`recognize`（prompt 与 answer 两侧）读的是这个字段——
+   * `recall` 自 v0.6.3 条目 4a 起改读 `firstSensePos`，`english_def` 自评审 F2 起改读
+   * `firstDefPos`（这两处题面同时印释义，释义与词性必须同一义项），填空读 `matchedPos`。
    * 这几处刻意各取所需，**别合并**。
    */
   partOfSpeech: string
@@ -53,5 +54,17 @@ export interface CardContent {
    * 例句走，有例句时与这里不同源。
    */
   firstSensePos: string
+  /**
+   * 第一条英文释义所属义项的词性（v0.6.3 评审 F2）。与 `definition` **同源**：两者都取自
+   * 该词第一条 `english_definition` 及其 `part_of_speech` 祖先。
+   *
+   * 与 `firstSensePos` 同一条原则（释义与词性必须同一义项），只是走英释义那一支：
+   * 英释义题面把 `definition` 与这个词性并排印在一行（条目 3 之后是「definition (pos)」），
+   * 用 `partOfSpeech` 就会印出「第一义项的英文释义 + 例句所属义项的词性」——正是 4a 在
+   * 中译英上修掉的同一类错配，多义项词上照样可见（`src/db/review.test.ts` 的 seedMultiPos 形状）。
+   * 取不到祖先时退到 `fallbackPos`（该词第一个 `part_of_speech`），与 `firstSensePos` 的兜底
+   * 方向一致（都是「该词第一条」），使括号有值可标。**不是** `partOfSpeech`。
+   */
+  firstDefPos: string
   distractors: string[]
 }

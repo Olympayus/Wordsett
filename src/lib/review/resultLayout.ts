@@ -25,6 +25,14 @@ export const RESULT_BREAKPOINT = 1100
 export const RESULT_CONTENT_WIDTH = `${RESULT_BREAKPOINT}px`
 
 /**
+ * 窄屏下内容区的 maxWidth（px）。值不变（960），只是给它一个名字：先前组件里是裸的
+ * `'960px'` 字面量，与这里的 `RESULT_CONTENT_WIDTH` 各写各的——两个上限分居两处，
+ * 改一个另一个不会跟着动，而它们描述的是同一条内容区规则。
+ * 窄屏比宽屏窄是刻意的：单列下整行更长，正文行宽要收着读。
+ */
+export const NARROW_CONTENT_WIDTH = '960px'
+
+/**
  * 结果区网格的列定义。窄屏单列＝「完整词条置底」：DOM 顺序就是作答在前、词条在后，
  * 单列时天然从上往下排，不需要 order 调整。
  *

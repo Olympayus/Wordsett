@@ -251,6 +251,42 @@ describe('db/review 读路径', () => {
     expect(c?.firstSensePos).not.toBe(c?.matchedPos)
   })
 
+  it('firstDefPos 与 definition 同源，不跟例句走（v0.6.3 评审 F2）', async () => {
+    await seedWord(db, 'w1', 'detrimental')
+    // 该词第一个词性是 adj.（p1）、例句也挂在 adj. 那一支；第一条英文释义却挂在 n.（p2）下。
+    // 于是「退到 fallbackPos」与「沿用跟着例句走的 partOfSpeech」两种实现都给 adj.，
+    // 只有真的沿英文释义那一行上溯才拿得到 n. —— 这条把前两种一起钉红。
+    await seedValue(db, 'p1', 'w1', 'part_of_speech', 'adj.')
+    await seedValue(db, 'p2', 'w1', 'part_of_speech', 'n.')
+    await seedValue(db, 'd1', 'w1', 'english_definition', 'the quality of being harmful')
+    await db.execute("UPDATE field_values SET parent_id = 'p2' WHERE id = 'd1'")
+    await seedValue(db, 'd2', 'w1', 'english_definition', 'causing harm')
+    await db.execute("UPDATE field_values SET parent_id = 'p1' WHERE id = 'd2'")
+    await seedValue(db, 'e1', 'w1', 'example_sentence', 'Smoking is detrimental.')
+    await db.execute("UPDATE field_values SET parent_id = 'p1' WHERE id = 'e1'")
+
+    const c = await getWordContent('w1', db)
+    // 英释义题面印的是 definition + firstDefPos：两者必须同一义项
+    expect(c?.definition).toBe('the quality of being harmful')
+    expect(c?.firstDefPos).toBe('n.')
+    // matchedPos / partOfSpeech 仍跟着例句走（adj.）——三个 pos 字段语义不同，不该被合并
+    expect(c?.matchedPos).toBe('adj.')
+    expect(c?.partOfSpeech).toBe('adj.')
+    expect(c?.firstDefPos).not.toBe(c?.matchedPos)
+  })
+
+  it('firstDefPos 取不到祖先时退到该词第一个词性（fallbackPos）', async () => {
+    await seedWord(db, 'w1', 'detrimental')
+    // 第一条英文释义直接挂在词下（parent_id 为 NULL），没有 part_of_speech 祖先。
+    // 该词第一个词性是 n. —— 兜底必须是它，与 firstSensePos 的兜底方向一致。
+    await seedValue(db, 'p1', 'w1', 'part_of_speech', 'n.')
+    await seedValue(db, 'd1', 'w1', 'english_definition', 'causing harm')
+
+    const c = await getWordContent('w1', db)
+    expect(c?.definition).toBe('causing harm')
+    expect(c?.firstDefPos).toBe('n.')
+  })
+
   it('getDistractorTranslations 随机采样：同样输入多次取数不会总是同一组', async () => {
     await seedWord(db, 'w1', 'alpha')
     for (const [i, w] of ['beta', 'gamma', 'delta', 'epsilon'].entries()) await seedWord(db, `w${i + 2}`, w)

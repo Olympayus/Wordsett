@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useViewStore } from '../../stores/viewStore'
-import { getStrategyCounts, REVIEW_DEFAULTS } from '../../services/reviewService'
+import { getTodayDeliverableCount, REVIEW_DEFAULTS } from '../../services/reviewService'
 import { useClickOutside } from '../../lib/useClickOutside'
 
 /**
@@ -49,28 +49,41 @@ export default function DueBadge() {
   const show = useSettingsStore(s => s.review.showDueBadge)
   const showModule = useViewStore(s => s.showModule)
   const activeModule = useViewStore(s => s.activeModule)
+  // 影响这个数的三个设置（leechThreshold 只影响 weak，与到期数无关）：控台传的是
+  // `{ ...REVIEW_DEFAULTS, ...reviewSettings }`，这里必须跟它同一份，否则用户改过额度后
+  // chip 与控台又会分出两个数。分开订阅是刻意的：整体订阅会在任何复习设置变动时重建定时器。
+  const retention = useSettingsStore(s => s.review.retention)
+  const newCardQuota = useSettingsStore(s => s.review.newCardQuota)
+  const queueLimit = useSettingsStore(s => s.review.queueLimit)
   const [count, setCount] = useState(0)
   const [open, setOpen] = useState(false)
   const hostRef = useRef<HTMLDivElement>(null)
   useClickOutside(hostRef, () => setOpen(false), open)
 
-  // 取数跟 ActivityRail 原先那份同源（getStrategyCounts 的 today），每分钟轮询一次。
+  // 取数：与控制台空闲态那个「n 张待复习」**同一个数**（v0.6.3 评审 F1），每分钟轮询一次。
+  // 原先读 getStrategyCounts().today——那份只过字段掩码，不看当日额度（queueLimit）与两道模板
+  // 闸门，于是同一行文案在标题栏与控制台会印出两个数（到期积压 45、额度只放 30；例句取不到的
+  // 词被闸门挡在组卷侧、chip 永远不归零）。现在读 getTodayDeliverableCount，它与
+  // getOverview().total 是同一段代码，故与控台必然同值。
+  // 参数必须是用户设置：控台用的是 `{ ...REVIEW_DEFAULTS, ...reviewSettings }`，
+  // 只传 REVIEW_DEFAULTS 会在用户改过额度后与控台再次分家。只订阅影响这个数的三个字段，
+  // 免得改一个无关设置就重建定时器。
+  // 成本：有界只读（≤ queueLimit 张卡各 2~3 条 SELECT + 固定 2 条），不写库——见该函数的注释。
   // 依赖里带 activeModule：离开复习模块时补取一次。做完一整轮、退出复习模块，
   // chip 立刻重新取数（验收项「做完整轮复习后 chip 消失」靠的就是这一下）；
   // 不带的话只能等下一次轮询，那个数最坏要在屏上滞留一分钟。
-  // 该数只数到期且有可用题型的卡，不读 newCardQuota / queueLimit，
-  // 所以这里传 REVIEW_DEFAULTS 与传用户设置结果相同（leechThreshold 只影响 weak）。
   useEffect(() => {
     if (!show) return
     let alive = true
+    const params = { ...REVIEW_DEFAULTS, retention, newCardQuota, queueLimit }
     const refresh = async () => {
-      const c = await getStrategyCounts(REVIEW_DEFAULTS)
-      if (alive) setCount(c.today)
+      const n = await getTodayDeliverableCount(params)
+      if (alive) setCount(n)
     }
     refresh()
     const timer = setInterval(refresh, 60_000)
     return () => { alive = false; clearInterval(timer) }
-  }, [show, activeModule])
+  }, [show, activeModule, retention, newCardQuota, queueLimit])
 
   useEffect(() => {
     if (!open) return
@@ -128,8 +141,9 @@ export default function DueBadge() {
             <div style={{ fontSize: 11.5, color: 'var(--color-text-tertiary)', marginBottom: 8 }}>今日队列</div>
             {/* 同样不套 .stat-num，还是一次明确的豁免：理由与 chip 里那个数一致——
                 分档色承载档位信息，衬线是展示性处理而非等宽读数，两条都按自己的定法覆盖。
-                唯独字重不同：这个数没有指定 font-weight，就按 .stat-num 的 semibold 走，
-                所以这里只覆盖 .stat-num 三条定义里的两条（字体与颜色），不覆盖字重。 */}
+                字重这一条要说准：本元素没写 font-weight，也**没挂 .stat-num**，所以它继承祖先的
+                默认字重（正文 normal 400）；「按 .stat-num 的 semibold 走」是错的——类不在这
+                个元素上，那条声明无从生效。即：声明上只覆盖两条，第三条走的是正文的默认值。 */}
             <div style={{ fontFamily: 'var(--font-serif)', fontSize: 30, lineHeight: 1, color: model.numColor }}>
               {count}{' '}
               <small style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 6 }}>张待复习</small>

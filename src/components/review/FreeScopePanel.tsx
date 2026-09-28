@@ -97,7 +97,7 @@ export default function FreeScopePanel({ categories, onStart }: {
 
       <div className="flex flex-col items-start gap-5 p-8" style={{ maxWidth: '620px' }}>
         {/* 标题随标签页变（v0.6.2 条目 17）：原来写死「自由练习」，
-            与上面的页签对不上。文案与 SCOPE_TABS / 控制台的「本次范畴」同源。 */}
+            与上面的页签对不上。文案与 SCOPE_TABS / 控制台的「范围」同源。 */}
         <h2 style={{ fontSize: '20px', fontWeight: 600, fontFamily: 'var(--font-serif)' }}>
           {FREE_SCOPE_LABEL[kind]}
         </h2>
@@ -191,7 +191,9 @@ export default function FreeScopePanel({ categories, onStart }: {
                     />
                     <span style={{ fontWeight: 600, fontSize: 13, fontFamily: 'var(--font-serif)', minWidth: 96 }}>{r.name}</span>
                     <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-text-secondary)' }}>
-                      {r.wordCount} 词 · 待复习 <span className="stat-num">{r.dueCount}</span>
+                      {/* 两个数字都套 .stat-num（v0.6.3 评审 F3）：同一行里只给待复习数套、
+                          词数留在外面，会让两个数一种等宽一种比例，读起来像两种量。 */}
+                      <span className="stat-num">{r.wordCount}</span> 词 · 待复习 <span className="stat-num">{r.dueCount}</span>
                     </span>
                   </label>
                 )

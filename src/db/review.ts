@@ -276,6 +276,13 @@ export async function getWordContent(wordId: string, h?: DbHandle): Promise<Card
   const firstZhRow = firstOf('chinese_definition')
   const firstSensePos = (firstZhRow && ancestorWithKey(firstZhRow.id, 'part_of_speech')?.value) || fallbackPos
 
+  // 印在题面上的英文释义同理（v0.6.3 评审 F2）：`definition` 取的是第一条 english_definition，
+  // 词性就必须是**那一行自己**的 part_of_speech 祖先。沿用跟着例句走的 partOfSpeech 会在多义项
+  // 词上印出「第一义项的英文释义 + 例句所属义项的词性」——与 4a 在中译英上修掉的同一类错配。
+  // 兜底同样退到该词第一个词性（与 firstSensePos 同向），使括号有值可标。
+  const firstEnRow = firstOf('english_definition')
+  const firstDefPos = (firstEnRow && ancestorWithKey(firstEnRow.id, 'part_of_speech')?.value) || fallbackPos
+
   return {
     lemma,
     phonetic,
@@ -286,6 +293,7 @@ export async function getWordContent(wordId: string, h?: DbHandle): Promise<Card
     exampleGloss,
     matchedPos,
     firstSensePos,
+    firstDefPos,
     distractors: await getDistractorTranslations(wordId, 3, d),
   }
 }

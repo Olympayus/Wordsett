@@ -143,7 +143,10 @@ export function assembleCardDTO(
       break
     }
     case 'english_def': {
-      prompt = { definition: content.definition, partOfSpeech: content.partOfSpeech }
+      // 释义与词性同源（v0.6.3 评审 F2）：题面把 definition 与词性并排印在一行，
+      // 两者必须同一义项，故词性读 firstDefPos（第一条英文释义自己的 part_of_speech 祖先），
+      // 不读跟着例句走的 partOfSpeech——多义项词会错配成「第一义项的释义 + 例句义项的词性」。
+      prompt = { definition: content.definition, partOfSpeech: content.firstDefPos }
       answer = { lemma: content.lemma, phonetic: content.phonetic }
       break
     }
@@ -441,6 +444,7 @@ export async function getStats() {
  * 概览承诺的张数必须等于点得动的张数：getQueue 逐卡过 templatesWithDistractorGate 与
  * templatesWithExampleGate，概览若只数 buildQueue 的长度，小库上会出现「承诺 3 张、按钮却什么都不出」。
  * 只有候选词含 recognize 或 cloze 时才需要读内容——两道闸门只可能剔除这两个模板。
+ * 唯一调用方是 todayQueue，故控制台与标题栏 chip 走的是同一组闸门。
  */
 async function deliverable(candidates: QueueCandidate[]): Promise<QueueCandidate[]> {
   const out: QueueCandidate[] = []
@@ -462,13 +466,27 @@ async function deliverable(candidates: QueueCandidate[]): Promise<QueueCandidate
   return out
 }
 
-export async function getOverview(params: ReviewParams) {
-  await reviewDb.registerAllWords()
-  const now = Date.now()
+/**
+ * 今日队列：候选 → buildQueue → 两道闸门。**控制台空闲态与标题栏 chip 的唯一来源**
+ * （getOverview().total 与 getTodayDeliverableCount 都读它，见后者注释）。
+ *
+ * 刻意**不**在这里调 registerAllWords：那是「给全库每个词补一张卡」的写循环
+ * （每词一条 INSERT，生产环境每条都是一次跨 IPC 的 db 调用），放进分钟级轮询会让
+ * 标题栏变成写放大来源。补卡仍由 getQueue / getOverview 负责——两者都在用户进入
+ * 复习模块时跑，故 chip 与控台只可能在「导入后从未进过复习模块」这个窗口里差一个补卡量，
+ * 进一次复习模块即一致（chip 也随 activeModule 变化重取一次）。
+ */
+async function todayQueue(params: ReviewParams, now: number): Promise<QueueCandidate[]> {
   const candRes = await reviewDb.getCandidates(now, undefined, { allowListen: isListenEnabled() })
   const candidates = candRes.ok ? candRes.data : []
   const result = buildQueue(candidates, { now, newCardQuota: params.newCardQuota, queueLimit: params.queueLimit })
-  const queue = await deliverable(result.queue)
+  return deliverable(result.queue)
+}
+
+export async function getOverview(params: ReviewParams) {
+  await reviewDb.registerAllWords()
+  const now = Date.now()
+  const queue = await todayQueue(params, now)
   const stats = await getStats()
   return {
     total: queue.length,
@@ -478,6 +496,24 @@ export async function getOverview(params: ReviewParams) {
     // 三图与近 14 天趋势都要 dueByDay / recentRatings，故整包透出而非只给 masteryBuckets
     stats,
   }
+}
+
+/**
+ * 今日实际能出的张数（v0.6.3 评审 F1）——标题栏 chip 的取数。
+ *
+ * 与 `getOverview(params).total` 是**同一段代码**：两处都印「n 张待复习」，而计划自己的
+ * 验收项要求「做完整轮后 chip 消失」。原先 chip 读 `getStrategyCounts().today`，那份只过
+ * 字段掩码，不看当日额度（queueLimit）与两道模板闸门（干扰项 / 例句），于是同一行文案会
+ * 印出两个数（到期积压 45 而额度只放 30；例句取不到的词只被闸门挡在组卷侧），且做完一轮
+ * chip 未必归零——正是验收项 6 要钉的那条。
+ *
+ * 成本：有界只读。buildQueue 先按 queueLimit（默认 30）截断，故内容读取至多
+ * queueLimit 张卡 × 2~3 条 SELECT，另加固定的 2 条（到期候选 + 掩码）；不写库，
+ * 轮询节奏由调用方定（标题栏 60 秒一次）。
+ * 参数必须与 `getOverview` 的调用方传**同一份**：额度不同，数就又不同了。
+ */
+export async function getTodayDeliverableCount(params: ReviewParams): Promise<number> {
+  return (await todayQueue(params, Date.now())).length
 }
 
 /**

@@ -150,10 +150,12 @@ export default function DictDetailPanel({ word }: Props) {
             </span>
             <CollinsStars meta={meta} />
           </div>
-          {/* 发音按钮：所在的外层是 flex items-start（不是 items-baseline），16px 图标靠
+          {/* 发音按钮：所在的外层是 flex items-start（不是 items-baseline），图标靠
               alignSelf:'center' 在行内居中。行高由最高的兄弟决定，而右侧 TitleChips 会渲染
               徽标行 + 领域行两行，故该居中是相对「单词/星级」与「徽标组」之间的中点，不等价于
-              对齐单词/星级那一行——两行标签都在时可能看着偏下，待目视确认。 */}
+              对齐单词/星级那一行——两行标签都在时可能看着偏下，待目视确认。
+              尺寸 17px：本处没传 size，取 SpeakButton 的默认值（与工作台一致）；
+              复习题面那处显式传 16。 */}
           <span style={{ alignSelf: 'center', display: 'inline-flex' }}>
             <SpeakButton text={word} />
           </span>

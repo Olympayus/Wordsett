@@ -11,7 +11,7 @@ import { rateCard, type CardContent, type RateCardResult } from '../../services/
 import { compareTyped } from '../../lib/review/typed'
 import { currentAnswered, canGoBack, canGoForward, answeredCount, revealedInputFor } from '../../lib/review/nav'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
-import { RESULT_BREAKPOINT, RESULT_CONTENT_WIDTH } from '../../lib/review/resultLayout'
+import { RESULT_BREAKPOINT, RESULT_CONTENT_WIDTH, NARROW_CONTENT_WIDTH } from '../../lib/review/resultLayout'
 import { getWordContent } from '../../db/review'
 
 /**
@@ -175,7 +175,7 @@ export default function ReviewArena() {
   }
 
   return (
-    <div data-arena-region className="flex flex-col gap-6 p-8" style={{ maxWidth: narrow ? '960px' : RESULT_CONTENT_WIDTH }}>
+    <div data-arena-region className="flex flex-col gap-6 p-8" style={{ maxWidth: narrow ? NARROW_CONTENT_WIDTH : RESULT_CONTENT_WIDTH }}>
       <div>
         <ArenaNavBar
           index={index}
