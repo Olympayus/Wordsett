@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useViewStore } from '../../stores/viewStore'
-import { getTodayDeliverableCount, REVIEW_DEFAULTS } from '../../services/reviewService'
+import { getStrategyCounts, REVIEW_DEFAULTS } from '../../services/reviewService'
 import { useClickOutside } from '../../lib/useClickOutside'
 
 /**
@@ -11,9 +11,11 @@ import { useClickOutside } from '../../lib/useClickOutside'
  * 故拆两层：26px 的 chip 常驻（与 32px 的 logo / 搜索框同一条水平轴，居中于该轴），
  * 点开才展开窗口。
  *
- * `count === 0` 时**不渲染**：两个业务条件（今天没有可复习的 / 今天该复习的都做完了）
- * 都落到这一个数上——后者一旦做完，到期数就被评分推走归零。不留「0 张」或「已完成」
- * 的占位 chip：占位本身也是要读的一行字，而它传达的信息是「没事做」。
+ * `count === 0` 时**不渲染**：两个业务条件（今天没有到期的 / 今天该复习的都做完了）
+ * 都落到这一个数上——后者一旦做完，到期卡的 due_at 就被评分推走、不再落到「≤ 今天」。
+ * 不留「0 张」或「已完成」的占位 chip：占位本身也是要读的一行字，而它传达的信息是「没事做」。
+ * 注意这只对**到期集**成立：积压超过一轮的队列上限时，做完一轮 chip 仍显示剩余量，
+ * 那是有意的（见下方取数的注释），不是没归零的缺陷。
  *
  * chip 圆角 12px：搜索框是真胶囊（--radius-full，32px 高即 16px 弧半径），
  * chip 比它收；又大于通用方块按钮（--radius-lg 8px），不与其同级。
@@ -49,41 +51,40 @@ export default function DueBadge() {
   const show = useSettingsStore(s => s.review.showDueBadge)
   const showModule = useViewStore(s => s.showModule)
   const activeModule = useViewStore(s => s.activeModule)
-  // 影响这个数的三个设置（leechThreshold 只影响 weak，与到期数无关）：控台传的是
-  // `{ ...REVIEW_DEFAULTS, ...reviewSettings }`，这里必须跟它同一份，否则用户改过额度后
-  // chip 与控台又会分出两个数。分开订阅是刻意的：整体订阅会在任何复习设置变动时重建定时器。
-  const retention = useSettingsStore(s => s.review.retention)
-  const newCardQuota = useSettingsStore(s => s.review.newCardQuota)
-  const queueLimit = useSettingsStore(s => s.review.queueLimit)
   const [count, setCount] = useState(0)
   const [open, setOpen] = useState(false)
   const hostRef = useRef<HTMLDivElement>(null)
   useClickOutside(hostRef, () => setOpen(false), open)
 
-  // 取数：与控制台空闲态那个「n 张待复习」**同一个数**（v0.6.3 评审 F1），每分钟轮询一次。
-  // 原先读 getStrategyCounts().today——那份只过字段掩码，不看当日额度（queueLimit）与两道模板
-  // 闸门，于是同一行文案在标题栏与控制台会印出两个数（到期积压 45、额度只放 30；例句取不到的
-  // 词被闸门挡在组卷侧、chip 永远不归零）。现在读 getTodayDeliverableCount，它与
-  // getOverview().total 是同一段代码，故与控台必然同值。
-  // 参数必须是用户设置：控台用的是 `{ ...REVIEW_DEFAULTS, ...reviewSettings }`，
-  // 只传 REVIEW_DEFAULTS 会在用户改过额度后与控台再次分家。只订阅影响这个数的三个字段，
-  // 免得改一个无关设置就重建定时器。
-  // 成本：有界只读（≤ queueLimit 张卡各 2~3 条 SELECT + 固定 2 条），不写库——见该函数的注释。
-  // 依赖里带 activeModule：离开复习模块时补取一次。做完一整轮、退出复习模块，
-  // chip 立刻重新取数（验收项「做完整轮复习后 chip 消失」靠的就是这一下）；
-  // 不带的话只能等下一次轮询，那个数最坏要在屏上滞留一分钟。
+  // 取数：与控制台空闲态那个「n 张待复习」**同一个数**——两边都读 getStrategyCounts().today
+  // （getOverview().total 就是它），故必然同值。每分钟轮询一次。
+  //
+  // v0.6.3 打磨改了口径：这个数现在是**到期熟词的积压量**，只过字段掩码，
+  // 不再经本轮组卷——因此它不受「队列上限」截断（那是单轮的出题上限），也不受两道内容闸门
+  // 影响。早先它读本轮组卷后的队列长度，于是到期积压 45、上限 30 时会印 30，
+  // 与「今天到底积压了多少」不是一回事。
+  // 代价（有意接受）：积压超过队列上限时，做完一轮这个数不会归零，剩下的留到下一轮。
+  // 另一面：新词不计入这个数（新卡没有 due_at），所以「今天只有新词可学」时 chip 不显示
+  // ——控制台的「新词: n」仍然照报。
+  //
+  // 参数：today 只由到期集与 allowListen 决定，**与四个设置项都无关**，故这里不再订阅
+  // 任何复习设置（早先订阅是为了与控台同口径，现在两边同一个数、口径不会再分家），
+  // 只在取数时非反应式地读一次当前设置——将来若 today 用上某个设置，口径自然跟用户设置走。
+  // 成本：两条只读 SQL（到期集 + 字段掩码），固定开销、不随额度变化、不写库。
+  // 依赖里带 activeModule：离开复习模块时补取一次，做完一整轮退出复习模块，
+  // chip 立刻重新取数；不带的话只能等下一次轮询，那个数最坏要在屏上滞留一分钟。
   useEffect(() => {
     if (!show) return
     let alive = true
-    const params = { ...REVIEW_DEFAULTS, retention, newCardQuota, queueLimit }
     const refresh = async () => {
-      const n = await getTodayDeliverableCount(params)
+      const { review } = useSettingsStore.getState()
+      const n = (await getStrategyCounts({ ...REVIEW_DEFAULTS, ...review })).today
       if (alive) setCount(n)
     }
     refresh()
     const timer = setInterval(refresh, 60_000)
     return () => { alive = false; clearInterval(timer) }
-  }, [show, activeModule, retention, newCardQuota, queueLimit])
+  }, [show, activeModule])
 
   useEffect(() => {
     if (!open) return
@@ -138,7 +139,9 @@ export default function DueBadge() {
               position: 'absolute', top: -5, left: 18, width: 9, height: 9, background: 'var(--color-surface)',
               borderLeft: '1px solid var(--color-border)', borderTop: '1px solid var(--color-border)', transform: 'rotate(45deg)',
             }} />
-            <div style={{ fontSize: 11.5, color: 'var(--color-text-tertiary)', marginBottom: 8 }}>今日队列</div>
+            {/* 眉标不写「今日队列」：这个数自 v0.6.3 打磨起是**到期积压量**，不是本轮队列的
+                长度（队列长度受队列上限截断，通常更小）。眉标必须描述它上面那个数。 */}
+            <div style={{ fontSize: 11.5, color: 'var(--color-text-tertiary)', marginBottom: 8 }}>今日待复习</div>
             {/* 同样不套 .stat-num，还是一次明确的豁免：理由与 chip 里那个数一致——
                 分档色承载档位信息，衬线是展示性处理而非等宽读数，两条都按自己的定法覆盖。
                 字重这一条要说准：本元素没写 font-weight，也**没挂 .stat-num**，所以它继承祖先的

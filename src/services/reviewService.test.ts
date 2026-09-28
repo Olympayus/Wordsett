@@ -6,7 +6,7 @@ const {
   invokeMock, getStateMock, applyReviewMock, insertPracticeLogMock,
   registerAllWordsMock, getCandidatesMock, getWordContentMock, getStatsMock,
   getWeakWordsWithCountsMock, getAllCandidatesMock, getAbsentWordsMock,
-  getTemplateLogsMock, getCardMetaMock, getAllWordCategoryMapMock,
+  getTemplateLogsMock, getCardMetaMock, getAllWordCategoryMapMock, getStrategyCountsMock,
 } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   getStateMock: vi.fn(),
@@ -22,10 +22,11 @@ const {
   getTemplateLogsMock: vi.fn(),
   getCardMetaMock: vi.fn(),
   getAllWordCategoryMapMock: vi.fn(),
+  getStrategyCountsMock: vi.fn(),
 }))
 
 // rateCard 只碰这三个 db 入口，直接打桩；fsrs_next 走 Tauri invoke，单独打桩。
-// getOverview 另走 registerAllWords / getCandidates / getWordContent / getStats。
+// getOverview 另走 registerAllWords / getCandidates / getWordContent / getStrategyCounts / getStats。
 // getQueue 走自由练习那一路：getAllCandidates 取池、getTemplateLogs + getCardMeta 取题型、
 // getAbsentWords 收尾；分类范围还要 getAllWordCategoryMap（另一个 db 模块，动态 import）。
 vi.mock('../db/review', () => ({
@@ -41,11 +42,12 @@ vi.mock('../db/review', () => ({
   getAbsentWords: getAbsentWordsMock,
   getTemplateLogs: getTemplateLogsMock,
   getCardMeta: getCardMetaMock,
+  getStrategyCounts: getStrategyCountsMock,
 }))
 vi.mock('../db/categories', () => ({ getAllWordCategoryMap: getAllWordCategoryMapMock }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }))
 
-const { rateCard, getOverview, getTodayDeliverableCount, getQueue, REVIEW_DEFAULTS, getWeakWords } = await import('./reviewService')
+const { rateCard, getOverview, getQueue, REVIEW_DEFAULTS, getWeakWords } = await import('./reviewService')
 
 const scoringInput = {
   cardId: 'c1', rating: 3, template: 'cloze' as const, mode: 'review' as const,
@@ -284,48 +286,98 @@ describe('reviewService 认读干扰项闸门', () => {
   })
 })
 
-describe('reviewService.getOverview 用组卷同一道认读闸门', () => {
+describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.3 打磨）', () => {
   beforeEach(() => {
     registerAllWordsMock.mockReset()
     getCandidatesMock.mockReset()
     getWordContentMock.mockReset()
     getStatsMock.mockReset()
+    getStrategyCountsMock.mockReset()
     registerAllWordsMock.mockResolvedValue(undefined)
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 0, weak: 0 } })
     getStatsMock.mockResolvedValue({
       ok: true,
       data: { masteryBuckets: [1, 0, 0, 0, 0], dueByDay: Array(8).fill(0), recentRatings: [] },
     })
   })
 
-  it('只有认读可出、干扰释义不足 3 个：承诺 0 张（点得动的张数）', async () => {
-    getCandidatesMock.mockResolvedValue({ ok: true, data: [candidate({ availableTemplates: ['recognize'] })] })
-    getWordContentMock.mockResolvedValue({ ...content, distractors: ['持久的'] })
-    const o = await getOverview(REVIEW_DEFAULTS)
-    expect(o.total).toBe(0)
-    expect(o.estimateMinutes).toBe(1)
-  })
-
-  it('干扰释义够 3 个：同一张卡计入承诺张数', async () => {
-    getCandidatesMock.mockResolvedValue({ ok: true, data: [candidate({ availableTemplates: ['recognize'] })] })
+  it('到期积压 45 张、队列上限 30：total 是 45，不再被队列上限截断', async () => {
+    // 队列上限是**单轮出题上限**，与「今天积压了多少」不是一回事。
+    // 改口径前 total 走本轮队列长度，这个夹具会得到 30。
+    getCandidatesMock.mockResolvedValue({
+      ok: true,
+      data: Array.from({ length: 45 }, (_, i) =>
+        candidate({ cardId: `c${i}`, wordId: `w${i}`, availableTemplates: ['recall'] })),
+    })
     getWordContentMock.mockResolvedValue(content)
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 45, weak: 0 } })
+    expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(45)
+  })
+
+  it('total 只认 getStrategyCounts().today：候选池里 45 张、这个数是 7，total 就是 7', async () => {
+    // 钉住取数来源。两处（控制台与标题栏 chip）都读它，故也钉住了「同一个数」。
+    getCandidatesMock.mockResolvedValue({
+      ok: true,
+      data: Array.from({ length: 45 }, (_, i) =>
+        candidate({ cardId: `c${i}`, wordId: `w${i}`, availableTemplates: ['recall'] })),
+    })
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 7, weak: 0 } })
+    expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(7)
+  })
+
+  it('两道内容闸门不再作用于 total：例句取不到的词照样算在到期积压里', async () => {
+    // 闸门判的是「这几张现在能不能出题」，不是「今天该不该复习」。让它参与，同一个数
+    // 会随某个词的内容变动而忽高忽低，且做完一整轮也未必归零（v0.6.3 打磨前的状态）。
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [
+      candidate({ cardId: 'c1', wordId: 'w1', availableTemplates: ['cloze'] }),
+      candidate({ cardId: 'c2', wordId: 'w2', availableTemplates: ['cloze'] }),
+    ] })
+    getWordContentMock.mockImplementation(async (wordId: string) =>
+      wordId === 'w1' ? { ...content, example: '' } : content)
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 2, weak: 0 } })
+    expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(2)
+  })
+
+  it('到期集读失败：total 落 0，不抛（getStrategyCounts 自己的失败回退）', async () => {
+    // 候选池给空：这条测的是到期集那一路的失败回退，与组卷无关（组卷只在取 newCount 时跑）。
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [] })
+    getStrategyCountsMock.mockResolvedValue({ ok: false, error: 'read failed' })
+    expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(0)
+  })
+
+  it('newCount 仍走本轮队列、仍过两道闸门（「新词: n」是另一个量，不从 total 派生）', async () => {
+    // 干扰项不足 3 个 → 这张新卡本轮出不了题，不该计入「本轮会引入几个新词」。
+    getCandidatesMock.mockResolvedValue({
+      ok: true, data: [candidate({ cardId: 'n1', wordId: 'nw1', stability: null, availableTemplates: ['recognize'] })],
+    })
+    getWordContentMock.mockResolvedValue({ ...content, distractors: ['持久的'] })
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 45, weak: 0 } })
     const o = await getOverview(REVIEW_DEFAULTS)
-    expect(o.total).toBe(1)
     expect(o.newCount).toBe(0)
+    expect(o.total).toBe(45)
   })
 
-  it('只有 cloze 可出、例句取不到：承诺 0 张（与 getQueue 一致，v0.6.3 条目 4c）', async () => {
-    // 概览与组卷必须给出同一个数：deliverable() 也要过 templatesWithExampleGate。
-    // 修复前 deliverable() 只过干扰项闸门，会把这张词算进承诺张数，而 getQueue 出 0 题。
-    getCandidatesMock.mockResolvedValue({ ok: true, data: [candidate({ availableTemplates: ['cloze'] })] })
-    getWordContentMock.mockResolvedValue({ ...content, example: '' })
+  it('干扰释义够 3 个：同一张新卡计入 newCount，且不混进 total', async () => {
+    getCandidatesMock.mockResolvedValue({
+      ok: true, data: [candidate({ cardId: 'n1', wordId: 'nw1', stability: null, availableTemplates: ['recognize'] })],
+    })
+    getWordContentMock.mockResolvedValue(content)
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 0, weak: 0 } })
     const o = await getOverview(REVIEW_DEFAULTS)
+    expect(o.newCount).toBe(1)
     expect(o.total).toBe(0)
-    expect(o.estimateMinutes).toBe(1)
+  })
+})
+
+describe('reviewService.getQueue 的两道闸门（概览不再复述这个数）', () => {
+  beforeEach(() => {
+    registerAllWordsMock.mockReset()
+    getCandidatesMock.mockReset()
+    getWordContentMock.mockReset()
+    registerAllWordsMock.mockResolvedValue(undefined)
   })
 
-  it('只有 cloze 可出、例句取不到：getQueue 同样出 0 题（钉住概览 = 组卷）', async () => {
-    // 与上一条同一夹具，走 getQueue 的 today 路径：概览承诺 0 张时，组卷必须也是 0 题。
-    registerAllWordsMock.mockResolvedValue(undefined)
+  it('只有 cloze 可出、例句取不到：getQueue 出 0 题', async () => {
     getCandidatesMock.mockResolvedValue({ ok: true, data: [candidate({ availableTemplates: ['cloze'] })] })
     getTemplateLogsMock.mockResolvedValue({ ok: true, data: {} })
     getCardMetaMock.mockResolvedValue({ ok: true, data: null })
@@ -335,10 +387,7 @@ describe('reviewService.getOverview 用组卷同一道认读闸门', () => {
     expect(queue).toEqual([])
   })
 
-  it('概览承诺张数 = getQueue 实际出题数（同一夹具，v0.6.3 条目 4c）', async () => {
-    // 三条候选：一条只有 cloze 且例句取不到（两道闸门都过不了），一条只有 cloze 但例句可用，
-    // 一条只有 recognize 且干扰项够。概览必须承诺 2 张，组卷必须出 2 题。
-    registerAllWordsMock.mockResolvedValue(undefined)
+  it('三条候选、一条两道闸门都过不了：getQueue 出 2 题', async () => {
     getCandidatesMock.mockResolvedValue({ ok: true, data: [
       candidate({ cardId: 'c1', wordId: 'w1', availableTemplates: ['cloze'] }),
       candidate({ cardId: 'c2', wordId: 'w2', availableTemplates: ['cloze'] }),
@@ -352,61 +401,8 @@ describe('reviewService.getOverview 用组卷同一道认读闸门', () => {
       if (wordId === 'w2') return content                        // cloze 可出
       return { ...content, distractors: ['持久的', '明显的', '丰富的'] } // recognize 可出
     })
-    const o = await getOverview(REVIEW_DEFAULTS)
     const { queue } = await getQueue('today', REVIEW_DEFAULTS)
-    expect(o.total).toBe(2)
     expect(queue).toHaveLength(2)
-    expect(o.total).toBe(queue.length)
-  })
-})
-
-describe('reviewService.getTodayDeliverableCount 与控台同一个数（v0.6.3 评审 F1）', () => {
-  beforeEach(() => {
-    registerAllWordsMock.mockReset()
-    getCandidatesMock.mockReset()
-    getWordContentMock.mockReset()
-    getStatsMock.mockReset()
-    registerAllWordsMock.mockResolvedValue(undefined)
-    getStatsMock.mockResolvedValue({
-      ok: true,
-      data: { masteryBuckets: [1, 0, 0, 0, 0], dueByDay: Array(8).fill(0), recentRatings: [] },
-    })
-  })
-
-  it('到期积压 45 张、额度 30：标题栏 chip 与控台都是 30，不是 45', async () => {
-    // 修复前 chip 读 getStrategyCounts().today（只过字段掩码、不看 queueLimit），
-    // 同一行文案会在标题栏印 45、在控台印 30。两处现在共用 todayQueue，故必然同值。
-    getCandidatesMock.mockResolvedValue({
-      ok: true,
-      data: Array.from({ length: 45 }, (_, i) =>
-        candidate({ cardId: `c${i}`, wordId: `w${i}`, availableTemplates: ['recall'] })),
-    })
-    getWordContentMock.mockResolvedValue(content)
-    expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(30)
-    expect(await getTodayDeliverableCount(REVIEW_DEFAULTS)).toBe(30)
-  })
-
-  it('两道闸门同样作用在两处：例句取不到的词两处都不计（做完整轮才会一起归零）', async () => {
-    // chip 原先只过掩码，这种词永远算在它头上 → 本轮做完 chip 也归不了零（验收项 6）。
-    getCandidatesMock.mockResolvedValue({ ok: true, data: [
-      candidate({ cardId: 'c1', wordId: 'w1', availableTemplates: ['cloze'] }),
-      candidate({ cardId: 'c2', wordId: 'w2', availableTemplates: ['cloze'] }),
-    ] })
-    getWordContentMock.mockImplementation(async (wordId: string) =>
-      wordId === 'w1' ? { ...content, example: '' } : content)
-    expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(1)
-    expect(await getTodayDeliverableCount(REVIEW_DEFAULTS)).toBe(1)
-  })
-
-  it('额度随参数变：两处必须传同一份参数，否则 chip 与控台又会分家', async () => {
-    // DueBadge 传的是 `{ ...REVIEW_DEFAULTS, ...用户设置 }` 的三个字段，与控台一致。
-    getCandidatesMock.mockResolvedValue({
-      ok: true,
-      data: Array.from({ length: 45 }, (_, i) =>
-        candidate({ cardId: `c${i}`, wordId: `w${i}`, availableTemplates: ['recall'] })),
-    })
-    expect(await getTodayDeliverableCount({ ...REVIEW_DEFAULTS, queueLimit: 10 })).toBe(10)
-    expect(await getTodayDeliverableCount({ ...REVIEW_DEFAULTS, queueLimit: 30 })).toBe(30)
   })
 })
 

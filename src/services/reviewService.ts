@@ -441,10 +441,14 @@ export async function getStats() {
 }
 
 /**
- * 概览承诺的张数必须等于点得动的张数：getQueue 逐卡过 templatesWithDistractorGate 与
- * templatesWithExampleGate，概览若只数 buildQueue 的长度，小库上会出现「承诺 3 张、按钮却什么都不出」。
- * 只有候选词含 recognize 或 cloze 时才需要读内容——两道闸门只可能剔除这两个模板。
- * 唯一调用方是 todayQueue，故控制台与标题栏 chip 走的是同一组闸门。
+ * 本轮实际能出的张数（过两道内容闸门）。
+ *
+ * 用途（v0.6.3 打磨后收窄到一处）：只服务 `getOverview().newCount`——「本轮会引入几个新词」。
+ * 此前它还算「今日待复习总数」，那个数现在走掩码层的 `getStrategyCounts().today`（见 getOverview）。
+ *
+ * 为什么这里仍要过闸门：新词数若把「内容层面出不了题」的新卡也算进去，控制台会印
+ * 「新词: 3」而本轮只引入 2 个。只有候选词含 recognize 或 cloze 时才需要读内容——
+ * 两道闸门只可能剔除这两个模板。
  */
 async function deliverable(candidates: QueueCandidate[]): Promise<QueueCandidate[]> {
   const out: QueueCandidate[] = []
@@ -467,14 +471,16 @@ async function deliverable(candidates: QueueCandidate[]): Promise<QueueCandidate
 }
 
 /**
- * 今日队列：候选 → buildQueue → 两道闸门。**控制台空闲态与标题栏 chip 的唯一来源**
- * （getOverview().total 与 getTodayDeliverableCount 都读它，见后者注释）。
+ * 今日队列：候选 → buildQueue → 两道闸门（v0.6.3 打磨后只剩一个用途：取本轮新词数）。
+ *
+ * 此前它同时是「今日待复习总数」的来源，控制台与标题栏 chip 都读它——那个数因此会被
+ * 当日额度（queueLimit）截断，与「今天到底积压了多少」不是一回事，见 getOverview。
  *
  * 刻意**不**在这里调 registerAllWords：那是「给全库每个词补一张卡」的写循环
  * （每词一条 INSERT，生产环境每条都是一次跨 IPC 的 db 调用），放进分钟级轮询会让
- * 标题栏变成写放大来源。补卡仍由 getQueue / getOverview 负责——两者都在用户进入
- * 复习模块时跑，故 chip 与控台只可能在「导入后从未进过复习模块」这个窗口里差一个补卡量，
- * 进一次复习模块即一致（chip 也随 activeModule 变化重取一次）。
+ * 标题栏变成写放大来源。补卡仍由 getQueue / getOverview 负责。
+ * 补卡与否**不影响** getOverview 的 total：新补出来的卡是 new 卡、没有 due_at，
+ * 走不到 getStrategyCounts 的到期集里——两处因此不再需要靠「进过一次复习模块」来对齐。
  */
 async function todayQueue(params: ReviewParams, now: number): Promise<QueueCandidate[]> {
   const candRes = await reviewDb.getCandidates(now, undefined, { allowListen: isListenEnabled() })
@@ -488,32 +494,25 @@ export async function getOverview(params: ReviewParams) {
   const now = Date.now()
   const queue = await todayQueue(params, now)
   const stats = await getStats()
+  // 到期待复习数走掩码层的到期集（v0.6.3 打磨），**不是**本轮队列的长度：
+  // 用户要的是「系统判断今天该复习多少词」——那是掌握程度（due_at）的事，
+  // 与「本轮最多出多少题」（队列上限）无关；与两道内容闸门也无关，那两道判的是
+  // 「这几张现在能不能出题」，让它参与会让同一个数随某个词的内容变动而忽高忽低、
+  // 且做完一整轮也未必归零。
+  // 代价（有意接受）：到期积压超过队列上限时，做完一轮这个数不会归零，剩下留到下一轮
+  // ——这正是「轮次上限只影响单次学多少个词」的读法。见 DueBadge 的同款说明。
+  const { today } = await getStrategyCounts(params)
   return {
-    total: queue.length,
-    // 从闸门后的队列重算：被闸门剔除的新卡不能再算进「含新词」
+    total: today,
+    // 新词数仍是本轮队列里的实际新卡数（额度、队列上限、两道闸门都算数）：它答的是
+    // 「本轮会引入几个新词」，与上面那个到期积压是两个量，故不从 total 派生。
     newCount: queue.filter(c => c.stability === null).length,
+    // 本轮队列的时长估算。当前**没有消费者**（v0.6.3 起控制台不再读它），
+    // 保留是为了不改动 getOverview 的返回形状；不要据此认为它跟着 total 走。
     estimateMinutes: Math.max(1, Math.round(queue.length * 0.3)),
     // 三图与近 14 天趋势都要 dueByDay / recentRatings，故整包透出而非只给 masteryBuckets
     stats,
   }
-}
-
-/**
- * 今日实际能出的张数（v0.6.3 评审 F1）——标题栏 chip 的取数。
- *
- * 与 `getOverview(params).total` 是**同一段代码**：两处都印「n 张待复习」，而计划自己的
- * 验收项要求「做完整轮后 chip 消失」。原先 chip 读 `getStrategyCounts().today`，那份只过
- * 字段掩码，不看当日额度（queueLimit）与两道模板闸门（干扰项 / 例句），于是同一行文案会
- * 印出两个数（到期积压 45 而额度只放 30；例句取不到的词只被闸门挡在组卷侧），且做完一轮
- * chip 未必归零——正是验收项 6 要钉的那条。
- *
- * 成本：有界只读。buildQueue 先按 queueLimit（默认 30）截断，故内容读取至多
- * queueLimit 张卡 × 2~3 条 SELECT，另加固定的 2 条（到期候选 + 掩码）；不写库，
- * 轮询节奏由调用方定（标题栏 60 秒一次）。
- * 参数必须与 `getOverview` 的调用方传**同一份**：额度不同，数就又不同了。
- */
-export async function getTodayDeliverableCount(params: ReviewParams): Promise<number> {
-  return (await todayQueue(params, Date.now())).length
 }
 
 /**
