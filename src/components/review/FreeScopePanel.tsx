@@ -189,6 +189,12 @@ export default function FreeScopePanel({ categories, onStart }: {
                       onChange={() => setCategoryIds(prev => on ? prev.filter(x => x !== r.id) : [...prev, r.id])}
                       label={`选择分类 ${r.name}`}
                     />
+                    {/* 分类色圈（v0.6.3 打磨）：勾选框只在**勾上**时才显示分类色，
+                        未勾选的行看不出这是哪个分类。规格与设置 → 分类管理那一行一致
+                        （10px 圆点、50% 圆角、取分类原色），两处对照才读得出是同一个东西。
+                        它只是分类的标识，不参与选中态——选中与否仍只由勾选框表达；
+                        禁用行的整体降透明度由外层 label 的 opacity 负责，这里不再表达一次。 */}
+                    <span style={{ width: 10, height: 10, borderRadius: '50%', background: r.color, flexShrink: 0 }} />
                     <span style={{ fontWeight: 600, fontSize: 13, fontFamily: 'var(--font-serif)', minWidth: 96 }}>{r.name}</span>
                     <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-text-secondary)' }}>
                       {/* 两个数字都套 .stat-num（v0.6.3 评审 F3）：同一行里只给待复习数套、
