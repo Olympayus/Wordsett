@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { ensureSchema } from './init'
-import { SCHEMA_SEED_STATEMENTS, SCHEMA_VERSION } from './schema'
+import { REVIEW_TABLES, SCHEMA_SEED_STATEMENTS, SCHEMA_VERSION } from './schema'
 import { createRawTestDb } from './test-utils'
 
 describe('db/init ensureSchema', () => {
@@ -114,6 +114,35 @@ describe('db/init ensureSchema', () => {
       "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('review_cards','review_states','review_logs')"
     )
     expect(tables.length).toBe(3)
+    const v = await adapter.select<{ user_version: number }>('SELECT user_version FROM pragma_user_version')
+    expect(v[0].user_version).toBe(SCHEMA_VERSION)
+  })
+
+  it('v4 旧库升级：字段定义补上 initial_familiarity，词库与卡片行数都不变', async () => {
+    const { adapter } = await createRawTestDb()
+    for (const sql of SCHEMA_SEED_STATEMENTS) await adapter.execute(sql)
+    for (const sql of REVIEW_TABLES) await adapter.execute(sql)
+    // 模拟 v0.6.3 的库：版本号 4，有一行词 + 一行卡，且旧列被写过非默认值
+    await adapter.execute(`PRAGMA user_version = 4`)
+    await adapter.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','keep','keep','en',1,1)"
+    )
+    await adapter.execute(
+      "INSERT INTO review_cards (id, word_id, initial_familiarity, created_at) VALUES ('c1','w1',3,1)"
+    )
+    // 本版之前的库没有这个词条级字段定义
+    await adapter.execute("DELETE FROM field_definitions WHERE key = 'initial_familiarity'")
+
+    await ensureSchema(adapter)
+
+    const defs = await adapter.select<{ c: number }>(
+      "SELECT count(*) as c FROM field_definitions WHERE key = 'initial_familiarity'"
+    )
+    expect(defs[0].c).toBe(1)
+    const words = await adapter.select<{ c: number }>('SELECT count(*) as c FROM words')
+    expect(words[0].c).toBe(1)
+    const cards = await adapter.select<{ c: number }>('SELECT count(*) as c FROM review_cards')
+    expect(cards[0].c).toBe(1)
     const v = await adapter.select<{ user_version: number }>('SELECT user_version FROM pragma_user_version')
     expect(v[0].user_version).toBe(SCHEMA_VERSION)
   })

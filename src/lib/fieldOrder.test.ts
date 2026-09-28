@@ -89,8 +89,8 @@ it('synonym_discrimination 是根级字段位次 7，允许直接子级 synonym_
   expect(templateRank(null, 'synonym_discrimination')).toBe(7)
 })
 
-it('word_root 内建字段已注册（BUILTIN_FIELDS 计数 21）', () => {
+it('word_root 内建字段已注册（BUILTIN_FIELDS 计数 23）', () => {
   expect(BUILTIN_FIELDS.word_root).toEqual({ name: '词根', fieldType: 'text', displayOrder: 18 })
   expect(BUILTIN_FIELDS.word_root_item).toEqual({ name: '词根项', fieldType: 'text', displayOrder: 19 })
-  expect(Object.keys(BUILTIN_FIELDS)).toHaveLength(22)
+  expect(Object.keys(BUILTIN_FIELDS)).toHaveLength(23)
 })

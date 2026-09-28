@@ -66,7 +66,11 @@ export function seedFieldDefinitionsSQL(): string {
 }
 
 // PRAGMA user_version：当前 schema 版本。P4/P5 变更 schema 时递增此值。
-export const SCHEMA_VERSION = 4
+// v0.6.4 进位到 5 是**书签不是迁移**：本次只新增一个内置字段，而字段种子走
+// seedFieldDefinitionsSQL() 的 INSERT OR IGNORE、每次启动无条件执行——
+// 不进位功能完全等价。进位只为让「本版动过 schema」在 pragma_user_version 上留痕，
+// 便于真机回归时一眼看出库是新是旧。**不要**因为看到进位就去找迁移代码，没有。
+export const SCHEMA_VERSION = 5
 
 // ensureSchema 的重建门限（见 init.ts）。这是**版本门，不是空库判定**：user_version 低于此值
 // 就 DROP 重建，哪怕库里已有数据。与 SCHEMA_VERSION 有意解耦——让它跟着 SCHEMA_VERSION 一起涨，
@@ -99,6 +103,10 @@ export const SQL_CREATE_REVIEW_CARDS = `CREATE TABLE IF NOT EXISTS review_cards 
   id TEXT PRIMARY KEY,
   word_id TEXT NOT NULL REFERENCES words(id) ON DELETE CASCADE,
   last_template TEXT,
+  -- v0.6.4 起废弃：改读词条级字段 initial_familiarity（见 types/field.ts）。
+  -- 保留在建表语句里是为了让新库与老库的表结构一致；代码不读不写此列。
+  -- 老库的残留列无害（CREATE TABLE IF NOT EXISTS 不改已存在的表），不做 DROP COLUMN：
+  -- 本仓没有一次性迁移机制，为一个从无写入方的死列引入机制是负收益（spec 4.6）。
   initial_familiarity INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER NOT NULL
 );`

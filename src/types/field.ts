@@ -21,6 +21,7 @@ export type FieldKey =
   | 'synonym_discrimination'
   | 'synonym_discrimination_group'
   | 'synonym_discrimination_item'
+  | 'initial_familiarity'
 
 export const BUILTIN_FIELDS: Record<FieldKey, {
   name: string
@@ -49,6 +50,10 @@ export const BUILTIN_FIELDS: Record<FieldKey, {
   synonym_discrimination:      { name: '近义词辨析', fieldType: 'text',     displayOrder: 20 },
   synonym_discrimination_group: { name: '近义词辨析组', fieldType: 'text',     displayOrder: 21 },
   synonym_discrimination_item: { name: '近义词辨析项', fieldType: 'text', displayOrder: 22 },
+  // v0.6.4：收录时用户选的初始熟悉度（1 完全陌生 / 2 眼熟 / 3 认识）。
+  // 词条级而非卡级——卡片是点「开始复习」时才惰性注册的，而熟悉度在收录时就要选；
+  // 存卡上会迫使收录时提前建卡，副作用是「暂无可出题内容」清单被污染（spec D3）。
+  initial_familiarity: { name: '初始熟悉度', fieldType: 'text', displayOrder: 23 },
 }
 
 export interface FieldDefinition {
