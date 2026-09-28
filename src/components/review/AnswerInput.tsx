@@ -39,25 +39,41 @@ function optionHeightsOf(grid: HTMLElement): number[] {
 }
 
 /**
- * 选项格子的宽度上限（px，v0.6.3 打磨）。
+ * 单颗选项的宽度上限（px，v0.6.3 打磨）。
  *
- * 键入型题面的答案框已经由 PROMPT 收窄到半栏（550），但选择题这一支此前没有任何限宽——
- * 四颗选项在 1100px 的内容区里要各自摊到 250px 以上。收窄的判据是**字面本身**：
- * 一颗选项在 240px 内不换行，与原来 longcat 那次量出来的 250px 折线是同一档。
+ * 2×2 时每颗实际拿到 (550 − 8) / 2 ≈ 271px，略高于这个上限——上限只在更宽的窗口、
+ * 或回落成 1×4 时才咬得住，那时一颗要摊到 550 以上。多数选项（20 汉字以内）在 250px
+ * 内不换行，与原先量出来的 250px 折线同一档，故不触发换行、不会引起整组回落 1×4；
+ * 22 字以上的长释义本就该换行、进而回落——那个行为是它本来就该有的。
  *
- * 判据用「无定义字宽（undefined per em）」而不是像素：字形宽度与字号正相关，
- * 且是排版里「一个 em 宽多少」的既有概念，不引入第二个只在这一处用的长度单位。
- * 11% 的余量：多数选项在 20 汉字以内（4 个字宽约 200px）不会触发，
- * 而 22 字以上的长释义本就该让它换行、进而整组回落 1×4。
+ * 取 250 而不是 550：后者会让上限在 1×4 时完全失效（一颗就是 550），等于什么都没限。
  */
-const CHOICE_OPTION_MAX_EM = 13
-const CHOICE_OPTION_MAX_WIDTH = `min(${CHOICE_OPTION_MAX_EM}em, 100%)`
+const CHOICE_OPTION_MAX_WIDTH = 250
 
-/** 键入题答案框的宽度上限（px，v0.6.3 打磨）＝ 结果区左栏上限（半栏 550），
+/**
+ * 键入题答案框的宽度上限（px，v0.6.3 打磨）＝ 结果区左栏上限（半栏 550），
  *  与题面块自身的限宽同一个值（题面上是裸字面量 '550px'，见 PromptCard 的说明）。
  *  收窄不为了「答得下」——半个单词也要不了那么宽——而是为了与三键、题面统一到同一条右边界：
- *  三颗评分键与题面都在 550 内结束，答案框却铺满 1100，视线会被拉出内容区之外。 */
+ *  三颗评分键与题面都在 550 内结束，答案框却铺满 1100，视线会被拉出内容区之外。
+ *  它限的是**输入框自己**：包裹层是 inline-block 盒，只包住输入框、不撑满题面列，
+ *  故整列仍是块级撑满、题面文字照旧整宽（见下面那行 inline-block 的注释）。 */
 const INPUT_MAX_WIDTH = RESULT_HALF_WIDTH
+
+/**
+ * 键入题输入框的横向几何（v0.6.3 打磨）。
+ *
+ * width: auto + whiteSpace: pre —— 框的宽度**跟着已输入的文字长**（按词滚动，不折行），
+ * 而不是像原先 width: 100% 那样先铺满半栏再让文字在框里滚动。用户要的是「框本身短」，
+ * 铺满的框即使上限压到 550 仍然是 550 宽——那不是收窄，是把上限从 1100 挪到了 550。
+ * 换行（Enter）仍提交、仍去 trim，故输入中的换行不会把框撑高。
+ *
+ * inline-block 的包裹层：题面那个 <section> 是 flex-col，块级子项默认被 stretch 擑满，
+ * 包裹层得先退成 inline-block 才会收缩到内容宽（否则 width:auto 量到的是整列）。
+ */
+const TYPED_INPUT_BOX: React.CSSProperties = {
+  display: 'inline-block', maxWidth: `${INPUT_MAX_WIDTH}px`,
+  position: 'relative', verticalAlign: 'top',
+}
 
 // 复习区可点击元素的暖橙体系（v0.6.1 §2.2）。四组值都从 --color-accent 派生：
 // 底色用 -soft，描边用 accent 往白里压一阶，文字是 accent 压暗后的同色相深色。
@@ -155,10 +171,7 @@ export default function AnswerInput({
       // 这一条是本任务能否生效的关键——用 `1fr` 时回落判据永远量不出换行。
       <div
         ref={gridRef}
-        style={{
-          display: 'grid', gap: 8, maxWidth: CHOICE_OPTION_MAX_WIDTH,
-          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-        }}
+        style={{ display: 'grid', gap: 8, gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       >
         {(options ?? []).map(opt => {
           const isPicked = chosen === opt
@@ -187,6 +200,11 @@ export default function AnswerInput({
                 textAlign: 'left', padding: '8px 12px', borderRadius: 'var(--radius-lg)',
                 border: `1px solid ${border}`, cursor: disabled ? 'default' : 'pointer',
                 background: bg, color, fontSize: '13px',
+                // 逐颗限宽，不是整组（v0.6.3 打磨）：四颗在 1100px 内容区里要各自摊到 250px 以上，
+                // 而一颗释义实际只占两百上下。2×2 时每颗约 209px（(550−8)/2，与键入框同一个右边界），
+                // 1×4 时每颗 550px。**限宽写在每颗上**——写在整个网格上等于把两列一起压到
+                // 一颗的宽度，两颗各得一半，于是每颗都换行、整组无谓地回落 1×4。
+                maxWidth: `${CHOICE_OPTION_MAX_WIDTH}px`,
               }}
             >
               {opt}
@@ -219,7 +237,7 @@ export default function AnswerInput({
 
   return (
     <div className="flex flex-col gap-2">
-      <div style={{ position: 'relative', maxWidth: `${INPUT_MAX_WIDTH}px` }}>
+      <div style={TYPED_INPUT_BOX}>
         <input
           autoFocus
           disabled={disabled}
@@ -227,8 +245,14 @@ export default function AnswerInput({
           onChange={e => setValue(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && value.trim()) onSubmit(value.trim()) }}
           aria-label="键入答案"
+          // size 是**属性**不是样式：它定 input 的固有宽度（按字符计），配合样式里的
+          // width: auto 才是「框跟着文字长、留出约 20 字符的空位」。20 ≈ 最长一个英文单词
+          // + 一点余量；输入长于它时框在 INPUT_MAX_WIDTH 封顶、内容横向滚动
+          // （whiteSpace: 'pre' 让它不折行）。
+          size={20}
           style={{
-            width: '100%', padding: '8px 10px', borderRadius: 'var(--radius-lg)',
+            whiteSpace: 'pre',
+            padding: '8px 10px', borderRadius: 'var(--radius-lg)',
             border: '1px solid var(--color-border)', background: 'transparent',
             color: letterHighlight && target ? 'transparent' : 'var(--color-text-primary)',
             caretColor: 'var(--color-text-primary)', fontSize: '14px', fontFamily: 'inherit',
