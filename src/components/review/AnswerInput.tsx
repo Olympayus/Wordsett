@@ -41,20 +41,18 @@ function optionHeightsOf(grid: HTMLElement): number[] {
 /**
  * 单颗选项的宽度上限（px，v0.6.3 打磨）。
  *
- * 2×2 时每颗实际拿到 (550 − 8) / 2 ≈ 271px，略高于这个上限——上限只在更宽的窗口、
- * 或回落成 1×4 时才咬得住，那时一颗要摊到 550 以上。多数选项（20 汉字以内）在 250px
- * 内不换行，与原先量出来的 250px 折线同一档，故不触发换行、不会引起整组回落 1×4；
- * 22 字以上的长释义本就该换行、进而回落——那个行为是它本来就该有的。
+ * 2×2 时每颗实得 (550 − 8) / 2 ≈ 271px，这个上限只在更宽的窗口、或回落成 1×4 时才咬得住。
+ * 取 **RESULT_HALF_WIDTH 而不是另写 250**：左半栏里四行控件（选项 / 键入框 / 三键）共用同一条
+ * 右边界是这一版的选定做法，选项若卡在 250 就成了唯一一条短的线。又因为上限 ＝ 父列上限，
+ * 窄栏时它随左半栏一起收窄，两种版式都不必另调。
  *
- * 取 250 而不是 550：后者会让上限在 1×4 时完全失效（一颗就是 550），等于什么都没限。
+ * 多数选项（20 汉字以内）约 200px，在 271px 内不换行，不会引起整组回落 1×4；
+ * 22 字以上的长释义本就该换行、进而回落——那个行为是它本来就该有的。
  */
-const CHOICE_OPTION_MAX_WIDTH = 250
+const CHOICE_OPTION_MAX_WIDTH = RESULT_HALF_WIDTH
 
-/**
- * 键入题答案框的宽度上限（px，v0.6.3 打磨）＝ 结果区左栏上限（半栏 550），
+/** 键入题答案框的宽度上限（px，v0.6.3 打磨）＝ 结果区左栏上限（半栏 550），
  *  与题面块自身的限宽同一个值（题面上是裸字面量 '550px'，见 PromptCard 的说明）。
- *  收窄不为了「答得下」——半个单词也要不了那么宽——而是为了与三键、题面统一到同一条右边界：
- *  三颗评分键与题面都在 550 内结束，答案框却铺满 1100，视线会被拉出内容区之外。
  *  它限的是**输入框自己**：包裹层是 inline-block 盒，只包住输入框、不撑满题面列，
  *  故整列仍是块级撑满、题面文字照旧整宽（见下面那行 inline-block 的注释）。 */
 const INPUT_MAX_WIDTH = RESULT_HALF_WIDTH
@@ -62,13 +60,15 @@ const INPUT_MAX_WIDTH = RESULT_HALF_WIDTH
 /**
  * 键入题输入框的横向几何（v0.6.3 打磨）。
  *
- * width: auto + whiteSpace: pre —— 框的宽度**跟着已输入的文字长**（按词滚动，不折行），
- * 而不是像原先 width: 100% 那样先铺满半栏再让文字在框里滚动。用户要的是「框本身短」，
- * 铺满的框即使上限压到 550 仍然是 550 宽——那不是收窄，是把上限从 1100 挪到了 550。
+ * width: 100% —— 框擑满左半栏，与三键、选项共用同一条右边界（这一版选定的做法）。
+ * whiteSpace: pre：输入内容按字符横向滚动而不折行。上面走过一版 width: auto +
+ * size={20}（框跟着文字长、约 150px），那一版只解决了「框太宽」，却让输入框成为
+ * 唯一一条短的右边界，与三键、选项对不齐。宽框对打一个单词确实偏空，但四行控件
+ * 齐着一条边比三行齐一条边更好看。
  * 换行（Enter）仍提交、仍去 trim，故输入中的换行不会把框撑高。
  *
  * inline-block 的包裹层：题面那个 <section> 是 flex-col，块级子项默认被 stretch 擑满，
- * 包裹层得先退成 inline-block 才会收缩到内容宽（否则 width:auto 量到的是整列）。
+ * 包裹层得先退成 inline-block，width: 100% 才是「半栏」而不是「整列」。
  */
 const TYPED_INPUT_BOX: React.CSSProperties = {
   display: 'inline-block', maxWidth: `${INPUT_MAX_WIDTH}px`,
@@ -245,13 +245,8 @@ export default function AnswerInput({
           onChange={e => setValue(e.target.value)}
           onKeyDown={e => { if (e.key === 'Enter' && value.trim()) onSubmit(value.trim()) }}
           aria-label="键入答案"
-          // size 是**属性**不是样式：它定 input 的固有宽度（按字符计），配合样式里的
-          // width: auto 才是「框跟着文字长、留出约 20 字符的空位」。20 ≈ 最长一个英文单词
-          // + 一点余量；输入长于它时框在 INPUT_MAX_WIDTH 封顶、内容横向滚动
-          // （whiteSpace: 'pre' 让它不折行）。
-          size={20}
           style={{
-            whiteSpace: 'pre',
+            width: '100%', whiteSpace: 'pre',
             padding: '8px 10px', borderRadius: 'var(--radius-lg)',
             border: '1px solid var(--color-border)', background: 'transparent',
             color: letterHighlight && target ? 'transparent' : 'var(--color-text-primary)',
