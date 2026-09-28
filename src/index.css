@@ -27,3 +27,18 @@ body {
 }
 
 @keyframes spin { to { transform: rotate(360deg) } }
+
+/* 量宽用的临时态（v0.6.3 打磨）：结果区要判断「完整词条快照能不能与之并排」，
+   判据是这个快照里最宽的不可断元素的**自然宽**——在真布局下量会量到被轨道压过的宽度，
+   永远量不出「本来要多少」。带这个属性的元素在 EntrySnapshot 的 layout effect 里
+   逐个打开量、量完立刻删掉，浏览器绘制前完成，用户看不到中间态。
+   排成 grid 的一列：整行一起摊到自然宽（单词 + 音标是一个不可断的组合）。 */
+[data-measure], [data-measure-row] {
+  display: grid !important;
+  grid-auto-flow: column;
+  grid-auto-columns: max-content;
+  width: max-content !important;
+  max-width: none !important;
+  flex: none !important;
+}
+

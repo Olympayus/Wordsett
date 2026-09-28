@@ -15,8 +15,12 @@ import { RESULT_BREAKPOINT, RESULT_CONTENT_WIDTH, NARROW_CONTENT_WIDTH } from '.
 import { getWordContent } from '../../db/review'
 
 /**
- * 当前视口是否窄于结果区断点。用 matchMedia 而不是量 DOM：需要它的两处
- * （内容区上限、ResultBlock 的列数）在同一个渲染里读同一个值，量 DOM 会有两帧不同步。
+ * 当前视口是否够宽（不窄于结果区断点）。
+ * 用 matchMedia 而不是量 DOM：需要它的两处（内容区上限、ResultBlock 的并排下限）
+ * 在同一个渲染里读同一个值，量 DOM 会有两帧不同步。
+ *
+ * 它只管**下限**：够宽之后要不要真并排，还要看快照自己放不放得下半栏（ResultBlock 量）。
+ * 「屏幕放得下」与「这个词条放得下」是两件事，用同一个布尔表达会丢掉后者。
  */
 function useNarrowResults(): boolean {
   const query = `(max-width: ${RESULT_BREAKPOINT - 1}px)`
@@ -216,7 +220,7 @@ export default function ReviewArena() {
       {revealed && (
         // 三键与「下一题」递进 ResultBlock 的左栏：宽屏时它们与完整词条并排（spec §6.5），
         // 否则会落在两栏之下、跟改动前一样被词条顶到屏幕下半。评分状态仍留在这里。
-        <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} narrow={narrow}>
+        <ResultBlock dto={dto} snapshot={snapshot} lastInput={lastInput} correct={correct} viewportWide={!narrow}>
           {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
           {!answeredNow && <RatingBar onRate={r => void handleRate(r, lastInput)} disabled={rating} />}
           {past ? (
