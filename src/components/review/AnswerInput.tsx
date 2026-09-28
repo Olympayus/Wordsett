@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { letterMatches } from '../../lib/review/typed'
+import { RESULT_HALF_WIDTH } from '../../lib/review/resultLayout'
 import SquareButton from '../ui/SquareButton'
 
 export type InputKind = 'choice' | 'typed' | 'reveal'
@@ -36,6 +37,27 @@ export function choiceColumns(optionHeights: number[], lineHeight: number): 1 | 
 function optionHeightsOf(grid: HTMLElement): number[] {
   return Array.from(grid.children).map(c => (c as HTMLElement).offsetHeight)
 }
+
+/**
+ * 选项格子的宽度上限（px，v0.6.3 打磨）。
+ *
+ * 键入型题面的答案框已经由 PROMPT 收窄到半栏（550），但选择题这一支此前没有任何限宽——
+ * 四颗选项在 1100px 的内容区里要各自摊到 250px 以上。收窄的判据是**字面本身**：
+ * 一颗选项在 240px 内不换行，与原来 longcat 那次量出来的 250px 折线是同一档。
+ *
+ * 判据用「无定义字宽（undefined per em）」而不是像素：字形宽度与字号正相关，
+ * 且是排版里「一个 em 宽多少」的既有概念，不引入第二个只在这一处用的长度单位。
+ * 11% 的余量：多数选项在 20 汉字以内（4 个字宽约 200px）不会触发，
+ * 而 22 字以上的长释义本就该让它换行、进而整组回落 1×4。
+ */
+const CHOICE_OPTION_MAX_EM = 13
+const CHOICE_OPTION_MAX_WIDTH = `min(${CHOICE_OPTION_MAX_EM}em, 100%)`
+
+/** 键入题答案框的宽度上限（px，v0.6.3 打磨）＝ 结果区左栏上限（半栏 550），
+ *  与题面块自身的限宽同一个值（题面上是裸字面量 '550px'，见 PromptCard 的说明）。
+ *  收窄不为了「答得下」——半个单词也要不了那么宽——而是为了与三键、题面统一到同一条右边界：
+ *  三颗评分键与题面都在 550 内结束，答案框却铺满 1100，视线会被拉出内容区之外。 */
+const INPUT_MAX_WIDTH = RESULT_HALF_WIDTH
 
 // 复习区可点击元素的暖橙体系（v0.6.1 §2.2）。四组值都从 --color-accent 派生：
 // 底色用 -soft，描边用 accent 往白里压一阶，文字是 accent 压暗后的同色相深色。
@@ -133,7 +155,10 @@ export default function AnswerInput({
       // 这一条是本任务能否生效的关键——用 `1fr` 时回落判据永远量不出换行。
       <div
         ref={gridRef}
-        style={{ display: 'grid', gap: 8, gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        style={{
+          display: 'grid', gap: 8, maxWidth: CHOICE_OPTION_MAX_WIDTH,
+          gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
+        }}
       >
         {(options ?? []).map(opt => {
           const isPicked = chosen === opt
@@ -194,7 +219,7 @@ export default function AnswerInput({
 
   return (
     <div className="flex flex-col gap-2">
-      <div style={{ position: 'relative' }}>
+      <div style={{ position: 'relative', maxWidth: `${INPUT_MAX_WIDTH}px` }}>
         <input
           autoFocus
           disabled={disabled}

@@ -64,7 +64,11 @@ export default function PromptCard({
 }) {
   const p = dto.prompt as Record<string, any>
   return (
-    <section aria-label="题目" className="flex flex-col gap-4" style={{ maxWidth: '560px' }}>
+    // 限宽 550 ＝ resultLayout 的 RESULT_HALF_WIDTH（结果区左栏上限），题面与结果区
+    // 因此在同一条右边界上结束。**这里写的是字面量而不是导入那个常量**：PromptCard 在
+    // 题面渲染之前就要定宽，而 resultLayout 的另一半职责（列定义）只在结果区用；
+    // 两处数值必须相等，由「都是 550」这一事实承担，改动时两处一起改。
+    <section aria-label="题目" className="flex flex-col gap-4" style={{ maxWidth: '550px' }}>
       {/* 题型行（v0.6.3 条目 18）：左题型、右跳过，同一行。
           跳过从题面块右上角上移到这里——位置几乎没变（只高一行），但题型因此有了固定落点，
           且五种题型共用一套。 */}
