@@ -39,3 +39,24 @@ export function masteryTier(m: number | null): 0 | 1 | 2 | 3 | 4 {
 function clamp01(x: number): number {
   return Math.min(1, Math.max(0, x))
 }
+
+/**
+ * 首评三键的默认聚焦键（spec 4.6；出题依据 01 §3.7）。
+ *
+ * 只有**未首评**的卡才有默认值——已复习过的卡，它的下一次评分该由上一轮的间隔与
+ * 你的记忆状态决定，预填一个「眼熟」反倒是在替你作答。
+ *
+ * 判据必须是 stability 而不是 sched.reps：reps 在 assembleCardDTO 里是硬编码 0，
+ * 拿它判「是否新卡」会把每一张卡都判成新卡。
+ *
+ * 语义边界：这是**视觉默认态**，不是自动评分。用户仍须按键确认——§3.7 的立论根基
+ * 就是「三键确认是防误评的根基」，预填省的是目光移动，不省按键确认。
+ */
+export function defaultRatingFor(input: {
+  stability: number | null
+  initialFamiliarity: InitialFamiliarity
+}): 1 | 2 | 3 | null {
+  if (input.stability !== null) return null
+  const f = input.initialFamiliarity
+  return f === 2 ? 2 : f === 3 ? 3 : 1
+}

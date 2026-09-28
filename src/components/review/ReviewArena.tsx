@@ -241,7 +241,13 @@ export default function ReviewArena() {
             // 右轨（本题的 snapshot 仍经它取，两个副本读的是同一个词条）。
             <ResultBlock dto={dto} lastInput={lastInput} correct={correct}>
               {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
-              {!answeredNow && <RatingBar onRate={r => void handleRate(r, lastInput)} disabled={rating} />}
+              {!answeredNow && (
+                <RatingBar
+                  onRate={r => void handleRate(r, lastInput)}
+                  disabled={rating}
+                  defaultRating={dto.sched.defaultRating}
+                />
+              )}
               {past ? (
                 // 回看态：只读回放。一般位置向前靠导航条右箭头；但整轮已答完又翻回最后一题时
                 // canGoForward 在队尾恒为 false（nav.test.ts 钉住「箭头不越界」），右箭头被灰掉，

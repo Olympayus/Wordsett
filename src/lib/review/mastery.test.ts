@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mastery, retrievability, elapsedDaysSince, masteryTier, NEW_CARD_RNOW } from './mastery'
+import { mastery, retrievability, elapsedDaysSince, masteryTier, NEW_CARD_RNOW, defaultRatingFor } from './mastery'
 
 const MS_PER_DAY = 86_400_000
 
@@ -60,5 +60,23 @@ describe('review/mastery', () => {
     expect(masteryTier(0.95)).toBe(4)
     expect(masteryTier(1)).toBe(4)      // 上界不得溢出到 5
     expect(masteryTier(0)).toBe(1)
+  })
+})
+
+describe('defaultRatingFor', () => {
+  it('未首评时按熟悉度给 1 / 2 / 3', () => {
+    expect(defaultRatingFor({ stability: null, initialFamiliarity: 1 })).toBe(1)
+    expect(defaultRatingFor({ stability: null, initialFamiliarity: 2 })).toBe(2)
+    expect(defaultRatingFor({ stability: null, initialFamiliarity: 3 })).toBe(3)
+  })
+
+  it('已首评（stability 非空）不预填', () => {
+    expect(defaultRatingFor({ stability: 0.5, initialFamiliarity: 3 })).toBeNull()
+    expect(defaultRatingFor({ stability: 42, initialFamiliarity: 1 })).toBeNull()
+  })
+
+  it('判据是 stability 而不是 reps', () => {
+    // assembleCardDTO 的 sched.reps 是硬编码 0，拿它判「是否新卡」会把所有卡都判成新卡。
+    expect(defaultRatingFor({ stability: 0.1, initialFamiliarity: 2 })).toBeNull()
   })
 })

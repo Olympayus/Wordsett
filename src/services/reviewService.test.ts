@@ -232,6 +232,11 @@ describe('reviewService.assembleCardDTO', () => {
     expect(dto.sched.rNow).toBeCloseTo(0.45, 6)
   })
 
+  it('assembleCardDTO 带出 defaultRating：新卡按熟悉度，熟词为 null', () => {
+    expect(assembleCardDTO(candidate({ stability: null, initialFamiliarity: 2 }), 'recognize', content, null).sched.defaultRating).toBe(2)
+    expect(assembleCardDTO(candidate({ stability: 10, initialFamiliarity: 2 }), 'recognize', content, null).sched.defaultRating).toBeNull()
+  })
+
   it('填空题干缺例句时回退：挖空失败不产生空题面', () => {
     const noExample = { ...content, example: '', exampleGloss: '' }
     const dto = assembleCardDTO(candidate(), 'cloze', noExample, null)

@@ -162,9 +162,16 @@ interface Props {
   role?: 'switch' | 'button'
   'aria-checked'?: boolean
   'aria-label'?: string
+  /**
+   * 视觉强调（spec 4.6 的三键默认态）。
+   *
+   * highlight 与 pressed 是两件事：pressed 在本仓的语义是「形态开关已生效」，
+   * 复用它会让三键看起来像被切换开了。这里只加一圈品牌色内描边，不动底色。
+   */
+  highlight?: boolean
 }
 
-export default function SquareButton({ children, onClick, disabled, title, pressed, size = 'default', tone = 'canvas', grow, minWidth, role, 'aria-checked': ariaChecked, 'aria-label': ariaLabel, 'aria-keyshortcuts': ariaKeyshortcuts }: Props) {
+export default function SquareButton({ children, onClick, disabled, title, pressed, size = 'default', tone = 'canvas', grow, minWidth, role, 'aria-checked': ariaChecked, 'aria-label': ariaLabel, 'aria-keyshortcuts': ariaKeyshortcuts, highlight }: Props) {
   // hover / 按压必须用 JS 模拟：项目视觉一律走内联 style，不引 CSS class（见文件头注释）。
   // 按压用三事件配对而非 click —— 指针在按钮上松开才算有效，避免按下后滑出仍触发视觉反馈。
   const [hover, setHover] = useState(false)
@@ -197,6 +204,9 @@ export default function SquareButton({ children, onClick, disabled, title, press
         ...(size === 'row' ? BUTTON_SIZE_ROW : null),
         ...(disabled ? BUTTON_DISABLED : null),
         ...(background !== null ? { background } : null),
+        // 放在 background 之后、pressing 之前：后面两个键都不写 box-shadow，
+        // 故这圈内描边不会被压掉；而它自己也不动 background，两态不打架。
+        ...(highlight ? { boxShadow: 'inset 0 0 0 1.5px var(--color-brand)' } : {}),
         ...(pressing && !disabled ? { transform: 'scale(.96)' } : null),
       }}
     >

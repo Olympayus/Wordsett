@@ -4,7 +4,7 @@ import { isListenEnabled } from '../lib/review/ttsGate'
 import { buildQueue, type QueueCandidate, type QueueResult } from '../lib/review/queue'
 import { selectByCategories } from '../lib/review/categoryCounts'
 import { pickTemplate, templateAccuracy, templatesWithExampleGate, type TemplateLog } from '../lib/review/template'
-import { mastery, retrievability, elapsedDaysSince, NEW_CARD_RNOW, masteryTier } from '../lib/review/mastery'
+import { mastery, retrievability, elapsedDaysSince, NEW_CARD_RNOW, masteryTier, defaultRatingFor } from '../lib/review/mastery'
 import type { CardContent, InitialFamiliarity, ReviewMode, ReviewStrategy, Template } from '../lib/review/types'
 
 export type { CardContent } from '../lib/review/types'
@@ -44,6 +44,8 @@ export interface ReviewCardDTO {
     lastReviewAt: number | null
     mastery: number | null
     rNow: number
+    /** 未首评时按词条级初始熟悉度给的三键视觉默认态（spec 4.6）；null = 不预填 */
+    defaultRating: 1 | 2 | 3 | null
   }
 }
 
@@ -171,6 +173,7 @@ export function assembleCardDTO(
       lastReviewAt: candidate.lastReviewAt,
       mastery: m,
       rNow,
+      defaultRating: defaultRatingFor({ stability: candidate.stability, initialFamiliarity: candidate.initialFamiliarity }),
     },
   }
 }

@@ -29,7 +29,12 @@ export const RATING_OPTIONS: RatingOption[] = [
  * 宽度不写死：grow 让三颗按 `1fr` 对分，父列的 maxWidth（resultLayout 的
  * RESULT_HALF_WIDTH）给上限，于是窄栏时三颗会随栏一起收窄，不会顶出左半栏。
  */
-export default function RatingBar({ onRate, disabled }: { onRate: (rating: number) => void; disabled?: boolean }) {
+export default function RatingBar({ onRate, disabled, defaultRating }: {
+  onRate: (rating: number) => void
+  disabled?: boolean
+  /** 首评的视觉默认键（spec 4.6）。null = 不预填。**不抢 DOM 焦点** */
+  defaultRating?: 1 | 2 | 3 | null
+}) {
   return (
     <div className="flex gap-2" role="group" aria-label="评分">
       {RATING_OPTIONS.map(o => (
@@ -40,6 +45,7 @@ export default function RatingBar({ onRate, disabled }: { onRate: (rating: numbe
           disabled={disabled}
           onClick={() => onRate(o.rating)}
           aria-keyshortcuts={o.key}
+          highlight={o.rating === defaultRating}
         >
           {o.label} <span style={{ opacity: 0.5, fontSize: '11px' }}>{o.key}</span>
         </SquareButton>
