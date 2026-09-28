@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import type { ReviewCardDTO, CardContent } from '../../services/reviewService'
 import { inputKindFor } from './PromptCard'
 import { correctnessLabel } from '../../lib/review/roundStats'
-import { NARROW_READING_WIDTH, resultGridColumns } from '../../lib/review/resultLayout'
+import { READING_WIDTH, resultGridColumns } from '../../lib/review/resultLayout'
 import EntrySnapshot from './EntrySnapshot'
 
 /**
@@ -17,8 +17,9 @@ import EntrySnapshot from './EntrySnapshot'
  * SummaryPanel 的明细表早就有「（跳过）/（揭示后评分）」两支，这里索性整行不渲染——
  * 揭示型题没有作答可展示，correct 也恒为 null，两个内容都不存在。
  *
- * 版式（v0.6.3 条目 16）：作答与词条并排成两栏。宽屏左栏是「你的作答 + 三键 + 下一题」、
- * 右栏是完整词条；窄屏回到单列、词条落到最下方——列定义见 lib/review/resultLayout，断点由 ReviewArena 传入。
+ * 版式（v0.6.3 条目 16；打磨：左栏封顶）：作答与词条并排成两栏。宽屏左栏是
+ * 「你的作答 + 三键 + 下一题」（封顶 560px，余量全归右栏词条）、右栏是完整词条；
+ * 窄屏回到单列、词条落到最下方——列定义见 lib/review/resultLayout，断点由 ReviewArena 传入。
  * 三键与「下一题」由调用方经 children 递进来（评分状态留在 ReviewArena，这里只管摆放位置），
  * 这样左栏才是完整的一块，键不会被词条顶到屏幕下半。
  */
@@ -42,10 +43,13 @@ export default function ResultBlock({ dto, snapshot, lastInput, correct, narrow 
         {/* 左：作答 + 评分键 + 下一题（揭示型题不渲染作答行，键照常在，见上） */}
         <div className="flex flex-col gap-4">
           {!revealOnly && (
-            // 560px 的阅读上限只套在作答行上，不能套在整栏上：窄屏时三键要保持整宽，
-            // 被 560px 一起压窄就等于把这次重排想修的「键被推远」换成了「键变挤」。
-            // 宽屏不限宽——那根 560px 的线正是两栏放不下的原因。
-            <div className="flex flex-col gap-1" style={{ maxWidth: narrow ? `${NARROW_READING_WIDTH}px` : undefined }}>
+            // READING_WIDTH 的阅读上限在窄屏只套在作答行上、宽屏由网格左轨套在整栏上。
+            // 两者的区别是**谁来限**：窄屏没有左轨（单列），限宽只能落在作答行这一个盒子上；
+            // 宽屏则由 resultGridColumns 的左轨统一封顶，作答行不必再自己写一遍。
+            // 宽屏那一版曾按「不能套在整栏上，否则三键会变挤」的理由留空——左轨封顶到 560 之后
+            // 三键各约 (560 − 16) / 3 ≈ 181px，仍远宽于「忘了 / 模糊 / 记得」所需的宽度，
+            // 那条理由随之失效；而封顶换来的正是右栏词条的 268 → 454px。
+            <div className="flex flex-col gap-1" style={{ maxWidth: narrow ? `${READING_WIDTH}px` : undefined }}>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>你的作答</span>
               <span style={{ fontSize: '14px' }}>
                 {lastInput || '（未作答）'}
