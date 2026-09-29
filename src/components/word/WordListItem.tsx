@@ -44,6 +44,14 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
   const leechThreshold = useSettingsStore(s => s.review.leechThreshold)
   const isLeechRow = !collapsed && !!overlay && isLeech(overlay.maxLapses, leechThreshold)
 
+  // 静止底色：勾选态 > 当前词条态 > 无。抽出来是因为**两处必须逐字相同**——
+  // onMouseLeave 写的是内联字面量、不是引用 containerStyle，两边各写一份三元就会漂：
+  // 勾选行移出鼠标时被写成 transparent（勾选色没了），既勾选又选中时被写成
+  // --color-surface（而 containerStyle 说 brand-soft）。一个常量让漂移无从发生。
+  const restingBackground = checked
+    ? 'var(--color-brand-soft)'
+    : (selected ? 'var(--color-surface)' : 'transparent')
+
   const containerStyle: CSSProperties = {
     display: 'flex',
     alignItems: collapsed ? 'center' : 'flex-start',
@@ -52,7 +60,7 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
     borderRadius: 'var(--radius-md)',
     cursor: 'pointer',
     position: 'relative',
-    background: checked ? 'var(--color-brand-soft)' : (selected ? 'var(--color-surface)' : 'transparent'),
+    background: restingBackground,
     transition: 'background-color var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth)',
     justifyContent: collapsed && mode === 'category' ? 'center' : undefined,
   }
@@ -81,7 +89,10 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
       }}
       onMouseLeave={e => {
         const el = e.currentTarget as HTMLElement
-        el.style.background = selected ? 'var(--color-surface)' : 'transparent'
+        // 写的是内联字面量，不引用 containerStyle——所以必须显式回到该行**实际**的静止态，
+        // 且 checked 的优先级与 containerStyle 完全一致（见 restingBackground）。
+        // 编织线不归 checked 管：它的 React 样式只看 selected，故这里的重置本来就对。
+        el.style.background = restingBackground
         el.style.transform = 'translateX(0)'
         if (lineRef.current) {
           lineRef.current.style.background = selected ? 'var(--color-brand)' : 'var(--color-border)'
