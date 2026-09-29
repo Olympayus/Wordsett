@@ -9,6 +9,7 @@ import SpeakButton from '../ui/SpeakButton'
 import { lookupTitleMeta, lookupWord } from '../../services/searchService'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
+import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
 import FamiliarityChoice from './FamiliarityChoice'
 import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
@@ -59,7 +60,8 @@ export default function DictDetailPanel({ word }: Props) {
 
   // 展示态的在库判据实时求值：启动时 loadWords() 未落地的一瞬会短暂多算成「库外」，代价只是多问一次；
   // 反过来若在这里快照，导入后词表变化会看不见。写入端的守卫另在 handleMergeAdd 里现算。
-  // 判据本体在 lib/ensureWord.ts 的 isWordInLibrary——渲染期订阅、写入期现调，同一份。
+  // 判据与写入守卫的 isWordInLibrary 逐字符相同，但这里必须订阅式：helper 读 getState()
+  // 是一次快照，用在 JSX 里词表变化就不会重渲染（R15）。
   const inLibrary = useWordStore(s => s.words.some(w => w.lemma.toLowerCase() === word.toLowerCase()))
 
   // 初始熟悉度（spec 4.6）：只对库外词问一次，写入随「合并添加」一起发生。
@@ -106,7 +108,14 @@ export default function DictDetailPanel({ word }: Props) {
     // 在库词这里显示的是「已在库」、familiarity 恒为重置默认值 1，无条件写就会把用户当初选的档
     // 覆写成「完全陌生」——不可撤销，且该值直通 Task 4 三键预填与 Task 6 冷启动档位徽标，
     // 毁的正是本版要合上的那个环（spec §4.7）。失败不阻断收录：字段已入库，缺失只让该词回落 1。
-    if (!wordWasInLibrary) await setInitialFamiliarity(target.id, familiarity)
+    if (!wordWasInLibrary) {
+      const wrote = await setInitialFamiliarity(target.id, familiarity)
+      // 熟悉度刚写进库，而 overlay 是 chip 的唯一数据源——不重取它就停在收录前：
+      // 新词压根不在里面，chip 会走 ?? 1，把用户刚选的「眼熟」显示成「陌生」（spec §4.7）。
+      // 挂在写入点而不是 wordStore 里：叠加层的刷新时机本就与词条内容不同
+      // （reviewOverlayStore 的注释），挂进 store 会把两者重新耦上。
+      if (wrote) void useReviewOverlayStore.getState().loadOverlay()
+    }
     void selectWord(target.id)
     showWorkbench()
   }

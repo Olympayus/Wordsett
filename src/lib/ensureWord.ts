@@ -2,11 +2,12 @@ import { useWordStore } from '../stores/wordStore'
 import type { Word } from '../types/word'
 
 /**
- * 词是否已在库（忽略大小写）——**唯一**一份判据。
+ * 词是否已在库（忽略大小写）——**两处写入守卫**共用的判据出处：词典详情面板的
+ * 合并添加、卡片级「＋ 添加此词典」。两处若各写一份，守卫迟早会漂。
  *
- * 收录路径上有三处都要问这句：ensureWord 自身、词典详情面板的展示态与写入守卫、
- * 卡片级「＋ 添加此词典」的写入守卫。三处若各写一份，判据迟早会漂——收进这个纯函数
- * 就是为了让它们不可能不同。
+ * 另外两处刻意不共用：ensureWord 自己要的是那条 `Word` 而非布尔；面板渲染态的
+ * inLibrary 要的是活订阅（用本函数读 getState() 会让词表变化不重渲染）。三处表达式
+ * 逐字符相同，差异只在要不要 Word 对象 / 要不要响应式。
  */
 export function isWordInLibrary(lemma: string): boolean {
   return useWordStore.getState().words.some(w => w.lemma.toLowerCase() === lemma.toLowerCase())

@@ -5,6 +5,7 @@ import type { DictionaryEntry, DictionaryField } from '../../types/dictionary'
 import type { FieldSource } from '../../types/field'
 import type { MergeFieldInput } from '../../services/wordService'
 import { useWordStore } from '../../stores/wordStore'
+import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { isFieldVisible } from '../../lib/fieldTree'
 import type { DisplayFieldKey } from '../../stores/settingsStore'
@@ -196,7 +197,12 @@ export default function DictDetailCard({
       // 熟悉度随收录一并写入，只在用户被问过时（spec §4.6：单选与本写入同一个条件）：
       // 在库词的面板显示「已在库」、familiarity 恒为重置默认值 1，无条件写就会把用户当初
       // 选的档覆写成「完全陌生」。失败不阻断收录——字段已入库，缺失只让该词回落 1。
-      if (!wordWasInLibrary) await setInitialFamiliarity(word.id, familiarity)
+      if (!wordWasInLibrary) {
+        const wrote = await setInitialFamiliarity(word.id, familiarity)
+        // 同 handleMergeAdd：熟悉度刚写进库，chip 读的 overlay 还停在收录前，不重取就显示「陌生」。
+        // 刷新跟写入放在一起，而不是挂进 wordStore——叠加层的刷新时机与词条内容不同。
+        if (wrote) void useReviewOverlayStore.getState().loadOverlay()
+      }
       setError(false)
       setAdded(true)
       window.setTimeout(() => setAdded(false), 1500)
