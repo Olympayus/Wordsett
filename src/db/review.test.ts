@@ -18,6 +18,7 @@ import {
   getAbsentWords,
 } from './review'
 import { createTestDb, type DbLike } from './test-utils'
+import { displayTier } from '../lib/review/mastery'
 
 const NOW = 1_700_000_000_000
 
@@ -446,6 +447,10 @@ describe('db/review 读路径', () => {
       // 那张没状态的卡在 SQL 里是 NULL，MIN 会跳过它 → 12 仍是真值。
       // 这条恰好钉住「未评分不参与取最弱」：若把它当 0，词级读数会被抹平成 0。
       expect(r.data.w1.weakestStability).toBe(12)
+      // 部分未评分 ≠ 没有记录：w1 有一张已评分的卡，读数就该走 FSRS 那一支而不是回落熟悉度。
+      // familiarity 3 的冷启动档恰好也是 3，故换 stability 用「无记录」分支的档 0 断——
+      // 读到 0 就说明未评分把整词拖成了「无记录」。
+      expect(displayTier({ stability: r.data.w1.weakestStability, familiarity: 1 })).not.toBe(0)
       // w2 有卡但无 review_states 行 → 0 / null
       expect(r.data.w2.maxLapses).toBe(0)
       expect(r.data.w2.weakestStability).toBeNull()
@@ -462,6 +467,10 @@ describe('db/review 读路径', () => {
       expect(r.data.w3).toEqual({ maxLapses: 0, weakestStability: null, familiarity: 1 })
       // w4 无卡，但收录时选了「眼熟」→ 读回 2，这就是 chip 该显示的档（spec §4.5 冷启动分支）
       expect(r.data.w4).toEqual({ maxLapses: 0, weakestStability: null, familiarity: 2 })
+      // 把这条链**走完**（overlay → displayTier → 档位），别只钉输入：刚收录、所有卡都还没评分的词
+      // 必须是「熟悉度自报的档 2」，而不是 0 分 / 无记录（档 0）。上面那行只证明 weakestStability 是 null，
+      // 真正决定显示档的是 displayTier 收到 null 之后走冷启动分支——这一行才是本任务要的行为。
+      expect(displayTier({ stability: r.data.w4.weakestStability, familiarity: r.data.w4.familiarity })).toBe(2)
     })
 
     it('familiarity 与候选池同源（都读字段）', async () => {
