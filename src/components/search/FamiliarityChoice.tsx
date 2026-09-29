@@ -6,10 +6,11 @@ import type { InitialFamiliarityChoice } from '../../services/wordService'
  * 只在**词不在库**时出现——已在库的词，熟悉度只对未首评新卡有消费方，
  * 而新卡在反复收录时不会重造，再问一次是打扰。
  *
- * 默认「完全陌生」：不选也是一种回答，且是最保守的那个（§3.7「不自动首评」同源取向）。
+ * 默认「陌生」：不选也是一种回答，且是最保守的那个（§3.7「不自动首评」同源取向）。
  */
-const OPTIONS: { value: InitialFamiliarityChoice; label: string }[] = [
-  { value: 1, label: '完全陌生' },
+/** 三档枚举 → 文案。导出供测试与调用点核对——改名只动这里，库里存的是数字 1/2/3。 */
+export const FAMILIARITY_OPTIONS: { value: InitialFamiliarityChoice; label: string }[] = [
+  { value: 1, label: '陌生' },
   { value: 2, label: '眼熟' },
   { value: 3, label: '认识' },
 ]
@@ -21,7 +22,7 @@ export default function FamiliarityChoice({ value, onChange, disabled }: {
 }) {
   return (
     <div role="radiogroup" aria-label="初始熟悉度" style={{ display: 'inline-flex', gap: 6 }}>
-      {OPTIONS.map(o => {
+      {FAMILIARITY_OPTIONS.map(o => {
         const active = o.value === value
         return (
           <button

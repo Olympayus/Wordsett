@@ -6,6 +6,8 @@ import { canGoBack, canGoForward } from '../../lib/navHistory'
 import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
 import Tooltip from '../ui/Tooltip'
+import FamiliarityChoice from '../search/FamiliarityChoice'
+import type { InitialFamiliarityChoice } from '../../services/wordService'
 
 interface WorkbenchNavBarProps {
   /** 所在区域：工作台显示编者/删除，搜索返回页显示返回/合并添加 */
@@ -18,6 +20,11 @@ interface WorkbenchNavBarProps {
   onMergeAdd?: () => void
   mergeCount?: number
   mergeDisabled?: boolean
+  /** 词不在库时的初始熟悉度单选（region='dict' 使用）。 */
+  familiarity?: InitialFamiliarityChoice
+  onFamiliarityChange?: (v: InitialFamiliarityChoice) => void
+  /** 词已在库：三键整组换成「已在库」四字，保持右端宽度接近、按钮不左右跳。 */
+  inLibrary?: boolean
 }
 
 // 导航按钮（V8 .nav-btn）：28×28、无边框无底色，hover 才起底色
@@ -36,6 +43,7 @@ const navBtn = (disabled = false): CSSProperties => ({
 // 形态对齐 V8 原型 .ed-toolbar：圆角描边浮条（--color-surface 底 + 1px 描边），而非仅一条下边框。
 export default function WorkbenchNavBar({
   region, onDeleteWord, onBack, onMergeAdd, mergeCount = 0, mergeDisabled = false,
+  familiarity, onFamiliarityChange, inLibrary = false,
 }: WorkbenchNavBarProps) {
   const editorMode = useViewStore(s => s.editorMode)
   const setEditorMode = useViewStore(s => s.setEditorMode)
@@ -65,7 +73,7 @@ export default function WorkbenchNavBar({
       style={{
         // 吸顶（spec §6）+ 圆角描边浮条（V8 .ed-toolbar 的形态，底色取主题暖色而非纯白）
         position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
-        display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap',
+        display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
         background: 'var(--color-canvas)',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-lg)',
@@ -134,19 +142,31 @@ export default function WorkbenchNavBar({
             </button>
           </>
         ) : (
-          // 合并添加（dict 区）：悬浮说明走 Tooltip 包裹而非 title 属性——accname 2.2 里
-          // title 早于 name-from-content，一挂就把可及名钉成常量「合并添加」，
-          // 「· N 项」永远不被读出（Icon 是 aria-hidden，不参与命名）。
-          <Tooltip content={mergeCount > 0 ? `把勾选的 ${mergeCount} 项合并添加进词条` : '先勾选要添加的词条'} width={260}>
-            <SquareButton
-              size="nav"
-              disabled={mergeDisabled}
-              onClick={() => onMergeAdd?.()}
-            >
-              <Icon name="plus" size={12} />
-              合并添加{mergeCount > 0 ? ` · ${mergeCount} 项` : ''}
-            </SquareButton>
-          </Tooltip>
+          <>
+            {/* 初始熟悉度三键（v0.6.5 §4.5，从页面底部收录区上移）：词不在库时可选，缺省落第 1 档「陌生」。
+                词已在库则整组换成灰色「已在库」四字——这一支与三键的右端宽度接近，切词时按钮不左右跳。 */}
+            {inLibrary ? (
+              <span style={{ fontSize: '12px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>已在库</span>
+            ) : (
+              <>
+                <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>初始熟悉度</span>
+                <FamiliarityChoice value={familiarity ?? 1} onChange={v => onFamiliarityChange?.(v)} />
+              </>
+            )}
+            {/* 合并添加（dict 区）：悬浮说明走 Tooltip 包裹而非 title 属性——accname 2.2 里
+                title 早于 name-from-content，一挂就把可及名钉成常量「合并添加」，
+                「· N 项」永远不被读出（Icon 是 aria-hidden，不参与命名）。 */}
+            <Tooltip content={mergeCount > 0 ? `把勾选的 ${mergeCount} 项合并添加进词条` : '先勾选要添加的词条'} width={260}>
+              <SquareButton
+                size="nav"
+                disabled={mergeDisabled}
+                onClick={() => onMergeAdd?.()}
+              >
+                <Icon name="plus" size={12} />
+                合并添加{mergeCount > 0 ? <> · <span className="stat-num">{mergeCount}</span> 项</> : ''}
+              </SquareButton>
+            </Tooltip>
+          </>
         )}
       </div>
     </div>

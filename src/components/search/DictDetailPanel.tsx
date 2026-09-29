@@ -11,7 +11,6 @@ import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
-import FamiliarityChoice from './FamiliarityChoice'
 import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
 import type { DictionaryEntry } from '../../types/dictionary'
@@ -106,7 +105,7 @@ export default function DictDetailPanel({ word }: Props) {
     }
     // 熟悉度随收录一并写入，但**只在用户被问过时才写**（spec §4.6：单选与本写入同一个条件）。
     // 在库词这里显示的是「已在库」、familiarity 恒为重置默认值 1，无条件写就会把用户当初选的档
-    // 覆写成「完全陌生」——不可撤销，且该值直通 Task 4 三键预填与 Task 6 冷启动档位徽标，
+    // 覆写成「陌生」——不可撤销，且该值直通 Task 4 三键预填与 Task 6 冷启动档位徽标，
     // 毁的正是本版要合上的那个环（spec §4.7）。失败不阻断收录：字段已入库，缺失只让该词回落 1。
     if (!wordWasInLibrary) {
       const wrote = await setInitialFamiliarity(target.id, familiarity)
@@ -156,13 +155,17 @@ export default function DictDetailPanel({ word }: Props) {
         maxWidth: '720px', margin: '0 auto', padding: '24px 16px 48px',
         minHeight: '100%', display: 'flex', flexDirection: 'column',
       }}>
-        {/* 导航条（v0.5.3 §3.4）：与工作台同款同位置；左箭头返回工作台、右端合并添加 */}
+        {/* 导航条（v0.5.3 §3.4）：与工作台同款同位置；左箭头返回工作台、右端合并添加。
+            v0.6.5 §4.5 起初始熟悉度三键也收进右端（原先是页面底部的收录区），状态仍归本面板。 */}
         <WorkbenchNavBar
           region="dict"
           onBack={showWorkbench}
           onMergeAdd={handleMergeAdd}
           mergeCount={results.reduce((n, r) => n + (selectionCounts[r.source] ?? 0), 0) + stripInputs.length}
           mergeDisabled={!anySelected}
+          familiarity={familiarity}
+          onFamiliarityChange={setFamiliarity}
+          inLibrary={inLibrary}
         />
 
         {/* 单词标题行（v0.5.3 §3.3）：星级紧随单词并与单词基线对齐；徽标与领域标签在右侧两行右对齐。
@@ -249,25 +252,6 @@ export default function DictDetailPanel({ word }: Props) {
         <div style={{ display: tab === 'network' ? 'block' : 'none' }}>
           <SemanticNetwork word={word} onCountChange={setNetworkCount} />
         </div>
-
-        {/* 收录区（spec 4.6 / 03 §2.10）：只在词不在库时出现。
-            与划词小窗（段三，未实现）同字段、同枚举、同默认值——
-            段三落地时共用 setInitialFamiliarity，不要另写一份。 */}
-        {!loading && !lookupError && results.length > 0 && (
-          <div style={{
-            marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--color-border)',
-            display: 'flex', alignItems: 'center', gap: 12,
-          }}>
-            <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>初始熟悉度</span>
-            {inLibrary ? (
-              <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-                已在库 · 勾选字段后点「合并添加」收录
-              </span>
-            ) : (
-              <FamiliarityChoice value={familiarity} onChange={setFamiliarity} />
-            )}
-          </div>
-        )}
       </div>
     </div>
   )
