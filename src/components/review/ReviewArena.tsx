@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
-import PromptCard, { inputKindFor, typedTarget } from './PromptCard'
+import PromptCard, { autoGrades, inputKindFor, typedTarget } from './PromptCard'
 import RatingBar from './RatingBar'
 import ResultBlock from './ResultBlock'
 import EntrySnapshot from './EntrySnapshot'
@@ -113,7 +113,7 @@ export default function ReviewArena() {
     const kind = inputKindFor(dto.template)
     if (kind === 'choice') {
       setCorrect(input === String((dto.answer as any).translation ?? ''))
-    } else if (kind === 'typed' && dto.template !== 'recall') {
+    } else if (autoGrades(dto.template)) {
       const target = typedTarget(dto)
       setCorrect(target ? compareTyped(input, target) : null)
     } else {

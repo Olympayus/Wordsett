@@ -5,23 +5,42 @@ import SquareButton from '../ui/SquareButton'
 import SpeakButton from '../ui/SpeakButton'
 import AnswerInput, { type InputKind } from './AnswerInput'
 
-/** 模板 → 作答形态与题面渲染方式。 */
+/** 模板 → 作答形态。五个模板已全部显式枚举，default 只作防御。 */
 export function inputKindFor(template: ReviewCardDTO['template']): InputKind {
   switch (template) {
     case 'recognize': return 'choice'
     case 'cloze': return 'typed'
-    case 'recall': return 'typed'   // spec §4.1：中译英也是键入（仅拼写辅助，不判分）
+    case 'recall': return 'typed'        // spec §4.1：中译英是键入（仅拼写辅助，不判分）
+    case 'english_def': return 'typed'   // v0.6.4：由 reveal 改 typed，与中译英同档
     case 'listen': return 'typed'
     default: return 'reveal'
   }
 }
 
-/** 逐字母标红的比对目标；仅键入型题目有（中译英的目标是答案里的单词）。 */
+/**
+ * 逐字母标红的比对目标；仅键入型题目有。
+ *
+ * **从 inputKindFor 派生**，不再单独维护一张 template 表——先前是「kind 一张表 +
+ * template 一张表」两处判据，english_def 一旦加入就会漂，而漂的那一半是「哪些题该标红」。
+ *
+ * 取不到目标时返回 `undefined` 而不是空串：空串会让逐字母比对把**每个**字符都标红，
+ * 用户看到满屏红字、像是题目坏了（Review Focus 1）。AnswerInput 收到 undefined 时不启用标红。
+ */
 export function typedTarget(dto: ReviewCardDTO): string | undefined {
-  if (dto.template === 'cloze' || dto.template === 'recall' || dto.template === 'listen') {
-    return String(dto.answer.lemma ?? '')
-  }
-  return undefined
+  if (inputKindFor(dto.template) !== 'typed') return undefined
+  const lemma = String(dto.answer.lemma ?? '')
+  return lemma === '' ? undefined : lemma
+}
+
+/**
+ * 是否自动判分。中译英与英文释义题**不判分**——键入仅为拼写辅助，对错由用户自己按三键评。
+ *
+ * 与 inputKindFor 并排放在这里，是因为 ReviewArena 的 handleSubmit 要按它分支；
+ * 先前那里写的是 `dto.template !== 'recall'`，english_def 一加入就会静默开始自动判分，
+ * 与本版决策相反。判据收口到这一个函数后，新增自评题型只改这里。
+ */
+export function autoGrades(template: ReviewCardDTO['template']): boolean {
+  return inputKindFor(template) === 'typed' && template !== 'recall' && template !== 'english_def'
 }
 
 /**

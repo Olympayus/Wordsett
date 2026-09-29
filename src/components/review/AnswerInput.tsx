@@ -220,6 +220,9 @@ export default function AnswerInput({
     )
   }
 
+  // 揭示型：当前**没有模板映射到这里**（v0.6.4 起 english_def 已改键入型）。
+  // 分支保留是因为 InputKind 联合类型仍含 'reveal'，删掉会让 switch 出现未处理成员；
+  // 将来若加回自评题型，这里是它的落点。
   if (kind === 'reveal') {
     return (
       /* 保持原来的撑满宽：这一支原先直接作为 <section className="flex flex-col"> 的 flex 项，
