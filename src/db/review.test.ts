@@ -43,14 +43,6 @@ describe('db/review 读路径', () => {
   let db: DbLike
   beforeEach(async () => { db = await createTestDb() })
 
-  it('registerCards 幂等：同词重复注册不产生第二行', async () => {
-    await seedWord(db, 'w1', 'alpha')
-    await registerCards(['w1'], db)
-    await registerCards(['w1'], db)
-    const rows = await db.select<{ c: number }>('SELECT count(*) as c FROM review_cards')
-    expect(rows[0].c).toBe(1)
-  })
-
   it('registerCards 按可用题型建卡：有中文释义 + 例句的词建出三张卡', async () => {
     await db.execute(
       "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','alpha','alpha','en',1,1)"
@@ -565,14 +557,17 @@ describe('db/review 写路径与聚合', () => {
     expect(r[0].last_template).toBe('listen')
   })
 
-  it('registerAllWords 给库里全部词补卡，无内容的词也注册，重复调用不新增', async () => {
+  it('registerAllWords 给库里全部词补齐可用题型卡，无内容的词不注册，重复调用不新增', async () => {
     await seedWord(db, 'w1', 'alpha')
-    await seedWord(db, 'w2', 'bare')
+    await seedWord(db, 'w2', 'bare')  // 没有任何字段值 → 一个可用题型都没有
     await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
     await registerAllWords(db)
     await registerAllWords(db)
-    const rows = await db.select<{ word_id: string }>('SELECT word_id FROM review_cards ORDER BY word_id')
-    expect(rows.map(r => r.word_id)).toEqual(['w1', 'w2'])
+    // 只给 w1 建卡：translation → recognize + recall。w2 无任何可用字段，不建卡
+    // （否则就是空题；与 spec §4.10「按可用题型注册」同源）。
+    const rows = await db.select<{ word_id: string; template: string }>(
+      'SELECT word_id, template FROM review_cards ORDER BY word_id, template')
+    expect(rows.map(r => `${r.word_id}/${r.template}`)).toEqual(['w1/recall', 'w1/recognize'])
   })
 
   it('getWeakCardIds：lapses 达标 ∪ 窗口内 rating = 1（含 practice），窗口外不计入', async () => {
