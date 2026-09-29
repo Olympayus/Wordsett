@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useReviewOverlayStore } from './reviewOverlayStore'
 import { useSettingsStore } from './settingsStore'
+import { isListenEnabled } from '../lib/review/ttsGate'
 import * as reviewDb from '../db/review'
 
 vi.mock('../db/review', () => ({
@@ -8,10 +9,16 @@ vi.mock('../db/review', () => ({
   getStrategyCounts: vi.fn(),
 }))
 
+// ttsGate 的探测在 node 环境下永远是「不可用」，直接断言 false 等于把「恒为关」也钉死，
+// 钉不出接线。改成打桩：下面两个用例一个给 true 一个给 false，两条都过才说明
+// store 真读了 isListenEnabled() 并原样往下传（写死任一个值都会红）。
+vi.mock('../lib/review/ttsGate', () => ({ isListenEnabled: vi.fn() }))
+
 beforeEach(() => {
   vi.resetAllMocks()
   useReviewOverlayStore.setState({ overlay: {}, dueWordIds: new Set<string>() })
   useSettingsStore.setState({ review: { ...useSettingsStore.getState().review, leechThreshold: 4 } })
+  vi.mocked(isListenEnabled).mockReturnValue(true)   // 默认按「TTS 可用」打桩
 })
 
 describe('reviewOverlayStore.loadOverlay', () => {
@@ -44,9 +51,32 @@ describe('reviewOverlayStore.loadOverlay', () => {
     const arg = vi.mocked(reviewDb.getStrategyCounts).mock.calls[0][0]
     expect(arg.leechThreshold).toBe(7)
     expect(arg.recentWindowMs).toBe(7 * 86_400_000)
-    // 听辨门控本 store 不探（那是 reviewService 的活，单一事实源）：字段缺省即关，
-    // db 层按 `opts.allowListen === true` 判读，行为与 reviewService 传 false 时一致。
-    expect(arg.allowListen).toBeUndefined()
+  })
+
+  it('听辨门控跟着 ttsGate 走：TTS 可用时放行 listen 卡，与控制台同一批词', async () => {
+    // 评审 Important #1：不传这个参数时，dueWordIds 就是控制台 today 的**真子集**——
+    // 只有 listen 一张到期卡的词，TTS 可用时控制台数得到、侧栏进不来，
+    // 于是「侧栏说 32、进去 28」（spec §4.4 要避免的分家）。故必须原样透传。
+    vi.mocked(reviewDb.getWordReviewOverlay).mockResolvedValue({ ok: true, data: {} })
+    vi.mocked(reviewDb.getStrategyCounts).mockResolvedValue({
+      ok: true, data: { today: 1, todayWordIds: ['wl'], weak: 0 },
+    })
+
+    await useReviewOverlayStore.getState().loadOverlay()
+    expect(isListenEnabled).toHaveBeenCalled()
+    expect(vi.mocked(reviewDb.getStrategyCounts).mock.calls[0][0].allowListen).toBe(true)
+  })
+
+  it('听辨门控为关时同样如实透传，不被本 store 改写', async () => {
+    // 另一侧：这条钉的是「没有写死 true」。两条一起过，才证明值是读来的而非常量。
+    vi.mocked(isListenEnabled).mockReturnValue(false)
+    vi.mocked(reviewDb.getWordReviewOverlay).mockResolvedValue({ ok: true, data: {} })
+    vi.mocked(reviewDb.getStrategyCounts).mockResolvedValue({
+      ok: true, data: { today: 0, todayWordIds: [], weak: 0 },
+    })
+
+    await useReviewOverlayStore.getState().loadOverlay()
+    expect(vi.mocked(reviewDb.getStrategyCounts).mock.calls[0][0].allowListen).toBe(false)
   })
 
   it('取数失败时保留上一次的值，不清空', async () => {

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { getWordReviewOverlay, getStrategyCounts, type WordReviewOverlay } from '../db/review'
+import { isListenEnabled } from '../lib/review/ttsGate'
 import { useSettingsStore } from './settingsStore'
 
 /**
@@ -25,12 +26,24 @@ export const useReviewOverlayStore = create<ReviewOverlayStore>(set => ({
   overlay: {},
   dueWordIds: new Set<string>(),
   loadOverlay: async () => {
-    // 窗口与阈值与 reviewService.getStrategyCounts 用的是同一组值：
-    // 七日回顾窗口 + 设置页的 Leech 阈值。
+    // 三组参数与 reviewService.getStrategyCounts 用的是同一组值：七日回顾窗口 +
+    // 设置页的 Leech 阈值 + 听辨门控。
+    //
+    // 听辨门控**必须**跟着控制台一致，缺了它这个集合就是控制台的**真子集**：
+    // 一个词若只有 listen 一张到期卡，TTS 可用时控制台的 today 数得到、侧栏这个词却进不来，
+    // 于是侧栏说 32、进去 28——正是复用 getStrategyCounts 要避免的那种分家（spec §4.4）。
+    // 读的是纯函数、不订阅（同上：非反应式；TTS 可用性是启动期探测出来的既成事实）。
+    // 「门控只在 service 层读、往下传普通参数」那条规矩是给 src/db 不许 import ttsGate 用的；
+    // UI store 读一个运行时能力开关不违反它，db 层仍然是纯参数。
     const leechThreshold = useSettingsStore.getState().review.leechThreshold
     const [ov, counts] = await Promise.all([
       getWordReviewOverlay(),
-      getStrategyCounts({ leechThreshold, recentWindowMs: 7 * 86_400_000, now: Date.now() }),
+      getStrategyCounts({
+        leechThreshold,
+        recentWindowMs: 7 * 86_400_000,
+        now: Date.now(),
+        allowListen: isListenEnabled(),
+      }),
     ])
     // 取数失败时静默保留上一次的 overlay / 词 id 集合：徽标与 chip 是装饰层，
     // 一次读不到不该把上一次的正确数据显示清空，更不该抛进 UI。两路各自回退。
