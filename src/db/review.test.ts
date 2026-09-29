@@ -152,7 +152,8 @@ describe('db/review 读路径', () => {
     if (!r.ok) return
     const ids = r.data.map(c => c.wordId).sort()
     expect(ids).toEqual(['w1', 'w2'])
-    expect(r.data.find(c => c.wordId === 'w1')!.availableTemplates).toContain('recognize')
+    // 一词多卡：find(wordId) 已不唯一，改判「w1 有一张 recognize 卡」
+    expect(r.data.some(c => c.wordId === 'w1' && c.template === 'recognize')).toBe(true)
     expect(r.data.find(c => c.wordId === 'w2')!.stability).toBeNull()
   })
 
@@ -730,12 +731,12 @@ describe('db/review 听辨门控与薄弱词计数', () => {
     await seedWord(db, 'w1', 'alpha')
     await seedValue(db, 'v1', 'w1', 'chinese_definition', '第一个')
     await seedValue(db, 'v2', 'w1', 'phonetic', 'ˈælfə')
-    await registerAllWords(db)
+    // 门控开着注册：听辨卡确实在库里，取数侧的门才有机会判它（否则这条只测到「卡不存在」）
+    await registerAllWords(db, { allowListen: true })
     const r = await getCandidates(NOW, db)
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    const c = r.data.find(x => x.wordId === 'w1')
-    expect(c?.availableTemplates).not.toContain('listen')
+    expect(r.data.some(x => x.wordId === 'w1' && x.template === 'listen')).toBe(false)
   })
 
   it('getCandidates：allowListen=true 时音标齐全的词出听辨', async () => {
@@ -743,12 +744,12 @@ describe('db/review 听辨门控与薄弱词计数', () => {
     await seedWord(db, 'w1', 'alpha')
     await seedValue(db, 'v1', 'w1', 'chinese_definition', '第一个')
     await seedValue(db, 'v2', 'w1', 'phonetic', 'ˈælfə')
-    await registerAllWords(db)
+    // 听辨卡只在注册时门控开着才落库（Task 2 契约）——两个用例共用这一份 seed
+    await registerAllWords(db, { allowListen: true })
     const r = await getCandidates(NOW, db, { allowListen: true })
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    const c = r.data.find(x => x.wordId === 'w1')
-    expect(c?.availableTemplates).toContain('listen')
+    expect(r.data.some(x => x.wordId === 'w1' && x.template === 'listen')).toBe(true)
   })
 
   it('registerAllWords：allowListen=true 才把听辨卡建进库，缺省门控下不建', async () => {
@@ -945,5 +946,52 @@ describe('getWordContent 的例句 / 释义 / 词性三者对位（v0.6.2 条目
     expect(c?.exampleGloss).toBe('弥漫的')
     // 词性回落到该词第一个词性
     expect(c?.matchedPos).toBe('adj.')
+  })
+})
+
+// 可用性闸门降到卡级（v0.6.5 Task 4）：一张卡只关心**自己那个题型**在不在该词的可用集合里。
+// 内容被删掉时受影响的只是那张卡（例如句没了 → 只掉填空题卡），同词其他题型照常出题。
+describe('卡级可用性闸门', () => {
+  let db: DbLike
+  beforeEach(async () => { db = await createTestDb() })
+
+  it('卡级闸门：例句被删后填空题卡不出，同词其他题型卡照常', async () => {
+    await db.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','alpha','alpha','en',1,1)"
+    )
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '第一个')
+    await seedValue(db, 'fv2', 'w1', 'example', 'alpha is first')
+    await registerCards(['w1'], db)
+    // 例句被删：cloze 卡仍在库里，但它的题型已不可用
+    await db.execute("DELETE FROM field_values WHERE id = 'fv2'")
+    const r = await getCandidates(NOW, db)
+    if (!r.ok) throw new Error(r.error)
+    // 同词另外两张卡照常出：闸门只掉「受影响的那一张」，不是整个词被跳过
+    expect(r.data.map(c => c.template).sort()).toEqual(['recall', 'recognize'])
+  })
+
+  it('getCandidates 带出卡自己的题型，且不再返回词级的可用题型数组', async () => {
+    await db.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','alpha','alpha','en',1,1)"
+    )
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '第一个')
+    await registerCards(['w1'], db)
+    const r = await getCandidates(NOW, db)
+    if (!r.ok) throw new Error(r.error)
+    expect(r.data.every(c => typeof c.template === 'string')).toBe(true)
+    expect(r.data.every(c => !('availableTemplates' in c))).toBe(true)
+  })
+
+  it('getAbsentWords 按词去重：一个词多张卡只出现一次', async () => {
+    await db.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','alpha','alpha','en',1,1)"
+    )
+    // 无任何可用字段 → 注册不出卡；手工塞两张卡模拟「注册过但内容全没了」
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w1','recognize',1)")
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c2','w1','cloze',1)")
+    const r = await getAbsentWords(db)
+    if (!r.ok) throw new Error(r.error)
+    expect(r.data).toHaveLength(1)
+    expect(r.data[0].wordId).toBe('w1')
   })
 })

@@ -77,28 +77,43 @@ export interface CandidateOpts {
 }
 
 /** 行 → QueueCandidate（stability 空 = 新卡未首评；dueAt 空 = 新卡无意义取 0）。 */
-function mapCandidate(
-  r: Record<string, any>,
-  mask: Record<string, FieldMask>,
-  opts: CandidateOpts,
-): QueueCandidate {
-  const m = mask[r.word_id] ?? { translation: false, definition: false, example: false, phonetic: false }
+function mapCandidate(r: Record<string, any>, template: Template): QueueCandidate {
   // fam 是**字段值**（自由文本），不是有约束的列：用户能在工作台把它改成任何内容。
-  // 这里的三值夹取因此从「防列默认值」变成了真正的闸门——非法值一律当完全陌生处理，
-  // 不能让 '9' / 'abc' 流进组卷排序与档位映射（Review Focus 2）。
+  // 这里的三值夹取因此从「防列默认值」变成了真正的闸门——非法值一律当完全陌生处理。
   const fam = Number(r.initial_familiarity)
   return {
     cardId: r.card_id,
     wordId: r.word_id,
+    template,
     stability: r.stability === null || r.stability === undefined ? null : Number(r.stability),
     dueAt: r.due_at === null || r.due_at === undefined ? 0 : Number(r.due_at),
     lastReviewAt: r.last_review_at === null || r.last_review_at === undefined ? null : Number(r.last_review_at),
     initialFamiliarity: (fam === 2 || fam === 3 ? fam : 1) as InitialFamiliarity,
-    availableTemplates: usableTemplates(m, { allowListen: opts.allowListen === true }),
   }
 }
 
-/** 候选池：到期卡 + 未首评新卡，带字段掩码与可用模板。suspended 卡排除在外。 */
+/**
+ * 卡级闸门：一张卡只关心**自己那个题型**在不在该词的可用集合里。
+ * 内容被删掉时（例如例句没了）受影响的只是填空题卡，同词其他题型的卡照常出题。
+ */
+function pickUsableCards(
+  rows: Record<string, any>[],
+  mask: Record<string, FieldMask>,
+  opts: CandidateOpts,
+): QueueCandidate[] {
+  const allowListen = opts.allowListen === true
+  const out: QueueCandidate[] = []
+  for (const r of rows) {
+    const m = mask[r.word_id]
+    if (!m) continue
+    const template = r.template as Template
+    if (!usableTemplates(m, { allowListen }).includes(template)) continue
+    out.push(mapCandidate(r, template))
+  }
+  return out
+}
+
+/** 候选池：到期卡 + 未首评新卡，只保留**自己那个题型可用**的卡。suspended 卡排除在外。 */
 export async function getCandidates(
   now: number,
   h?: DbHandle,
@@ -107,7 +122,7 @@ export async function getCandidates(
   const d = db(h)
   try {
     const rows = await d.select<Record<string, any>>(
-      `SELECT c.id AS card_id, c.word_id,
+      `SELECT c.id AS card_id, c.word_id, c.template,
               s.stability, s.due_at, s.last_review_at,
               (SELECT fv.value FROM field_values fv
                  JOIN field_definitions fd ON fd.id = fv.field_id
@@ -120,18 +135,18 @@ export async function getCandidates(
     )
     const mask = await getAvailabilityMask(rows.map(r => r.word_id), d)
     if (!mask.ok) return mask
-    return { ok: true, data: rows.map(r => mapCandidate(r, mask.data, opts)) }
+    return { ok: true, data: pickUsableCards(rows, mask.data, opts) }
   } catch (e: any) {
     return { ok: false, error: e.toString() }
   }
 }
 
-/** 自由练习用：全部未挂起卡（含未到期的熟词），dueAt 原样带出。 */
+/** 自由练习用：全部未挂起卡（含未到期的熟词），dueAt 原样带出。同样过卡级闸门。 */
 export async function getAllCandidates(h?: DbHandle, opts: CandidateOpts = {}): Promise<DbResult<QueueCandidate[]>> {
   const d = db(h)
   try {
     const rows = await d.select<Record<string, any>>(
-      `SELECT c.id AS card_id, c.word_id,
+      `SELECT c.id AS card_id, c.word_id, c.template,
               s.stability, s.due_at, s.last_review_at,
               (SELECT fv.value FROM field_values fv
                  JOIN field_definitions fd ON fd.id = fv.field_id
@@ -143,7 +158,7 @@ export async function getAllCandidates(h?: DbHandle, opts: CandidateOpts = {}): 
     )
     const mask = await getAvailabilityMask(rows.map(r => r.word_id), d)
     if (!mask.ok) return mask
-    return { ok: true, data: rows.map(r => mapCandidate(r, mask.data, opts)) }
+    return { ok: true, data: pickUsableCards(rows, mask.data, opts) }
   } catch (e: any) {
     return { ok: false, error: e.toString() }
   }
@@ -666,7 +681,7 @@ export async function getAbsentWords(h?: DbHandle, opts: CandidateOpts = {}): Pr
   const d = db(h)
   try {
     const rows = await d.select<Record<string, any>>(
-      'SELECT c.word_id, w.lemma FROM review_cards c JOIN words w ON w.id = c.word_id')
+      'SELECT DISTINCT c.word_id, w.lemma FROM review_cards c JOIN words w ON w.id = c.word_id')
     const mask = await getAvailabilityMask(rows.map(r => r.word_id), d)
     if (!mask.ok) return mask
     const out = rows
