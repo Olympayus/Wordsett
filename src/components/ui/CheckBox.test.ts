@@ -42,21 +42,22 @@ describe('checkboxAppearance（v0.6.3 条目 14）', () => {
   })
 })
 
-describe('CheckBox 几何常量', () => {
-  // node 环境无法断言到 DOM，这里钉的是常量契约——组件渲染读的就是这三个值。
-  it('尺寸缩到 18px', () => {
-    expect(CHECKBOX_SIZE).toBe(18)
+describe('CheckBox 几何常量（v0.6.5）', () => {
+  it('尺寸缩到 16px', () => {
+    expect(CHECKBOX_SIZE).toBe(16)
+    expect(CHECKBOX_INNER).toBe(10)
   })
 
-  it('内块保持约 68% 的留白比例', () => {
-    const ratio = CHECKBOX_INNER / CHECKBOX_SIZE
-    expect(ratio).toBeGreaterThan(0.66)
-    expect(ratio).toBeLessThan(0.70)
+  it('留白必须是整数——v0.6.4 的不居中就是小数留白造成的', () => {
+    // 18/12 的留白是 (18−12)/2 = 3px，看着对；但当时描边是真 border，
+    // 内容盒被压成 15px，(15−12)/2 = 1.5px 落在非整数网格上，四边取整不一致。
+    // 这条不变式管的是这件事：外框减内块必须是偶数。
+    expect((CHECKBOX_SIZE - CHECKBOX_INNER) % 2).toBe(0)
+    expect((CHECKBOX_SIZE - CHECKBOX_INNER) / 2).toBe(3)
   })
 
   it('内块与它的圆角都跟着缩了，不是只改了一半', () => {
     expect(CHECKBOX_INNER).toBeLessThan(CHECKBOX_SIZE)
     expect(CHECKBOX_INNER_RADIUS).toBeLessThan(CHECKBOX_SIZE / 4)
-    expect(CHECKBOX_INNER_RADIUS).toBeLessThan(3)   // 旧值是 3，必须真的动了
   })
 })
