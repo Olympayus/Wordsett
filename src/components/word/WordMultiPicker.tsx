@@ -35,9 +35,9 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
   /**
    * 该分类当前的成员词 id——「移除」方向的候选范围与预勾选都由它决定。
    *
-   * 打开时的重置以**这个 prop 的引用**为触发条件（见下面的 effect），所以调用方每次渲染
-   * 都新建数组的话，勾选集会被反复重置（用户刚点掉的勾又被勾回来）。方向或分类真的
-   * 变了才重置，正是这里要的行为。
+   * 下面的重置 effect 以**这个 prop 的引用**为触发条件，所以调用方必须把它 memo 住
+   * （见 `CategorySettings.tsx` 的 `pickerMemberIds`）：每次渲染新建数组的话，用户刚点掉的
+   * 勾会被重新勾回来。引用只在成员真的变了时才该变——那正是重置要发生的时刻。
    */
   memberIds: string[]
   direction: PickerDirection
@@ -93,8 +93,10 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
 
         <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '4px' }}>
           {shown.length === 0 ? (
+            /* 空态按**分类本来有没有词**分，不按方向分：「移除」入口搜不到东西时
+               说的是「没匹配上」，不是「这个分类是空的」——后者是对用户数据的错误陈述。 */
             <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', padding: '16px', textAlign: 'center' }}>
-              {direction === 'remove' ? '这个分类下还没有单词' : '没有匹配的单词'}
+              {members.size > 0 ? '没有匹配的单词' : '这个分类下还没有单词'}
             </div>
           ) : shown.map(w => (
             <label key={w.id} style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '6px 8px', cursor: 'pointer', borderRadius: 'var(--radius-sm)' }}>

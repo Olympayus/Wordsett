@@ -1,10 +1,13 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useUiStore } from '../../stores/uiStore'
 import type { Category } from '../../types/category'
 import WordMultiPicker from '../word/WordMultiPicker'
 import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
+
+// 选择器没开时的稳定空数组：写在模块作用域，`useMemo` 的回落分支才不会每次渲染造新引用
+const EMPTY_MEMBERS: string[] = []
 
 function CategoryRow({ cat, count, onEdit, onDelete, onBatchAdd, onBatchRemove }: {
   cat: { id: string; name: string; color: string; description?: string | null }
@@ -83,6 +86,8 @@ export default function CategorySettings() {
   const { assignMany, unassignMany } = useCategoryStore()
   // 打开中的选择器：一次只有一个，方向固定由入口决定（不再让用户在弹层里二选一）
   const [picker, setPicker] = useState<{ cat: Category; direction: 'add' | 'remove' } | null>(null)
+  // 提到 memo 的 key 里：开着的那个分类的 id（关着时为 null）
+  const pickerCatId = picker ? picker.cat.id : null
 
   const countFor = (catId: string) =>
     Object.values(wordCategoryMap).filter(ids => ids.includes(catId)).length
@@ -90,6 +95,16 @@ export default function CategorySettings() {
   // wordCategoryMap 是「词 → 它所属的分类 id 列表」，要的是「分类 → 成员词」，故这里反向取键。
   const memberIdsOf = (catId: string) =>
     Object.entries(wordCategoryMap).filter(([, ids]) => ids.includes(catId)).map(([wid]) => wid)
+
+  // 必须 memo：WordMultiPicker 的重置 effect 依赖 memberIds 的**引用**，不 memo 的话
+  // 父页任何一次重渲染都会把用户刚点掉的勾重新勾回来。
+  // key 只有两个，且都真的会改变结果：wordCategoryMap（成员表的身份，词 id 恒为
+  // crypto.randomUUID()，不存在每次渲染都变的 id 噪声）与开着的那个分类的 id。
+  // 不把 picker 整个对象放进 key：它每次 setPicker 都是新实例，会白扔掉勾选。
+  const pickerMemberIds = useMemo(
+    () => (pickerCatId ? memberIdsOf(pickerCatId) : EMPTY_MEMBERS),
+    [wordCategoryMap, pickerCatId],
+  )
 
   return (
     <div>
@@ -129,7 +144,7 @@ export default function CategorySettings() {
         <WordMultiPicker
           open
           categoryName={picker.cat.name}
-          memberIds={memberIdsOf(picker.cat.id)}
+          memberIds={pickerMemberIds}
           direction={picker.direction}
           onConfirm={async (ids) => {
             if (picker.direction === 'add') await assignMany(ids, picker.cat.id)
