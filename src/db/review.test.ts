@@ -19,7 +19,7 @@ import {
   getAbsentWords,
 } from './review'
 import { createTestDb, type DbLike } from './test-utils'
-import { displayTier } from '../lib/review/mastery'
+import { displayTier, masteryTier } from '../lib/review/mastery'
 
 const NOW = 1_700_000_000_000
 
@@ -78,6 +78,41 @@ describe('db/review 读路径', () => {
     const rows = await db.select<{ template: string }>(
       "SELECT template FROM review_cards WHERE word_id = 'w1' ORDER BY template")
     expect(rows.map(r => r.template).sort()).toEqual(['cloze', 'recall', 'recognize'])
+  })
+
+  // 往返次数是 v0.6.5 的性能契约：registerAllWords 挂在打开复习模块的 UI 阻塞路径上，
+  // 逐题型发一次 execute 意味着几千词的库要走几万条顺序语句。这里数 execute 的调用次数。
+  it('registerCards：每个词只发一条多行 INSERT，没有可用题型的词一条都不发', async () => {
+    await seedWord(db, 'w1', 'alpha')
+    await seedWord(db, 'w2', 'bare')       // 一个可用题型都没有 → 不发语句（空 VALUES 非合法 SQL）
+    await seedWord(db, 'w3', 'gamma')
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '第一个')
+    await seedValue(db, 'fv2', 'w1', 'example', 'alpha is first')   // → translation 组 + example 组 → recognize/recall/cloze
+    await seedValue(db, 'fv3', 'w1', 'english_definition', 'the first letter')
+    await seedValue(db, 'fv4', 'w3', 'chinese_definition', '伽马')
+
+    const insertSqls: string[] = []
+    const counting = {
+      select: db.select,
+      execute: async (sql: string, params?: unknown[]) => {
+        if (sql.includes('INSERT OR IGNORE INTO review_cards')) insertSqls.push(sql)
+        await db.execute(sql, params)
+      },
+    }
+    await registerCards(['w1', 'w2', 'w3'], counting)
+    // 两个有内容的词各一条，共两条；w2 一条都没有。
+    expect(insertSqls).toHaveLength(2)
+    // 每条都是**单个** VALUES 组里的多行，不是每模板一条（w1 那条有 4 个占位组、w3 那条 2 个）。
+    // 占位符个数 ÷ 4 = 行数——正是「一次往返建完这个词所有卡」的可测形状。
+    expect(insertSqls.map(s => (s.match(/\(\?\d+, \?\d+, \?\d+, \?\d+\)/g) ?? []).length))
+      .toEqual([4, 2])
+    // 落库结果与改之前逐条发完全一致：w1 三张卡、w3 两张、w2 零张。
+    const rows = await db.select<{ word_id: string; template: string }>(
+      'SELECT word_id, template FROM review_cards ORDER BY word_id, template')
+    expect(rows.map(r => `${r.word_id}/${r.template}`)).toEqual([
+      'w1/cloze', 'w1/english_def', 'w1/recall', 'w1/recognize',
+      'w3/recall', 'w3/recognize',
+    ])
   })
 
   it('getAvailabilityMask 按字段组返回布尔掩码', async () => {
@@ -485,10 +520,14 @@ describe('db/review 读路径', () => {
     })
 
     // 本 describe 共用上面那份 fixture（w1–w4 已占位），所以这两条自建词的用例走 w5。
-    // 卡是手插的而非 registerCards 建的：这里要的是**确定的卡集合**（一评分一不评分），
-    // 走注册会随字段可用性长出第三张卡（cloze），把「两张卡」这个前提冲淡。
+    // 卡是手插的而非 registerCards 建的：这里要的是**确定的卡集合**（一评分一不评分）。
+    // 但内容必须跟着补上——注册契约（Task 2）意味着「卡存在」蕴含「注册时该题型可用」，
+    // 手插卡绕过了那道契约，就得自己把内容补齐，否则两张卡都不可出题、读数必然是 null，
+    // 测的就不是「未评分不参与取最弱」而是「没有可出题的卡」了。
     it('一个词的多数卡未评分时，只对已评分的卡取最弱', async () => {
       await seedWord(db, 'w5', 'epsilon')
+      await seedValue(db, 'fv5zh', 'w5', 'chinese_definition', '艾普西隆')  // recognize 的依赖
+      await seedValue(db, 'fv5ex', 'w5', 'example', 'epsilon is a letter')  // cloze 的依赖
       await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w5','recognize',1)")
       await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c2','w5','cloze',1)")
       await db.execute(
@@ -496,12 +535,16 @@ describe('db/review 读路径', () => {
          VALUES ('c1', 120, 5, 1, 0, 3, 0, 1)`)
       const r = await getWordReviewOverlay(db)
       if (!r.ok) throw new Error(r.error)
-      // c2 还没首评：那是「没数据」不是「0 分」，不能把读数拖到 0/null
+      // c2 还没首评：那是「没数据」不是「0 分」，不能把读数拖到 0/null。
+      // c2 **可出题**（例句在库里），所以这里真的在测「未评分的卡被排除」，
+      // 而不是「那张卡正好不可用」——两者都会得到 120，只有前者证明这条规则。
       expect(r.data.w5.weakestStability).toBe(120)
     })
 
     it('多张卡都已评分：词级读数是其中最弱的一张', async () => {
       await seedWord(db, 'w5', 'epsilon')
+      await seedValue(db, 'fv5zh', 'w5', 'chinese_definition', '艾普西隆')
+      await seedValue(db, 'fv5ex', 'w5', 'example', 'epsilon is a letter')
       await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w5','recognize',1)")
       await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c2','w5','cloze',1)")
       await db.execute(
@@ -514,6 +557,55 @@ describe('db/review 读路径', () => {
       if (!r.ok) throw new Error(r.error)
       // 「认读很牢 + 拼写反复栽跟头」正是取 MAX 会抹平的那个形状：这里必须读 3
       expect(r.data.w5.weakestStability).toBe(3)
+    })
+
+    // spec §4.13 边界 2 的落点：内容被删掉的卡**不再**参与词级读数。
+    // 这条会钉住两处：读数只来自仍可出题的卡；maxLapses 仍然**不过**这道门
+    // （spec §4.12 明写 MAX(s.lapses) 不变——徽标说的是「这个词值得回去补内容」，
+    // 内容被删正是它成立的理由，门掉它徽标就跟着消失了）。
+    it('内容被删掉的卡不参与读数，但顽固词徽标仍认它', async () => {
+      await seedWord(db, 'w5', 'epsilon')
+      await seedValue(db, 'fv5zh', 'w5', 'chinese_definition', '艾普西隆')
+      await seedValue(db, 'fv5ex', 'w5', 'example', 'epsilon is a letter')
+      await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w5','recognize',1)")
+      await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c2','w5','cloze',1)")
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES ('c1', 120, 5, 1, 7, 3, 0, 1)`)
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES ('c2', 1, 8, 1, 2, 1, 0, 1)`)
+      // 例句被删 → cloze 卡（S=1，最弱的一环）已经不可出题
+      await db.execute("DELETE FROM field_values WHERE id = 'fv5ex'")
+
+      const r = await getWordReviewOverlay(db)
+      if (!r.ok) throw new Error(r.error)
+      // 读数回到仅存可出题的认读卡 120。若不过滤可出题，这里会是 1。
+      expect(r.data.w5.weakestStability).toBe(120)
+      // 而徽标照旧认这个词：lapses 7 来自那张不可出题的填空卡，被门掉就等于
+      // 「内容一删，顽固词标记消失」——那恰好是这个徽标要提醒用户回去补内容的场景。
+      expect(r.data.w5.maxLapses).toBe(7)
+    })
+
+    // 同一个坑的极端形状：唯一那张卡既被删了内容又评过分。
+    // 回落必须是**冷启动路径**（null → displayTier 按熟悉度定档），不是那张废卡的 1。
+    it('唯一的卡被删内容且已评分：读数回落冷启动（null），不是被删卡的数', async () => {
+      await seedWord(db, 'w5', 'epsilon')
+      await seedValue(db, 'fv5zh', 'w5', 'chinese_definition', '艾普西隆')
+      await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w5','recognize',1)")
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES ('c1', 1, 8, 1, 3, 1, 0, 1)`)
+      // 释义被删 → recognize 卡不可出题，词此时一个可用题型都没有
+      await db.execute("DELETE FROM field_values WHERE id = 'fv5zh'")
+
+      const r = await getWordReviewOverlay(db)
+      if (!r.ok) throw new Error(r.error)
+      // 词仍在结果里（锚在 words），读数是 null 而不是 1。
+      // 拿 1 出来意味着「一个都出不了题的词还报着记忆强度」——chip 会显出一个假的分值。
+      expect(r.data.w5.weakestStability).toBeNull()
+      expect(displayTier({ stability: r.data.w5.weakestStability, familiarity: r.data.w5.familiarity })).toBe(1)
+      expect(r.data.w5.maxLapses).toBe(3)
     })
   })
 
@@ -636,7 +728,12 @@ describe('db/review 写路径与聚合', () => {
         `INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at)
          VALUES ('${id}','${id}','${id}','en',1,1)`)
     }
-    // w1 有两张卡（一张很强、一张很弱）——词级只算一次，且取最弱那张
+    // w1 有两张卡（一张很强、一张很弱）——词级只算一次，且取最弱那张。
+    // 两张卡手插进来，但内容必须跟着种：注册契约说「卡存在」蕴含「注册时该题型可用」，
+    // 手插绕过契约就得自己把内容补上，否则两张卡都不可出题、读数掉到 null，
+    // 这条就变成在测「无记录」而不是「取最弱」了。
+    await seedValue(db, 'fvzh', 'w1', 'chinese_definition', '第一个')  // recognize
+    await seedValue(db, 'fvex', 'w1', 'example', 'w1 is first')       // cloze
     await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w1','recognize',1)")
     await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c2','w1','cloze',1)")
     await db.execute(
@@ -651,6 +748,47 @@ describe('db/review 写路径与聚合', () => {
     // w1 取最弱（S=3 → 10 分 → 档 1），w2 / w3 无记录 → 档 0
     expect(r.data.masteryBuckets[0]).toBe(2)
     expect(r.data.masteryBuckets[1]).toBe(1)
+  })
+
+  // spec §4.12：直方图要与 overlay **同一口径**。两侧共用 foldWordReadings 一个实现，
+  // 所以这条不是「两次调用碰巧一致」的巧合测试，而是那条共享的兑现——万一有人把
+  // overlay 改回独立取数而忘了直方图（或反过来），同一个词就会落在两个桶里。
+  it('直方图与 overlay 同一口径：内容被删的卡不进读数，两侧落同一个桶', async () => {
+    const db = await createTestDb()
+    // w1：注册出三张卡，认读卡评到 120 天、填空卡评到 1 天，随后删掉例句 → 填空卡不可出题
+    // w2：注册出认读卡并评到 120 天，用来证明分桶本身没坏（两词都该落档 5）
+    for (const id of ['w1', 'w2']) await seedWord(db, id, id)
+    await seedValue(db, 'fv1zh', 'w1', 'chinese_definition', '第一个')
+    await seedValue(db, 'fv1ex', 'w1', 'example', 'w1 is first')
+    await seedValue(db, 'fv2zh', 'w2', 'chinese_definition', '第二个')
+    await registerCards(['w1', 'w2'], db)
+    const w1cloze = await db.select<{ id: string }>(
+      "SELECT id FROM review_cards WHERE word_id = 'w1' AND template = 'cloze'")
+    expect(w1cloze).toHaveLength(1)
+    await db.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+       VALUES ((SELECT id FROM review_cards WHERE word_id = 'w1' AND template = 'recognize'), 120, 5, 1, 0, 3, 0, 1)`)
+    await db.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+       VALUES (?1, 1, 8, 1, 0, 1, 0, 1)`, [w1cloze[0].id])
+    await db.execute("DELETE FROM field_values WHERE id = 'fv1ex'")
+    await db.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+       VALUES ((SELECT id FROM review_cards WHERE word_id = 'w2' AND template = 'recognize'), 120, 5, 1, 0, 3, 0, 1)`)
+
+    const overlay = await getWordReviewOverlay(db)
+    const stats = await getStats(NOW, db)
+    if (!overlay.ok) throw new Error(overlay.error)
+    if (!stats.ok) throw new Error(stats.error)
+
+    // 逐词比对：直方图的分桶必须是 overlay 那个读数自己算出来的档。
+    // 若直方图不认可出题门，w1 会被 S=1 判成档 1，与 overlay 的档 5（120 天）对不上。
+    expect(masteryTier(overlay.data.w1.weakestStability)).toBe(5)
+    const buckets = [0, 0, 0, 0, 0, 0]
+    for (const w of Object.values(overlay.data)) buckets[masteryTier(w.weakestStability)]++
+    expect(stats.data.masteryBuckets).toEqual(buckets)
+    expect(stats.data.masteryBuckets).toEqual([0, 0, 0, 0, 0, 2])
+    expect(stats.data.masteryBuckets.reduce((a, b) => a + b, 0)).toBe(2)
   })
 
   it('getWeakWordIds 返回词 id 而不是卡 id', async () => {
@@ -772,6 +910,32 @@ describe('db/review 写路径与聚合', () => {
     if (!r.ok) throw new Error(r.error)
     expect(r.data.todayWordIds).toEqual(['w1'])
     expect(r.data.today).toBe(2)
+  })
+
+  // 侧栏/控制台分家的那条路：一张**到期**卡，它自己那个题型的内容被删了。
+  // 它永远不会被呈现 → due_at 永远不推进 → 计数里却一直有它（词级判据「这词还有别的
+  // 可用题型」会放过它）→ 「侧栏说 32、进去 28」（spec §4.4 要消灭的那种分家）。
+  // today / todayWordIds 必须由**同一份**过滤结果投影出来，故两侧都不该出现它。
+  it('getStrategyCounts：自己题型内容被删的到期卡不计入 today 也不进 todayWordIds', async () => {
+    await seedWord(db, 'w1', 'alpha')
+    await seedValue(db, 'fv1zh', 'w1', 'chinese_definition', '第一个')
+    await seedValue(db, 'fv1ex', 'w1', 'example', 'alpha is first')
+    await registerCards(['w1'], db)          // → recognize + recall + cloze 三张卡
+    const cloze = await db.select<{ id: string }>(
+      "SELECT id FROM review_cards WHERE word_id = 'w1' AND template = 'cloze'")
+    expect(cloze).toHaveLength(1)
+    // 例句被删：cloze 卡仍到期、仍挂在 review_states 里，只是不再可出题
+    await db.execute("DELETE FROM field_values WHERE id = 'fv1ex'")
+    await db.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+       VALUES (?1, 5, 5, ?2, 0, 3, 0, ?3)`, [cloze[0].id, NOW - 1000, NOW - 86400000])
+
+    const r = await getStrategyCounts({ leechThreshold: 4, recentWindowMs: 7 * 86400000, now: NOW }, db)
+    if (!r.ok) throw new Error(r.error)
+    // w1 另有两张认读/中译英卡没到期（无 review_states 行），故今天到期且可出题的是 0 张。
+    // 词级判据会给出 1（这词还有 recognize/recall 可用）——那正是这条要咬掉的错误。
+    expect(r.data.today).toBe(0)
+    expect(r.data.todayWordIds).toEqual([])
   })
 
   it('getStrategyCounts：陈旧错题（超出窗口）不计入 weak', async () => {

@@ -2,13 +2,20 @@ import { getDb } from './connection'
 import type { DbHandle } from './init'
 import type { DbResult } from './types'
 import { FIELD_KEY_GROUPS, usableTemplates, type FieldMask } from '../lib/review/template'
-import { masteryTier } from '../lib/review/mastery'
+import { masteryTier, weakestStability } from '../lib/review/mastery'
 import type { CardContent, InitialFamiliarity, Template } from '../lib/review/types'
 import type { QueueCandidate } from '../lib/review/queue'
 
 const db = (h?: DbHandle): DbHandle => (h ?? (getDb() as unknown as DbHandle))
 
-/** 惰性注册：为每个词的每个可用题型补一张卡（UNIQUE(word_id, template) 防重）。 */
+/**
+ * 惰性注册：为每个词的每个可用题型补一张卡（UNIQUE(word_id, template) 防重）。
+ *
+ * 每个词只发**一条**多行 INSERT：registerAllWords 挂在打开复习模块的 UI 阻塞路径上，
+ * 一词一卡时代是词数次往返，卡按题型拆开后最多变成 5 倍——几千词的库就是几万条顺序语句。
+ * `INSERT OR IGNORE` 逐字保留（幂等性由 (word_id, template) 唯一索引保证，不是靠这里）。
+ * 一个可用题型都没有的词不发语句：空 VALUES 列表不是合法 SQL。
+ */
 export async function registerCards(wordIds: string[], h?: DbHandle, opts: CandidateOpts = {}): Promise<void> {
   if (wordIds.length === 0) return
   const d = db(h)
@@ -19,12 +26,18 @@ export async function registerCards(wordIds: string[], h?: DbHandle, opts: Candi
   for (const wordId of wordIds) {
     const m = mask.data[wordId]
     if (!m) continue
-    for (const template of usableTemplates(m, { allowListen })) {
-      await d.execute(
-        'INSERT OR IGNORE INTO review_cards (id, word_id, template, created_at) VALUES (?1, ?2, ?3, ?4)',
-        [crypto.randomUUID(), wordId, template, now],
-      )
-    }
+    const templates = usableTemplates(m, { allowListen })
+    if (templates.length === 0) continue
+    const params: unknown[] = []
+    const values = templates.map((template, i) => {
+      const base = i * 4
+      params.push(crypto.randomUUID(), wordId, template, now)
+      return `(?${base + 1}, ?${base + 2}, ?${base + 3}, ?${base + 4})`
+    })
+    await d.execute(
+      `INSERT OR IGNORE INTO review_cards (id, word_id, template, created_at) VALUES ${values.join(', ')}`,
+      params,
+    )
   }
 }
 
@@ -495,8 +508,95 @@ export async function getWeakWordsWithCounts(
 }
 
 /**
- * 词级复习叠加层（v0.6.4）：一次 GROUP BY 给出全库每个词的
- * 连错次数与记忆强度所需的 stability，外加初始熟悉度。
+ * 词级读数的**唯一**取数与折叠实现（spec §4.13 边界 2、§4.12）。
+ *
+ * 取数锚在 words（v0.6.4 修过的坑：卡是懒登记的，新词一张卡都没有），每词带出三样：
+ * 熟悉度字段值、该词全部卡的 lapses 最大值、以及**逐卡**的 (template, stability)。
+ *
+ * 为什么要把 MIN 挪出 SQL：可用性掩码在 TypeScript 侧（getAvailabilityMask 读 field_values），
+ * GROUP BY 里的 SQL 拿不到它。「只统计当前仍可出题的卡」只能在内存里折叠——所以取数保持
+ * 逐卡出行（一次 SELECT，无相关子查询），折在 TS 里做。
+ *
+ * 两个读数各自的门是**不同**的，不要合并：
+ * - `weakestStability` 只看**仍可出题**的卡的 stability（边界 2：内容被删掉的卡不该继续
+ *   拖着这个词的读数），且未评分的卡（stability null）是「没数据」不参与，规则只有
+ *   `weakestStability` 一处实现。
+ * - `maxLapses` 取**全部**卡（可出题与否一律算）的 lapses 最大值，**刻意不过可用性门**：
+ *   顽固词徽标说的是历史痛点（「这个词值得回去补内容」），内容被删正是它成立的理由；
+ *   spec §4.12 明写 `MAX(s.lapses)` 不变。把它一并门掉，删了内容的顽固词徽标会跟着消失。
+ *
+ * 折叠后每词**都有**一行——无卡的词、有卡但全未评分的词、只有不可出题卡的词都在，
+ * weakestStability 落在 null（cold start），这正是 chip 冷启动分支读的形状。
+ *
+ * 消费方有两个（`getWordReviewOverlay` 与 `getStats` 的直方图），共用这一个函数就是
+ * 「与 overlay 同一口径」的兑现：两边不可能各改各的。
+ */
+interface WordReadingFold {
+  maxLapses: number
+  weakestStability: number | null
+  familiarity: InitialFamiliarity
+}
+
+/** 逐卡出行；`template` 为 null 表示这是 LEFT JOIN 给无卡的词填的那一行。 */
+interface WordReadingRow {
+  word_id: string
+  familiarity: string | null
+  template: Template | null
+  stability: number | null
+  lapses: number | null
+}
+
+async function foldWordReadings(
+  d: DbHandle,
+): Promise<DbResult<Record<string, WordReadingFold>>> {
+  const rows = await d.select<WordReadingRow>(
+    `SELECT w.id AS word_id,
+            (SELECT fv.value FROM field_values fv
+               JOIN field_definitions fd ON fd.id = fv.field_id
+              WHERE fv.word_id = w.id AND fd.key = 'initial_familiarity'
+              ORDER BY fv.display_order LIMIT 1) AS familiarity,
+            c.template AS template,
+            s.stability AS stability,
+            s.lapses AS lapses
+       FROM words w
+       LEFT JOIN review_cards c ON c.word_id = w.id
+       LEFT JOIN review_states s ON s.card_id = c.id`)
+  // 掩码只需这批词的 word_id。无卡的词在 LEFT JOIN 下也会出行（template/stability/lapses
+  // 皆 null），它们的掩码自然落在「无内容 → 无可出题卡」那一支，故不必另行补查。
+  const mask = await getAvailabilityMask(rows.map(r => r.word_id), d)
+  if (!mask.ok) return mask
+
+  const byWord = new Map<string, { stabilities: (number | null)[]; maxLapses: number; familiarity: number }>()
+  for (const r of rows) {
+    let acc = byWord.get(r.word_id)
+    if (!acc) {
+      acc = { stabilities: [], maxLapses: 0, familiarity: Number(r.familiarity) }
+      byWord.set(r.word_id, acc)
+    }
+    if (r.template === null) continue   // 无卡的词的填充行：不贡献任何读数
+    acc.maxLapses = Math.max(acc.maxLapses, Number(r.lapses ?? 0))
+    // 可出题门按**这张卡自己的题型**判，与 pickUsableCards 同一句判据。
+    const m = mask.data[r.word_id]
+    if (m && usableTemplates(m).includes(r.template)) {
+      acc.stabilities.push(r.stability)
+    }
+  }
+
+  const out: Record<string, WordReadingFold> = {}
+  for (const [id, acc] of byWord) {
+    const fam = acc.familiarity
+    out[id] = {
+      maxLapses: acc.maxLapses,
+      weakestStability: weakestStability(acc.stabilities),
+      // 与 mapCandidate 同一道夹取：字段值是可编辑自由文本
+      familiarity: (fam === 2 || fam === 3 ? fam : 1) as InitialFamiliarity,
+    }
+  }
+  return { ok: true, data: out }
+}
+
+/**
+ * 词级复习叠加层（v0.6.4）：给出全库每个词的连错次数与记忆强度所需的 stability，外加初始熟悉度。
  *
  * 徽标与记忆强度 chip 共用这一次取数——词表由虚拟滚动渲染、几百行，
  * 不能每行发一次 IPC。
@@ -518,7 +618,7 @@ export async function getWeakWordsWithCounts(
  */
 export interface WordReviewOverlay {
   maxLapses: number
-  /** 词级记忆强度取最弱一环（spec 4.13）：该词已评分卡片里稳定度的最小值；全未评分时为 null。 */
+  /** 词级记忆强度取最弱一环（spec 4.13）：该词**仍可出题的**已评分卡里稳定度的最小值；全未评分时为 null。 */
   weakestStability: number | null
   familiarity: InitialFamiliarity
 }
@@ -526,31 +626,9 @@ export interface WordReviewOverlay {
 export async function getWordReviewOverlay(h?: DbHandle): Promise<DbResult<Record<string, WordReviewOverlay>>> {
   const d = db(h)
   try {
-    const rows = await d.select<Record<string, any>>(
-      `SELECT w.id AS word_id,
-              COALESCE(MAX(s.lapses), 0) AS max_lapses,
-              MIN(s.stability) AS weakest_stability,
-              (SELECT fv.value FROM field_values fv
-                 JOIN field_definitions fd ON fd.id = fv.field_id
-                WHERE fv.word_id = w.id AND fd.key = 'initial_familiarity'
-                ORDER BY fv.display_order LIMIT 1) AS familiarity
-       FROM words w
-       LEFT JOIN review_cards c ON c.word_id = w.id
-       LEFT JOIN review_states s ON s.card_id = c.id
-      GROUP BY w.id`,
-    )
-    const out: Record<string, WordReviewOverlay> = {}
-    for (const r of rows) {
-      const fam = Number(r.familiarity)
-      out[r.word_id] = {
-        maxLapses: Number(r.max_lapses) || 0,
-        weakestStability: r.weakest_stability === null || r.weakest_stability === undefined
-          ? null : Number(r.weakest_stability),
-        // 与 mapCandidate 同一道夹取：字段值是可编辑自由文本
-        familiarity: (fam === 2 || fam === 3 ? fam : 1) as InitialFamiliarity,
-      }
-    }
-    return { ok: true, data: out }
+    const folded = await foldWordReadings(d)
+    if (!folded.ok) return folded
+    return { ok: true, data: folded.data }
   } catch (e: any) {
     return { ok: false, error: e.toString() }
   }
@@ -607,15 +685,17 @@ export async function getStrategyCounts(
   const d = db(h)
   try {
     const dueRows = await d.select<Record<string, any>>(
-      `SELECT c.word_id FROM review_cards c
+      `SELECT c.word_id, c.template FROM review_cards c
        JOIN review_states s ON s.card_id = c.id
        WHERE s.suspended = 0 AND s.due_at <= ?1`, [opts.now])
     const mask = await getAvailabilityMask(dueRows.map(r => r.word_id), d)
     if (!mask.ok) return mask
-    // 过滤判据与 today 逐字相同：先定出「到期且可出题」的卡，再决定怎么投影。
+    // 过滤判据与 today 逐字相同，且是**卡级**的：一张到期卡若自己那个题型的内容被删了，
+    // 它永远不会被呈现，due_at 也就永远不推进——留在计数里就成了「侧栏说 32、进去 28」
+    // 的那种分家（spec §4.4）。判词级（这个词还有别的可用题型）会把它放过。
     const dueCards = dueRows.filter(r => {
       const m = mask.data[r.word_id]
-      return m ? usableTemplates(m, { allowListen: opts.allowListen === true }).length > 0 : false
+      return m ? usableTemplates(m, { allowListen: opts.allowListen === true }).includes(r.template as Template) : false
     })
     const today = dueCards.length
     const todayWordIds = [...new Set(dueCards.map(r => String(r.word_id)))]
@@ -636,20 +716,16 @@ export async function getStats(now: number = Date.now(), h?: DbHandle): Promise<
 }>> {
   const d = db(h)
   try {
-    // 熟知度分布按**词**分桶（spec 01 §5.1）：锚 words、每词取最弱一环，与 overlay 同一口径。
-    // 无卡或全未评分的词 stability 为 NULL → 档 0，因此柱高之和等于词库词数。
-    const cardRows = await d.select<Record<string, any>>(
-      `SELECT MIN(s.stability) AS weakest_stability
-         FROM words w
-         LEFT JOIN review_cards c ON c.word_id = w.id
-         LEFT JOIN review_states s ON s.card_id = c.id
-        GROUP BY w.id`)
+    // 熟知度分布按**词**分桶（spec 01 §5.1）：锚 words、每词取「仍可出题的已评分卡」里
+    // 最弱的一个 stability，与 overlay **同一份折叠实现**（foldWordReadings）——
+    // 两侧共用一个函数，所以柱与 chip 不可能出现口径分家。
+    // 无卡或无可出题已评分卡的词 stability 为 NULL → 档 0，因此柱高之和等于词库词数。
+    const readings = await foldWordReadings(d)
+    if (!readings.ok) return readings
     const buckets = [0, 0, 0, 0, 0, 0]
-    for (const r of cardRows) {
-      const s = r.weakest_stability === null || r.weakest_stability === undefined
-        ? null : Number(r.weakest_stability)
+    for (const r of Object.values(readings.data)) {
       // 入参是 **stability（天）**，不是 mastery（0–1）——masteryTier 内部自己换算。
-      buckets[masteryTier(s)]++
+      buckets[masteryTier(r.weakestStability)]++
     }
 
     const dayRows = await d.select<Record<string, any>>(
