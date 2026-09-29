@@ -14,6 +14,12 @@ const TEMPLATE_NAMES: Record<string, string> = {
  * 逐卡明细按需取数：挂载即查一次（Tooltip 只在打开时才渲染 content，故 query 也只发生一次）。
  * 底部两段解释不是装饰——「未开始 ≠ 0 分」与「冷启动回落到熟悉度」是唯一能解释
  * 「读数为什么突然掉下来」的地方，缺了它用户会以为坏了。
+ *
+ * 取数还带回 `presentable`（该卡当前是否还能出题）与 `lastReviewAt`，**本浮层两个都不渲染**
+ * （评审记录的取舍）：这个面板是「记忆强度为什么是这个读数」的说明，不是调度视图。可出题与否、
+ * 上次复习时间属于复习队列那一层的关注点，混进来会冲淡面板的主题。
+ * `presentable` 为 false 的卡**仍然列出来**：内容被删掉的卡（例句没了的填空题）曾经计入
+ * 词级读数，从表里抹掉它就解释不了「读数为什么突然掉下来」——留着一行空色块正是那句话的证据。
  */
 export default function WordMasteryTooltip({ wordId, weakestStability, familiarity }: {
   wordId: string
@@ -54,7 +60,7 @@ export default function WordMasteryTooltip({ wordId, weakestStability, familiari
       {weakest && (
         <div style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 4 }}>
           最弱一环：<b style={{ color: 'var(--color-text-primary)' }}>{TEMPLATE_NAMES[weakest.template] ?? weakest.template}</b>
-          {' · '}{Math.round(weakest.stability!)} 天
+          {' · '}<span className="stat-num">{Math.round(weakest.stability!)}</span> 天
         </div>
       )}
 
@@ -79,7 +85,7 @@ export default function WordMasteryTooltip({ wordId, weakestStability, familiari
                     </span>}
                 {r.stability !== null && (
                   <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--color-text-secondary)' }}>
-                    {Math.round(r.stability)} 天
+                    <span className="stat-num">{Math.round(r.stability)}</span> 天
                   </span>
                 )}
               </div>
