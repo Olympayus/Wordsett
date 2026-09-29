@@ -375,19 +375,23 @@ describe('db/review 读路径', () => {
     expect(r.data.map(c => c.wordId)).toEqual(['w2'])
   })
 
-  // v0.6.4 词级复习叠加层（01 §3.6）。两个用例共用一份 fixture：beforeEach 每次给的是
-  // 空库，所以这三条形状必须由测试自己铺出来——它们正是 UI 侧三种取值分支
-  // （有记录 / 有卡无记录 / 无卡无记录）。
+  // v0.6.4 词级复习叠加层（01 §3.6）。所有用例共用一份 fixture：beforeEach 每次给的是
+  // 空库，所以这些形状必须由测试自己铺出来——它们正是 UI 侧的三种取值分支
+  // （有卡有记录 / 有卡无记录 / 无卡）。
   describe('getWordReviewOverlay', () => {
     beforeEach(async () => {
       // w1：有卡 + 有 review_states（lapses 3、stability 12）+ initial_familiarity = 3
       await seedWord(db, 'w1', 'alpha')
       // w2：有卡、无 review_states 行 → LEFT JOIN 出 NULL，maxLapses 应兜 0、maxStability 应留 null
       await seedWord(db, 'w2', 'beta')
-      // w3：有词无卡 → 查不到该 key，UI 按「无记录」处理
+      // w3：有词无卡、且无该字段行 → 熟悉度回落默认 1
       await seedWord(db, 'w3', 'gamma')
+      // w4：有词无卡、但收录时选了「眼熟」→ 这正是 C1 的现场：没有卡不等于没有熟悉度，
+      // 工作台的记忆强度 chip 要读的就是它（spec §4.7「未复习时，chip 显示档 2」）
+      await seedWord(db, 'w4', 'delta')
       await registerCards(['w1', 'w2'], db)
       await seedValue(db, 'fv1', 'w1', 'initial_familiarity', '3')
+      await seedValue(db, 'fv2', 'w4', 'initial_familiarity', '2')
       await db.execute(
         `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
          VALUES ((SELECT id FROM review_cards WHERE word_id = 'w1'), 12, 5, ?1, 3, 6, 0, ?2)`,
@@ -404,8 +408,19 @@ describe('db/review 读路径', () => {
       // w2 有卡但无 review_states 行 → 0 / null
       expect(r.data.w2.maxLapses).toBe(0)
       expect(r.data.w2.maxStability).toBeNull()
-      // 没有卡的词不出现在结果里（UI 侧按「查不到 = 无记录」处理）
-      expect(r.data.w3).toBeUndefined()
+    })
+
+    // 取数锚在 words 而非 review_cards：卡是懒登记的（spec D3，新词不进到期集），
+    // 收录时新开的词一张卡都没有。若无卡的词查不到，工作台就回落到 ?? 1，
+    // 用户刚选的「眼熟」会被显示成「陌生」——本版要合上的那个环就断在这里。
+    it('无卡的词也在结果里，且带出它自己的熟悉度', async () => {
+      const r = await getWordReviewOverlay(db)
+      expect(r.ok).toBe(true)
+      if (!r.ok) return
+      // w3 无卡、无字段行 → 熟悉度回落 1（与 mapCandidate / getCandidates 同一口径）
+      expect(r.data.w3).toEqual({ maxLapses: 0, maxStability: null, familiarity: 1 })
+      // w4 无卡，但收录时选了「眼熟」→ 读回 2，这就是 chip 该显示的档（spec §4.5 冷启动分支）
+      expect(r.data.w4).toEqual({ maxLapses: 0, maxStability: null, familiarity: 2 })
     })
 
     it('familiarity 与候选池同源（都读字段）', async () => {

@@ -532,8 +532,15 @@ export async function getWeakWordsWithCounts(
  * 全挂上徽标。徽标要的是严格 Leech（01 §3.6），只认 lapses。
  * 也**不是** getWeakCardIds——那个返回 card id，不是 word id。
  *
- * 没有卡的词不出现在结果里：UI 侧按「查不到 = 无记录」处理，
- * 与「新词不进到期集」是同一取向。
+ * 锚在 words 而非 review_cards：卡是**懒登记**的（spec D3，新词不进到期集），
+ * 收录时新开的词一张卡都没有。若按卡取数，这类词在结果里整个查不到，工作台只好
+ * 回落成 ?? 1，用户在收录时选的「眼熟」会被显示成「陌生」——spec §4.7 要合的
+ * 「收录时选择 → 首评预填 → 记忆强度」就断在这一环。故无卡的词也必须在结果里，
+ * 带着 maxLapses 0 / maxStability null / 自己的熟悉度，正好是 chip 冷启动读的形状
+ * （spec §4.5：无复习记录时以熟悉度定档）。
+ *
+ * 「查不到 = 无记录」那套取向只适用于**到期集**（新词不进到期集），不适用于这里：
+ * 这里要回答的是「这个词有多熟」，而这个词确实有记录，只是还没有复习记录。
  */
 export interface WordReviewOverlay {
   maxLapses: number
@@ -545,16 +552,17 @@ export async function getWordReviewOverlay(h?: DbHandle): Promise<DbResult<Recor
   const d = db(h)
   try {
     const rows = await d.select<Record<string, any>>(
-      `SELECT c.word_id,
+      `SELECT w.id AS word_id,
               COALESCE(MAX(s.lapses), 0) AS max_lapses,
               MAX(s.stability) AS max_stability,
               (SELECT fv.value FROM field_values fv
                  JOIN field_definitions fd ON fd.id = fv.field_id
-                WHERE fv.word_id = c.word_id AND fd.key = 'initial_familiarity'
+                WHERE fv.word_id = w.id AND fd.key = 'initial_familiarity'
                 ORDER BY fv.display_order LIMIT 1) AS familiarity
-       FROM review_cards c
+       FROM words w
+       LEFT JOIN review_cards c ON c.word_id = w.id
        LEFT JOIN review_states s ON s.card_id = c.id
-       GROUP BY c.word_id`,
+      GROUP BY w.id`,
     )
     const out: Record<string, WordReviewOverlay> = {}
     for (const r of rows) {

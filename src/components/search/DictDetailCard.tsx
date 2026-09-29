@@ -8,7 +8,9 @@ import { useWordStore } from '../../stores/wordStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { isFieldVisible } from '../../lib/fieldTree'
 import type { DisplayFieldKey } from '../../stores/settingsStore'
-import { ensureWord } from '../../lib/ensureWord'
+import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
+import { setInitialFamiliarity } from '../../services/wordService'
+import type { InitialFamiliarityChoice } from '../../services/wordService'
 import { mergeEntryFields, flattenTree, buildMergeInputs, toggleSubtreeSelection, shouldNumberField, countZhEn, countAllDefinitions } from '../../lib/dictPlan'
 import type { FlatNode } from '../../lib/dictPlan'
 import PosTag from '../ui/PosTag'
@@ -18,6 +20,9 @@ interface Props {
   word: string
   source: string
   entries: DictionaryEntry[]
+  /** 收录时用户选的初始熟悉度（1|2|3）。所有权在面板（spec §4.6），卡片只透传、不留副本：
+   *  两份状态会漂，且面板的「已在库」一旦因本次点击翻过来，用户在这一页就再也设不了值。 */
+  familiarity: InitialFamiliarityChoice
 }
 
 // 受控句柄：面板合并按钮经 ref 调用 buildInputs 取当前勾选构建的 merge 输入
@@ -62,7 +67,7 @@ function fieldLabel(key: string): string {
 }
 
 export default function DictDetailCard({
-  word: word_, source: source_, entries,
+  word: word_, source: source_, entries, familiarity,
   onSelectionChange, ref,
 }: Props & {
   onSelectionChange?: (source: string, count: number) => void
@@ -176,6 +181,10 @@ export default function DictDetailCard({
   const handleAdd = async () => {
     const inputs = buildMergeInputs(visible, selected, source_ as FieldSource)
     if (inputs.length === 0) return
+    // 守卫必须在 ensureWord **之前**求值：ensureWord 收录成功就把新词塞进 store，
+    // 那时再问「在不在库」，刚收录的库外词也会翻成「已在库」，熟悉度被静默丢掉——
+    // 而这条路径正是为了不丢它才加的。判据与面板合并路径共用 isWordInLibrary。
+    const wordWasInLibrary = isWordInLibrary(word_)
     const word = await ensureWord(word_)
     if (!word) {
       setError(true)
@@ -184,6 +193,10 @@ export default function DictDetailCard({
     }
     const ok = await mergeWordFields(word.id, inputs)
     if (ok) {
+      // 熟悉度随收录一并写入，只在用户被问过时（spec §4.6：单选与本写入同一个条件）：
+      // 在库词的面板显示「已在库」、familiarity 恒为重置默认值 1，无条件写就会把用户当初
+      // 选的档覆写成「完全陌生」。失败不阻断收录——字段已入库，缺失只让该词回落 1。
+      if (!wordWasInLibrary) await setInitialFamiliarity(word.id, familiarity)
       setError(false)
       setAdded(true)
       window.setTimeout(() => setAdded(false), 1500)

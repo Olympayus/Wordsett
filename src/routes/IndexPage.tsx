@@ -7,7 +7,7 @@ import { useReviewOverlayStore } from '../stores/reviewOverlayStore'
 export default function IndexPage() {
   const { loadWords } = useWordStore()
   const { loadCategories, loadWordCategoryMap } = useCategoryStore()
-  const { loadOverlay } = useReviewOverlayStore()
+  const loadOverlay = useReviewOverlayStore(s => s.loadOverlay)
 
   useEffect(() => {
     loadWords()

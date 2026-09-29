@@ -4,7 +4,7 @@ import { isListenEnabled } from '../lib/review/ttsGate'
 import { buildQueue, type QueueCandidate, type QueueResult } from '../lib/review/queue'
 import { selectByCategories } from '../lib/review/categoryCounts'
 import { pickTemplate, templateAccuracy, templatesWithExampleGate, type TemplateLog } from '../lib/review/template'
-import { mastery, retrievability, elapsedDaysSince, NEW_CARD_RNOW, masteryTier, defaultRatingFor } from '../lib/review/mastery'
+import { mastery, retrievability, elapsedDaysSince, NEW_CARD_RNOW, defaultRatingFor } from '../lib/review/mastery'
 import type { CardContent, InitialFamiliarity, ReviewMode, ReviewStrategy, Template } from '../lib/review/types'
 
 export type { CardContent } from '../lib/review/types'
@@ -528,5 +528,5 @@ export async function getDueWordIds(params: ReviewParams): Promise<Set<string>> 
   return new Set(r.ok ? r.data.map(c => c.wordId) : [])
 }
 
-export { masteryTier, templateAccuracy }
+export { templateAccuracy }
 export type { TemplateLog, InitialFamiliarity, Template, ReviewStrategy, ReviewMode }

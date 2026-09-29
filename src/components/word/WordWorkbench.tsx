@@ -1143,9 +1143,13 @@ export default function WordWorkbench() {
                 </div>
                 <SpeakButton text={selectedWord.lemma} />
                 {overlay && isLeech(overlay.maxLapses, leechThreshold) && <LeechBadge count={overlay.maxLapses} />}
-                {/* 无复习卡时 overlay 为 undefined → (null, 1) → 档 1，不是设计稿的「中性灰」。取舍：
-                    档 0 语义是「连熟悉度也没有」，而熟悉度是内置字段、默认 clamp 到 1，对真实词永远存在，
-                    displayTier 不可能返回 0（spec §4.5）。按档 1 走既忠于字段事实，也免得「没复习过」看起来像「最弱」。 */}
+                {/* 取数锚在 words（getWordReviewOverlay），收录时新开的词也带得出熟悉度，
+                    所以 ?? 1 几乎不会触发——它只兜「overlay 整个缺这个 key」的情况。
+                    无复习记录时（stability null）走 displayTier 的冷启动分支，以熟悉度定档：
+                    完全陌生 → 档 1、眼熟 → 档 2、认识 → 档 3（spec §4.5 / §4.7）。
+                    档 0 仍可能出现（mastery() 对 stability <= 0 也返回 null），
+                    那是「有记录但排期强度为 0」，落在 0 个色块 + 「无调度记录」的
+                    提示上，是本就该有的中性读法，不必在此特殊处理。 */}
                 <StrengthChip stability={overlay?.maxStability ?? null} familiarity={overlay?.familiarity ?? 1} />
               </div>
             </div>

@@ -9,7 +9,7 @@ import SpeakButton from '../ui/SpeakButton'
 import { lookupTitleMeta, lookupWord } from '../../services/searchService'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
-import { ensureWord } from '../../lib/ensureWord'
+import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
 import FamiliarityChoice from './FamiliarityChoice'
 import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
@@ -59,9 +59,11 @@ export default function DictDetailPanel({ word }: Props) {
 
   // 展示态的在库判据实时求值：启动时 loadWords() 未落地的一瞬会短暂多算成「库外」，代价只是多问一次；
   // 反过来若在这里快照，导入后词表变化会看不见。写入端的守卫另在 handleMergeAdd 里现算。
+  // 判据本体在 lib/ensureWord.ts 的 isWordInLibrary——渲染期订阅、写入期现调，同一份。
   const inLibrary = useWordStore(s => s.words.some(w => w.lemma.toLowerCase() === word.toLowerCase()))
 
   // 初始熟悉度（spec 4.6）：只对库外词问一次，写入随「合并添加」一起发生。
+  // 所有权在本面板：卡片级「＋ 添加此词典」也用这个值（卡片自己不留一份状态，两份会漂）。
   const [familiarity, setFamiliarity] = useState<InitialFamiliarityChoice>(1)
 
   // 每张卡片的受控句柄 + 勾选数（卡片 ref/上报均为可选的，重复合并安全：mergeWordFields 幂等去重）
@@ -89,7 +91,7 @@ export default function DictDetailPanel({ word }: Props) {
     // 守卫用的在库判据现算，且必须在 ensureWord 之前取：ensureWord 收录成功会把新词塞进 store，
     // 那时再算，刚收录的库外词也会翻成「已在库」。这里不能沿用渲染期求值的那一份——
     // 面板开着时启动加载的 loadWords() 或设置里的词典导入都可能改写词表，渲染期那份会过期。
-    const wordWasInLibrary = useWordStore.getState().words.some(w => w.lemma.toLowerCase() === word.toLowerCase())
+    const wordWasInLibrary = isWordInLibrary(word)
     const target = await ensureWord(word)
     if (!target) {
       setMergeError(true)
@@ -221,6 +223,7 @@ export default function DictDetailPanel({ word }: Props) {
                     entries={result.entries}
                     ref={el => { cardRefs.current[result.source] = el }}
                     onSelectionChange={handleSelectionChange}
+                    familiarity={familiarity}
                   />
                 ))}
               </div>
