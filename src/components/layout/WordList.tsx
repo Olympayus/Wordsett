@@ -5,13 +5,18 @@ import { useWordStore } from '../../stores/wordStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useViewStore } from '../../stores/viewStore'
 import { useUiStore } from '../../stores/uiStore'
+import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
+import { useSettingsStore } from '../../stores/settingsStore'
 import SidebarToolbar from './SidebarToolbar'
+import SmartViewList from './SmartViewList'
 import WordListItem from '../word/WordListItem'
 import ContextMenu, { type MenuItem } from '../ui/ContextMenu'
 import CategoryPickerPopover from '../ui/CategoryPickerPopover'
 import { vocabularySearch } from '../../lib/search'
 import { groupByLetter, groupByCategory, type SidebarMode } from '../../lib/sidebar'
 import { rangeSelect, selectAll, pruneToRows, selectedWordIdsFromRows } from '../../lib/selection'
+import { SMART_VIEW_ORDER, filterBySmartView, smartViewCount, visibleSmartViews } from '../../lib/smartViews'
+import type { SmartViewKey } from '../../lib/smartViews'
 import type { WordWithPreview } from '../../types/word'
 import type { Category } from '../../types/category'
 import Icon, { type IconName } from '../icons'
@@ -58,12 +63,37 @@ export default function WordList({
   const [searching, setSearching] = useState(false)
   const [filtered, setFiltered] = useState<WordWithPreview[]>(words)
 
-  // 筛选：空串显示全部；非空走词库搜索（lemma + 字段值，沿用现状）
+  // 智能视图（v0.6.5 §4.4）：置顶四个固定视图，是**附加**在筛选框之上的一层，
+  // 不改变下方列表的分组方式。
+  const [smartView, setSmartView] = useState<SmartViewKey>('all')
+  const smartViews = useSettingsStore(s => s.smartViews)
+  const overlay = useReviewOverlayStore(s => s.overlay)
+  const dueWordIds = useReviewOverlayStore(s => s.dueWordIds)
+  const leechThreshold = useSettingsStore(s => s.review.leechThreshold)
+
+  const viewInput = useMemo(() => ({ words, dueWordIds, overlay, leechThreshold, now: Date.now() }), [words, dueWordIds, overlay, leechThreshold])
+  const viewCounts = useMemo(() => Object.fromEntries(
+    SMART_VIEW_ORDER.map(k => [k, smartViewCount(k, viewInput)])) as Record<SmartViewKey, number>, [viewInput])
+  // 在设置里关掉正在激活的视图 → 它从 visibleSmartViews 里消失，这里退回「完整词库」。
+  // 刻意不写 state（不弹确认、不留一个指向隐藏视图的激活态）：派生的下一次渲染就落到 all。
+  const activeView = visibleSmartViews(smartViews).includes(smartView) ? smartView : 'all'
+  // 视图是附加筛选：先过视图，再过筛选框。
+  const viewFiltered = useMemo(() => filterBySmartView(words, activeView, viewInput), [words, activeView, viewInput])
+
+  // 筛选：空串显示视图内的全部；非空走词库搜索（lemma + 字段值，沿用现状）
   useEffect(() => {
-    if (!filter.trim()) { setFiltered(words); return }
+    if (!filter.trim()) { setFiltered(viewFiltered); return }
     setSearching(true)
-    vocabularySearch(filter).then(r => setFiltered(r)).finally(() => setSearching(false))
-  }, [filter, words])
+    vocabularySearch(filter)
+      .then(r => {
+        // vocabularySearch 搜的是**全库**，不吃视图过滤，所以不能让搜索结果原样落进列表。
+        // 方向只能是「先搜全库，再拿视图的允许集取交集」——反过来把 viewFiltered 喂进搜索
+        // 会得到一个既不受筛选框约束也不受视图约束的结果集。
+        const allowed = new Set(viewFiltered.map(w => w.id))
+        setFiltered(r.filter(w => allowed.has(w.id)))
+      })
+      .finally(() => setSearching(false))
+  }, [filter, viewFiltered])
 
   const categoryById = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories])
 
@@ -279,6 +309,14 @@ export default function WordList({
     })
   }, [])
 
+  /** 点/敲组头：折叠切换 + 退出当前视图（§4.4「点树里任一节点即退出视图」）。
+   *  键盘路径必须走同一个入口——只挂 onClick 会让键盘用户折叠分组时视图不退出，
+   *  鼠标与键盘两条路对同一动作给出不同结果。 */
+  const activateGroup = useCallback((key: string) => {
+    if (activeView !== 'all') setSmartView('all')
+    toggleGroup(key)
+  }, [activeView, toggleGroup])
+
   const renderHeader = (row: HeaderRow) => {
     const isUncat = row.type === 'uncategorized'           // 未分类：纯标签，不可折叠
     const isFolded = collapsedGroups.has(row.key)
@@ -300,14 +338,14 @@ export default function WordList({
     return (
       <div
         key={row.key}
-        onClick={() => toggleGroup(row.key)}
+        onClick={() => activateGroup(row.key)}
         onContextMenu={row.type === 'category' ? (e) => {
           e.preventDefault()
           const c = categoryById.get(row.key.replace(/^cat:/, ''))
           if (c) setMenu({ x: e.clientX, y: e.clientY, kind: 'category', category: c })
         } : undefined}
         onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleGroup(row.key) }
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateGroup(row.key) }
         }}
         role="button"
         tabIndex={0}
@@ -371,6 +409,12 @@ export default function WordList({
         selectedCount={selectedWordIds.length}
         onSelectAll={() => setSelected(selectAll(wordRowKeys))}
         onExitSelect={exitSelect}
+      />
+      <SmartViewList
+        views={visibleSmartViews(smartViews)}
+        active={activeView}
+        counts={viewCounts}
+        onSelect={setSmartView}
       />
       <div ref={parentRef} className="flex-1 overflow-y-auto" style={{ padding: '8px' }}>
         {searching ? (

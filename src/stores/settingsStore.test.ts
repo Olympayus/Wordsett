@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { useSettingsStore, DEFAULT_TITLE_INFO, DEFAULT_REVIEW, type TitleInfoKey } from './settingsStore'
+import { useSettingsStore, DEFAULT_TITLE_INFO, DEFAULT_REVIEW, migrateSettings, type TitleInfoKey } from './settingsStore'
 
 const DEFAULT = {
   displayFields: {
@@ -55,7 +55,7 @@ describe('settingsStore（规格 §7）', () => {
     expect(parsed.state.sidebarMode).toBe('category')
     expect(parsed.state.displayFields.phonetic).toBe(false)
     expect(Object.keys(parsed.state).sort()).toEqual(
-      ['dictionaries', 'displayFields', 'review', 'sidebarMode', 'titleInfo']
+      ['dictionaries', 'displayFields', 'review', 'sidebarMode', 'smartViews', 'titleInfo']
     )
   })
 
@@ -185,5 +185,13 @@ describe('settingsStore 复习分区', () => {
     for (const [k, v] of Object.entries(legacyReview)) {
       expect(s.review[k as keyof typeof legacyReview]).toBe(v)
     }
+  })
+})
+
+describe('smartViews 存档迁移（v0.6.5）', () => {
+  it('旧存档（version 7、无 smartViews）迁移后四个视图默认全开', () => {
+    // migrate 是 persist 配置里的函数；这里直接驱动它，验证「不升版就整体消失」那个坑被堵住
+    const migrated = migrateSettings({ review: DEFAULT_REVIEW, smartViews: undefined })
+    expect(migrated.smartViews).toEqual({ all: true, due: true, weekNew: true, leech: true })
   })
 })
