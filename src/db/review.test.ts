@@ -10,7 +10,7 @@ import {
   getState,
   applyReview,
   insertPracticeLog,
-  getWeakCardIds,
+  getWeakWordIds,
   getWeakWordsWithCounts,
   getWordReviewOverlay,
   getStrategyCounts,
@@ -450,7 +450,7 @@ describe('db/review 读路径', () => {
       // 部分未评分 ≠ 没有记录：w1 有一张已评分的卡，读数就该走 FSRS 那一支而不是回落熟悉度。
       // familiarity 3 的冷启动档恰好也是 3，故换 stability 用「无记录」分支的档 0 断——
       // 读到 0 就说明未评分把整词拖成了「无记录」。
-      expect(displayTier({ stability: r.data.w1.weakestStability, familiarity: 1 })).not.toBe(0)
+      expect(displayTier({ stability: r.data.w1.weakestStability, familiarity: 1 })).toBe(3)
       // w2 有卡但无 review_states 行 → 0 / null
       expect(r.data.w2.maxLapses).toBe(0)
       expect(r.data.w2.weakestStability).toBeNull()
@@ -607,7 +607,48 @@ describe('db/review 写路径与聚合', () => {
     expect(rows.map(r => `${r.word_id}/${r.template}`)).toEqual(['w1/recall', 'w1/recognize'])
   })
 
-  it('getWeakCardIds：lapses 达标 ∪ 窗口内 rating = 1（含 practice），窗口外不计入', async () => {
+  it('熟知度分布按词分桶：柱高之和等于词库词数', async () => {
+    const db = await createTestDb()
+    for (const id of ['w1', 'w2', 'w3']) {
+      await db.execute(
+        `INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at)
+         VALUES ('${id}','${id}','${id}','en',1,1)`)
+    }
+    // w1 有两张卡（一张很强、一张很弱）——词级只算一次，且取最弱那张
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w1','recognize',1)")
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c2','w1','cloze',1)")
+    await db.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+       VALUES ('c1', 120, 5, 1, 0, 3, 0, 1)`)
+    await db.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+       VALUES ('c2', 3, 8, 1, 0, 1, 0, 1)`)
+    const r = await getStats(NOW, db)
+    if (!r.ok) throw new Error(r.error)
+    expect(r.data.masteryBuckets.reduce((a, b) => a + b, 0)).toBe(3)
+    // w1 取最弱（S=3 → 10 分 → 档 1），w2 / w3 无记录 → 档 0
+    expect(r.data.masteryBuckets[0]).toBe(2)
+    expect(r.data.masteryBuckets[1]).toBe(1)
+  })
+
+  it('getWeakWordIds 返回词 id 而不是卡 id', async () => {
+    const db = await createTestDb()
+    await db.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','alpha','alpha','en',1,1)"
+    )
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w1','recognize',1)")
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c2','w1','cloze',1)")
+    await db.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+       VALUES ('c1', 10, 5, 1, 5, 6, 0, 1)`)
+    const r = await getWeakWordIds({ leechThreshold: 4, recentWindowMs: 7 * 86400000, now: NOW }, db)
+    if (!r.ok) throw new Error(r.error)
+    // 一个词两张卡、只有一张达标：词级只出一个，且出的是 **word_id**（c1 达标、c2 不达标，
+    // 按卡出行会是两条）——这条同时钉住「返回词」与「同一词只算一次」。
+    expect(r.data).toEqual(['w1'])
+  })
+
+  it('getWeakWordIds：lapses 达标 ∪ 窗口内 rating = 1（含 practice），窗口外不计入', async () => {
     for (const [i, lemma] of ['leech', 'recent', 'clean', 'stale'].entries()) await seedCardable(`w${i + 1}`, lemma, `fv${i + 1}`)
     await registerCards(['w1', 'w2', 'w3', 'w4'], db)
     const [c1, c2, c3, c4] = [await cardIdOf('w1'), await cardIdOf('w2'), await cardIdOf('w3'), await cardIdOf('w4')]
@@ -623,19 +664,21 @@ describe('db/review 写路径与聚合', () => {
     await db.execute("INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES ('l1',?1,?2,1,'recall','review')", [c2, NOW - 2 * 86400000])
     await db.execute("INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES ('l2',?1,?2,1,'cloze','practice')", [c2, NOW - 3 * 86400000])
     await db.execute("INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES ('l3',?1,?2,1,'recall','review')", [c4, NOW - 30 * 86400000])
-    const r = await getWeakCardIds({ leechThreshold: 4, recentWindowMs: 7 * 86400000, now: NOW }, db)
+    const r = await getWeakWordIds({ leechThreshold: 4, recentWindowMs: 7 * 86400000, now: NOW }, db)
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    expect([...r.data].sort()).toEqual([c1, c2].sort())
+    // 这四个词各有 recognize + recall 两张卡，但每张只灌了一张状态；断言走词级，
+    // 不再依赖 cardIdOf 取的是哪一张。
+    expect([...r.data].sort()).toEqual(['w1', 'w2'])
   })
 
-  it('getWeakCardIds 只有 practice 日志同样命中', async () => {
+  it('getWeakWordIds 只有 practice 日志同样命中', async () => {
     await seedCardable('w1', 'practice', 'fv1')
     await registerCards(['w1'], db)
     const c1 = await cardIdOf('w1')
     await db.execute("INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES ('l1',?1,?2,1,'cloze','practice')", [c1, NOW - 1000])
-    const r = await getWeakCardIds({ leechThreshold: 4, recentWindowMs: 7 * 86400000, now: NOW }, db)
-    expect(r.ok && r.data).toEqual([c1])
+    const r = await getWeakWordIds({ leechThreshold: 4, recentWindowMs: 7 * 86400000, now: NOW }, db)
+    expect(r.ok && r.data).toEqual(['w1'])
   })
 
   it('getStrategyCounts：weak = lapses ≥ 阈值 ∪ 近 7 天 rating = 1，practice 也算', async () => {
@@ -845,8 +888,8 @@ describe('db/review 听辨门控与薄弱词计数', () => {
       { leechThreshold: 4, recentWindowMs: 7 * 86_400_000, now: NOW }, db)
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    // 【Task 7 负责】当前 getWeakWordsWithCounts 按**卡**出行，一词多卡就出多行
-    // （w1 的 recognize 与 recall 各一行），而这条断言是词级读法。Task 7 改词级口径时修。
+    // 一个词只出一行：w1 的 recognize 与 recall 两张卡都拿到 lapses 5，词级读法取其中最差那张
+    // （MAX），仍是**一行** lapses 5；按卡出行会给出两行 w1。
     expect(r.data.map(x => x.wordId)).toEqual(['w1', 'w2'])
     expect(r.data[0]).toMatchObject({ lemma: 'alpha', lapses: 5, recentMisses: 0 })
     expect(r.data[1]).toMatchObject({ lemma: 'beta', lapses: 0, recentMisses: 2 })
@@ -870,15 +913,14 @@ describe('db/review 听辨门控与薄弱词计数', () => {
   // spec §8.1-3：两条查询是同一宽口径的两份实现（lapses ≥ 阈值 ∪ 窗口内 rating = 1，不按 mode 过滤），
   // 没有任何东西把它们绑在一起——一边改了口径，另一边照旧返回，页面上的「薄弱词 K」与列表就会
   // 悄悄对不上。这条测试把两份实现的 id 集合钉在一起。
-  it('getWeakWordsWithCounts 与 getWeakCardIds 同一库上返回同一集合', async () => {
+  it('getWeakWordsWithCounts 与 getWeakWordIds 同一库上返回同一集合', async () => {
     const db = await createTestDb()
     for (const [i, lemma] of ['leech', 'recent', 'practiceOnly', 'clean', 'stale'].entries()) {
       await seedWord(db, `w${i + 1}`, lemma)
+      // Task 2 契约：零字段的词一张卡都注册不出来，cardOf 会取空。
+      // 给每个词一条中文释义，好让注册真的建出卡（下面 w2 / w5 因此各有两张）。
+      await seedValue(db, `vw${i + 1}`, `w${i + 1}`, 'chinese_definition', `${lemma}的释义`)
     }
-    // 【Task 7 负责】w1…w5 在注册时都还没有任何字段值，Task 2 的契约下一个卡都建不出来，
-    // 这里的 cardOf 必然取空。要复现「这五个词都注册过」，得先给它们内容再注册；
-    // 而一旦每个词都出两张卡，下面那句「两边命中同一批**词**」又会被当前按卡出行的
-    // 口径打乱（rows.data 会按卡重复）。两条一起等 Task 7 改词级口径时处理。
     await registerAllWords(db)
     const cardOf = async (wordId: string) =>
       (await db.select<{ id: string }>('SELECT id FROM review_cards WHERE word_id = ?1', [wordId]))[0].id
@@ -887,6 +929,9 @@ describe('db/review 听辨门控与薄弱词计数', () => {
     const c1 = await cardOf('w1')
     const c2 = await cardOf('w2')
     const c3 = await cardOf('w3')
+    // w1 另有一张卡（recognize + recall），lapses 达标只灌在第一张上。
+    // 按**词**判据读时那仍是同一个词命中一次；下面的两侧比对因此能真正咬住「一词多卡」：
+    // 任一侧退回按卡出行，这边就会出 ['w1','w1',...] 而对不上。
     await db.execute(
       `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended)
        VALUES (?1, 5, 5, 0, 4, 6, 0)`, [c1])
@@ -895,7 +940,7 @@ describe('db/review 听辨门控与薄弱词计数', () => {
     await db.execute("INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES ('l3',?1,?2,1,'recall','review')", [await cardOf('w5'), NOW - 30 * 86_400_000])
 
     const opts = { leechThreshold: 4, recentWindowMs: 7 * 86_400_000, now: NOW }
-    const ids = await getWeakCardIds(opts, db)
+    const ids = await getWeakWordIds(opts, db)
     const rows = await getWeakWordsWithCounts(opts, db)
     expect(ids.ok).toBe(true)
     expect(rows.ok).toBe(true)
@@ -903,13 +948,8 @@ describe('db/review 听辨门控与薄弱词计数', () => {
     // 同一库同一口径：两边必须命中同一批词（w1 lapses 达标 / w2 窗口内 review 答错 /
     // w3 只有 practice 答错——两边都不按 mode 过滤；w4 干净、w5 窗口外，两边都不该命中）。
     expect(rows.data.map(w => w.wordId).sort()).toEqual(['w1', 'w2', 'w3'])
-    // getWeakCardIds 给的是 card_id，映射回 word_id 后与列表逐词相同
-    const words = new Set(
-      (await db.select<{ word_id: string }>(
-        `SELECT word_id FROM review_cards WHERE id IN (${ids.data.map(() => '?').join(',')})`, ids.data,
-      )).map(r => r.word_id),
-    )
-    expect([...words].sort()).toEqual([...new Set(rows.data.map(w => w.wordId))].sort())
+    // 两边都是词级，逐词直接相同
+    expect([...ids.data].sort()).toEqual([...new Set(rows.data.map(w => w.wordId))].sort())
   })
 })
 

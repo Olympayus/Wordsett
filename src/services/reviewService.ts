@@ -289,21 +289,21 @@ function shuffle<T>(items: T[]): T[] {
   return items
 }
 
-/** 薄弱词筛选与薄弱词计数同源：薄弱定义只有 getWeakCardIds 一处实现。 */
+/** 薄弱词筛选与薄弱词计数同源：薄弱定义只有 getWeakWordIds 一处实现。 */
 async function filterWeak(candidates: QueueCandidate[], params: ReviewParams, now: number): Promise<QueueCandidate[]> {
-  const r = await reviewDb.getWeakCardIds({
+  const r = await reviewDb.getWeakWordIds({
     leechThreshold: params.leechThreshold,
     recentWindowMs: 7 * 86_400_000,
     now,
   })
   if (!r.ok) return []
-  const ids = new Set(r.data)
-  return candidates.filter(c => ids.has(c.cardId))
+  const weak = new Set(r.data)
+  return candidates.filter(c => weak.has(c.wordId))
 }
 
 /**
  * 自由练习的范围筛选。'today' 的候选源已是到期集（见 getQueue 的 freeToday 分支），原样透传；
- * 'weak' 复用 filterWeak（薄弱定义只有 getWeakCardIds 一处实现），不再把整库交给用户。
+ * 'weak' 复用 filterWeak（薄弱定义只有 getWeakWordIds 一处实现），不再把整库交给用户。
  */
 async function filterFree(
   candidates: QueueCandidate[],

@@ -407,20 +407,20 @@ export async function insertPracticeLog(input: PracticeLogInput, h?: DbHandle): 
   }
 }
 
-/** 薄弱词专项候选卡：lapses ≥ 阈值 ∪ 窗口内存在 rating = 1 的日志（含 practice）。 */
-export async function getWeakCardIds(
+/** 薄弱词候选：lapses ≥ 阈值 ∪ 窗口内存在 rating = 1 的日志（含 practice）。返回**词 id**。 */
+export async function getWeakWordIds(
   opts: { leechThreshold: number; recentWindowMs: number; now: number },
   h?: DbHandle,
 ): Promise<DbResult<string[]>> {
   const d = db(h)
   try {
-    const rows = await d.select<{ id: string }>(
-      `SELECT DISTINCT c.id FROM review_cards c
+    const rows = await d.select<{ word_id: string }>(
+      `SELECT DISTINCT c.word_id FROM review_cards c
        LEFT JOIN review_states s ON s.card_id = c.id
        WHERE (s.lapses IS NOT NULL AND s.lapses >= ?1)
           OR c.id IN (SELECT card_id FROM review_logs WHERE rating = 1 AND reviewed_at >= ?2)`,
       [opts.leechThreshold, opts.now - opts.recentWindowMs])
-    return { ok: true, data: rows.map(r => r.id) }
+    return { ok: true, data: rows.map(r => r.word_id) }
   } catch (e: any) {
     return { ok: false, error: e.toString() }
   }
@@ -436,9 +436,15 @@ export interface WeakWordRow {
 }
 
 /**
- * 薄弱词专项页的列表数据（spec §3.4）。判定与 getWeakCardIds 同一宽口径：
+ * 薄弱词专项页的列表数据（spec §3.4），**一个词一行**。判定与 getWeakWordIds 同一宽口径：
  * lapses ≥ 阈值 ∪ 窗口内存在 rating = 1 的日志（**不按 mode 过滤**——练习里的答错/跳过
  * 同样是有价值的信号，v0.6 spec §3.8）。
+ *
+ * 一词多卡时两个计数各按自己的语义聚（v0.6.5）：
+ * - `lapses` 取 MAX：它是**每张卡**的调度计数器，Leech 阈值也按卡判，词级读数就是其中
+ *   最差的一张——与 getWordReviewOverlay 的 maxLapses 同一口径。
+ * - `recentMisses` 取 SUM：它数的是**事件**不是状态，一个词在两张卡上各错过一次就是错过两次。
+ *   （两侧的判据都写成逐行的 `c.id`，按 word_id 分组后自然摊到该词的全部卡上。）
  *
  * 排序：lapses 降序 → 窗口内答错次数降序 → lemma 升序。列表最上面的是最该补内容的词。
  */
@@ -450,7 +456,8 @@ export async function getWeakWordsWithCounts(
   try {
     const since = opts.now - opts.recentWindowMs
     // 释义取值与 getAvailabilityMask 同源：都按 FIELD_KEY_GROUPS.translation 的 key 集匹配，
-    // 不硬编码字段 key，将来同义 key 增补时两处一起生效。
+    // 不硬编码字段 key，将来同义 key 增补时两处一起生效。键在 w.id 上——释义是**词级**的，
+    // 一词多卡不该让同一行在不同卡上取到不同释义。
     const zhKeys = FIELD_KEY_GROUPS.translation.map(k => `'${k}'`).join(',')
     const missCount = `(SELECT count(*) FROM review_logs l
                          WHERE l.card_id = c.id AND l.rating = 1 AND l.reviewed_at >= ?2)`
@@ -459,15 +466,16 @@ export async function getWeakWordsWithCounts(
               w.lemma AS lemma,
               COALESCE((SELECT fv.value FROM field_values fv
                           JOIN field_definitions fd ON fd.id = fv.field_id
-                         WHERE fv.word_id = c.word_id AND fd.key IN (${zhKeys})
+                         WHERE fv.word_id = w.id AND fd.key IN (${zhKeys})
                          ORDER BY fv.display_order LIMIT 1), '') AS translation,
-              COALESCE(s.lapses, 0) AS lapses,
-              ${missCount} AS recentMisses
+              COALESCE(MAX(s.lapses), 0) AS lapses,
+              SUM(${missCount}) AS recentMisses
          FROM review_cards c
          JOIN words w ON w.id = c.word_id
          LEFT JOIN review_states s ON s.card_id = c.id
-        WHERE (s.lapses IS NOT NULL AND s.lapses >= ?1)
-           OR ${missCount} > 0
+        GROUP BY c.word_id, w.lemma
+       HAVING (MAX(s.lapses) IS NOT NULL AND MAX(s.lapses) >= ?1)
+           OR SUM(${missCount}) > 0
         ORDER BY lapses DESC, recentMisses DESC, w.lemma ASC`,
       [opts.leechThreshold, since],
     )
@@ -496,7 +504,7 @@ export async function getWeakWordsWithCounts(
  * **不复用 getWeakWordsWithCounts**：那是薄弱词专项页的取数，口径是
  * 「lapses ≥ 阈值 ∪ 近 7 天 rating=1」，拿它当徽标数据源会让近 7 天错过一次的词
  * 全挂上徽标。徽标要的是严格 Leech（01 §3.6），只认 lapses。
- * 也**不是** getWeakCardIds——那个返回 card id，不是 word id。
+ * 也**不是** getWeakWordIds——那已是词级，但两者判据不同：overlay 是展示层，薄弱词是筛选层。
  *
  * 锚在 words 而非 review_cards：卡是**懒登记**的（spec D3，新词不进到期集），
  * 收录时新开的词一张卡都没有。若按卡取数，这类词在结果里整个查不到，工作台只好
@@ -566,7 +574,7 @@ export async function getStrategyCounts(
       return m ? usableTemplates(m, { allowListen: opts.allowListen === true }).length > 0 : false
     }).length
 
-    const weak = await getWeakCardIds(opts, d)
+    const weak = await getWeakWordIds(opts, d)
     if (!weak.ok) return weak
     return { ok: true, data: { today, weak: weak.data.length } }
   } catch (e: any) {
@@ -582,14 +590,19 @@ export async function getStats(now: number = Date.now(), h?: DbHandle): Promise<
 }>> {
   const d = db(h)
   try {
+    // 熟知度分布按**词**分桶（spec 01 §5.1）：锚 words、每词取最弱一环，与 overlay 同一口径。
+    // 无卡或全未评分的词 stability 为 NULL → 档 0，因此柱高之和等于词库词数。
     const cardRows = await d.select<Record<string, any>>(
-      'SELECT stability, last_review_at FROM review_states')
+      `SELECT MIN(s.stability) AS weakest_stability
+         FROM words w
+         LEFT JOIN review_cards c ON c.word_id = w.id
+         LEFT JOIN review_states s ON s.card_id = c.id
+        GROUP BY w.id`)
     const buckets = [0, 0, 0, 0, 0, 0]
     for (const r of cardRows) {
-      const s = r.stability === null || r.stability === undefined ? null : Number(r.stability)
+      const s = r.weakest_stability === null || r.weakest_stability === undefined
+        ? null : Number(r.weakest_stability)
       // 入参是 **stability（天）**，不是 mastery（0–1）——masteryTier 内部自己换算。
-      // 早先这里传的是 toMastery(s)：入参口径一换，那条调用会静默把 0.756 读成 0.756 天
-      // 稳定性，分数算成 100·e^(−9.3) ≈ 0，于是每个词都落档 1，图表看着正常、全错。
       buckets[masteryTier(s)]++
     }
 

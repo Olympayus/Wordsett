@@ -6,7 +6,7 @@ const {
   invokeMock, getStateMock, applyReviewMock, insertPracticeLogMock,
   registerAllWordsMock, getCandidatesMock, getWordContentMock, getStatsMock,
   getWeakWordsWithCountsMock, getAllCandidatesMock, getAbsentWordsMock,
-  getAllWordCategoryMapMock, getStrategyCountsMock,
+  getAllWordCategoryMapMock, getStrategyCountsMock, getWeakWordIdsMock,
 } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   getStateMock: vi.fn(),
@@ -21,6 +21,7 @@ const {
   getAbsentWordsMock: vi.fn(),
   getAllWordCategoryMapMock: vi.fn(),
   getStrategyCountsMock: vi.fn(),
+  getWeakWordIdsMock: vi.fn(),
 }))
 
 // rateCard 只碰这三个 db 入口，直接打桩；fsrs_next 走 Tauri invoke，单独打桩。
@@ -39,6 +40,7 @@ vi.mock('../db/review', () => ({
   getAllCandidates: getAllCandidatesMock,
   getAbsentWords: getAbsentWordsMock,
   getStrategyCounts: getStrategyCountsMock,
+  getWeakWordIds: getWeakWordIdsMock,
 }))
 vi.mock('../db/categories', () => ({ getAllWordCategoryMap: getAllWordCategoryMapMock }))
 vi.mock('@tauri-apps/api/core', () => ({ invoke: invokeMock }))
