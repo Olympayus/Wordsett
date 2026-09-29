@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type IconName = 'plus' | 'grip' | 'more' | 'trash' | 'search' | 'swap' | 'chevron' | 'arrow-right' | 'chevron-left' | 'settings' | 'arrow-left' | 'close' | 'info' | 'edit' | 'chevron-right' | 'minimize' | 'maximize' | 'restore' | 'layers' | 'book'
+export type IconName = 'plus' | 'grip' | 'more' | 'trash' | 'search' | 'swap' | 'chevron' | 'arrow-right' | 'chevron-left' | 'settings' | 'arrow-left' | 'close' | 'info' | 'edit' | 'chevron-right' | 'minimize' | 'maximize' | 'restore' | 'layers' | 'book' | 'check-square' | 'library' | 'calendar' | 'sprout' | 'alert' | 'minus'
 
 const PATHS: Record<IconName, ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
@@ -95,6 +95,41 @@ const PATHS: Record<IconName, ReactNode> = {
     <>
       <path d="M4 4.5h5.5a2.5 2.5 0 0 1 2.5 2.5V20a2 2 0 0 0-2-2H4z" />
       <path d="M20 4.5h-5.5A2.5 2.5 0 0 0 12 7v13a2 2 0 0 1 2-2h6z" />
+    </>
+  ),
+  minus: <path d="M5 12h14" />,
+  'check-square': (
+    <>
+      <rect x="3" y="3" width="18" height="18" rx="4" />
+      <path d="M8 12l3 3 5-6" />
+    </>
+  ),
+  library: (
+    <>
+      <rect x="3" y="4" width="5" height="16" rx="1" />
+      <rect x="10" y="4" width="5" height="16" rx="1" />
+      <path d="M17.5 5l3.5 15" />
+    </>
+  ),
+  calendar: (
+    <>
+      <rect x="3" y="5" width="18" height="16" rx="2" />
+      <path d="M8 3v4M16 3v4M3 10h18" />
+      <path d="M9 15l2 2 4-4" />
+    </>
+  ),
+  sprout: (
+    <>
+      <path d="M12 21v-7" />
+      <path d="M12 14c0-4-3-6-7-6 0 4 3 6 7 6z" />
+      <path d="M12 14c0-4 3-7 7-7 0 4-3 7-7 7z" />
+    </>
+  ),
+  alert: (
+    <>
+      <path d="M12 3l9 16H3l9-16z" />
+      <path d="M12 9v5" />
+      <circle cx="12" cy="17" r="1" />
     </>
   ),
 }

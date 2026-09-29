@@ -1,34 +1,115 @@
 import Icon from '../icons'
 
+/** 第一行里各控件的显隐规则。抽成纯函数是为了可测——node 环境测不到 DOM。 */
+export function toolbarSlots({ selectMode }: { collapsed: boolean; selectMode: boolean }): {
+  selectToggle: boolean; modeToggle: boolean; collapseToggle: boolean; filterInput: boolean
+} {
+  return {
+    // 收起态**不**再关掉任何功能（v0.6.5 §4.1）：放不下交给宽度与换行，
+    // 不再用 collapsed 这个布尔量去决定「能不能用」。collapsed 仍留在入参类型里
+    // （调用方照旧要传），只是不再参与判定——这正是本条规则本身。
+    selectToggle: !selectMode,
+    modeToggle: !selectMode,
+    collapseToggle: true,
+    filterInput: true,
+  }
+}
+
 interface Props {
   collapsed: boolean
   filter: string
   onFilterChange: (value: string) => void
   onToggleMode: () => void
   onToggleCollapse: () => void
+  selectMode: boolean
+  onToggleSelectMode: () => void
+  selectedCount: number
+  onSelectAll: () => void
+  onExitSelect: () => void
 }
 
-export default function SidebarToolbar({ collapsed, filter, onFilterChange, onToggleMode, onToggleCollapse }: Props) {
+const iconBtn = (on = false): React.CSSProperties => ({
+  width: '30px', height: '30px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+  border: 'none', background: on ? 'var(--color-brand-soft)' : 'transparent',
+  borderRadius: 'var(--radius-md)', cursor: 'pointer', flexShrink: 0,
+  color: on ? 'var(--color-brand)' : 'var(--color-text-secondary)',
+  transition: 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
+})
+
+const chip: React.CSSProperties = {
+  display: 'inline-flex', alignItems: 'center', height: '26px', padding: '0 9px',
+  border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+  background: 'var(--color-surface-raised)', color: 'var(--color-text-primary)',
+  fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-medium)',
+  cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+}
+
+// 侧栏工具条（v0.6.5 §4.1）：两行。第一行是控件、第二行是整宽筛选框。
+// 按钮独立成行后，选择模式只需替换第一行，筛选框原地不动——这是把「筛一批 → 全选 → 批量归类」
+// 这条动线留住的关键：筛选框在选择模式下仍然可用，且全选的作用域就是筛出来的那些行。
+export default function SidebarToolbar({
+  collapsed, filter, onFilterChange, onToggleMode, onToggleCollapse,
+  selectMode, onToggleSelectMode, selectedCount, onSelectAll, onExitSelect,
+}: Props) {
+  const slots = toolbarSlots({ collapsed, selectMode })
   return (
-    <div className="flex items-center gap-2 px-3 py-3 shrink-0">
-      {/* 筛选搜索（规格 §4.1）：展开态输入框+图标；收起态仅图标 18px */}
-      <div
-        className="flex items-center gap-2 h-8 px-2.5"
-        style={{
-          flex: 1,
-          minWidth: 0,
-          background: collapsed ? 'transparent' : 'var(--color-surface)',
-          border: collapsed ? 'none' : '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-md)',
-          justifyContent: collapsed ? 'center' : undefined,
-          padding: collapsed ? 0 : undefined,
-          transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
-        }}
-        onMouseEnter={e => { if (collapsed) e.currentTarget.style.background = 'var(--color-surface-hover)' }}
-        onMouseLeave={e => { if (collapsed) e.currentTarget.style.background = 'transparent' }}
-      >
-        <Icon name="search" size={collapsed ? 18 : 16} />
-        {!collapsed && (
+    <div className="shrink-0" style={{ padding: '10px 10px 0' }}>
+      {/* 第一行：控件。角色分工固定——左侧是「模式类」，右端是「窗口类」。 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
+        {selectMode ? (
+          <>
+            <span style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+              已选 <span className="stat-num">{selectedCount}</span>
+            </span>
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px' }}>
+              <button type="button" style={chip} onClick={onSelectAll}>全选</button>
+              <button type="button" style={chip} onClick={onExitSelect}>退出</button>
+            </div>
+          </>
+        ) : (
+          <>
+            {slots.selectToggle && (
+              <button type="button" title="多选" aria-label="多选" aria-pressed={false}
+                onClick={onToggleSelectMode} style={iconBtn()}>
+                <Icon name="check-square" size={16} />
+              </button>
+            )}
+            {slots.modeToggle && (
+              <button type="button" title="切换显示模式" aria-label="切换显示模式"
+                onClick={onToggleMode} style={iconBtn()}>
+                <Icon name="swap" size={16} />
+              </button>
+            )}
+            <div style={{ marginLeft: 'auto' }}>
+              {slots.collapseToggle && (
+                <button type="button" title="收起/展开侧边栏" aria-label="收起/展开侧边栏"
+                  onClick={onToggleCollapse} style={iconBtn()}>
+                  <span style={{
+                    display: 'flex',
+                    transition: 'transform var(--duration-normal) var(--ease-smooth)',
+                    transform: collapsed ? 'rotate(180deg)' : undefined,
+                  }}>
+                    <Icon name="chevron-left" size={16} />
+                  </span>
+                </button>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* 第二行：整宽筛选框。收起态也渲染——它不再是个图标。 */}
+      {slots.filterInput && (
+        <div
+          className="flex items-center gap-2"
+          style={{
+            height: '32px', padding: '0 10px', marginTop: '8px',
+            background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)',
+            transition: 'border-color var(--duration-fast) var(--ease-smooth)',
+          }}
+        >
+          <Icon name="search" size={15} />
           <input
             type="text"
             placeholder="筛选词库..."
@@ -41,48 +122,8 @@ export default function SidebarToolbar({ collapsed, filter, onFilterChange, onTo
               fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
             }}
           />
-        )}
-      </div>
-
-      {/* 模式切换（收起态隐藏） */}
-      {!collapsed && (
-        <button
-          type="button"
-          title="切换显示模式"
-          aria-label="切换显示模式"
-          onClick={onToggleMode}
-          className="w-8 h-8 flex items-center justify-center"
-          style={{
-            border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)',
-            cursor: 'pointer', color: 'var(--color-text-secondary)', flexShrink: 0,
-            transition: 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-brand)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}
-        >
-          <Icon name="swap" size={16} />
-        </button>
+        </div>
       )}
-
-      {/* 收缩按钮（收起态图标旋转 180°） */}
-      <button
-        type="button"
-        title="收起/展开侧边栏"
-        aria-label="收起/展开侧边栏"
-        onClick={onToggleCollapse}
-        className="w-8 h-8 flex items-center justify-center"
-        style={{
-          border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)',
-          cursor: 'pointer', color: 'var(--color-text-secondary)', flexShrink: 0,
-          transition: 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-brand)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}
-      >
-        <span style={{ display: 'flex', transition: 'transform var(--duration-normal) var(--ease-smooth)', transform: collapsed ? 'rotate(180deg)' : undefined }}>
-          <Icon name="chevron-left" size={16} />
-        </span>
-      </button>
     </div>
   )
 }
