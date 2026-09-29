@@ -1150,7 +1150,7 @@ export default function WordWorkbench() {
                     档 0 仍可能出现（mastery() 对 stability <= 0 也返回 null），
                     那是「有记录但排期强度为 0」，落在 0 个色块 + 「无调度记录」的
                     提示上，是本就该有的中性读法，不必在此特殊处理。 */}
-                <StrengthChip stability={overlay?.maxStability ?? null} familiarity={overlay?.familiarity ?? 1} />
+                <StrengthChip stability={overlay?.weakestStability ?? null} familiarity={overlay?.familiarity ?? 1} />
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>

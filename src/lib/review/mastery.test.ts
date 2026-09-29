@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mastery, retrievability, elapsedDaysSince, masteryTier, strengthScore, familiarityTier, displayTier, NEW_CARD_RNOW, defaultRatingFor } from './mastery'
+import { mastery, retrievability, elapsedDaysSince, masteryTier, strengthScore, familiarityTier, displayTier, NEW_CARD_RNOW, defaultRatingFor, weakestStability } from './mastery'
 
 const MS_PER_DAY = 86_400_000
 
@@ -114,5 +114,24 @@ describe('defaultRatingFor', () => {
   it('判据是 stability 而不是 reps', () => {
     // assembleCardDTO 的 sched.reps 是硬编码 0，拿它判「是否新卡」会把所有卡都判成新卡。
     expect(defaultRatingFor({ stability: 0.1, initialFamiliarity: 2 })).toBeNull()
+  })
+})
+
+describe('weakestStability（v0.6.5：词级取最弱一环）', () => {
+  it('忽略未评分的卡（null 不是 0 分）', () => {
+    expect(weakestStability([120, null, 3])).toBe(3)
+  })
+
+  it('取最小值而不是最大值：最弱的那张决定这个词的读数', () => {
+    expect(weakestStability([120, 20, 3])).toBe(3)
+  })
+
+  it('全部未评分时返回 null，由 displayTier 回落到熟悉度', () => {
+    expect(weakestStability([null, null])).toBeNull()
+    expect(weakestStability([])).toBeNull()
+  })
+
+  it('单卡词就是那张卡自己的稳定度', () => {
+    expect(weakestStability([42])).toBe(42)
   })
 })

@@ -502,7 +502,7 @@ export async function getWeakWordsWithCounts(
  * 收录时新开的词一张卡都没有。若按卡取数，这类词在结果里整个查不到，工作台只好
  * 回落成 ?? 1，用户在收录时选的「眼熟」会被显示成「陌生」——spec §4.7 要合的
  * 「收录时选择 → 首评预填 → 记忆强度」就断在这一环。故无卡的词也必须在结果里，
- * 带着 maxLapses 0 / maxStability null / 自己的熟悉度，正好是 chip 冷启动读的形状
+ * 带着 maxLapses 0 / weakestStability null / 自己的熟悉度，正好是 chip 冷启动读的形状
  * （spec §4.5：无复习记录时以熟悉度定档）。
  *
  * 「查不到 = 无记录」那套取向只适用于**到期集**（新词不进到期集），不适用于这里：
@@ -510,7 +510,8 @@ export async function getWeakWordsWithCounts(
  */
 export interface WordReviewOverlay {
   maxLapses: number
-  maxStability: number | null
+  /** 词级记忆强度取最弱一环（spec 4.13）：该词已评分卡片里稳定度的最小值；全未评分时为 null。 */
+  weakestStability: number | null
   familiarity: InitialFamiliarity
 }
 
@@ -520,7 +521,7 @@ export async function getWordReviewOverlay(h?: DbHandle): Promise<DbResult<Recor
     const rows = await d.select<Record<string, any>>(
       `SELECT w.id AS word_id,
               COALESCE(MAX(s.lapses), 0) AS max_lapses,
-              MAX(s.stability) AS max_stability,
+              MIN(s.stability) AS weakest_stability,
               (SELECT fv.value FROM field_values fv
                  JOIN field_definitions fd ON fd.id = fv.field_id
                 WHERE fv.word_id = w.id AND fd.key = 'initial_familiarity'
@@ -535,7 +536,8 @@ export async function getWordReviewOverlay(h?: DbHandle): Promise<DbResult<Recor
       const fam = Number(r.familiarity)
       out[r.word_id] = {
         maxLapses: Number(r.max_lapses) || 0,
-        maxStability: r.max_stability === null || r.max_stability === undefined ? null : Number(r.max_stability),
+        weakestStability: r.weakest_stability === null || r.weakest_stability === undefined
+          ? null : Number(r.weakest_stability),
         // 与 mapCandidate 同一道夹取：字段值是可编辑自由文本
         familiarity: (fam === 2 || fam === 3 ? fam : 1) as InitialFamiliarity,
       }

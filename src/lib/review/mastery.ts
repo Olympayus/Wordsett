@@ -91,3 +91,17 @@ export function defaultRatingFor(input: {
   const f = input.initialFamiliarity
   return f === 2 ? 2 : f === 3 ? 3 : 1
 }
+
+/**
+ * 词级记忆强度取「最弱一环」（v0.6.5，spec 4.13）：该词已评分卡片里稳定度的最小值。
+ *
+ * 取最大值会把薄弱面从词级读数里删掉——「认读很牢 + 拼写反复栽跟头」的词会显示满格，
+ * 与 03 §3.3 给色阶定的用途（扫薄弱区）冲突，也与按 maxLapses 判定的顽固词徽标方向相反。
+ *
+ * 未评分的卡（stability 为 null）不是「0 分」，是「还没数据」，不参与取最弱；
+ * 全部未评分时返回 null，由 displayTier 回落到收录时自报的熟悉度。
+ */
+export function weakestStability(stabilities: (number | null)[]): number | null {
+  const rated = stabilities.filter((s): s is number => s !== null)
+  return rated.length === 0 ? null : Math.min(...rated)
+}

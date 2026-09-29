@@ -154,10 +154,11 @@ describe('db/review 读路径', () => {
     const r = await getCandidates(NOW, db)
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    // 一词多卡：按卡出行，故按词去重后断言
-    expect([...new Set(r.data.map(c => c.wordId))].sort()).toEqual(['w1', 'w2'])
-    // 一词多卡：find(wordId) 已不唯一，改判「w1 有一张 recognize 卡」
-    expect(r.data.some(c => c.wordId === 'w1' && c.template === 'recognize')).toBe(true)
+    // 一词多卡：按卡出行，断言的是**卡集合**本身——只认 w1 的两张到期卡 + w2 的两张新卡，
+    // w3 的两张未到期卡一个都不在。按词去重会把「多一张少一张」这类回归全放过去。
+    expect(r.data.map(c => `${c.wordId}:${c.template}`).sort()).toEqual(['w1:recall', 'w1:recognize', 'w2:recall', 'w2:recognize'])
+    // w1 的卡带出的是自己那张的状态（stability 10），不是整词的某个聚合值
+    expect(r.data.find(c => c.wordId === 'w1' && c.template === 'recognize')!.stability).toBe(10)
     expect(r.data.find(c => c.wordId === 'w2')!.stability).toBeNull()
   })
 
@@ -399,13 +400,14 @@ describe('db/review 读路径', () => {
     const rAll = await getAllCandidates(db)
     expect(rAll.ok).toBe(true)
     if (!rAll.ok) return
-    const allIds = rAll.data.map(c => c.wordId).sort()
-    // 一词多卡：getAllCandidates 按卡出行，故按词去重后再断言
-    expect([...new Set(allIds)]).toEqual(['w1', 'w2'])
+    // 一词多卡：按卡出行，断言的是**卡集合**本身——熟词 w1 的两张未到期卡 + 到期词 w2 的两张，
+    // suspended 的 w3 两张都被排除。按词去重会把「多一张少一张」这类回归全放过去。
+    expect(rAll.data.map(c => `${c.wordId}:${c.template}`).sort()).toEqual(['w1:recall', 'w1:recognize', 'w2:recall', 'w2:recognize'])
     const r = await getCandidates(NOW, db)
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    expect([...new Set(r.data.map(c => c.wordId))]).toEqual(['w2'])
+    // getCandidates 在此基础上再收一道「到期」：w1 的两张未到期卡出局，只剩 w2 的两张
+    expect(r.data.map(c => `${c.wordId}:${c.template}`).sort()).toEqual(['w2:recall', 'w2:recognize'])
   })
 
   // v0.6.4 词级复习叠加层（01 §3.6）。所有用例共用一份 fixture：beforeEach 每次给的是
@@ -415,7 +417,7 @@ describe('db/review 读路径', () => {
     beforeEach(async () => {
       // w1：有卡 + 有 review_states（lapses 3、stability 12）+ initial_familiarity = 3
       await seedWord(db, 'w1', 'alpha')
-      // w2：有卡、无 review_states 行 → LEFT JOIN 出 NULL，maxLapses 应兜 0、maxStability 应留 null
+      // w2：有卡、无 review_states 行 → LEFT JOIN 出 NULL，maxLapses 应兜 0、weakestStability 应留 null
       await seedWord(db, 'w2', 'beta')
       // w3：有词无卡、且无该字段行 → 熟悉度回落默认 1
       await seedWord(db, 'w3', 'gamma')
@@ -434,16 +436,19 @@ describe('db/review 读路径', () => {
         [NOW - 1000, NOW - 86400000])
     })
 
-    it('多卡词取 MAX(lapses)，无复习状态的行取 0 / null', async () => {
+    it('多卡词取 MAX(lapses) / MIN(stability)，无复习状态的行取 0 / null', async () => {
       const r = await getWordReviewOverlay(db)
       expect(r.ok).toBe(true)
       if (!r.ok) return
       // w1 有 review_states 行（lapses 3、stability 12）→ 带出真值
       expect(r.data.w1.maxLapses).toBe(3)
-      expect(r.data.w1.maxStability).toBe(12)
+      // w1 有**两张**卡（recognize + recall），但只有一张挂了 review_states。
+      // 那张没状态的卡在 SQL 里是 NULL，MIN 会跳过它 → 12 仍是真值。
+      // 这条恰好钉住「未评分不参与取最弱」：若把它当 0，词级读数会被抹平成 0。
+      expect(r.data.w1.weakestStability).toBe(12)
       // w2 有卡但无 review_states 行 → 0 / null
       expect(r.data.w2.maxLapses).toBe(0)
-      expect(r.data.w2.maxStability).toBeNull()
+      expect(r.data.w2.weakestStability).toBeNull()
     })
 
     // 取数锚在 words 而非 review_cards：卡是懒登记的（spec D3，新词不进到期集），
@@ -454,9 +459,9 @@ describe('db/review 读路径', () => {
       expect(r.ok).toBe(true)
       if (!r.ok) return
       // w3 无卡、无字段行 → 熟悉度回落 1（与 mapCandidate / getCandidates 同一口径）
-      expect(r.data.w3).toEqual({ maxLapses: 0, maxStability: null, familiarity: 1 })
+      expect(r.data.w3).toEqual({ maxLapses: 0, weakestStability: null, familiarity: 1 })
       // w4 无卡，但收录时选了「眼熟」→ 读回 2，这就是 chip 该显示的档（spec §4.5 冷启动分支）
-      expect(r.data.w4).toEqual({ maxLapses: 0, maxStability: null, familiarity: 2 })
+      expect(r.data.w4).toEqual({ maxLapses: 0, weakestStability: null, familiarity: 2 })
     })
 
     it('familiarity 与候选池同源（都读字段）', async () => {
@@ -467,6 +472,38 @@ describe('db/review 读路径', () => {
       // w2 没有该字段行：子查询留 NULL，Number(null) === 0 落到夹取的 else 分支 → 默认 1，
       // 与 mapCandidate / getCandidates 的「缺失即 1」同一口径（组卷与徽标不能各说各话）
       expect(r.data.w2.familiarity).toBe(1)
+    })
+
+    // 本 describe 共用上面那份 fixture（w1–w4 已占位），所以这两条自建词的用例走 w5。
+    // 卡是手插的而非 registerCards 建的：这里要的是**确定的卡集合**（一评分一不评分），
+    // 走注册会随字段可用性长出第三张卡（cloze），把「两张卡」这个前提冲淡。
+    it('一个词的多数卡未评分时，只对已评分的卡取最弱', async () => {
+      await seedWord(db, 'w5', 'epsilon')
+      await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w5','recognize',1)")
+      await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c2','w5','cloze',1)")
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES ('c1', 120, 5, 1, 0, 3, 0, 1)`)
+      const r = await getWordReviewOverlay(db)
+      if (!r.ok) throw new Error(r.error)
+      // c2 还没首评：那是「没数据」不是「0 分」，不能把读数拖到 0/null
+      expect(r.data.w5.weakestStability).toBe(120)
+    })
+
+    it('多张卡都已评分：词级读数是其中最弱的一张', async () => {
+      await seedWord(db, 'w5', 'epsilon')
+      await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w5','recognize',1)")
+      await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c2','w5','cloze',1)")
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES ('c1', 120, 5, 1, 0, 3, 0, 1)`)
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES ('c2', 3, 8, 1, 0, 1, 0, 1)`)
+      const r = await getWordReviewOverlay(db)
+      if (!r.ok) throw new Error(r.error)
+      // 「认读很牢 + 拼写反复栽跟头」正是取 MAX 会抹平的那个形状：这里必须读 3
+      expect(r.data.w5.weakestStability).toBe(3)
     })
   })
 })
