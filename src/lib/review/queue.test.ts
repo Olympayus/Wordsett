@@ -61,13 +61,13 @@ describe('review/queue', () => {
     expect(r.queue).toHaveLength(2)
   })
 
-  it('到期卡优先占满剩余额度，不被新卡挤掉', () => {
+  it('新卡先占额度，到期卡填剩余', () => {
     const due = Array.from({ length: 5 }, (_, i) => cand({ cardId: `d${i}` }))
     const fresh = Array.from({ length: 5 }, (_, i) =>
       cand({ cardId: `n${i}`, stability: null, initialFamiliarity: 1 }))
     const r = buildQueue([...due, ...fresh], { now: NOW, newCardQuota: 2, queueLimit: 5 })
     expect(r.newCount).toBe(2)
-    expect(r.dueCount).toBe(3)   // 5 - 2
+    expect(r.dueCount).toBe(3)   // 5 - 2：额度先被新卡占 2 张，剩 3 张归到期卡
     expect(r.queue).toHaveLength(5)
   })
 
@@ -133,12 +133,15 @@ describe('每词每轮至多一张卡', () => {
   })
 
   it('不同词的卡各出一张，互不挤占', () => {
+    // queueLimit 1 制造稀缺：w1 抢到唯一的名额，w1 的另一张与 w2 都得让路——
+    // 「互不挤占」指名额是按词独占的，不是「一个词只能出一张」。
     const r = buildQueue([
       cand({ cardId: 'a', wordId: 'w1' }),
       cand({ cardId: 'b', wordId: 'w2' }),
       cand({ cardId: 'c', wordId: 'w1', template: 'cloze' }),
-    ], params)
-    expect(r.queue.map(c => c.wordId).sort()).toEqual(['w1', 'w2'])
+    ], { ...params, queueLimit: 1 })
+    expect(r.queue).toHaveLength(1)
+    expect(new Set(r.queue.map(c => c.wordId)).size).toBe(1)
   })
 })
 
@@ -173,6 +176,46 @@ describe('新词额度按词算', () => {
     const forW1 = r.queue.filter(c => c.wordId === 'w1')
     expect(forW1).toHaveLength(1)
     expect(forW1[0].cardId).toBe('due')
+  })
+
+  it('额度 3 但其中一个新词另有到期卡 → 本轮只出 2 张新卡（M − K）', () => {
+    const r = buildQueue([
+      cand({ cardId: 'due1', wordId: 'w1' }),
+      cand({ cardId: 'n1', wordId: 'w1', stability: null, dueAt: 0, lastReviewAt: null }),
+      cand({ cardId: 'n2', wordId: 'w2', stability: null, dueAt: 0, lastReviewAt: null }),
+      cand({ cardId: 'n3', wordId: 'w3', stability: null, dueAt: 0, lastReviewAt: null }),
+    ], { ...params, newCardQuota: 3 })
+    // 判据是整池：w1 池里有到期卡 → 它的本轮新卡让位，哪怕那张到期卡排得上
+    expect(r.newCount).toBe(2)
+    expect(r.dueCount).toBe(1)
+    expect(r.queue.filter(c => c.stability === null).map(c => c.wordId).sort()).toEqual(['w2', 'w3'])
+  })
+
+  it('额度封顶只保上限不保配额：M 个新词全被让位时本轮一张新卡都不出', () => {
+    // 钉住保守判据的真下界：最坏情况 newCount = 0（M 个新词都另有到期卡）。
+    // 欠配额不超发，且这些词只是推迟、不会丢——评过到期卡后下一轮即补位。
+    const r = buildQueue([
+      cand({ cardId: 'due1', wordId: 'w1' }),
+      cand({ cardId: 'n1', wordId: 'w1', stability: null, dueAt: 0, lastReviewAt: null }),
+      cand({ cardId: 'due2', wordId: 'w2' }),
+      cand({ cardId: 'n2', wordId: 'w2', stability: null, dueAt: 0, lastReviewAt: null }),
+    ], { ...params, newCardQuota: 2 })
+    expect(r.newCount).toBe(0)
+    expect(r.dueCount).toBe(2)
+    expect(r.queue.map(c => c.cardId).sort()).toEqual(['due1', 'due2'])
+
+    // 自我修正：两张到期卡评完 → due_at 推后、不再命中整池判据 → w1/w2 的新卡当轮补位
+    const reviewed = ['due1', 'due2'].map(id => {
+      const c = r.queue.find(x => x.cardId === id)!
+      return { ...c, stability: 10, lastReviewAt: NOW, dueAt: NOW + 5 * MS_PER_DAY }
+    })
+    const stillFresh = ['n1', 'n2'].map(id => {
+      const c = cand({ cardId: id })
+      return { ...c, wordId: id === 'n1' ? 'w1' : 'w2', stability: null, dueAt: 0, lastReviewAt: null }
+    })
+    const next = buildQueue([...reviewed, ...stillFresh], { now: NOW, newCardQuota: 2, queueLimit: 0 })
+    expect(next.newCount).toBe(2)
+    expect(next.queue.filter(c => c.stability === null).map(c => c.wordId).sort()).toEqual(['w1', 'w2'])
   })
 
   it('队列长度受 queueLimit 封顶（每词每轮一张之后按卡数算）', () => {
