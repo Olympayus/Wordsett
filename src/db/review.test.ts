@@ -751,6 +751,29 @@ describe('db/review 写路径与聚合', () => {
     expect(r.ok && r.data.today).toBe(1)
   })
 
+  it('getStrategyCounts 同时给出到期的词 id 集合，与 today 计数一致', async () => {
+    // 「计数用卡、视图用词」：today 数的是**到期且可出题的卡**，todayWordIds 给的是同批卡
+    // 摊平后的**词**。一个词两张卡到期 → today 2、todayWordIds 只有一个。
+    await db.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','alpha','alpha','en',1,1)"
+    )
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '第一个')
+    await registerCards(['w1'], db)
+    const cards = await db.select<{ id: string }>("SELECT id FROM review_cards WHERE word_id = 'w1'")
+    // 只有中文释义 → 建出 recognize + recall 两张卡，两张都到期。
+    expect(cards).toHaveLength(2)
+    for (const c of cards) {
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES ('${c.id}', 10, 5, ${NOW - 1000}, 0, 1, 0, ${NOW - 86400000})`)
+    }
+    const r = await getStrategyCounts(
+      { leechThreshold: 4, recentWindowMs: 7 * 86400000, now: NOW, allowListen: false }, db)
+    if (!r.ok) throw new Error(r.error)
+    expect(r.data.todayWordIds).toEqual(['w1'])
+    expect(r.data.today).toBe(2)
+  })
+
   it('getStrategyCounts：陈旧错题（超出窗口）不计入 weak', async () => {
     await seedCardable('w1', 'stale', 'fv1')
     await registerCards(['w1'], db)

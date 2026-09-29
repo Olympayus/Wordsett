@@ -289,7 +289,7 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
     getStatsMock.mockReset()
     getStrategyCountsMock.mockReset()
     registerAllWordsMock.mockResolvedValue(undefined)
-    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 0, weak: 0 } })
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 0, todayWordIds: [], weak: 0 } })
     getStatsMock.mockResolvedValue({
       ok: true,
       data: { masteryBuckets: [0, 0, 0, 0, 0, 1], dueByDay: Array(8).fill(0), recentRatings: [] },
@@ -305,7 +305,7 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
         candidate({ cardId: `c${i}`, wordId: `w${i}`, template: 'recall' })),
     })
     getWordContentMock.mockResolvedValue(content)
-    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 45, weak: 0 } })
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 45, todayWordIds: [], weak: 0 } })
     expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(45)
   })
 
@@ -316,7 +316,7 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
       data: Array.from({ length: 45 }, (_, i) =>
         candidate({ cardId: `c${i}`, wordId: `w${i}`, template: 'recall' })),
     })
-    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 7, weak: 0 } })
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 7, todayWordIds: [], weak: 0 } })
     expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(7)
   })
 
@@ -329,7 +329,7 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
     ] })
     getWordContentMock.mockImplementation(async (wordId: string) =>
       wordId === 'w1' ? { ...content, example: '' } : content)
-    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 2, weak: 0 } })
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 2, todayWordIds: [], weak: 0 } })
     expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(2)
   })
 
@@ -346,7 +346,7 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
       ok: true, data: [candidate({ cardId: 'n1', wordId: 'nw1', stability: null, template: 'recognize' })],
     })
     getWordContentMock.mockResolvedValue({ ...content, distractors: ['持久的'] })
-    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 45, weak: 0 } })
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 45, todayWordIds: [], weak: 0 } })
     const o = await getOverview(REVIEW_DEFAULTS)
     expect(o.newCount).toBe(0)
     expect(o.total).toBe(45)
@@ -357,7 +357,7 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
       ok: true, data: [candidate({ cardId: 'n1', wordId: 'nw1', stability: null, template: 'recognize' })],
     })
     getWordContentMock.mockResolvedValue(content)
-    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 0, weak: 0 } })
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 0, todayWordIds: [], weak: 0 } })
     const o = await getOverview(REVIEW_DEFAULTS)
     expect(o.newCount).toBe(1)
     expect(o.total).toBe(0)

@@ -206,6 +206,10 @@ function shuffleDeterministic<T>(items: T[], seed: string): T[] {
   return out
 }
 
+/**
+ * 顶部 chip 与复习控制台读的那个数（today，**卡**数）。todayWordIds 是同批卡摊平后的词 id
+ * 集合，一并带出给需要按词筛选的视图层，不必再绕 db 层取一次数。
+ */
 export async function getStrategyCounts(params: ReviewParams) {
   const r = await reviewDb.getStrategyCounts({
     leechThreshold: params.leechThreshold,
@@ -213,8 +217,8 @@ export async function getStrategyCounts(params: ReviewParams) {
     now: Date.now(),
     allowListen: isListenEnabled(),
   })
-  if (!r.ok) return { today: 0, weak: 0 }
-  return { today: r.data.today, weak: r.data.weak }
+  if (!r.ok) return { today: 0, todayWordIds: [] as string[], weak: 0 }
+  return { today: r.data.today, todayWordIds: r.data.todayWordIds, weak: r.data.weak }
 }
 
 export async function getAbsent() {
@@ -469,10 +473,11 @@ export async function getOverview(params: ReviewParams) {
   const queue = await todayQueue(params, now)
   const stats = await getStats()
   // 到期待复习数走掩码层的到期集（v0.6.3 打磨），**不是**本轮队列的长度：
-  // 用户要的是「系统判断今天该复习多少词」——那是掌握程度（due_at）的事，
+  // 用户要的是「系统判断今天该复习多少」——那是掌握程度（due_at）的事，
   // 与「本轮最多出多少题」（队列上限）无关；与卡级内容闸门也无关，那道判的是
   // 「这张现在能不能出题」，让它参与会让同一个数随某个词的内容变动而忽高忽低、
-  // 且做完一整轮也未必归零。
+  // 且做完一整轮也未必归零。单位是**卡**（界面上印「n 张待复习」），
+  // 同一个函数另外给出摊平后的词 id 集合（todayWordIds）给按词筛选的视图层。
   // 代价（有意接受）：到期积压超过队列上限时，做完一轮这个数不会归零，剩下留到下一轮
   // ——这正是「轮次上限只影响单次学多少个词」的读法。见 DueBadge 的同款说明。
   const { today } = await getStrategyCounts(params)

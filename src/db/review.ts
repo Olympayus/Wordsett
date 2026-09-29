@@ -593,11 +593,17 @@ export async function getWordCardBreakdown(wordId: string, h?: DbHandle): Promis
   }
 }
 
-/** 左栏计数：today = 到期且可出题的词数；weak = lapses ≥ 阈值 ∪ 窗口内 rating = 1。 */
+/**
+ * 左栏计数：**计数用卡**——today = 到期且可出题的**卡**数（顶部 chip 与复习控制台都印这个数，
+ * 单位是「张」）；**视图用词**——todayWordIds 是同批卡摊平去重后的**词 id** 集合，
+ * 供侧栏「复习到期」视图筛选，让那个视图的徽标与控制台报的是同一批词。
+ * 同一批卡，两种投影：掩码判据（到期、未挂起、有可出题内容）完全一致，只有「按卡还是按词」这一步不同。
+ * weak = lapses ≥ 阈值 ∪ 窗口内 rating = 1 的**词**数。
+ */
 export async function getStrategyCounts(
   opts: { leechThreshold: number; recentWindowMs: number; now: number; allowListen?: boolean },
   h?: DbHandle,
-): Promise<DbResult<{ today: number; weak: number }>> {
+): Promise<DbResult<{ today: number; todayWordIds: string[]; weak: number }>> {
   const d = db(h)
   try {
     const dueRows = await d.select<Record<string, any>>(
@@ -606,14 +612,17 @@ export async function getStrategyCounts(
        WHERE s.suspended = 0 AND s.due_at <= ?1`, [opts.now])
     const mask = await getAvailabilityMask(dueRows.map(r => r.word_id), d)
     if (!mask.ok) return mask
-    const today = dueRows.filter(r => {
+    // 过滤判据与 today 逐字相同：先定出「到期且可出题」的卡，再决定怎么投影。
+    const dueCards = dueRows.filter(r => {
       const m = mask.data[r.word_id]
       return m ? usableTemplates(m, { allowListen: opts.allowListen === true }).length > 0 : false
-    }).length
+    })
+    const today = dueCards.length
+    const todayWordIds = [...new Set(dueCards.map(r => String(r.word_id)))]
 
     const weak = await getWeakWordIds(opts, d)
     if (!weak.ok) return weak
-    return { ok: true, data: { today, weak: weak.data.length } }
+    return { ok: true, data: { today, todayWordIds, weak: weak.data.length } }
   } catch (e: any) {
     return { ok: false, error: e.toString() }
   }
