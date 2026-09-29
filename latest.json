@@ -1,11 +1,11 @@
 {
-  "version": "0.6.3",
-  "notes": "复习模块打磨 · 出题判据收口\n\n【出题】\n- 掩码层（SQL）改为要求字段值非空，内容层要求例句含目标词，两层取交集：取不到例句的词条不再拿到填空题（修掉 `detrimental` / `finding` 一类「有例句行但句子里没有该词」的废题）\n- 概览的承诺张数也过同一道闸门，承诺数＝组卷数，不会出现「承诺 3 张、按钮却什么都不出」\n- 中译英题的释义与词性改为同源（都取第一个义项），英释义题的释义与词性也同源——多义项词不再印出「第一义项的释义 + 别的义项的词性」\n- 认读题面的词性此前是死分支（读的是题面上不存在的字段），本版补上后生效\n\n【答题页版式】\n- 答完揭晓答案时，完整词条与题面左右并排、从页面顶端就开始（原先词条被压在题面下面，中间空出一大片）\n- 宽窗口两栏等分，各占一半；窗口窄时退回单列、完整词条落到最下方\n- 左半栏的题面、选项、输入框、三颗评分键共用同一条右边界\n- 选择题默认四宫格，任一选项要换行时整组回落成一列四行\n- 三颗评分键改用通用方块按钮，删掉报着「评分后排期」却渲染在评分键之前的「下次到期」块\n\n【界面】\n- 顶栏 logo 右侧新增「待复习」提示：随手可见，点开直接进复习，今日没有到期词时自动隐去（可在设置 → 复习里关掉）；活动栏角标相应删除\n- 复习里的单词可以直接点 **喇叭** 听发音（工作台词条标题、认读题面、词典详情页三处）\n- 题面上方新增「题型 / 跳过」行；题面的词性改为紧跟释义（或认读音标）的衬线斜体括号\n- 统计四图各加衬线标题与期间小字、底部基线与左右端点刻度，卡底补充文字给出小图上读不准的数值\n- 左栏控制台两态重排；复习区的统计数字统一格式\n- 新勾选框统一全仓五处，分类强化行显示分类色与分类色圈\n- 薄弱词的判定说明收进 i 说明窗；自由练习「全库随机」补上词库总词数\n- 设置新增「标题栏显示待复习数量」开关\n\n【修复】\n- 「待复习」的数改回**今天到期该复习的词数**，不再被设置的「队列上限」截断（此前到期 45、上限 30 时会显示 30）；也修掉标题栏与左栏控制台印出两个数的问题\n- 待复习入口接上会话守卫：答题途中点它会先弹确认框，不再直接丢掉正在答的这一轮\n- 熟知度分布色带渲染成零高（横向布局的默认 stretch 被取消所致）\n- Tooltip 点击模式的两处交互：单击开合、Esc 不被 mousemove 顶回\n- 认读选项进了 2 列后不再卡在「2×2 里有一颗换行」的参差态\n- 词典来源色由两种色相改为统一的基础字色\n\n【其他】\n- 内置字段与数据库结构未变（schema 仍为 v4），复习调度与计分口径（FSRS 参数、评分事务、正确率判定）一律未动",
-  "pub_date": "2026-09-28T08:30:29.318Z",
+  "version": "0.6.4",
+  "notes": "初始熟悉度：接通了一条断掉的链路——收录时可填「完全陌生/眼熟/认识」，首次复习时三键按它预高亮（不抢焦点），词条卡的记忆强度 chip 据此冷启动，选「眼熟」无需重启即显档 2。英文释义题由揭示型改为键入型（逐字母标红，但不自动判分）；「跳过」不再被误判成「未作答」；记忆强度 5 档改 6 档且图表端点与 chip 词汇统一；新增顽固词徽标（词表行尾 + 词条卡头部）；勾选框 22px→18px。schema v4→5 是留痕不是迁移，旧库直接升级不丢数据。复习调度与计分未动。",
+  "pub_date": "2026-09-29T07:27:06.671Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZGJwNFBFWCtteXh4WUUxQjR4K3Jhallwb1RqTzBDSVBOVDhjWTVtTmp6ZEU1VE0rUWdkVG9RSWVHTmNCeGlhR3llS1FvU2VrUlp2eHJ2bjltUXhLMndBPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNTgzOTQ0CWZpbGU6V29yZHNldHRfMC42LjNfeDY0LXNldHVwLmV4ZQpDZDZrNzVmQ1hTc2pzNGdDeVJHTXVhL3BrcC92a0txa3MvMDdlOUVmQm8zbUFCOHNIVXQ0MVh4dzJ2L1NuYjhWbXorSVRIL1Q5MFRyYmZXdWJhUTNDdz09Cg==",
-      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.6.3/Wordsett_0.6.3_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFF1S24wQnc1eStKK09SRHZuR0NiV2lka0JncDArMFd4Vk5GM3RoanhpaGRyamRxOEZYQWNleURvckRGU0NXVHZxWUlJT0M2aUJHYWgreTZ4MXd3aXdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNjY2NzM4CWZpbGU6V29yZHNldHRfMC42LjRfeDY0LXNldHVwLmV4ZQpIaStsOVZmTGVSSXRBWWdiMHRzK2dYelAySjdnNVVGbk1WM1NYd1NUNDhNdVpqYStySzdTeTR2STZUdG0xRTJraEY2Z21xbG5NQW1MM29lRWpmYXJBQT09Cg==",
+      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.6.4/Wordsett_0.6.4_x64-setup.exe"
     }
   }
 }
