@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { InitialFamiliarity } from '../../lib/review/types'
 import { MASTERY_COLORS, masteryBlocks, masteryTooltipModel } from '../../lib/review/masteryScale'
 import { masteryTier, weakestStability as weakestOf } from '../../lib/review/mastery'
+import { isListenEnabled } from '../../lib/review/ttsGate'
 import { getWordCardBreakdown, type CardBreakdownRow } from '../../db/review'
 
 const TEMPLATE_NAMES: Record<string, string> = {
@@ -32,7 +33,11 @@ export default function WordMasteryTooltip({ wordId, weakestStability, familiari
   const [rows, setRows] = useState<CardBreakdownRow[] | null>(null)
   useEffect(() => {
     let cancelled = false
-    void getWordCardBreakdown(wordId).then(r => { if (!cancelled && r.ok) setRows(r.data) })
+    // presentable 决定下面「最弱一环」取哪几张卡，故它必须与 chip 那个读数用**同一个**听辨门控值
+    // （gate 在有 ttsGate 的这一层读一次往下传；src/db 不许 import ttsGate）。漏掉它时，
+    // 一个只有 listen 卡的词在这里报不出最弱一环，上面却已经按那张卡算出了读数——自己打架。
+    void getWordCardBreakdown(wordId, undefined, { allowListen: isListenEnabled() })
+      .then(r => { if (!cancelled && r.ok) setRows(r.data) })
     return () => { cancelled = true }
   }, [wordId])
 

@@ -520,7 +520,8 @@ export async function getWeakWordsWithCounts(
  * 两个读数各自的门是**不同**的，不要合并：
  * - `weakestStability` 只看**仍可出题**的卡的 stability（边界 2：内容被删掉的卡不该继续
  *   拖着这个词的读数），且未评分的卡（stability null）是「没数据」不参与，规则只有
- *   `weakestStability` 一处实现。
+ *   `weakestStability` 一处实现。可出题的判据 = 字段掩码 **+ 听辨门控**（opts.allowListen），
+ *   与 getStrategyCounts 逐字同一句；两个消费方都由调用方把同一个门控值传进来。
  * - `maxLapses` 取**全部**卡（可出题与否一律算）的 lapses 最大值，**刻意不过可用性门**：
  *   顽固词徽标说的是历史痛点（「这个词值得回去补内容」），内容被删正是它成立的理由；
  *   spec §4.12 明写 `MAX(s.lapses)` 不变。把它一并门掉，删了内容的顽固词徽标会跟着消失。
@@ -548,6 +549,7 @@ interface WordReadingRow {
 
 async function foldWordReadings(
   d: DbHandle,
+  opts: CandidateOpts = {},
 ): Promise<DbResult<Record<string, WordReadingFold>>> {
   const rows = await d.select<WordReadingRow>(
     `SELECT w.id AS word_id,
@@ -563,7 +565,11 @@ async function foldWordReadings(
        LEFT JOIN review_states s ON s.card_id = c.id`)
   // 掩码只需这批词的 word_id。无卡的词在 LEFT JOIN 下也会出行（template/stability/lapses
   // 皆 null），它们的掩码自然落在「无内容 → 无可出题卡」那一支，故不必另行补查。
-  const mask = await getAvailabilityMask(rows.map(r => r.word_id), d)
+  // 去重：占位符是**逐行**生成的，而 rows 是**逐卡**出行——按行发掩码等于让一个 n 卡词
+  // 占 n 个变量，SQLite 的绑定变量上限 32766 在几千词的库上就会被顶穿（掩码查询抛错 →
+  // overlay 返回 { ok:false } → 两个消费方各自静默降级）。掩码是按 word_id 查的，重复项
+  // 本就无意义，去重后词数才是真正的占位符数。
+  const mask = await getAvailabilityMask([...new Set(rows.map(r => r.word_id))], d)
   if (!mask.ok) return mask
 
   const byWord = new Map<string, { stabilities: (number | null)[]; maxLapses: number; familiarity: number }>()
@@ -576,8 +582,11 @@ async function foldWordReadings(
     if (r.template === null) continue   // 无卡的词的填充行：不贡献任何读数
     acc.maxLapses = Math.max(acc.maxLapses, Number(r.lapses ?? 0))
     // 可出题门按**这张卡自己的题型**判，与 pickUsableCards 同一句判据。
+    // 听辨门控必须一起带：注册侧（registerAllWords）在 TTS 可用的机器上会真建出 listen 卡，
+    // 这里漏掉它就等于「这张卡的稳定度不存在」——chip 掉回冷启动档、直方图进档 0，
+    // 而 getStrategyCounts（过了门控）仍把它算进 today。两侧的判据必须是同一句。
     const m = mask.data[r.word_id]
-    if (m && usableTemplates(m).includes(r.template)) {
+    if (m && usableTemplates(m, { allowListen: opts.allowListen === true }).includes(r.template)) {
       acc.stabilities.push(r.stability)
     }
   }
@@ -623,10 +632,10 @@ export interface WordReviewOverlay {
   familiarity: InitialFamiliarity
 }
 
-export async function getWordReviewOverlay(h?: DbHandle): Promise<DbResult<Record<string, WordReviewOverlay>>> {
+export async function getWordReviewOverlay(h?: DbHandle, opts: CandidateOpts = {}): Promise<DbResult<Record<string, WordReviewOverlay>>> {
   const d = db(h)
   try {
-    const folded = await foldWordReadings(d)
+    const folded = await foldWordReadings(d, opts)
     if (!folded.ok) return folded
     return { ok: true, data: folded.data }
   } catch (e: any) {
@@ -646,7 +655,7 @@ export interface CardBreakdownRow {
  * 单词语的逐卡明细（spec 4.13）。**按需取数**：只在悬停记忆强度浮层时对一个词查一次，
  * 不进全库 overlay——几百个词 × 每个题型一行的量不值得常驻。
  */
-export async function getWordCardBreakdown(wordId: string, h?: DbHandle): Promise<DbResult<CardBreakdownRow[]>> {
+export async function getWordCardBreakdown(wordId: string, h?: DbHandle, opts: CandidateOpts = {}): Promise<DbResult<CardBreakdownRow[]>> {
   const d = db(h)
   try {
     const rows = await d.select<Record<string, any>>(
@@ -657,13 +666,16 @@ export async function getWordCardBreakdown(wordId: string, h?: DbHandle): Promis
     const mask = await getAvailabilityMask([wordId], d)
     if (!mask.ok) return mask
     const m = mask.data[wordId]
+    // presentable 走的是与 overlay / 计数**同一句**判据（含听辨门控）：浮层的
+    // 「最弱一环」是拿 presentable 过滤出来的，判据一漂它就与上方那个读数对不上。
+    const granted = m ? usableTemplates(m, { allowListen: opts.allowListen === true }) : []
     return {
       ok: true,
       data: rows.map(r => ({
         template: r.template as Template,
         stability: r.stability === null || r.stability === undefined ? null : Number(r.stability),
         lastReviewAt: r.last_review_at === null || r.last_review_at === undefined ? null : Number(r.last_review_at),
-        presentable: Boolean(m) && usableTemplates(m!).includes(r.template as Template),
+        presentable: granted.includes(r.template as Template),
       })),
     }
   } catch (e: any) {
@@ -709,7 +721,7 @@ export async function getStrategyCounts(
 }
 
 /** 小结态统计：记忆强度分桶（六档：档 0 无记录 + 1–5 各 20%）/ 未来 7 日到期 / 近期评分分布（只读 mode='review'）。 */
-export async function getStats(now: number = Date.now(), h?: DbHandle): Promise<DbResult<{
+export async function getStats(now: number = Date.now(), h?: DbHandle, opts: CandidateOpts = {}): Promise<DbResult<{
   masteryBuckets: number[]
   dueByDay: number[]
   recentRatings: { day: string; again: number; hard: number; good: number }[]
@@ -720,7 +732,10 @@ export async function getStats(now: number = Date.now(), h?: DbHandle): Promise<
     // 最弱的一个 stability，与 overlay **同一份折叠实现**（foldWordReadings）——
     // 两侧共用一个函数，所以柱与 chip 不可能出现口径分家。
     // 无卡或无可出题已评分卡的词 stability 为 NULL → 档 0，因此柱高之和等于词库词数。
-    const readings = await foldWordReadings(d)
+    // 门控（opts.allowListen）也必须由调用方原样传进同一份折叠：TTS 可用时 listen 卡
+    // 是真卡，不带门控的直方图会把它判成「不可出题」，词落档 0，而 chip 那侧的读数
+    // （同一个门控）说的是别的档——同一个词在两处两个档。
+    const readings = await foldWordReadings(d, opts)
     if (!readings.ok) return readings
     const buckets = [0, 0, 0, 0, 0, 0]
     for (const r of Object.values(readings.data)) {

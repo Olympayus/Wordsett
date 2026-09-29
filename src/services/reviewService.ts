@@ -417,7 +417,10 @@ async function invokeFsrsNext(
 }
 
 export async function getStats() {
-  const r = await reviewDb.getStats()
+  // 门控在这里读一次往下传（与 getCandidates / getAbsentWords / getStrategyCounts 同一层同一规矩），
+  // src/db 不 import ttsGate。缺了它，记忆强度直方图会把 listen 卡判成不可出题——那是上面
+  // getStrategyCounts 会数到的同一批卡，同一个词在控制台有数、在直方图里落档 0。
+  const r = await reviewDb.getStats(undefined, undefined, { allowListen: isListenEnabled() })
   return r.ok ? r.data : { masteryBuckets: [0, 0, 0, 0, 0, 0], dueByDay: Array(8).fill(0), recentRatings: [] }
 }
 

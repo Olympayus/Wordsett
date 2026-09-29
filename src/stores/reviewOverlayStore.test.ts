@@ -79,6 +79,34 @@ describe('reviewOverlayStore.loadOverlay', () => {
     expect(vi.mocked(reviewDb.getStrategyCounts).mock.calls[0][0].allowListen).toBe(false)
   })
 
+  // 同一个门控值必须**同时**喂两路。只喂计数那一路时，TTS 可用机上「只有一张 listen 卡
+  // 且已评分」的词在控制台的 today 里数得到、在 chip / 直方图的读数里却像那张卡不存在
+  // （回落冷启动档、落档 0）——两处对同一个词说法不一。倒着传（overlay 拿 true、
+  // 计数拿 false）也会造成同样的分家，故两侧都断。
+  it('同一个门控值同时透传给 overlay 与计数：TTS 可用时两侧都是 true', async () => {
+    vi.mocked(reviewDb.getWordReviewOverlay).mockResolvedValue({ ok: true, data: {} })
+    vi.mocked(reviewDb.getStrategyCounts).mockResolvedValue({
+      ok: true, data: { today: 1, todayWordIds: ['wl'], weak: 0 },
+    })
+
+    await useReviewOverlayStore.getState().loadOverlay()
+    // 签名是 (h?, opts?)：第二个实参才是 opts，别被 undefined 骗了。
+    expect(vi.mocked(reviewDb.getWordReviewOverlay).mock.calls[0][1]).toEqual({ allowListen: true })
+    expect(vi.mocked(reviewDb.getStrategyCounts).mock.calls[0][0].allowListen).toBe(true)
+  })
+
+  it('同一个门控值同时透传给 overlay 与计数：TTS 不可用时两侧都是 false', async () => {
+    vi.mocked(isListenEnabled).mockReturnValue(false)
+    vi.mocked(reviewDb.getWordReviewOverlay).mockResolvedValue({ ok: true, data: {} })
+    vi.mocked(reviewDb.getStrategyCounts).mockResolvedValue({
+      ok: true, data: { today: 0, todayWordIds: [], weak: 0 },
+    })
+
+    await useReviewOverlayStore.getState().loadOverlay()
+    expect(vi.mocked(reviewDb.getWordReviewOverlay).mock.calls[0][1]).toEqual({ allowListen: false })
+    expect(vi.mocked(reviewDb.getStrategyCounts).mock.calls[0][0].allowListen).toBe(false)
+  })
+
   it('取数失败时保留上一次的值，不清空', async () => {
     // 先成功取一次，让两个字段都有值。
     vi.mocked(reviewDb.getWordReviewOverlay).mockResolvedValue({

@@ -35,14 +35,20 @@ export const useReviewOverlayStore = create<ReviewOverlayStore>(set => ({
     // 读的是纯函数、不订阅（同上：非反应式；TTS 可用性是启动期探测出来的既成事实）。
     // 「门控只在 service 层读、往下传普通参数」那条规矩是给 src/db 不许 import ttsGate 用的；
     // UI store 读一个运行时能力开关不违反它，db 层仍然是纯参数。
+    //
+    // **同一个值**必须同时喂给下面两路：getStrategyCounts 决定控制台的 today（按卡），
+    // getWordReviewOverlay 决定 chip / 直方图的词级读数（按可出题的卡）。只喂前者的那个
+    // 缺陷已经发生过一次：TTS 可用时一张 listen 卡的 stability 在计数里、在读数里「不存在」，
+    // 于是「控制台数得到、chip 读不出」——本 store 的注释与 db 侧那句「两侧同一口径」正是为它。
+    const allowListen = isListenEnabled()
     const leechThreshold = useSettingsStore.getState().review.leechThreshold
     const [ov, counts] = await Promise.all([
-      getWordReviewOverlay(),
+      getWordReviewOverlay(undefined, { allowListen }),
       getStrategyCounts({
         leechThreshold,
         recentWindowMs: 7 * 86_400_000,
         now: Date.now(),
-        allowListen: isListenEnabled(),
+        allowListen,
       }),
     ])
     // 取数失败时静默保留上一次的 overlay / 词 id 集合：徽标与 chip 是装饰层，

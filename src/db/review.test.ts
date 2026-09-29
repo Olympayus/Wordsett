@@ -106,7 +106,7 @@ describe('db/review 读路径', () => {
     // 占位符个数 ÷ 4 = 行数——正是「一次往返建完这个词所有卡」的可测形状。
     expect(insertSqls.map(s => (s.match(/\(\?\d+, \?\d+, \?\d+, \?\d+\)/g) ?? []).length))
       .toEqual([4, 2])
-    // 落库结果与改之前逐条发完全一致：w1 三张卡、w3 两张、w2 零张。
+    // 落库结果与改之前逐条发完全一致：w1 四张卡、w3 两张、w2 零张。
     const rows = await db.select<{ word_id: string; template: string }>(
       'SELECT word_id, template FROM review_cards ORDER BY word_id, template')
     expect(rows.map(r => `${r.word_id}/${r.template}`)).toEqual([
@@ -607,6 +607,35 @@ describe('db/review 读路径', () => {
       expect(displayTier({ stability: r.data.w5.weakestStability, familiarity: r.data.w5.familiarity })).toBe(1)
       expect(r.data.w5.maxLapses).toBe(3)
     })
+
+    // 「可出题」的口径必须**整条**跟着候选侧走，运行时门控是它的一部分。
+    // 回归形状：TTS 可用的机器上 registerAllWords 真会建出 listen 卡，于是
+    // 「只有一张 listen 卡且已评分」的词在 getStrategyCounts 的 today 里数得到；
+    // 若读数侧漏了门控，同一张卡的 stability 读起来不存在——chip 掉回冷启动档、
+    // 直方图落档 0，而控制台说今天有它。正是上一轮那道门要消灭的分家（spec §4.4）。
+    it('只有 listen 一张已评分卡：门控开时读数取它，关时回落冷启动', async () => {
+      await seedWord(db, 'w5', 'epsilon')
+      await seedValue(db, 'fv5ph', 'w5', 'phonetic', '/ˈepsɪlɒn/')  // listen 的依赖
+      // 卡与状态都是手插的：这里要的是「**确定**只有 listen 一张卡」的形状
+      await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w5','listen',1)")
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES ('c1', 120, 5, 1, 2, 3, 0, 1)`)
+
+      const on = await getWordReviewOverlay(db, { allowListen: true })
+      if (!on.ok) throw new Error(on.error)
+      // 门控开 + 音标在 → listen 卡可出题 → S=120 读得到（档 5）。
+      // 漏掉门控时这里是 null（→ 冷启动档 1），chip 与上面的档 5 对不上。
+      expect(on.data.w5.weakestStability).toBe(120)
+      expect(displayTier({ stability: on.data.w5.weakestStability, familiarity: on.data.w5.familiarity })).toBe(5)
+
+      const off = await getWordReviewOverlay(db, { allowListen: false })
+      if (!off.ok) throw new Error(off.error)
+      // 门控关：这张卡此刻出不了题 → 冷启动（null / 熟悉度档 1），读数里不留它的 120。
+      expect(off.data.w5.weakestStability).toBeNull()
+      expect(displayTier({ stability: off.data.w5.weakestStability, familiarity: off.data.w5.familiarity })).toBe(1)
+      // 另一道门刻意不跟着关：maxLapses 仍认全部卡（spec §4.12），本用例不涉及它。
+    })
   })
 
   // v0.6.5 spec 4.13：浮层里那张逐卡明细表。**按需取数**——只在悬停时对一个词查一次，
@@ -628,6 +657,68 @@ describe('db/review 读路径', () => {
     expect(byTemplate.recognize.presentable).toBe(true)
     expect(byTemplate.cloze.stability).toBeNull()
     expect(byTemplate.cloze.presentable).toBe(false)
+  })
+
+  // 与 overlay 同一个门控（上一轮修的 Important #1 里，这处只补齐了一半）：
+  // presentable 决定浮层的「最弱一环」取哪几张卡，漏门控时一张 listen 卡
+  // 在 chip 那侧（门控开）算进读数、在浮层这侧却报「不可出题」——自己跟自己打架。
+  it('getWordCardBreakdown 的 presentable 跟着听辨门控走', async () => {
+    await seedWord(db, 'wl', 'listen-only')
+    await seedValue(db, 'fvl', 'wl', 'phonetic', '/lɪzn/')   // listen 的依赖
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('cl','wl','listen',1)")
+    await db.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+     VALUES ('cl', 120, 5, 1, 0, 3, 0, 1)`)
+
+    const on = await getWordCardBreakdown('wl', db, { allowListen: true })
+    if (!on.ok) throw new Error(on.error)
+    expect(on.data).toHaveLength(1)
+    expect(on.data[0].stability).toBe(120)
+    expect(on.data[0].presentable).toBe(true)     // 漏门控时这里是 false
+
+    const off = await getWordCardBreakdown('wl', db, { allowListen: false })
+    if (!off.ok) throw new Error(off.error)
+    // 门控关：行仍在（它曾经计入读数，抹掉就解释不了「读数为什么掉下来」），
+    // 但 presentable 为 false —— 与 overlay 此刻把它判成「不可出题」是同一句判据。
+    expect(off.data[0].stability).toBe(120)
+    expect(off.data[0].presentable).toBe(false)
+  })
+
+  // 掩码查询逐个 word_id 生成一个占位符，而折叠的取数是**逐卡**出行的：
+  // 按行发等于让一个 n 卡词占 n 个变量，SQLite 的绑定变量上限 32766 会在几千词的库上
+  // 被顶穿（getAvailabilityMask 抛错 → overlay 返回 { ok:false } → store 保留上一份
+  // overlay、直方图回落全零，两个消费方都静默）。这条数的就是「掩码查询的入参个数 =
+  // **词**数」，不是卡行数。
+  it('掩码查询按词去重：一词多卡时入参个数是词数而非卡行数', async () => {
+    const WORDS = 6
+    const CARDS_PER_WORD = 4          // 24 行 → 去重后 6 个占位符
+    for (let i = 1; i <= WORDS; i++) await seedWord(db, `w${i}`, `lemma${i}`)
+    await registerAllWords(db, { allowListen: true })   // 每个词四张卡（translation+definition+example+phonetic）
+    for (let i = 1; i <= WORDS; i++) {
+      await seedValue(db, `fva${i}`, `w${i}`, 'chinese_definition', `第${i}个`)
+      await seedValue(db, `fvb${i}`, `w${i}`, 'example', `lemma${i} is here`)
+      await seedValue(db, `fvc${i}`, `w${i}`, 'phonetic', `/l${i}/`)
+    }
+    await registerCards(Array.from({ length: WORDS }, (_, i) => `w${i + 1}`), db, { allowListen: true })
+    const cards = await db.select<{ c: number }>('SELECT count(*) AS c FROM review_cards')
+    expect(cards[0].c).toBe(WORDS * CARDS_PER_WORD)
+
+    // 折叠里那次掩码调用是全库规模的：把 db 包一层，数它收到的 word_id 参数。
+    const maskWordIds: unknown[] = []
+    const counting = {
+      select: async <T>(sql: string, params: unknown[] = []): Promise<T[]> => {
+        // 掩码查询认得出的形状：以 words 为表、参数是 word id 列表（占位符个数 = 参数个数）
+        if (/FROM words w WHERE w\.id IN/.test(sql)) maskWordIds.push(...params)
+        return db.select<T>(sql, params)
+      },
+      execute: db.execute,
+    }
+    const r = await getWordReviewOverlay(counting as unknown as typeof db)
+    if (!r.ok) throw new Error(r.error)
+    expect(Object.keys(r.data).sort()).toEqual(['w1', 'w2', 'w3', 'w4', 'w5', 'w6'])
+    // 24 个卡行只应换成 6 个占位符。少了去重这里就是 24（WORD*CARDS 越往上越早顶穿上限）。
+    expect(maskWordIds).toHaveLength(WORDS)
+    expect(new Set(maskWordIds).size).toBe(WORDS)
   })
 })
 
