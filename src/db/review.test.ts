@@ -128,27 +128,34 @@ describe('db/review 读路径', () => {
     await seedWord(db, 'w1', 'alpha')   // 到期
     await seedWord(db, 'w2', 'beta')    // 新卡
     await seedWord(db, 'w3', 'gamma')   // 未到期
-    await registerCards(['w1', 'w2', 'w3'], db)
+    // 字段值必须在 registerCards **之前**落库：注册按「当时可用的题型」建卡，
+    // 零字段的词一张卡都建不出来（Task 2 契约）。
     await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
     await seedValue(db, 'fv2', 'w2', 'chinese_definition', '贝塔')
     await seedValue(db, 'fv3', 'w3', 'chinese_definition', '伽马')
-    const cardId = async (wordId: string) => {
-      const r = await db.select<{ id: string }>('SELECT id FROM review_cards WHERE word_id = ?1', [wordId])
-      return r[0].id
+    await registerCards(['w1', 'w2', 'w3'], db)
+    // w1 的**两张**卡都给到期状态，w3 的**两张**都给未到期。
+    // 逐张挂会让同一词的另一张以「无状态新卡」身份留在结果里，
+    // 「到期 / 未到期」这个前提就被冲淡了——尤其 w3 仍会以新卡回来。
+    // 「哪张卡到期」是逐卡属性，另外由 getCandidates 排除 suspended 那条来判。
+    const idsOf = async (wordId: string) =>
+      (await db.select<{ id: string }>('SELECT id FROM review_cards WHERE word_id = ?1', [wordId])).map(r => r.id)
+    for (const c of await idsOf('w1')) {
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES (?1, 10, 5, ?2, 0, 3, 0, ?3)`, [c, NOW - 1000, NOW - 86400000])
     }
-    const c1 = await cardId('w1'), c3 = await cardId('w3')
-    await db.execute(
-      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
-       VALUES (?1, 10, 5, ?2, 0, 3, 0, ?3)`, [c1, NOW - 1000, NOW - 86400000])
-    await db.execute(
-      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
-       VALUES (?1, 10, 5, ?2, 0, 3, 0, ?3)`, [c3, NOW + 86400000, NOW])
+    for (const c of await idsOf('w3')) {
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES (?1, 10, 5, ?2, 0, 3, 0, ?3)`, [c, NOW + 86400000, NOW - 86400000])
+    }
 
     const r = await getCandidates(NOW, db)
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    const ids = r.data.map(c => c.wordId).sort()
-    expect(ids).toEqual(['w1', 'w2'])
+    // 一词多卡：按卡出行，故按词去重后断言
+    expect([...new Set(r.data.map(c => c.wordId))].sort()).toEqual(['w1', 'w2'])
     // 一词多卡：find(wordId) 已不唯一，改判「w1 有一张 recognize 卡」
     expect(r.data.some(c => c.wordId === 'w1' && c.template === 'recognize')).toBe(true)
     expect(r.data.find(c => c.wordId === 'w2')!.stability).toBeNull()
@@ -156,12 +163,16 @@ describe('db/review 读路径', () => {
 
   it('getCandidates 排除 suspended 卡', async () => {
     await seedWord(db, 'w1', 'alpha')
-    await registerCards(['w1'], db)
     await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
-    const c1 = (await db.select<{ id: string }>('SELECT id FROM review_cards WHERE word_id = ?1', ['w1']))[0].id
-    await db.execute(
-      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
-       VALUES (?1, 10, 5, ?2, 0, 3, 1, ?3)`, [c1, NOW - 1000, NOW - 86400000])
+    await registerCards(['w1'], db)
+    // w1 有两张卡（recognize + recall）。挂起**两张**才谈得上「整词被排除」——
+    // 挂起是逐卡属性，只挂一张的话另一张仍会照常出题（那正是卡级语义）。
+    const c1 = (await db.select<{ id: string }>('SELECT id FROM review_cards WHERE word_id = ?1', ['w1']))
+    for (const c of c1) {
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES (?1, 10, 5, ?2, 0, 3, 1, ?3)`, [c.id, NOW - 1000, NOW - 86400000])
+    }
     const r = await getCandidates(NOW, db)
     expect(r.ok && r.data).toHaveLength(0)
   })
@@ -169,8 +180,9 @@ describe('db/review 读路径', () => {
   it('getCandidates 带出 initial_familiarity，缺失时默认 1', async () => {
     await seedWord(db, 'w1', 'alpha')
     await seedWord(db, 'w2', 'beta')
+    await seedValue(db, 'fv0', 'w1', 'chinese_definition', '阿尔法')
+    await seedValue(db, 'fv0b', 'w2', 'chinese_definition', '贝塔')
     await registerCards(['w1', 'w2'], db)
-    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
     await db.execute(
       "INSERT INTO field_values (id, word_id, field_id, value, source, edited, display_order, created_at, updated_at) VALUES ('fv2','w1','f_initial_familiarity','3','user',0,0,1,1)"
     )
@@ -185,6 +197,7 @@ describe('db/review 读路径', () => {
     // 字段值是可编辑的自由文本，用户在工作台能改成任意内容——
     // 组卷排序与档位映射都消费它，非法值必须在读进来的那一刻挡掉。
     await seedWord(db, 'w1', 'alpha')
+    await seedValue(db, 'fv0', 'w1', 'chinese_definition', '阿尔法')
     await registerCards(['w1'], db)
     for (const bad of ['9', 'abc', '', '0', '2.7']) {
       await db.execute("DELETE FROM field_values WHERE field_id = 'f_initial_familiarity'")
@@ -199,16 +212,24 @@ describe('db/review 读路径', () => {
     }
   })
 
-  it('卡片上的旧列 initial_familiarity 不再被读到', async () => {
-    // v0.6.4 起熟悉度的真相在词条级字段。旧列里即便有值也必须被忽略——
-    // 否则「改了字段没生效」这类问题会有一条看不见的第二数据源在后面顶着。
+  it('卡片上的旧列 initial_familiarity 不再被读到（v0.6.5：该列已随卡模型换代删除）', async () => {
+    // v0.6.4 起熟悉度的真相在词条级字段；v0.6.5 起 review_cards 连这一列都没有了
+    // （卡表只剩 id / word_id / template / created_at），所以「旧列被忽略」不再是一个
+    // 可写的状态——写它直接是 SQL 错误。这里钉住的是**真相仍然只在字段那一处**：
+    // 字段给了 3 就读到 3，字段不给就落回 1，中间没有任何第二数据源。
     await seedWord(db, 'w1', 'alpha')
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
     await registerCards(['w1'], db)
-    await db.execute("UPDATE review_cards SET initial_familiarity = 3 WHERE word_id = 'w1'")
-    const r = await getCandidates(NOW, db)
-    expect(r.ok).toBe(true)
-    if (!r.ok) return
-    expect(r.data.find(c => c.wordId === 'w1')!.initialFamiliarity).toBe(1)
+    const cols = await db.select<{ name: string }>("SELECT name FROM pragma_table_info('review_cards')")
+    expect(cols.map(c => c.name)).not.toContain('initial_familiarity')
+    // 字段值给 3 → 读到 3（不是被某个残留来源覆写回 1）
+    await seedValue(db, 'fv2', 'w1', 'initial_familiarity', '3')
+    const withField = await getCandidates(NOW, db)
+    expect(withField.ok && withField.data[0].initialFamiliarity).toBe(3)
+    // 字段值不给 → 落回默认 1
+    await db.execute("DELETE FROM field_values WHERE id = 'fv2'")
+    const withoutField = await getCandidates(NOW, db)
+    expect(withoutField.ok && withoutField.data[0].initialFamiliarity).toBe(1)
   })
 
   it('getWordContent 取齐出题所需字段，并带 3 个跨词干扰释义', async () => {
@@ -350,33 +371,41 @@ describe('db/review 读路径', () => {
     await seedWord(db, 'w1', 'alpha')   // 未到期的熟词
     await seedWord(db, 'w2', 'beta')    // 到期的熟词
     await seedWord(db, 'w3', 'gamma')   // suspended 熟词
-    await registerCards(['w1', 'w2', 'w3'], db)
     await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
     await seedValue(db, 'fv2', 'w2', 'chinese_definition', '贝塔')
     await seedValue(db, 'fv3', 'w3', 'chinese_definition', '伽马')
-    const cardId = async (wordId: string) => {
-      const r = await db.select<{ id: string }>('SELECT id FROM review_cards WHERE word_id = ?1', [wordId])
-      return r[0].id
+    await registerCards(['w1', 'w2', 'w3'], db)
+    // 给 w1 / w2 / w3 的**两张**卡都挂状态：w1 未到期、w2 到期、w3 挂起。
+    // 逐张挂会让同一词的另一张以「无状态新卡」身份留在 getAllCandidates 的结果里，
+    // 「熟词」这个前提就假了（那条查询连未到期的新卡也一起收）。
+    const ids = async (wordId: string) =>
+      (await db.select<{ id: string }>('SELECT id FROM review_cards WHERE word_id = ?1', [wordId])).map(r => r.id)
+    const [c1, c2, c3] = [await ids('w1'), await ids('w2'), await ids('w3')]
+    for (const c of c1) {
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES (?1, 10, 5, ?2, 0, 3, 0, ?3)`, [c, NOW + 86400000, NOW])
     }
-    const [c1, c2, c3] = await Promise.all([cardId('w1'), cardId('w2'), cardId('w3')])
-    await db.execute(
-      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
-       VALUES (?1, 10, 5, ?2, 0, 3, 0, ?3)`, [c1, NOW + 86400000, NOW])
-    await db.execute(
-      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
-       VALUES (?1, 10, 5, ?2, 0, 3, 0, ?3)`, [c2, NOW - 1000, NOW - 86400000])
-    await db.execute(
-      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
-       VALUES (?1, 10, 5, ?2, 0, 3, 1, ?3)`, [c3, NOW - 1000, NOW - 86400000])
+    for (const c of c2) {
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES (?1, 10, 5, ?2, 0, 3, 0, ?3)`, [c, NOW - 1000, NOW - 86400000])
+    }
+    for (const c of c3) {
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES (?1, 10, 5, ?2, 0, 3, 1, ?3)`, [c, NOW - 1000, NOW - 86400000])
+    }
     const rAll = await getAllCandidates(db)
     expect(rAll.ok).toBe(true)
     if (!rAll.ok) return
     const allIds = rAll.data.map(c => c.wordId).sort()
-    expect(allIds).toEqual(['w1', 'w2'])
+    // 一词多卡：getAllCandidates 按卡出行，故按词去重后再断言
+    expect([...new Set(allIds)]).toEqual(['w1', 'w2'])
     const r = await getCandidates(NOW, db)
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    expect(r.data.map(c => c.wordId)).toEqual(['w2'])
+    expect([...new Set(r.data.map(c => c.wordId))]).toEqual(['w2'])
   })
 
   // v0.6.4 词级复习叠加层（01 §3.6）。所有用例共用一份 fixture：beforeEach 每次给的是
@@ -393,6 +422,9 @@ describe('db/review 读路径', () => {
       // w4：有词无卡、但收录时选了「眼熟」→ 这正是 C1 的现场：没有卡不等于没有熟悉度，
       // 工作台的记忆强度 chip 要读的就是它（spec §4.7「未复习时，chip 显示档 2」）
       await seedWord(db, 'w4', 'delta')
+      // w1 / w2 的字段值必须在注册前落库，否则建不出卡（Task 2 契约）
+      await seedValue(db, 'fv0', 'w1', 'chinese_definition', '第一个')
+      await seedValue(db, 'fv0b', 'w2', 'chinese_definition', '第二个')
       await registerCards(['w1', 'w2'], db)
       await seedValue(db, 'fv1', 'w1', 'initial_familiarity', '3')
       await seedValue(db, 'fv2', 'w4', 'initial_familiarity', '2')
@@ -446,8 +478,15 @@ describe('db/review 写路径与聚合', () => {
   const cardIdOf = async (wordId: string) =>
     (await db.select<{ id: string }>('SELECT id FROM review_cards WHERE word_id = ?1', [wordId]))[0].id
 
+  // 下面这些用例都只跟 card_id 打交道，卡本身的内容无关；但注册仍要建得出卡，
+  // 所以每个 fixture 都得自带至少一个可用字段（Task 2：零字段的词一张卡都建不出来）。
+  const seedCardable = async (id: string, lemma: string, fvId: string) => {
+    await seedWord(db, id, lemma)
+    await seedValue(db, fvId, id, 'chinese_definition', `${lemma}的释义`)
+  }
+
   it('applyReview 首评写入状态与日志，mode 为 review', async () => {
-    await seedWord(db, 'w1', 'alpha')
+    await seedCardable('w1', 'alpha', 'fv1')
     await registerCards(['w1'], db)
     const c1 = await cardIdOf('w1')
     const r = await applyReview({
@@ -464,30 +503,8 @@ describe('db/review 写路径与聚合', () => {
     expect(logs).toEqual([{ template: 'recognize', mode: 'review', duration_ms: 4200 }])
   })
 
-  it('applyReview 不再回写 last_template：题型的真相只在 review_logs.template 一处', async () => {
-    // v0.6.5 起卡自带题型，「上次出过什么题」不再有消费方（pickTemplate 已删），
-    // 故 review_cards 不再有这一列。钉住「applyReview 不去写一张不存在的列」：
-    // 写回会在库还是旧形状时静默成功，测试也就跟着失去意义。
-    await seedWord(db, 'w1', 'alpha')
-    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
-    await registerCards(['w1'], db)   // 自带内容，卡必然建得出来（不靠别的用例铺库）
-    const c1 = await cardIdOf('w1')
-    const r = await applyReview({
-      cardId: c1, rating: 3, template: 'cloze',
-      stability: 2, difficulty: 5, dueAt: NOW + 86400000,
-      lapses: 0, reps: 1, reviewedAt: NOW,
-    }, db)
-    expect(r.ok).toBe(true)
-    // 题型仍逐次落进日志（题型正确率的唯一来源）
-    const logs = await db.select<{ template: string }>('SELECT template FROM review_logs WHERE card_id = ?1', [c1])
-    expect(logs).toEqual([{ template: 'cloze' }])
-    // 新形状的表没有 last_template 这一列，写它必然是 SQL 错误
-    const cols = await db.select<{ name: string }>("SELECT name FROM pragma_table_info('review_cards')")
-    expect(cols.map(c => c.name)).not.toContain('last_template')
-  })
-
   it('applyReview 重复评分累加 reps 并覆盖 stability', async () => {
-    await seedWord(db, 'w1', 'alpha')
+    await seedCardable('w1', 'alpha', 'fv1')
     await registerCards(['w1'], db)
     const c1 = await cardIdOf('w1')
     await applyReview({ cardId: c1, rating: 3, template: 'recall', stability: 2, difficulty: 5,
@@ -501,7 +518,7 @@ describe('db/review 写路径与聚合', () => {
   })
 
   it('getState 映射 lastReviewAt，无记录的 last_review_at 保持 null', async () => {
-    await seedWord(db, 'w1', 'alpha')
+    await seedCardable('w1', 'alpha', 'fv1')
     await registerCards(['w1'], db)
     const c1 = await cardIdOf('w1')
     await applyReview({ cardId: c1, rating: 3, template: 'recall', stability: 2, difficulty: 5,
@@ -514,14 +531,14 @@ describe('db/review 写路径与聚合', () => {
   })
 
   it('getState 无状态行返回 null', async () => {
-    await seedWord(db, 'w1', 'alpha')
+    await seedCardable('w1', 'alpha', 'fv1')
     await registerCards(['w1'], db)
     const r = await getState(await cardIdOf('w1'), db)
     expect(r.ok && r.data).toBeNull()
   })
 
   it('insertPracticeLog 只写日志，review_states 一行都不产生', async () => {
-    await seedWord(db, 'w1', 'alpha')
+    await seedCardable('w1', 'alpha', 'fv1')
     await registerCards(['w1'], db)
     const c1 = await cardIdOf('w1')
     await insertPracticeLog({ cardId: c1, rating: 1, template: 'cloze', reviewedAt: NOW }, db)
@@ -545,7 +562,7 @@ describe('db/review 写路径与聚合', () => {
   })
 
   it('getWeakCardIds：lapses 达标 ∪ 窗口内 rating = 1（含 practice），窗口外不计入', async () => {
-    for (const [i, lemma] of ['leech', 'recent', 'clean', 'stale'].entries()) await seedWord(db, `w${i + 1}`, lemma)
+    for (const [i, lemma] of ['leech', 'recent', 'clean', 'stale'].entries()) await seedCardable(`w${i + 1}`, lemma, `fv${i + 1}`)
     await registerCards(['w1', 'w2', 'w3', 'w4'], db)
     const [c1, c2, c3, c4] = [await cardIdOf('w1'), await cardIdOf('w2'), await cardIdOf('w3'), await cardIdOf('w4')]
     const seedState = async (cardId: string, lapses: number) => {
@@ -567,7 +584,7 @@ describe('db/review 写路径与聚合', () => {
   })
 
   it('getWeakCardIds 只有 practice 日志同样命中', async () => {
-    await seedWord(db, 'w1', 'practice')
+    await seedCardable('w1', 'practice', 'fv1')
     await registerCards(['w1'], db)
     const c1 = await cardIdOf('w1')
     await db.execute("INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES ('l1',?1,?2,1,'cloze','practice')", [c1, NOW - 1000])
@@ -579,6 +596,7 @@ describe('db/review 写路径与聚合', () => {
     await seedWord(db, 'w1', 'leech')     // lapses 达标
     await seedWord(db, 'w2', 'recent')    // 近 7 天答错
     await seedWord(db, 'w3', 'clean')     // 干净
+    for (const [i, id] of ['w1', 'w2', 'w3'].entries()) await seedValue(db, `fvc${i}`, id, 'chinese_definition', '释义')
     await registerCards(['w1', 'w2', 'w3'], db)
     const [c1, c2, c3] = [await cardIdOf('w1'), await cardIdOf('w2'), await cardIdOf('w3')]
     await db.execute(`INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
@@ -600,11 +618,15 @@ describe('db/review 写路径与聚合', () => {
     await seedWord(db, 'w2', 'dueBare')   // 到期 + 无内容
     await seedWord(db, 'w3', 'later')     // 未到期 + 有内容
     await seedWord(db, 'w4', 'susp')     // 到期 + 有内容但挂起
-    await registerCards(['w1', 'w2', 'w3', 'w4'], db)
+    // 内容必须在注册前落库（Task 2：零字段的词建不出卡）
     await seedValue(db, 'fv1', 'w1', 'chinese_definition', '到期')
     await seedValue(db, 'fv2', 'w3', 'chinese_definition', '未到期')
     await seedValue(db, 'fv3', 'w4', 'chinese_definition', '挂起')
-    const [c1, c2, c3, c4] = [await cardIdOf('w1'), await cardIdOf('w2'), await cardIdOf('w3'), await cardIdOf('w4')]
+    await registerCards(['w1', 'w3', 'w4'], db)
+    // w2 模拟「注册过、但内容后来全没了」：这类词不会被再次注册建卡，
+    // 只能手工塞——与「卡级可用性闸门」describe 里 getAbsentWords 那条同一手法。
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('cbare','w2','recognize',1)")
+    const [c1, c2, c3, c4] = [await cardIdOf('w1'), 'cbare', await cardIdOf('w3'), await cardIdOf('w4')]
     const seedState = async (cardId: string, dueAt: number, suspended: number) => {
       await db.execute(
         `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
@@ -619,7 +641,7 @@ describe('db/review 写路径与聚合', () => {
   })
 
   it('getStrategyCounts：陈旧错题（超出窗口）不计入 weak', async () => {
-    await seedWord(db, 'w1', 'stale')
+    await seedCardable('w1', 'stale', 'fv1')
     await registerCards(['w1'], db)
     const c1 = await cardIdOf('w1')
     await db.execute(`INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
@@ -630,7 +652,10 @@ describe('db/review 写路径与聚合', () => {
   })
 
   it('getStats：掌握度分桶 / 未来 7 日到期 / 近期评分（只读 review）', async () => {
-    for (const [i, lemma] of ['a', 'b', 'c', 'd', 'e', 'f'].entries()) await seedWord(db, `w${i + 1}`, lemma)
+    for (const [i, lemma] of ['a', 'b', 'c', 'd', 'e', 'f'].entries()) {
+      await seedWord(db, `w${i + 1}`, lemma)
+      await seedValue(db, `fvs${i}`, `w${i + 1}`, 'chinese_definition', '释义')
+    }
     await registerAllWords(db)
     // stability 分别落在记忆强度 0/2/3/4/5/4 档（分档按 100·e^(−7/S) 每 20% 切一道）；
     // f 额外验证挂起卡不计入到期分布。
@@ -682,8 +707,11 @@ describe('db/review 写路径与聚合', () => {
   })
 
   it('getAbsentWords 返回无任何可用内容的词', async () => {
+    // Task 2/4 契约：没有任何可用字段的词**压根不会被注册**，所以它不是「缺内容的词」。
+    // getAbsentWords 只看「有卡、但卡的题型内容现在全没了」的词 → 手工塞卡模拟，
+    // 与「卡级可用性闸门」describe 里那条「按词去重」用例同一手法。
     await seedWord(db, 'w1', 'empty')
-    await registerCards(['w1'], db)
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w1','recognize',1)")
     const r = await getAbsentWords(db)
     expect(r.ok && r.data.map(x => x.lemma)).toEqual(['empty'])
   })
@@ -691,8 +719,9 @@ describe('db/review 写路径与聚合', () => {
   it('getAbsentWords：有内容的词不在列，返回 wordId', async () => {
     await seedWord(db, 'w1', 'full')
     await seedWord(db, 'w2', 'empty')
-    await registerCards(['w1', 'w2'], db)
     await seedValue(db, 'fv1', 'w1', 'chinese_definition', '满')
+    await registerCards(['w1'], db)                      // w1 有内容 → 建卡，不该在列
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c2','w2','recognize',1)")
     const r = await getAbsentWords(db)
     expect(r.ok && r.data).toEqual([{ wordId: 'w2', lemma: 'empty' }])
   })
@@ -770,6 +799,8 @@ describe('db/review 听辨门控与薄弱词计数', () => {
       { leechThreshold: 4, recentWindowMs: 7 * 86_400_000, now: NOW }, db)
     expect(r.ok).toBe(true)
     if (!r.ok) return
+    // 【Task 7 负责】当前 getWeakWordsWithCounts 按**卡**出行，一词多卡就出多行
+    // （w1 的 recognize 与 recall 各一行），而这条断言是词级读法。Task 7 改词级口径时修。
     expect(r.data.map(x => x.wordId)).toEqual(['w1', 'w2'])
     expect(r.data[0]).toMatchObject({ lemma: 'alpha', lapses: 5, recentMisses: 0 })
     expect(r.data[1]).toMatchObject({ lemma: 'beta', lapses: 0, recentMisses: 2 })
@@ -798,6 +829,10 @@ describe('db/review 听辨门控与薄弱词计数', () => {
     for (const [i, lemma] of ['leech', 'recent', 'practiceOnly', 'clean', 'stale'].entries()) {
       await seedWord(db, `w${i + 1}`, lemma)
     }
+    // 【Task 7 负责】w1…w5 在注册时都还没有任何字段值，Task 2 的契约下一个卡都建不出来，
+    // 这里的 cardOf 必然取空。要复现「这五个词都注册过」，得先给它们内容再注册；
+    // 而一旦每个词都出两张卡，下面那句「两边命中同一批**词**」又会被当前按卡出行的
+    // 口径打乱（rows.data 会按卡重复）。两条一起等 Task 7 改词级口径时处理。
     await registerAllWords(db)
     const cardOf = async (wordId: string) =>
       (await db.select<{ id: string }>('SELECT id FROM review_cards WHERE word_id = ?1', [wordId]))[0].id

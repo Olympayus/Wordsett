@@ -425,6 +425,10 @@ export async function getStats() {
  *
  * 为什么这里仍要过闸门：新词数若把「内容层面出不了题」的新卡也算进去，控制台会印
  * 「新词: 3」而本轮只引入 2 个。
+ *
+ * 刻意**逐张**读内容、**不**再为「题型不是 recognize / cloze」的卡短路：内容取不到
+ * （`loadContent` 返回 null）本身就该把那张卡剔出本轮，旧版的短路会把这种卡无条件留下——
+ * 而 getQueue 的组装循环一直就是「取不到就 continue」。两处现在同一口径，**别**把短路优化回来。
  */
 async function deliverable(candidates: QueueCandidate[]): Promise<QueueCandidate[]> {
   const out: QueueCandidate[] = []
