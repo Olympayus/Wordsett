@@ -36,6 +36,17 @@ const iconBtn = (on = false): React.CSSProperties => ({
   transition: 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
 })
 
+// iconBtn 的 transition 只声明了这两条属性，得有东西去改它们才有动画；
+// 否则按钮连底色都不变，看起来像坏的。三颗图标钮共用这一对。
+const hoverOn = (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.currentTarget.style.background = 'var(--color-surface-hover)'
+  e.currentTarget.style.color = 'var(--color-brand)'
+}
+const hoverOff = (e: React.MouseEvent<HTMLButtonElement>) => {
+  e.currentTarget.style.background = 'transparent'
+  e.currentTarget.style.color = 'var(--color-text-secondary)'
+}
+
 const chip: React.CSSProperties = {
   display: 'inline-flex', alignItems: 'center', height: '26px', padding: '0 9px',
   border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
@@ -54,48 +65,54 @@ export default function SidebarToolbar({
   const slots = toolbarSlots({ collapsed, selectMode })
   return (
     <div className="shrink-0" style={{ padding: '10px 10px 0' }}>
-      {/* 第一行：控件。角色分工固定——左侧是「模式类」，右端是「窗口类」。 */}
+      {/* 第一行：控件。角色分工固定——左侧是「模式类」，右端是「窗口类」。
+          两个分支都按 slots 取，不要按 selectMode 取——分支条件与实际渲染的槽位
+          必须是同一个来源，否则 slots 里的 collapseToggle: true 会变成一个
+          没有任何渲染消费它的常量，选择模式下收起钮也就此消失。 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
-        {selectMode ? (
+        {slots.selectToggle ? (
+          <>
+            <button type="button" title="多选" aria-label="多选" aria-pressed={false}
+              onClick={onToggleSelectMode} onMouseEnter={hoverOn} onMouseLeave={hoverOff}
+              style={iconBtn()}>
+              <Icon name="check-square" size={16} />
+            </button>
+            {slots.modeToggle && (
+              <button type="button" title="切换显示模式" aria-label="切换显示模式"
+                onClick={onToggleMode} onMouseEnter={hoverOn} onMouseLeave={hoverOff}
+                style={iconBtn()}>
+                <Icon name="swap" size={16} />
+              </button>
+            )}
+          </>
+        ) : (
           <>
             <span style={{ fontSize: '12.5px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
               已选 <span className="stat-num">{selectedCount}</span>
             </span>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: '4px' }}>
+            <div style={{ display: 'flex', gap: '4px' }}>
               <button type="button" style={chip} onClick={onSelectAll}>全选</button>
               <button type="button" style={chip} onClick={onExitSelect}>退出</button>
             </div>
           </>
-        ) : (
-          <>
-            {slots.selectToggle && (
-              <button type="button" title="多选" aria-label="多选" aria-pressed={false}
-                onClick={onToggleSelectMode} style={iconBtn()}>
-                <Icon name="check-square" size={16} />
-              </button>
-            )}
-            {slots.modeToggle && (
-              <button type="button" title="切换显示模式" aria-label="切换显示模式"
-                onClick={onToggleMode} style={iconBtn()}>
-                <Icon name="swap" size={16} />
-              </button>
-            )}
-            <div style={{ marginLeft: 'auto' }}>
-              {slots.collapseToggle && (
-                <button type="button" title="收起/展开侧边栏" aria-label="收起/展开侧边栏"
-                  onClick={onToggleCollapse} style={iconBtn()}>
-                  <span style={{
-                    display: 'flex',
-                    transition: 'transform var(--duration-normal) var(--ease-smooth)',
-                    transform: collapsed ? 'rotate(180deg)' : undefined,
-                  }}>
-                    <Icon name="chevron-left" size={16} />
-                  </span>
-                </button>
-              )}
-            </div>
-          </>
         )}
+        {/* 收起钮在两态都在：选择模式下若把它连同第一行一起换掉，收起态（最窄 120px）
+            就失去了唯一的逃生口——恰恰是最该能撑开侧栏的时候动不了。 */}
+        <div style={{ marginLeft: 'auto' }}>
+          {slots.collapseToggle && (
+            <button type="button" title="收起/展开侧边栏" aria-label="收起/展开侧边栏"
+              onClick={onToggleCollapse} onMouseEnter={hoverOn} onMouseLeave={hoverOff}
+              style={iconBtn()}>
+              <span style={{
+                display: 'flex',
+                transition: 'transform var(--duration-normal) var(--ease-smooth)',
+                transform: collapsed ? 'rotate(180deg)' : undefined,
+              }}>
+                <Icon name="chevron-left" size={16} />
+              </span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 第二行：整宽筛选框。收起态也渲染——它不再是个图标。 */}
