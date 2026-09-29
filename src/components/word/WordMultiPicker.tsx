@@ -52,12 +52,27 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const members = useMemo(() => new Set(memberIds), [memberIds])
 
-  // 每次打开都重置：方向与分类变了就该重新来。「移除」预勾选全部现有成员，「加入」全不勾。
+  // 预勾选的来源：**实际会被渲染出来的候选**，不是 memberIds 本身。
+  //
+  // memberIds 来自 wordCategoryMap，行渲染来自 wordStore.words，两者各走各的加载路径，
+  // 谁都不保证 memberIds ⊆ words（getPreviews 在 DB 出错时返回 []，而 words 初始为空、
+  // 由异步的 loadWords 填充）。若直接拿 memberIds 播种，两边一旦对不上，checked 里就会
+  // 装着一批**屏幕上没有行**的 id：列表空、确认键却亮着「移除 N 个单词」，而 N 是整个
+  // 成员数——一次用户看不见、也无法审阅的批量 unassignMany。种子取自 rendered 候选之后，
+  // checked ⊆ removeCandidates ⊆ words 成为结构性事实，不再靠断言维持。
+  const removeCandidates = useMemo(
+    () => pickerWords(words, members, 'remove', ''),
+    [words, members])
+
+  // 每次打开都重置：方向与分类变了就该重新来。「移除」预勾选全部候选，「加入」全不勾。
+  // query 不在依赖里：打字**不得**重新播种，否则筛选一下就把筛选外的勾清掉。
+  // words 在依赖里是有意的——弹层开着时 loadWords 落地（原先的空 words → 真实词表）
+  // 正是该重播种的时刻，且 removeCandidates 只随 words/members 变，无关重渲染不会触发。
   useEffect(() => {
     if (!open) return
     setQuery('')
-    setChecked(direction === 'remove' ? new Set(memberIds) : new Set())
-  }, [open, direction, memberIds])
+    setChecked(direction === 'remove' ? new Set(removeCandidates.map(w => w.id)) : new Set())
+  }, [open, direction, removeCandidates])
 
   const shown = useMemo(
     () => pickerWords(words, members, direction, query),
@@ -87,7 +102,10 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
             onChange={e => setQuery(e.target.value)}
             style={{ flex: 1, minWidth: 0, height: '32px', padding: '0 10px', fontSize: 'var(--text-sm)', fontFamily: 'var(--font-sans)', color: 'var(--color-text-primary)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', outline: 'none' }}
           />
-          <Button variant="secondary" onClick={() => setChecked(selectAll(shown.map(w => w.id)))}>全选</Button>
+          {/* 全选是**替换**（selectAll 的契约），只覆盖当前列出来的行：搜索态下点它会把
+              筛选外的成员移出勾选集。方向是「少移」而非「多移」，确认键的数字永远是真的，
+              但这个作用域得让用户看得见。 */}
+          <Button variant="secondary" title="全选当前列出的单词（会取消筛选外的选择）" onClick={() => setChecked(selectAll(shown.map(w => w.id)))}>全选</Button>
           <Button variant="secondary" onClick={() => setChecked(new Set())}>清空</Button>
         </div>
 
