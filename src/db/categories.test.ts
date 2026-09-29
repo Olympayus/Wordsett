@@ -127,4 +127,57 @@ describe('categories db 层', () => {
     if (!after.ok) throw new Error('getCategoriesForWord failed')
     expect(after.data).toHaveLength(0)
   })
+
+  it('assignCategoryToWords 批量归类：幂等，重复调用不插重复行', async () => {
+    const cat = await categoriesDb.createCategory({ name: '批', color: '#4A6FA5' })
+    if (!cat.ok) throw new Error('createCategory failed')
+    const a = await createWord({ lemma: 'bulk-1' })
+    const b = await createWord({ lemma: 'bulk-2' })
+    const c = await createWord({ lemma: 'bulk-3' })
+    if (!a.ok || !b.ok || !c.ok) throw new Error('createWord failed')
+
+    await categoriesDb.assignCategoryToWords([a.data.id, b.data.id, c.data.id], cat.data.id)
+    await categoriesDb.assignCategoryToWords([a.data.id, b.data.id], cat.data.id)
+
+    const rows = await adapter.select<{ c: number }>(
+      'SELECT count(*) as c FROM word_categories WHERE category_id = ?1', [cat.data.id])
+    expect(rows[0].c).toBe(3)
+  })
+
+  it('unassignCategoryFromWords 只影响目标分类，其他分类的关联保留', async () => {
+    const c1 = await categoriesDb.createCategory({ name: '甲', color: '#4A6FA5' })
+    const c2 = await categoriesDb.createCategory({ name: '乙', color: '#C17A4E' })
+    if (!c1.ok || !c2.ok) throw new Error('createCategory failed')
+    const a = await createWord({ lemma: 'bulk-4' })
+    const b = await createWord({ lemma: 'bulk-5' })
+    if (!a.ok || !b.ok) throw new Error('createWord failed')
+    await categoriesDb.assignCategoryToWords([a.data.id, b.data.id], c1.data.id)
+    await categoriesDb.assignCategoryToWords([a.data.id, b.data.id], c2.data.id)
+
+    await categoriesDb.unassignCategoryFromWords([a.data.id], c1.data.id)
+
+    const inC1 = await adapter.select<{ c: number }>(
+      'SELECT count(*) as c FROM word_categories WHERE category_id = ?1', [c1.data.id])
+    const inC2 = await adapter.select<{ c: number }>(
+      'SELECT count(*) as c FROM word_categories WHERE category_id = ?1', [c2.data.id])
+    expect(inC1[0].c).toBe(1)
+    expect(inC2[0].c).toBe(2)
+  })
+
+  it('批量超过 200 个词时分批执行，不撞 SQLite 变量上限', async () => {
+    const cat = await categoriesDb.createCategory({ name: '多', color: '#6B8E7F' })
+    if (!cat.ok) throw new Error('createCategory failed')
+    const ids: string[] = []
+    for (let i = 0; i < 250; i++) {
+      const w = await createWord({ lemma: `bulk-many-${i}` })
+      if (!w.ok) throw new Error('createWord failed')
+      ids.push(w.data.id)
+    }
+
+    await categoriesDb.assignCategoryToWords(ids, cat.data.id)
+
+    const rows = await adapter.select<{ c: number }>(
+      'SELECT count(*) as c FROM word_categories WHERE category_id = ?1', [cat.data.id])
+    expect(rows[0].c).toBe(250)
+  })
 })

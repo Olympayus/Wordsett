@@ -37,6 +37,16 @@ export async function unassignCategoryFromWord(wordId: string, categoryId: strin
   return result.ok
 }
 
+export async function assignCategoryToWords(wordIds: string[], categoryId: string): Promise<boolean> {
+  const result = await categoriesDb.assignCategoryToWords(wordIds, categoryId)
+  return result.ok
+}
+
+export async function unassignCategoryFromWords(wordIds: string[], categoryId: string): Promise<boolean> {
+  const result = await categoriesDb.unassignCategoryFromWords(wordIds, categoryId)
+  return result.ok
+}
+
 // 新建单词自动归入默认分类（§6.1）：无默认分类则 no-op。
 export async function assignDefaultToWord(wordId: string): Promise<void> {
   const result = await categoriesDb.getDefaultCategory()

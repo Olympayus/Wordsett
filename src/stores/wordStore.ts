@@ -24,6 +24,7 @@ interface WordStore {
   addWord: (lemma: string) => Promise<Word | null>
   mergeWordFields: (wordId: string, fields: MergeFieldInput[]) => Promise<boolean>
   deleteWord: (id: string) => Promise<void>
+  deleteWords: (ids: string[]) => Promise<void>
 }
 
 export const useWordStore = create<WordStore>((set, get) => ({
@@ -96,6 +97,20 @@ export const useWordStore = create<WordStore>((set, get) => ({
     if (wasSelected) {
       // 删除当前词条后的自动切词（spec §6 入栈时机）：落到历史栈现在指向的邻居词条；
       // 空栈则维持原来的空态。非选中词条的删除不动选中项。
+      const neighbour = current(useNavHistoryStore.getState().history)
+      if (neighbour) await get().selectWord(neighbour)
+      else set({ selectedWordId: null, fieldValues: [] })
+    }
+    await get().loadWords()
+  },
+
+  deleteWords: async (ids) => {
+    if (ids.length === 0) return
+    const ok = await wordService.deleteWords(ids)
+    if (!ok) return
+    // 历史栈清理：被删的词若在栈内，回退时不得落到空词条（与单词版同一处理）
+    for (const id of ids) useNavHistoryStore.getState().dropId(id)
+    if (get().selectedWordId && ids.includes(get().selectedWordId!)) {
       const neighbour = current(useNavHistoryStore.getState().history)
       if (neighbour) await get().selectWord(neighbour)
       else set({ selectedWordId: null, fieldValues: [] })

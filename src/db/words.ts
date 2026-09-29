@@ -136,3 +136,20 @@ export async function deleteWord(id: string): Promise<DbResult<void>> {
     return { ok: false, error: e.toString() }
   }
 }
+
+// 与 categories 同一档分批：SQLite 变量上限 999，取 200 留足余量。
+const DELETE_BATCH_SIZE = 200
+
+/** 批量删除词条；字段、分类关联、复习卡由外键 ON DELETE CASCADE 级联清掉。 */
+export async function deleteWords(ids: string[]): Promise<DbResult<void>> {
+  try {
+    for (let i = 0; i < ids.length; i += DELETE_BATCH_SIZE) {
+      const batch = ids.slice(i, i + DELETE_BATCH_SIZE)
+      const holders = batch.map((_, j) => `?${j + 1}`).join(', ')
+      await getDb().execute(`DELETE FROM words WHERE id IN (${holders})`, batch)
+    }
+    return { ok: true, data: undefined }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}

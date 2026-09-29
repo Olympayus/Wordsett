@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { getDb } from '../db/connection'
 import * as wordsDb from '../db/words'
 import { createTestDb, type DbLike } from '../db/test-utils'
-import { deleteWord, getPreviews, mergeFields, setInitialFamiliarity } from './wordService'
+import { deleteWord, deleteWords, getPreviews, mergeFields, setInitialFamiliarity } from './wordService'
 import { clearDefinitionsCache } from './fieldService'
 import { getFieldValuesForWord } from '../db/fields'
 import * as fieldsDb from '../db/fields'
@@ -265,6 +265,37 @@ describe('wordService 词操作', () => {
     const w = await wordsDb.createWord({ lemma: 'del-me' })
     if (!w.ok) throw new Error('createWord failed')
     expect(await deleteWord(w.data.id)).toBe(true)
+  })
+
+  it('deleteWords 一次删除多个词，字段与分类关联由外键级联清掉', async () => {
+    const a = await wordsDb.createWord({ lemma: 'bulk-a' })
+    const b = await wordsDb.createWord({ lemma: 'bulk-b' })
+    const c = await wordsDb.createWord({ lemma: 'bulk-c' })
+    if (!a.ok || !b.ok || !c.ok) throw new Error('createWord failed')
+    // 本文件的 adapter 建在 beforeAll 上，全文件共用一张表，所以只数这三个词，不数全表。
+    const ids = [a.data.id, b.data.id, c.data.id]
+    const countMine = async () => {
+      const rows = await adapter.select<{ c: number }>(
+        'SELECT count(*) as c FROM words WHERE id IN (?1, ?2, ?3)', ids)
+      return rows[0].c
+    }
+    expect(await countMine()).toBe(3)
+
+    const ok = await deleteWords([a.data.id, b.data.id])
+
+    expect(ok).toBe(true)
+    const left = await adapter.select<{ id: string }>(
+      'SELECT id FROM words WHERE id IN (?1, ?2, ?3)', ids)
+    expect(left.map(r => r.id)).toEqual([c.data.id])
+  })
+
+  it('deleteWords 传空数组是空操作，不报错', async () => {
+    const a = await wordsDb.createWord({ lemma: 'bulk-d' })
+    if (!a.ok) throw new Error('createWord failed')
+    expect(await deleteWords([])).toBe(true)
+    const rows = await adapter.select<{ c: number }>(
+      'SELECT count(*) as c FROM words WHERE id = ?1', [a.data.id])
+    expect(rows[0].c).toBe(1)
   })
 
   it('getPreviews 返回词性标签预览', async () => {

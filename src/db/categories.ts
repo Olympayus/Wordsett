@@ -154,3 +154,40 @@ export async function getAllWordCategoryMap(): Promise<DbResult<Record<string, s
     return { ok: false, error: e.toString() }
   }
 }
+
+// SQLite 的变量上限是 999；每批 200 个 word_id（归入时还要一个 categoryId）留足余量。
+const BATCH_SIZE = 200
+
+/** 批量归入：底层是 INSERT OR IGNORE，与单条版共用同一条幂等语义。 */
+export async function assignCategoryToWords(wordIds: string[], categoryId: string): Promise<DbResult<void>> {
+  try {
+    for (let i = 0; i < wordIds.length; i += BATCH_SIZE) {
+      const batch = wordIds.slice(i, i + BATCH_SIZE)
+      const holders = batch.map((_, j) => `(?${j * 2 + 1}, ?${j * 2 + 2})`).join(', ')
+      await getDb().execute(
+        `INSERT OR IGNORE INTO word_categories (word_id, category_id) VALUES ${holders}`,
+        batch.flatMap(id => [id, categoryId]),
+      )
+    }
+    return { ok: true, data: undefined }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
+/** 批量移出：只删目标分类的关联，其它分类不受影响。 */
+export async function unassignCategoryFromWords(wordIds: string[], categoryId: string): Promise<DbResult<void>> {
+  try {
+    for (let i = 0; i < wordIds.length; i += BATCH_SIZE) {
+      const batch = wordIds.slice(i, i + BATCH_SIZE)
+      const holders = batch.map((_, j) => `?${j + 2}`).join(', ')
+      await getDb().execute(
+        `DELETE FROM word_categories WHERE category_id = ?1 AND word_id IN (${holders})`,
+        [categoryId, ...batch],
+      )
+    }
+    return { ok: true, data: undefined }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}

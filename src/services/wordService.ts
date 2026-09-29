@@ -102,6 +102,12 @@ export async function deleteWord(id: string): Promise<boolean> {
   return result.ok
 }
 
+export async function deleteWords(ids: string[]): Promise<boolean> {
+  if (ids.length === 0) return true
+  const result = await wordsDb.deleteWords(ids)
+  return result.ok
+}
+
 export async function getPreviews(): Promise<WordWithPreview[]> {
   const result = await wordsDb.getWordsWithPreviews()
   return result.ok ? result.data : []

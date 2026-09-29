@@ -16,6 +16,8 @@ interface CategoryStore {
   deleteCategory: (id: string) => Promise<void>
   assignToWord: (wordId: string, categoryId: string) => Promise<void>
   removeFromWord: (wordId: string, categoryId: string) => Promise<void>
+  assignMany: (wordIds: string[], categoryId: string) => Promise<void>
+  unassignMany: (wordIds: string[], categoryId: string) => Promise<void>
   refreshWordCategories: () => Promise<void>
 }
 
@@ -72,6 +74,18 @@ export const useCategoryStore = create<CategoryStore>((set, get) => ({
   removeFromWord: async (wordId, categoryId) => {
     await categoryService.unassignCategoryFromWord(wordId, categoryId)
     await get().loadWordCategories(wordId)
+    await get().loadWordCategoryMap()
+  },
+
+  // 批量版不刷新 wordCategoryIds（当前词的那份）——选择的是一批词，不是当前词。
+  // 只刷 wordCategoryMap，侧栏分组与胶囊由它驱动。
+  assignMany: async (wordIds, categoryId) => {
+    await categoryService.assignCategoryToWords(wordIds, categoryId)
+    await get().loadWordCategoryMap()
+  },
+
+  unassignMany: async (wordIds, categoryId) => {
+    await categoryService.unassignCategoryFromWords(wordIds, categoryId)
     await get().loadWordCategoryMap()
   },
 
