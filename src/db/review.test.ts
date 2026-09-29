@@ -751,6 +751,26 @@ describe('db/review 听辨门控与薄弱词计数', () => {
     expect(c?.availableTemplates).toContain('listen')
   })
 
+  it('registerAllWords：allowListen=true 才把听辨卡建进库，缺省门控下不建', async () => {
+    // 这道门在**注册**侧而不只在取数侧：卡按「注册时可用题型」建，漏传门控就等于
+    // 听辨卡压根不落库（v0.6.4 的听辨题会整题型消失）。取数侧再判一次是第二道门。
+    const db = await createTestDb()
+    await seedWord(db, 'w1', 'alpha')
+    await seedValue(db, 'v1', 'w1', 'chinese_definition', '第一个')
+    await seedValue(db, 'v2', 'w1', 'phonetic', 'ˈælfə')
+    // 缺省（allowListen 缺省 false）→ translation/phonetic 可用，但 listen 不建
+    await registerAllWords(db)
+    const before = await db.select<{ template: string }>(
+      "SELECT template FROM review_cards WHERE word_id = 'w1' ORDER BY template")
+    expect(before.map(r => r.template)).toEqual(['recall', 'recognize'])
+
+    await registerAllWords(db, { allowListen: true })
+    const after = await db.select<{ template: string }>(
+      "SELECT template FROM review_cards WHERE word_id = 'w1' ORDER BY template")
+    // 只新增 listen 一张，已有的 recognize/recall 不被重建（INSERT OR IGNORE 幂等）
+    expect(after.map(r => r.template)).toEqual(['listen', 'recall', 'recognize'])
+  })
+
   it('getWeakWordsWithCounts：返回 lapses 与窗口内答错次数，顺序按 lapses 降序', async () => {
     const db = await createTestDb()
     await seedWord(db, 'w1', 'alpha')

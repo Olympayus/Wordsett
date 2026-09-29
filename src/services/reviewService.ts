@@ -254,15 +254,17 @@ export async function getQueue(
   params: ReviewParams,
   freeScope?: FreeScope,
 ): Promise<{ queue: ReviewCardDTO[]; absent: { wordId: string; lemma: string }[]; result: QueueResult }> {
-  await reviewDb.registerAllWords()
+  // 门控只在 service 层读一次，往下传普通参数——db 层不 import ttsGate，保持可测。
+  // 注册也要带着它：卡按「注册时可用题型」建，漏传会让听辨卡压根不落库
+  // （听辨是否可出题由取数侧的卡级闸门再判一次，两道门各管一段）。
+  const allowListen = isListenEnabled()
+  await reviewDb.registerAllWords(undefined, { allowListen })
   const now = Date.now()
   const EMPTY: QueueResult = { queue: [], dueCount: 0, newCount: 0, absentCount: 0 }
 
   // 自由练习要够到未到期的熟词，因此走不看 due_at 的候选池；
   // 唯一例外是「今日队列重练」——它按定义就是今日到期队列，沿用只看 due_at 的源。
   const freeToday = strategy === 'free' && freeScope?.kind === 'today'
-  // 门控只在 service 层读一次，往下传普通参数——db 层不 import ttsGate，保持可测
-  const allowListen = isListenEnabled()
   const candRes = strategy === 'free' && !freeToday
     ? await reviewDb.getAllCandidates(undefined, { allowListen })
     : await reviewDb.getCandidates(now, undefined, { allowListen })
@@ -493,7 +495,10 @@ async function todayQueue(params: ReviewParams, now: number): Promise<QueueCandi
 }
 
 export async function getOverview(params: ReviewParams) {
-  await reviewDb.registerAllWords()
+  // 与 getQueue 同一个门控读法：补卡时要按「当前 TTS 可用」决定听辨卡建不建
+  // （getQueue 的读法见上；两处各自读一次，中间不缓存——门控是本机能力的实时快照）。
+  const allowListen = isListenEnabled()
+  await reviewDb.registerAllWords(undefined, { allowListen })
   const now = Date.now()
   const queue = await todayQueue(params, now)
   const stats = await getStats()
