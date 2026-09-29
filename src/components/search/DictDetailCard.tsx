@@ -266,8 +266,10 @@ export default function DictDetailCard({
             onClick={() => (isContainer ? toggleCollapse(node.key) : toggle(node.key))}
             style={{ padding: '6px 4px' }}
           >
+            {/* marginTop 是按**盒子高度**手调的光学对齐偏移：盒子的顶边与首行文字的 x-height
+                对齐，盒子矮 4px 后沿用 3 会显得偏下。改这个值前先改 CheckBox 的尺寸常量。 */}
             <span
-              style={{ marginTop: 3, display: 'inline-flex', flexShrink: 0 }}
+              style={{ marginTop: 2, display: 'inline-flex', flexShrink: 0 }}
               onClick={e => e.stopPropagation()}
             >
               <CheckBox

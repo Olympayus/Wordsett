@@ -3,13 +3,13 @@ import { useState } from 'react'
 /**
  * 通用勾选框（v0.6.3 条目 14，形制 A′）。
  *
- * 22×22 圆角方块 + 描边；**选中态是填入的色块，不画白对勾**。
- * 内块 15px（约占 68%）、四周留 3.5px 留白——留白比例是唯一可调的档，对照基准：
+ * 18×18 圆角方块 + 描边；**选中态是填入的色块，不画白对勾**。
+ * 内块 12px（约占 68%）、四周留 3px 留白——留白比例是唯一可调的档，对照基准：
  *
  *   | 形态              | 内块     | 留白   |
  *   |------------------|----------|--------|
  *   | 满填（极端值）     | 铺满内缘  | 0      |
- *   | **A′（本组件）**   | 15px     | 3.5px  |
+ *   | **A′（本组件）**   | 12px     | 3px    |
  *   | 圆点式（已排除）   | 8.8px    | 6.6px  |
  *
  * a11y 取舍（改这个组件前先读）：去掉对勾后，选中与否只由「有无色块 + 描边颜色」表达。
@@ -28,6 +28,23 @@ export function checkboxAppearance({ checked, hover, disabled, color }: {
   if (checked) return { border: color, fill: color }
   return { border: hover ? 'var(--color-text-tertiary)' : 'var(--color-border-strong)', fill: null }
 }
+
+/**
+ * 几何常量（v0.6.4：22×22 → 18×18）。
+ *
+ * 内块 12px 是 18 的 68%，与原先 15/22 同一个留白比例——比例是这套形制的定义，
+ * 数值只是它的实例。内块圆角 3 → 2 同比例缩。
+ *
+ * **描边与圆角不缩**：等比会得到 1.23px / 3.27px 两个非整数魔法数，且 1.23px 在
+ * 非整数 DPI 下会渲染成半像素发虚。1.5px 是本仓既有的强调描边档（词性 pill 同款），
+ * 圆角保留 --radius-sm token。代价是「描边:边长」从 6.8% 升到 8.3%，视觉上略重一点
+ * ——这正是缩到 18px 后仍能读成「一个控件」的原因，不是问题。
+ *
+ * 抽成常量是为了可测：node 环境下断言不到 DOM，只能钉常量契约。
+ */
+export const CHECKBOX_SIZE = 18
+export const CHECKBOX_INNER = 12
+export const CHECKBOX_INNER_RADIUS = 2
 
 export default function CheckBox({ checked, onChange, disabled, color, label }: {
   checked: boolean
@@ -52,7 +69,7 @@ export default function CheckBox({ checked, onChange, disabled, color, label }: 
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        width: 22, height: 22, flexShrink: 0, padding: 0, cursor: disabled ? 'default' : 'pointer',
+        width: CHECKBOX_SIZE, height: CHECKBOX_SIZE, flexShrink: 0, padding: 0, cursor: disabled ? 'default' : 'pointer',
         display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
         borderRadius: 'var(--radius-sm)', background: 'var(--color-surface)',
         border: `1.5px solid ${border}`,
@@ -60,7 +77,7 @@ export default function CheckBox({ checked, onChange, disabled, color, label }: 
         transition: 'border-color var(--duration-fast) var(--ease-smooth)',
       }}
     >
-      {fill && <span style={{ width: 15, height: 15, borderRadius: 3, background: fill, display: 'block' }} />}
+      {fill && <span style={{ width: CHECKBOX_INNER, height: CHECKBOX_INNER, borderRadius: CHECKBOX_INNER_RADIUS, background: fill, display: 'block' }} />}
     </button>
   )
 }
