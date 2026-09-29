@@ -1,5 +1,5 @@
 import { dayTotal, dayAccuracy, isTrendSparse, subtitleFor, periodFor, splitCaptionNumbers, shortDay } from '../../lib/review/trend'
-import { MASTERY_COLORS } from '../../lib/review/masteryScale'
+import { MASTERY_COLORS, MASTERY_TIER_NAMES } from '../../lib/review/masteryScale'
 
 export interface ReviewStats {
   masteryBuckets: number[]
@@ -143,10 +143,15 @@ function DueBars({ data }: { data: number[] }) {
 function MasteryBuckets({ data }: { data: number[] }) {
   const total = Math.max(1, data.reduce((a, b) => a + b, 0))
   return (
-    <ChartFrame left="陌生" right="熟练">
+    <ChartFrame left={MASTERY_TIER_NAMES[0]} right={MASTERY_TIER_NAMES[5]}>
+      {/* 端点由 MASTERY_TIER_NAMES 派生（档 0「无记录」… 档 5「熟知」），不写死字面量：
+          早先这里硬编码 left="陌生" right="熟练"——那是五档时的口径，右端正好是顶档。
+          六档后顶档变成「熟知」而「熟练」退到索引 4，左端又漏掉了本图真的会画出来的
+          档 0（null stability 的卡计空档，桶可以非零）。写成字面量的话，改档数时这两个
+          端点会静默留在旧词上，chip 与坐标轴于是各说各话。 */}
       {/* 外层只负责把色带压到框底（贴住基线），色带本身仍是 10px 的设计常量。
           早先这里是 `alignItems: 'flex-end'; height: '100%'`：那会取消 flex 的 stretch，
-          5 个分段都是空 div、没有任何数据驱动的高度，交叉轴尺寸退回内容尺寸＝0px，
+          6 个分段都是空 div、没有任何数据驱动的高度，交叉轴尺寸退回内容尺寸＝0px，
           整条色带渲染成零高。分段不给 `height: '100%'`——那会把 10px 摊成 46px，改掉图表几何。
           也不能靠 `marginTop: 'auto'`：框是块容器，auto 外边距在那里算 0。 */}
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%' }}>
