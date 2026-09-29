@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { rangeSelect, selectAll, pruneToRows } from './selection'
+import { rangeSelect, selectAll, pruneToRows, selectedWordIdsFromRows } from './selection'
 
 const ROWS = ['cat:w1:a', 'cat:w1:b', 'cat:w2:a', 'cat:w2:b', 'uncat:c']
 
@@ -57,5 +57,39 @@ describe('pruneToRows', () => {
 
   it('列表清空时选中集也清空', () => {
     expect(pruneToRows(new Set(['a']), []).size).toBe(0)
+  })
+})
+
+// 批量动作入参的推导。这是防「删到看不见的词」的最后一道闸，也是全任务最该被钉住的一处：
+// 下面两条分别锁住「不可见的键产不出 id」与「同一个词只算一次」，任一被改坏都会让
+// Review Focus 1（筛选后全选再删，只删看得见的那些）失效。
+describe('selectedWordIdsFromRows（批量入参）', () => {
+  // 形状对齐 WordList 的 ItemRow：行键含组前缀，同一个词在分类模式下可出现在多行里
+  const rows = [
+    { key: 'cat:a:word1', wordId: 'word1' },
+    { key: 'cat:b:word1', wordId: 'word1' },   // 同一个词，第二个分类
+    { key: 'cat:b:word2', wordId: 'word2' },
+    { key: 'uncat:word3', wordId: 'word3' },
+  ]
+
+  it('选中集里混进了当前不可见的键时，它产不出任何 id（守卫的回归锁）', () => {
+    const out = selectedWordIdsFromRows(rows, new Set(['cat:a:word1', 'gone:key']))
+    expect(out).toEqual(['word1'])
+  })
+
+  it('同一个词出现在两个分组下时只产出一个 id（去重锁）', () => {
+    const out = selectedWordIdsFromRows(rows, new Set(['cat:a:word1', 'cat:b:word1']))
+    expect(out).toEqual(['word1'])
+  })
+
+  it('全选当前 3 行 → 2 个 id：行数与词数不等，去重在确认框的数字上生效', () => {
+    const visible = rows.slice(0, 3)   // 3 行，但只含 word1 / word2 两个词
+    const out = selectedWordIdsFromRows(visible, selectAll(visible.map(r => r.key)))
+    expect(visible).toHaveLength(3)
+    expect(out.sort()).toEqual(['word1', 'word2'])
+  })
+
+  it('当前渲染列表为空时返回空数组（批量动作无入参，直接短路）', () => {
+    expect(selectedWordIdsFromRows([], new Set(['cat:a:word1']))).toEqual([])
   })
 })

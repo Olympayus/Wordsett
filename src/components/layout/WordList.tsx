@@ -11,7 +11,7 @@ import ContextMenu, { type MenuItem } from '../ui/ContextMenu'
 import CategoryPickerPopover from '../ui/CategoryPickerPopover'
 import { vocabularySearch } from '../../lib/search'
 import { groupByLetter, groupByCategory, type SidebarMode } from '../../lib/sidebar'
-import { rangeSelect, selectAll, pruneToRows } from '../../lib/selection'
+import { rangeSelect, selectAll, pruneToRows, selectedWordIdsFromRows } from '../../lib/selection'
 import type { WordWithPreview } from '../../types/word'
 import type { Category } from '../../types/category'
 import Icon, { type IconName } from '../icons'
@@ -147,15 +147,14 @@ export default function WordList({
     () => rows.filter((r): r is ItemRow => r.kind === 'item').map(r => r.key),
     [rows])
 
-  // 批量动作的入参。由 rows 反查而非由 selected 直接映射：键是 `分组键:词id`，
-  // 同一个词属于两个分类时会在分类模式下占两行，两行的 key 不同。按 key 逐行去重后
-  // 得到的才是「词」而不是「行」，否则 assignMany 会收到重复 id（DB 侧 INSERT OR IGNORE /
-  // DELETE 都幂等，无副作用，但确认框里的数字会虚高一倍）。
-  const selectedWordIds = useMemo(() => {
-    const ids = new Set<string>()
-    for (const r of rows) if (r.kind === 'item' && selected.has(r.key)) ids.add(r.word.id)
-    return [...ids]
-  }, [rows, selected])
+  // 批量动作的入参（纯函数在 lib/selection.ts，带回归锁）。
+  // 由当前 rows 反查，所以不可见的键结构上产不出 id；同一词双归属时按 wordId 去重，
+  // 使工具栏的「已选 N」与确认框的「N 个单词」说的是同一个数。
+  const selectedWordIds = useMemo(
+    () => selectedWordIdsFromRows(
+      rows.flatMap(r => r.kind === 'item' ? [{ key: r.key, wordId: r.word.id }] : []),
+      selected),
+    [rows, selected])
 
   // 列表因筛选或视图切换而变化后，把已选中但已不可见的键剔掉。
   // 不做这一步，批量删除会删到用户已经看不见的词。
@@ -194,9 +193,15 @@ export default function WordList({
     exitSelect()
   }
 
+  // 归类两动作都走 try/finally：写入失败时也要退出选择模式。
+  // 否则一次 IPC 异常就把批量条和它的全屏遮罩留在屏幕上，用户只能靠点遮罩逃生。
+  // runBatchDelete 的提前返回是刻意的（用户取消确认框时保留选择），那里不加 finally。
   const runBatchAssign = async (categoryId: string) => {
-    await assignMany(selectedWordIds, categoryId)
-    exitSelect()
+    try {
+      await assignMany(selectedWordIds, categoryId)
+    } finally {
+      exitSelect()
+    }
   }
 
   // 「从分类移除」只对确实属于该分类的选中项生效，其余静默跳过。
@@ -206,8 +211,11 @@ export default function WordList({
   const runBatchUnassign = async (categoryId: string) => {
     const ids = selectedWordIds.filter(id => (wordCategoryMap[id] ?? []).includes(categoryId))
     if (ids.length === 0) { exitSelect(); return }
-    await unassignMany(ids, categoryId)
-    exitSelect()
+    try {
+      await unassignMany(ids, categoryId)
+    } finally {
+      exitSelect()
+    }
   }
 
   const handleRowClick = (row: ItemRow, e: React.MouseEvent | React.KeyboardEvent) => {
@@ -360,7 +368,7 @@ export default function WordList({
         onToggleCollapse={onToggleCollapse}
         selectMode={selectMode}
         onToggleSelectMode={() => setSelectMode(true)}
-        selectedCount={selected.size}
+        selectedCount={selectedWordIds.length}
         onSelectAll={() => setSelected(selectAll(wordRowKeys))}
         onExitSelect={exitSelect}
       />
@@ -388,11 +396,13 @@ export default function WordList({
           rows.map(renderRow)
         )}
       </div>
-      {/* 批量操作条（v0.6.5 §4.2）：浮在 footer 之上。三个动作，前两个共用分类下拉浮层。
+      {/* 批量操作条（v0.6.5 §4.2）：排在该 flex 列的末尾、footer 之上，是**在流内**的一节
+          （不是浮层）——它占掉自己的高度，剩下的给上面的滚动容器，因此不会遮挡 footer。
+          三个动作，前两个共用分类下拉浮层。
           收起态（120px）下三个中文标签放不下，换成图标按钮 + tooltip + aria-label——
           这是本次唯一一处「按宽度换形态」。
           浮层传 placement="top"：本条贴侧栏底部，向下会被 AppShell 的 <aside>（overflow: hidden）裁掉。 */}
-      {selectMode && selected.size > 0 && (
+      {selectMode && selectedWordIds.length > 0 && (
         <div style={{ position: 'relative', margin: '6px 8px 8px' }}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap',

@@ -30,7 +30,10 @@ export default function CategoryPickerPopover({ onPick, onClose, align = 'right'
 
   return (
     <>
-      {/* 点外面关闭：捕获阶段挂 document，避免与触发器自身的 click 打架 */}
+      {/* 点外面关闭：全屏透明遮罩，fixed + 独立 z-index（比面板低一层）。
+          面板是它的兄弟节点而非子节点，所以点面板本身不会冒泡到这里；点面板外任意处则命中遮罩。
+          用 fixed 而非 absolute：遮罩只负责捕获点击、不需要跟着定位容器走，
+          且这样才不会被祖先的 overflow 裁掉（面板本身仍受祖先裁剪）。 */}
       <div
         style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-dropdown)' }}
         onClick={onClose}
@@ -42,6 +45,13 @@ export default function CategoryPickerPopover({ onPick, onClose, align = 'right'
           zIndex: 'calc(var(--z-dropdown) + 1)',
           ...(placement === 'bottom' ? { top: 'calc(100% + 4px)' } : { bottom: 'calc(100% + 4px)' }),
           ...(align === 'left' ? { left: 0 } : { right: 0 }),
+          // 横向也会被裁：面板在本组件所在的定位容器里，而那个容器（以及祖先
+          // AppShell 的 <aside>，overflow: hidden）不宽于视口。收起态侧栏的内容宽约
+          // 104–224px，220px 的定宽面板会丢掉右边缘——正好是分类名尾部所在。
+          // 收窄到 maxWidth: 100% 后，面板变成「能用多宽就多宽，名字省略号收尾」，
+          // 测量-free（不引 portal、不量坐标），窄容器下依然读得下去。
+          // boxSizing: border-box 必需：默认 content-box 下 padding/border 会把它顶出容器。
+          maxWidth: '100%', boxSizing: 'border-box',
           width: '220px', padding: '6px',
           background: 'var(--color-surface)', border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-overlay)',
