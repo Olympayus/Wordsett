@@ -65,12 +65,13 @@ export function seedFieldDefinitionsSQL(): string {
   return `INSERT OR IGNORE INTO field_definitions VALUES ${rows};`
 }
 
-// PRAGMA user_version：当前 schema 版本。P4/P5 变更 schema 时递增此值。
-// v0.6.4 进位到 5 是**书签不是迁移**：本次只新增一个内置字段，而字段种子走
-// seedFieldDefinitionsSQL() 的 INSERT OR IGNORE、每次启动无条件执行——
-// 不进位功能完全等价。进位只为让「本版动过 schema」在 pragma_user_version 上留痕，
-// 便于真机回归时一眼看出库是新是旧。**不要**因为看到进位就去找迁移代码，没有。
-export const SCHEMA_VERSION = 5
+// PRAGMA user_version：当前 schema 版本。变更 schema 时递增此值。
+// v0.6.5 进位到 6 是**书签不是迁移**：本次只换 review_cards 的形状，且形状不符时由
+// ensureSchema 的守卫整表丢弃重建（见 init.ts 与 REVIEW_DROP_STATEMENTS），不做数据迁移。
+// 上一版 v0.6.4 的 5 同理是书签：只新增一个内置字段，字段种子走 seedFieldDefinitionsSQL()
+// 的 INSERT OR IGNORE、每次启动无条件执行。进位只为让「本版动过 schema」在
+// pragma_user_version 上留痕，便于真机回归时一眼看出库是新是旧。
+export const SCHEMA_VERSION = 6
 
 // ensureSchema 的重建门限（见 init.ts）。这是**版本门，不是空库判定**：user_version 低于此值
 // 就 DROP 重建，哪怕库里已有数据。与 SCHEMA_VERSION 有意解耦——让它跟着 SCHEMA_VERSION 一起涨，
@@ -91,6 +92,14 @@ export const SQL_DROP_TABLES: string[] = [
   'DROP TABLE IF EXISTS words;',
 ]
 
+// 卡模型换代（v0.6.5）时要丢弃的表：外键依赖的反向（先子表后父表），
+// 与 SQL_DROP_TABLES 的前三行逐字一致——两边任何一处改动都要同步，顺序错了守卫会用到错的顺序。
+export const REVIEW_DROP_STATEMENTS: string[] = [
+  'DROP TABLE IF EXISTS review_logs;',
+  'DROP TABLE IF EXISTS review_states;',
+  'DROP TABLE IF EXISTS review_cards;',
+]
+
 // 建表 + seed 全量语句（init 与测试基建共享，避免两处漂移）
 export const SCHEMA_SEED_STATEMENTS: string[] = [
   SQL_CREATE_WORDS, SQL_CREATE_FIELD_DEFINITIONS, SQL_CREATE_FIELD_VALUES,
@@ -98,16 +107,11 @@ export const SCHEMA_SEED_STATEMENTS: string[] = [
   SQL_CREATE_INDEXES, seedFieldDefinitionsSQL(),
 ]
 
-// 复习三表（v0.6.0，spec §3）。幂等建表，随每段交付补建。
+// 复习卡（v0.6.5 起为「词 × 题型」）：一个词每种可用题型各一张卡，各自一条 review_states。
 export const SQL_CREATE_REVIEW_CARDS = `CREATE TABLE IF NOT EXISTS review_cards (
   id TEXT PRIMARY KEY,
   word_id TEXT NOT NULL REFERENCES words(id) ON DELETE CASCADE,
-  last_template TEXT,
-  -- v0.6.4 起废弃：改读词条级字段 initial_familiarity（见 types/field.ts）。
-  -- 保留在建表语句里是为了让新库与老库的表结构一致；代码不读不写此列。
-  -- 老库的残留列无害（CREATE TABLE IF NOT EXISTS 不改已存在的表），不做 DROP COLUMN：
-  -- 本仓没有一次性迁移机制，为一个从无写入方的死列引入机制是负收益（spec 4.6）。
-  initial_familiarity INTEGER NOT NULL DEFAULT 1,
+  template TEXT NOT NULL,
   created_at INTEGER NOT NULL
 );`
 
@@ -133,7 +137,7 @@ export const SQL_CREATE_REVIEW_LOGS = `CREATE TABLE IF NOT EXISTS review_logs (
 );`
 
 export const REVIEW_INDEXES: string[] = [
-  'CREATE UNIQUE INDEX IF NOT EXISTS idx_cards_word ON review_cards(word_id);',
+  'CREATE UNIQUE INDEX IF NOT EXISTS idx_cards_word_template ON review_cards(word_id, template);',
   'CREATE INDEX IF NOT EXISTS idx_states_due ON review_states(suspended, due_at);',
   'CREATE INDEX IF NOT EXISTS idx_logs_card ON review_logs(card_id, reviewed_at);',
 ]

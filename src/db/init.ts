@@ -1,9 +1,15 @@
-import { REBUILD_BELOW_VERSION, REVIEW_TABLES, SCHEMA_SEED_STATEMENTS, SCHEMA_VERSION, SQL_DROP_TABLES, seedFieldDefinitionsSQL } from './schema'
+import { REBUILD_BELOW_VERSION, REVIEW_DROP_STATEMENTS, REVIEW_TABLES, SCHEMA_SEED_STATEMENTS, SCHEMA_VERSION, SQL_DROP_TABLES, seedFieldDefinitionsSQL } from './schema'
 
 // 与 tauri-plugin-sql Database 对齐的最小接口（与 test-utils.DbLike 同构）
 export interface DbHandle {
   execute: (sql: string, params?: unknown[]) => Promise<void>
   select: <T = Record<string, unknown>>(sql: string, params?: unknown[]) => Promise<T[]>
+}
+
+// PRAGMA table_info 的表名是标识符、不能用占位符绑定；这里的 table 只来自本文件的字面量。
+async function tableHasColumn(db: DbHandle, table: string, column: string): Promise<boolean> {
+  const rows = await db.select<{ name: string }>(`PRAGMA table_info(${table})`)
+  return rows.some(r => r.name === column)
 }
 
 export async function ensureSchema(db: DbHandle): Promise<void> {
@@ -24,6 +30,13 @@ export async function ensureSchema(db: DbHandle): Promise<void> {
   await db.execute("UPDATE field_definitions SET name = '词源相关词项' WHERE key = 'derivatives_item'")
   // 近义词辨析项为单行「word: 辨析」内容，编辑框用 text（幂等，兼容已建库的 multiline 旧值）
   await db.execute("UPDATE field_definitions SET field_type = 'text' WHERE key = 'synonym_discrimination_item'")
+  // 卡模型换代（v0.6.5）：v0.6.x 的 review_cards 是「一词一卡」（无 template 列）。
+  // 不做数据迁移——当前没有任何用户有复习历史，复习进度按低资产对待（丢了可接受）。
+  // 底线是词库不丢：这三张表的删除不触及 words / field_values / categories / word_categories。
+  // 表不存在时 tableHasColumn 返回 false，走同一条丢弃路径，DROP TABLE IF EXISTS 是空操作。
+  if (!(await tableHasColumn(db, 'review_cards', 'template'))) {
+    for (const sql of REVIEW_DROP_STATEMENTS) await db.execute(sql)
+  }
   // 幂等补建当段新表（全部 IF NOT EXISTS）
   for (const sql of REVIEW_TABLES) await db.execute(sql)
 

@@ -51,7 +51,7 @@ describe('db/init ensureSchema', () => {
 
     // 残留表若没被 DROP，IF NOT EXISTS 不会纠正它的定义
     const cols = await adapter.select<{ name: string }>("SELECT name FROM pragma_table_info('review_cards')")
-    expect(cols.map(c => c.name)).toContain('initial_familiarity')
+    expect(cols.map(c => c.name)).toContain('template')
     const cards = await adapter.select<{ c: number }>('SELECT count(*) as c FROM review_cards')
     expect(cards[0].c).toBe(0)
     const words = await adapter.select<{ c: number }>('SELECT count(*) as c FROM words')
@@ -118,17 +118,14 @@ describe('db/init ensureSchema', () => {
     expect(v[0].user_version).toBe(SCHEMA_VERSION)
   })
 
-  it('v4 旧库升级：字段定义补上 initial_familiarity，词库与卡片行数都不变', async () => {
+  it('v4 旧库升级：字段定义补上 initial_familiarity，词库不变、旧形状的卡被丢弃', async () => {
     const { adapter } = await createRawTestDb()
     for (const sql of SCHEMA_SEED_STATEMENTS) await adapter.execute(sql)
     for (const sql of REVIEW_TABLES) await adapter.execute(sql)
-    // 模拟 v0.6.3 的库：版本号 4，有一行词 + 一行卡，且旧列被写过非默认值
+    // 模拟 v0.6.3 的库：版本号 4，有一行词，且旧列被写过非默认值
     await adapter.execute(`PRAGMA user_version = 4`)
     await adapter.execute(
       "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','keep','keep','en',1,1)"
-    )
-    await adapter.execute(
-      "INSERT INTO review_cards (id, word_id, initial_familiarity, created_at) VALUES ('c1','w1',3,1)"
     )
     // 本版之前的库没有这个词条级字段定义
     await adapter.execute("DELETE FROM field_definitions WHERE key = 'initial_familiarity'")
@@ -141,9 +138,56 @@ describe('db/init ensureSchema', () => {
     expect(defs[0].c).toBe(1)
     const words = await adapter.select<{ c: number }>('SELECT count(*) as c FROM words')
     expect(words[0].c).toBe(1)
+    // 本用例用 REVIEW_TABLES 造表，造出的已是新形状（有 template），守卫不丢弃它；
+    // 卡片数为 0 只因为用例没有预置卡行（新形状表也不再需要写 initial_familiarity）。
     const cards = await adapter.select<{ c: number }>('SELECT count(*) as c FROM review_cards')
-    expect(cards[0].c).toBe(1)
+    expect(cards[0].c).toBe(0)
     const v = await adapter.select<{ user_version: number }>('SELECT user_version FROM pragma_user_version')
     expect(v[0].user_version).toBe(SCHEMA_VERSION)
+  })
+
+  it('v5 旧库升级：复习三表按新形状重建，词库一个不少', async () => {
+    const { adapter } = await createRawTestDb()
+    for (const sql of SCHEMA_SEED_STATEMENTS) await adapter.execute(sql)
+    // 用旧的建表语句手工造出 v0.6.4 形状的 review_cards（带 last_template、无 template）
+    await adapter.execute(
+      `CREATE TABLE review_cards (
+         id TEXT PRIMARY KEY,
+         word_id TEXT NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+         last_template TEXT,
+         initial_familiarity INTEGER NOT NULL DEFAULT 1,
+         created_at INTEGER NOT NULL
+       )`
+    )
+    await adapter.execute(`PRAGMA user_version = 5`)
+    await adapter.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','keep','keep','en',1,1)"
+    )
+    await adapter.execute("INSERT INTO review_cards (id, word_id, last_template, created_at) VALUES ('c1','w1','cloze',1)")
+
+    await ensureSchema(adapter)
+
+    const cols = await adapter.select<{ name: string }>("SELECT name FROM pragma_table_info('review_cards')")
+    expect(cols.map(c => c.name)).toContain('template')
+    expect(cols.map(c => c.name)).not.toContain('last_template')
+    // 底线：词库一个不少。复习进度按低资产对待，被丢弃是可接受的结果。
+    const words = await adapter.select<{ c: number }>('SELECT count(*) as c FROM words')
+    expect(words[0].c).toBe(1)
+    const cards = await adapter.select<{ c: number }>('SELECT count(*) as c FROM review_cards')
+    expect(cards[0].c).toBe(0)
+  })
+
+  it('已是新形状的库：守卫不重建，卡片行保留（幂等）', async () => {
+    const { adapter } = await createRawTestDb()
+    await ensureSchema(adapter)
+    await adapter.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','keep','keep','en',1,1)"
+    )
+    await adapter.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w1','recognize',1)")
+
+    await ensureSchema(adapter)
+
+    const cards = await adapter.select<{ c: number }>('SELECT count(*) as c FROM review_cards')
+    expect(cards[0].c).toBe(1)
   })
 })
