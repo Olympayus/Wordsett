@@ -1,4 +1,5 @@
 import { dayTotal, dayAccuracy, isTrendSparse, subtitleFor, periodFor, splitCaptionNumbers, shortDay } from '../../lib/review/trend'
+import { MASTERY_COLORS } from '../../lib/review/masteryScale'
 
 export interface ReviewStats {
   masteryBuckets: number[]
@@ -141,7 +142,6 @@ function DueBars({ data }: { data: number[] }) {
 
 function MasteryBuckets({ data }: { data: number[] }) {
   const total = Math.max(1, data.reduce((a, b) => a + b, 0))
-  const colors = ['var(--color-border)', '#c9d4e0', '#a9bccf', '#7f9bb8', '#5a7d9e']
   return (
     <ChartFrame left="陌生" right="熟练">
       {/* 外层只负责把色带压到框底（贴住基线），色带本身仍是 10px 的设计常量。
@@ -151,7 +151,7 @@ function MasteryBuckets({ data }: { data: number[] }) {
           也不能靠 `marginTop: 'auto'`：框是块容器，auto 外边距在那里算 0。 */}
       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%' }}>
         <div style={{ display: 'flex', height: '10px', borderRadius: '5px', overflow: 'hidden' }}>
-          {data.map((n, i) => <div key={i} style={{ width: `${(n / total) * 100}%`, background: colors[i] }} />)}
+          {data.map((n, i) => <div key={i} style={{ width: `${(n / total) * 100}%`, background: MASTERY_COLORS[i] }} />)}
         </div>
       </div>
     </ChartFrame>

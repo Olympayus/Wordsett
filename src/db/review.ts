@@ -2,7 +2,7 @@ import { getDb } from './connection'
 import type { DbHandle } from './init'
 import type { DbResult } from './types'
 import { FIELD_KEY_GROUPS, usableTemplates, type FieldMask, type TemplateLog } from '../lib/review/template'
-import { mastery as toMastery, masteryTier } from '../lib/review/mastery'
+import { masteryTier } from '../lib/review/mastery'
 import type { CardContent, InitialFamiliarity, Template } from '../lib/review/types'
 import type { QueueCandidate } from '../lib/review/queue'
 
@@ -598,7 +598,7 @@ export async function getStrategyCounts(
   }
 }
 
-/** 小结态统计：掌握度分桶 / 未来 7 日到期 / 近期评分分布（只读 mode='review'）。 */
+/** 小结态统计：记忆强度分桶（六档：档 0 无记录 + 1–5 各 20%）/ 未来 7 日到期 / 近期评分分布（只读 mode='review'）。 */
 export async function getStats(now: number = Date.now(), h?: DbHandle): Promise<DbResult<{
   masteryBuckets: number[]
   dueByDay: number[]
@@ -608,11 +608,13 @@ export async function getStats(now: number = Date.now(), h?: DbHandle): Promise<
   try {
     const cardRows = await d.select<Record<string, any>>(
       'SELECT stability, last_review_at FROM review_states')
-    const buckets = [0, 0, 0, 0, 0]
+    const buckets = [0, 0, 0, 0, 0, 0]
     for (const r of cardRows) {
       const s = r.stability === null || r.stability === undefined ? null : Number(r.stability)
-      const m = toMastery(s)
-      buckets[masteryTier(m)]++
+      // 入参是 **stability（天）**，不是 mastery（0–1）——masteryTier 内部自己换算。
+      // 早先这里传的是 toMastery(s)：入参口径一换，那条调用会静默把 0.756 读成 0.756 天
+      // 稳定性，分数算成 100·e^(−9.3) ≈ 0，于是每个词都落档 1，图表看着正常、全错。
+      buckets[masteryTier(s)]++
     }
 
     const dayRows = await d.select<Record<string, any>>(

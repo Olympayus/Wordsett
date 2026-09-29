@@ -37,7 +37,7 @@ describe('lib/review/trend', () => {
 
 describe('四宫格卡片的补充文字（v0.6.2 条目 9）', () => {
   const stats: RoundStatsInput = {
-    masteryBuckets: [10, 20, 30, 40, 50],           // 五档，合计 150
+    masteryBuckets: [10, 20, 30, 40, 50, 60],        // 六档（档 0 无记录 + 1–5），合计 210
     dueByDay: [0, 5, 22, 17, 9, 5, 3, 1],           // 第 0 天是今天
     recentRatings: [
       { day: 'd1', again: 1, hard: 2, good: 3 },    // 6 张
@@ -48,8 +48,8 @@ describe('四宫格卡片的补充文字（v0.6.2 条目 9）', () => {
   it('熟知度分布卡报出总词数与两段计数', () => {
     const s = subtitleFor('mastery', stats)
     // v0.6.3 条目 7：三段并列，全角空格分隔（不是 · 也不是普通空格）
-    expect(s).toBe('全库词汇数: 150　熟悉及以上: 120　熟悉度: 80%')
-    // 熟悉及以上 = 后三档（索引 2、3、4）= 30+40+50
+    // 熟悉及以上 = 索引 2 及以上 = 30+40+50+60 = 180；档 0（无记录 10）与档 1（陌生 20）被排除。
+    expect(s).toBe('全库词汇数: 210　熟悉及以上: 180　熟悉度: 86%')
   })
 
   it('明日压力卡报出合计张数与峰值', () => {
@@ -116,7 +116,7 @@ describe('四宫格卡片的补充文字（v0.6.2 条目 9）', () => {
 // 纯数据断言，不需要 DOM 或组件测试环境。
 describe('卡片标题与 subtitleFor 的 kind 一一对应（防对调）', () => {
   const stats: RoundStatsInput = {
-    masteryBuckets: [10, 20, 30, 40, 50],
+    masteryBuckets: [10, 20, 30, 40, 50, 60],
     dueByDay: [0, 5, 22, 17, 9, 5, 3, 1],
     recentRatings: [
       { day: 'd1', again: 1, hard: 2, good: 3 },

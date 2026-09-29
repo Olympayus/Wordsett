@@ -24,16 +24,47 @@ export function elapsedDaysSince(lastReviewAt: number | null, now: number): numb
 /** 新卡（未首评）的 R_now 冷启动映射：完全陌生 / 眼熟 / 认识。 */
 export const NEW_CARD_RNOW: Record<InitialFamiliarity, number> = { 1: 0.15, 2: 0.45, 3: 0.75 }
 
-// 分档阈值：3 个阈值切出 4 档（+ 无记录为第 0 档，共 5 档）。
-// 反解 exp(-7/S) = t 得 S = 7 / −ln(t)，故三档约对应 S = 10.1 / 19.6 / 43.1 天
-const TIER_THRESHOLDS = [0.5, 0.7, 0.85]
+/**
+ * 记忆强度分（0–100）＝「S 天稳定性下，7 天后还记得的概率」×100。
+ *
+ * 复用了 mastery() 而不是另造映射——设计稿 §5.1 说的「stability 经非线性映射归一到
+ * 0–100」正是这条：100·(1−e^(−7/S)) 与 100·exp(−7/S) 同源。
+ *
+ * 已知形状：涨得极快又很快压平，S=20 天已 70 分、S=60 天 89 分，**100 分取不到**
+ * （上确界是 100，任何有限 S 都够不着）。这是「还记得的概率」的固有形状，接受；
+ * 换 100·S/(S+20) 会更平缓，但那样数字就不再有概率含义（spec 4.5）。
+ */
+export function strengthScore(stability: number | null): number | null {
+  const m = mastery(stability)
+  return m === null ? null : Math.round(m * 100)
+}
 
-/** 掌握度分档：0 = 无记录，1 最弱 → 4 最熟。 */
-export function masteryTier(m: number | null): 0 | 1 | 2 | 3 | 4 {
-  if (m === null) return 0
+// 四道分档线切出 5 个非空档（+ 档 0 无记录，共 6 档）。20% 一段，对齐 V8 原型 M4。
+const TIER_CUTS = [20, 40, 60, 80]
+
+/** 记忆强度档位：0 = 空档（无记录），1 最弱 → 5 最强。 */
+export function masteryTier(stability: number | null): 0 | 1 | 2 | 3 | 4 | 5 {
+  const s = strengthScore(stability)
+  if (s === null) return 0
   let tier = 1
-  for (const t of TIER_THRESHOLDS) if (m >= t) tier++
-  return tier as 1 | 2 | 3 | 4
+  for (const cut of TIER_CUTS) if (s >= cut) tier++
+  return tier as 1 | 2 | 3 | 4 | 5
+}
+
+/**
+ * 冷启动（spec 4.5 / 03 §3.3）：该词还没复习过时，用收录时用户自报的熟悉度给一个
+ * 非中性档——「无记录 → 第一个非中性值」正是设计稿要的效果。
+ *
+ * 最低非中性档就是 1，所以完全陌生 → 档 1、眼熟 → 档 2、认识 → 档 3。
+ */
+export function familiarityTier(f: InitialFamiliarity): 1 | 2 | 3 {
+  return f === 2 ? 2 : f === 3 ? 3 : 1
+}
+
+/** 展示用档位：有复习记录以 FSRS 为准，没有才回落到熟悉度。 */
+export function displayTier(input: { stability: number | null; familiarity: InitialFamiliarity }): 0 | 1 | 2 | 3 | 4 | 5 {
+  if (input.stability === null) return familiarityTier(input.familiarity)
+  return masteryTier(input.stability)
 }
 
 function clamp01(x: number): number {

@@ -77,7 +77,8 @@ export function subtitleFor(kind: 'rating' | 'due' | 'mastery' | 'trend', stats:
     case 'mastery': {
       const total = stats.masteryBuckets.reduce((a, b) => a + b, 0)
       if (total === 0) return '全库还没有词'
-      // 后三档（索引 2、3、4）算「熟悉及以上」
+      // 索引 2 及以上（初识及更高）算「熟悉及以上」：档 0 是无记录、档 1 是「陌生」，
+      // 两档都不是「熟悉」。切法是 slice(2) 而不是硬编码末档下标，所以六档下自动覆盖 2–5。
       const familiar = stats.masteryBuckets.slice(2).reduce((a, b) => a + b, 0)
       return `全库词汇数: ${total}　熟悉及以上: ${familiar}　熟悉度: ${Math.round((familiar / total) * 100)}%`
     }

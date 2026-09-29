@@ -302,7 +302,7 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
     getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 0, weak: 0 } })
     getStatsMock.mockResolvedValue({
       ok: true,
-      data: { masteryBuckets: [1, 0, 0, 0, 0], dueByDay: Array(8).fill(0), recentRatings: [] },
+      data: { masteryBuckets: [0, 0, 0, 0, 0, 1], dueByDay: Array(8).fill(0), recentRatings: [] },
     })
   })
 

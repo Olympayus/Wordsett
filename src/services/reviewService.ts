@@ -440,7 +440,7 @@ async function invokeFsrsNext(
 
 export async function getStats() {
   const r = await reviewDb.getStats()
-  return r.ok ? r.data : { masteryBuckets: [0, 0, 0, 0, 0], dueByDay: Array(8).fill(0), recentRatings: [] }
+  return r.ok ? r.data : { masteryBuckets: [0, 0, 0, 0, 0, 0], dueByDay: Array(8).fill(0), recentRatings: [] }
 }
 
 /**

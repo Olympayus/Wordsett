@@ -610,7 +610,8 @@ describe('db/review 写路径与聚合', () => {
   it('getStats：掌握度分桶 / 未来 7 日到期 / 近期评分（只读 review）', async () => {
     for (const [i, lemma] of ['a', 'b', 'c', 'd', 'e', 'f'].entries()) await seedWord(db, `w${i + 1}`, lemma)
     await registerAllWords(db)
-    // stability 分别落在掌握度 0/1/2/3/4 档；f 额外验证挂起卡不计入到期分布。
+    // stability 分别落在记忆强度 0/2/3/4/5/4 档（分档按 100·e^(−7/S) 每 20% 切一道）；
+    // f 额外验证挂起卡不计入到期分布。
     const states: { word: string; stability: number | null; dueAt: number; suspended: number }[] = [
       { word: 'w1', stability: null, dueAt: NOW + 86400000, suspended: 0 },
       { word: 'w2', stability: 5, dueAt: NOW - 86400000, suspended: 0 },
@@ -643,16 +644,17 @@ describe('db/review 写路径与聚合', () => {
     const r = await getStats(NOW, db)
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    expect(r.data.masteryBuckets).toEqual([1, 1, 1, 2, 1])
+    // 六个词的稳定性分档：null→0、5→25分→2、12→56分→3、25→76分→4、60→89分→5、30→79分→4
+    expect(r.data.masteryBuckets).toEqual([1, 0, 1, 1, 2, 1])
     expect(r.data.dueByDay).toEqual([1, 1, 1, 0, 0, 0, 0, 1])
     expect(r.data.recentRatings).toEqual([{ day, again: 1, hard: 1, good: 2 }])
   })
 
-  it('getStats：空库返回 5 个空分桶、8 个零到期日、空评分分布', async () => {
+  it('getStats：空库返回 6 个空分桶、8 个零到期日、空评分分布', async () => {
     const r = await getStats(NOW, db)
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    expect(r.data.masteryBuckets).toEqual([0, 0, 0, 0, 0])
+    expect(r.data.masteryBuckets).toEqual([0, 0, 0, 0, 0, 0])
     expect(r.data.dueByDay).toEqual([0, 0, 0, 0, 0, 0, 0, 0])
     expect(r.data.recentRatings).toEqual([])
   })
