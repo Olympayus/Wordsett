@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { useSettingsStore, DEFAULT_TITLE_INFO, DEFAULT_REVIEW, migrateSettings, type TitleInfoKey } from './settingsStore'
+import { visibleSmartViews } from '../lib/smartViews'
 
 const DEFAULT = {
   displayFields: {
@@ -190,8 +191,59 @@ describe('settingsStore 复习分区', () => {
 
 describe('smartViews 存档迁移（v0.6.5）', () => {
   it('旧存档（version 7、无 smartViews）迁移后四个视图默认全开', () => {
-    // migrate 是 persist 配置里的函数；这里直接驱动它，验证「不升版就整体消失」那个坑被堵住
+    // 直接调 migrate：只钉住**合并逻辑本身**（缺键回默认）。它验不出 migrate 有没有挂进
+    // persist——导出了却没人引用的话这条照样绿。接线由下面两条 rehydrate 用例负责。
     const migrated = migrateSettings({ review: DEFAULT_REVIEW, smartViews: undefined })
     expect(migrated.smartViews).toEqual({ all: true, due: true, weekNew: true, leech: true })
+  })
+
+  it('残缺的 smartViews 存档（只有两个键）迁移后缺的键被默认补齐、已有的键保留', () => {
+    // 这一条是「必须升 version」的真实理由：残缺对象合并进来时缺键会保留**当前**值，
+    // 用户关掉的视图就静默地重新打开了。migrate 的默认铺底是唯一的补齐点。
+    const migrated = migrateSettings({ review: DEFAULT_REVIEW, smartViews: { all: true, due: false } })
+    expect(migrated.smartViews).toEqual({ all: true, due: false, weekNew: true, leech: true })
+  })
+
+  it('persist 的 version 是 8 —— 旧存档（7）据此触发 migrate', async () => {
+    // 上面两条直接调 migrate 的用例**完全绕过** version，因此没有任何东西钉住这个数字。
+    // 把它回退成 7 全仓依然绿，而 v7 存档从此不再走 migrate。
+    // 自行播种（不依赖前面的用例是否写过 localStorage），单独跑也得绿。
+    localStorage.setItem('wordsett-settings', JSON.stringify({
+      state: { sidebarMode: 'alphabet' },
+      version: 7,
+    }))
+    await useSettingsStore.persist.rehydrate()
+    expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(8)
+  })
+
+  it('真实 rehydrate 一份 version 7 且无 smartViews 的旧存档 → 四个视图全开（端到端）', async () => {
+    // 走真实 persist.rehydrate 而不是直接调 migrate：只有这条能证明
+    // 「migrate 挂在 persist 上」且「version 确实不相等因而 migrate 真的跑了」。
+    // migrate 若被摘掉、或 version 被回退，这条会红，上面两条则仍然绿。
+    localStorage.setItem('wordsett-settings', JSON.stringify({
+      state: { sidebarMode: 'alphabet', review: DEFAULT_REVIEW },
+      version: 7,
+    }))
+    await useSettingsStore.persist.rehydrate()
+    expect(useSettingsStore.getState().smartViews).toEqual({ all: true, due: true, weekNew: true, leech: true })
+    expect(visibleSmartViews(useSettingsStore.getState().smartViews)).toEqual(['all', 'due', 'weekNew', 'leech'])
+  })
+
+  it('真实 rehydrate 一份 version 7 且 smartViews 残缺的旧存档 → 缺键被补齐（端到端）', async () => {
+    localStorage.setItem('wordsett-settings', JSON.stringify({
+      state: { smartViews: { all: true, due: false } },
+      version: 7,
+    }))
+    await useSettingsStore.persist.rehydrate()
+    expect(useSettingsStore.getState().smartViews).toEqual({ all: true, due: false, weekNew: true, leech: true })
+  })
+
+  it('迁移后写盘的 version 升到 8', async () => {
+    localStorage.setItem('wordsett-settings', JSON.stringify({
+      state: { sidebarMode: 'alphabet' },
+      version: 7,
+    }))
+    await useSettingsStore.persist.rehydrate()
+    expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(8)
   })
 })

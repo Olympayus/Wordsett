@@ -65,8 +65,10 @@ export const DEFAULT_SMART_VIEWS: Record<SmartViewKey, boolean> = {
 }
 
 /**
- * 存档迁移。抽成具名导出是为了可测：zustand 只在「存档 version ≠ 本处 version」时才调它，
- * 而「加字段不升版」的坑只有直接驱动这个函数才验得到。
+ * 存档迁移。抽成具名导出是为了可测，但**直接调用它验不出接线**：一个导出了却从没被
+ * persist 引用的 migrate，测试照样全绿。真正把「migrate 挂进 persist」和「version 升到位」
+ * 一起钉住的是走 `persist.rehydrate()` 的那条用例——只有那条能观察到 migrate 到底跑没跑。
+ * 直接调用则负责钉住合并逻辑本身（缺键回默认、旧值被保留）。两条合起来才是一对。
  */
 export function migrateSettings(persisted: unknown): SettingsStore {
   const state = (persisted ?? {}) as Partial<SettingsStore> & { displayFields?: Record<string, boolean> }
@@ -79,9 +81,15 @@ export function migrateSettings(persisted: unknown): SettingsStore {
     ...state,
     displayFields: fields, dictionaries, titleInfo,
     review: { ...DEFAULT_REVIEW, ...state.review },
-    // 加 smartViews 必须同时把 persist 的 version 从 7 升到 8：
-    // zustand 只在「存档 version ≠ 本处 version」时才调 migrate，不升版旧用户拿到的是
-    // undefined，visibleSmartViews 会读成全部隐藏——四个视图整体消失。
+    // 加 smartViews 必须同时把 persist 的 version 从 7 升到 8。
+    // 注意这里**不是**「缺键会变成 undefined」——zustand 的默认 merge 是
+    // { ...currentState, ...persistedState }，存档铺在当前 state 之上，
+    // 存档里压根没有 smartViews 这个键时，它不会覆盖 store 自己的
+    // DEFAULT_SMART_VIEWS，四个视图照常全开。
+    // 真正出事的是**残缺的 smartViews 对象**（如 { all, due }）：它只盖掉存档里有的键，
+    // 缺的键保留**当前**（可能已被用户关掉）的值——用户先关掉的视图会静默地重新打开。
+    // 所以下面这行把默认铺在存档之上、给缺键兜底，是**唯一**一处补齐缺键的地方；
+    // 而它只有在 version 不相等、migrate 真的被调用时才会执行。少那次升版 = 这行形同虚设。
     smartViews: { ...DEFAULT_SMART_VIEWS, ...state.smartViews },
   } as SettingsStore
 }
@@ -110,8 +118,10 @@ export const useSettingsStore = create<SettingsStore>()(
       name: 'wordsett-settings',
       // v0.6.3：加 showDueBadge 后升到 7，让旧数据（v0.6.2 写盘为 6）触发一次 migrate 补上该字段。
       // migrate 里的 `review: { ...DEFAULT_REVIEW, ...state.review }` 本就兜住新字段缺省，
-      // 但 zustand 仅在「存档 version ≠ 本处 version」时才调 migrate，不升版旧用户拿到的就是 undefined。
-      // v0.6.5：加 smartViews → 8。理由同上，少这一次就是「四个视图整体消失」。
+      // 但 zustand 仅在「存档 version ≠ 本处 version」时才调 migrate——不升版，
+      // 存档里缺的那把键就只能按当前的（可能已被用户改过）值留着。
+      // v0.6.5：加 smartViews → 8，同理。这一次的实际后果更隐蔽：残缺的 smartViews 存档
+      // 合并进来时缺键保留旧值，用户关掉的视图会静默重新打开（细节见 migrateSettings 里的注释）。
       version: 8,
       storage: createJSONStorage(() => localStorage),
       migrate: migrateSettings,
