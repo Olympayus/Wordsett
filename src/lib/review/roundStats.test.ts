@@ -3,6 +3,7 @@ import {
   roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, isSkipped, answerDisplay, correctnessLabel,
 } from './roundStats'
 import type { ReviewCardDTO } from '../../services/reviewService'
+import type { AnsweredEntry } from '../../stores/reviewSessionStore'
 import { TEMPLATE_DIFFICULTY } from './template'
 
 const card = (cardId: string, template: ReviewCardDTO['template'], prompt: any, answer: any): ReviewCardDTO =>
@@ -113,18 +114,25 @@ describe('wordLabelFor（Review Focus 4）', () => {
 
 describe('isSkipped', () => {
   it('只认显式标记，不从空串反推', () => {
-    expect(isSkipped({ rating: 1, input: '', skipped: true })).toBe(true)
+    expect(isSkipped({ skipped: true })).toBe(true)
   })
 
   it('评了「忘了」但没有跳过标记 —— 不算跳过', () => {
     // 本次修复的回归锚点：这条在修复前会是 true。
     // input 是「作答内容」不是「意图」，任何「没打字就评分」的路径都会借用同一个空串。
-    expect(isSkipped({ rating: 1, input: '' })).toBe(false)
+    // 按整条记录构造（变量而非对象字面量）：入参已收窄成 { skipped? }，而本条要钉的正是
+    // 「rating 与 input 一并给上、判据仍不伸手去读」——写成字面量会被 excess-property 检查拦下。
+    const 忘了但没标记: AnsweredEntry = { cardId: 'c1', rating: 1, template: 'recall', input: '' }
+    expect(isSkipped(忘了但没标记)).toBe(false)
   })
 
   it('标记优先于内容', () => {
-    expect(isSkipped({ rating: 1, input: '算了', skipped: true })).toBe(true)
-    expect(isSkipped({ rating: 2, input: '', skipped: false })).toBe(false)
+    // 两条都给足 rating / input：本题要钉的是「有没有标记说了算」——
+    // 标记为真时即便有作答原文也算跳过，标记为假时即便空串（外加 rating 2）也不算。
+    const 跳过: AnsweredEntry = { cardId: 'c2', rating: 1, template: 'recall', input: '算了', skipped: true }
+    const 明确不跳过: AnsweredEntry = { cardId: 'c3', rating: 2, template: 'recall', input: '', skipped: false }
+    expect(isSkipped(跳过)).toBe(true)
+    expect(isSkipped(明确不跳过)).toBe(false)
   })
 })
 

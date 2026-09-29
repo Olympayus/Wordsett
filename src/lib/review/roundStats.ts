@@ -41,8 +41,13 @@ export function roundSummary(queue: ReviewCardDTO[], answered: AnsweredEntry[]):
  * 旧判据是 `rating === 1 && input === ''`，那是从空串**反推意图**：input 是作答内容，
  * 任何「没打字就评分」的路径都会给出同一个空串，于是揭示型题（作答原文恒为空）的
  * 「揭示后评了忘了」被误标成跳过。v0.6.4 起改由调用方在跳过路径上显式置位。
+ *
+ * 入参只留 `skipped`：函数体既不读 rating 也不读 input，这两个必填字段是纯仪式。
+ * 收窄它换来的是 answerDisplay 能直接委托过来（它手上只有 input + skipped，没有 rating）——
+ * **判据只此一份**，本函数与文案函数之间不能再各写一遍 `skipped === true`，那正是本任务
+ * 要消掉的那类漂（同 correctnessLabel 抽取的理由）。放宽入参不会拒掉任何既有调用方。
  */
-export function isSkipped(entry: { rating: number; input: string; skipped?: boolean }): boolean {
+export function isSkipped(entry: { skipped?: boolean }): boolean {
   return entry.skipped === true
 }
 
@@ -54,7 +59,7 @@ export function isSkipped(entry: { rating: number; input: string; skipped?: bool
  */
 export function answerDisplay(entry: { input: string; skipped?: boolean }): string {
   if (entry.input) return entry.input
-  return entry.skipped === true ? '（跳过）' : '（未作答）'
+  return isSkipped(entry) ? '（跳过）' : '（未作答）'
 }
 
 /**
