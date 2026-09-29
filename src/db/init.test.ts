@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { ensureSchema } from './init'
-import { REVIEW_TABLES, SCHEMA_SEED_STATEMENTS, SCHEMA_VERSION } from './schema'
+import { REVIEW_DROP_STATEMENTS, REVIEW_TABLES, SCHEMA_SEED_STATEMENTS, SCHEMA_VERSION, SQL_DROP_TABLES } from './schema'
 import { createRawTestDb } from './test-utils'
 
 describe('db/init ensureSchema', () => {
@@ -189,5 +189,13 @@ describe('db/init ensureSchema', () => {
 
     const cards = await adapter.select<{ c: number }>('SELECT count(*) as c FROM review_cards')
     expect(cards[0].c).toBe(1)
+  })
+
+  // 卡模型换代的守卫（REVIEW_DROP_STATEMENTS）**不能**从 SQL_DROP_TABLES 里切片派生：
+  // 那里一旦重排行序（先子表后父表是当前顺序，将来若有变动很容易被"顺手整理"），
+  // 切片会静默给出错误的顺序，而 SQLite 的 DROP 顺序错了是要抛外键错误的——
+  // 症状出现在另一处、原因在这里，排查成本极高。两份列表因此刻意重复，靠这条断言手工同步。
+  it('REVIEW_DROP_STATEMENTS 与 SQL_DROP_TABLES 的前三行逐字一致', () => {
+    expect(REVIEW_DROP_STATEMENTS).toEqual(SQL_DROP_TABLES.slice(0, REVIEW_DROP_STATEMENTS.length))
   })
 })
