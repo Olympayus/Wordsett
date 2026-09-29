@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, isSkipped, correctnessLabel,
+  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, isSkipped, answerDisplay, correctnessLabel,
 } from './roundStats'
 import type { ReviewCardDTO } from '../../services/reviewService'
 import { TEMPLATE_DIFFICULTY } from './template'
@@ -20,10 +20,13 @@ describe('roundSummary', () => {
     expect(roundSummary([], []).accuracy).toBe('—')
   })
 
-  it('跳过＝rating 1 且 input 为空串', () => {
+  it('跳过只数带标记的记录——rating 1 + input 为空但没标记，是「没打字就评了忘了」', () => {
+    // 这条在 v0.6.4 前是 1（判据从空串反推），现在必须退回 0：
+    // 空串是「作答内容」而不是「意图」，中译英这类题不输入直接提交后评「忘了」是合法的。
     const s = roundSummary([], [
       { cardId: 'a', rating: 1, template: 'recognize', input: '' },
       { cardId: 'b', rating: 1, template: 'recognize', input: '答错了' },
+      { cardId: 'c', rating: 1, template: 'recognize', input: '', skipped: true },
     ])
     expect(s.skippedCount).toBe(1)
   })
@@ -108,18 +111,36 @@ describe('wordLabelFor（Review Focus 4）', () => {
   })
 })
 
-describe('isSkipped（明细表那一列的判据，与「跳过」Stat 同一处）', () => {
-  it('跳过＝rating 1 且 input 为空串（与 roundSummary.skippedCount 同一判据）', () => {
-    expect(isSkipped({ rating: 1, input: '' })).toBe(true)
-    expect(isSkipped({ rating: 1, input: '答错了' })).toBe(false)
+describe('isSkipped', () => {
+  it('只认显式标记，不从空串反推', () => {
+    expect(isSkipped({ rating: 1, input: '', skipped: true })).toBe(true)
   })
 
-  it('揭示型答题（rating 2/3 且 input 为空）不是跳过——按了「揭示答案」并正常评分', () => {
-    // AnswerInput 的揭示键提交的就是 ''（reviewSessionStore 的 input 注释同款说明）：
-    // 早先明细表只看 input 为空就印「（跳过）」，于是每张 english_def 都自称跳过，
-    // 而 Stat 用的是 rating === 1 —— 数字说跳过 1 张，表里却有 3 行写着跳过。
-    expect(isSkipped({ rating: 2, input: '' })).toBe(false)
-    expect(isSkipped({ rating: 3, input: '' })).toBe(false)
+  it('评了「忘了」但没有跳过标记 —— 不算跳过', () => {
+    // 本次修复的回归锚点：这条在修复前会是 true。
+    // input 是「作答内容」不是「意图」，任何「没打字就评分」的路径都会借用同一个空串。
+    expect(isSkipped({ rating: 1, input: '' })).toBe(false)
+  })
+
+  it('标记优先于内容', () => {
+    expect(isSkipped({ rating: 1, input: '算了', skipped: true })).toBe(true)
+    expect(isSkipped({ rating: 2, input: '', skipped: false })).toBe(false)
+  })
+})
+
+describe('answerDisplay', () => {
+  it('三态：跳过 / 未作答 / 作答原文', () => {
+    expect(answerDisplay({ input: '', skipped: true })).toBe('（跳过）')
+    expect(answerDisplay({ input: '' })).toBe('（未作答）')
+    expect(answerDisplay({ input: 'deliberate' })).toBe('deliberate')
+  })
+})
+
+describe('skippedCount 与 ratingDistribution 的关系', () => {
+  it('一条跳过记录同时使 skippedCount +1 且 again +1', () => {
+    const answered = [{ cardId: 'c1', rating: 1, template: 'recall' as const, input: '', skipped: true }]
+    expect(roundSummary([], answered).skippedCount).toBe(1)
+    expect(ratingDistribution(answered).again).toBe(1)
   })
 })
 

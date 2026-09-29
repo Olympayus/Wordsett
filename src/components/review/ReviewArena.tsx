@@ -68,6 +68,9 @@ export default function ReviewArena() {
     useReviewSessionStore.getState().index,
   ))
   const [lastInput, setLastInput] = useState('')
+  // 本次评分走的路径（v0.6.4）：与 lastInput 同一处置位、同一刻清空，空串本身分不出
+  // 「按了跳过」与「没输入就提交」——这正是 AnsweredEntry.skipped 要显式记下的原因。
+  const [lastSkipped, setLastSkipped] = useState(false)
   const [correct, setCorrect] = useState<boolean | null>(null)
   const [snapshot, setSnapshot] = useState<CardContent | null>(null)
   const [startedAt, setStartedAt] = useState(Date.now())
@@ -89,7 +92,7 @@ export default function ReviewArena() {
     const st = useReviewSessionStore.getState()
     const done = st.answered.find(a => a.cardId === dto?.cardId)
     setRevealed(Boolean(done))
-    setLastInput(done?.input ?? ''); setCorrect(null); setSnapshot(null)
+    setLastInput(done?.input ?? ''); setLastSkipped(done?.skipped ?? false); setCorrect(null); setSnapshot(null)
     setStartedAt(Date.now()); setRating(false); ratingRef.current = false
     setRateError(null)
     if (!dto) return
@@ -121,7 +124,9 @@ export default function ReviewArena() {
 
   // input 由调用方显式给出： RatingBar / 键盘传用户实际提交的作答原文（选择题＝选中项，键入题＝键入内容）；
   // 「跳过」传 ''——那条路径刻意丢弃被放弃的作答，回看时不得把它当作用户的答案重放（spec §4.1）。
-  const handleRate = async (r: number, input: string) => {
+  // skipped 同样由调用方显式给出，且**只有**「跳过」键传 true（v0.6.4）：两条路径的 input 都是空串，
+  // 局部 state 分不出「按了跳过」与「没输入就提交」，只有显式标记分得开。
+  const handleRate = async (r: number, input: string, skipped = false) => {
     // 同步置位、且成功 advance 前不解锁：键盘监听闭包里的 rating state 有滞后，连按两下
     // 会重复提交；「advance 之后、换卡 effect 之前」落下的按键会用旧卡 dto 重复评分。
     // rated 兜住另一条路：模块切走再切回时 phase 仍是 'rated'，这张卡不能再评一次。
@@ -151,7 +156,10 @@ export default function ReviewArena() {
     setRevealed(true)
     // 落库成功后再记账（answerCurrent 同时把 phase 置为 'rated'，结果区块留在屏上），
     // 推进交给「下一题」按钮 / 再按一次评分键（spec §2.3）。
-    answerCurrent(r, input)
+    // 标记同时落到局部 state 与 store 的记账里：前者给本次的结果区作答行（此刻 store 那条
+    // 还没进 answeredList，本组件读的是它），后者给小结明细表与之后的回看态。
+    setLastSkipped(skipped)
+    answerCurrent(r, input, skipped)
     // 刷新放在**落库成功之后**而不是 advance() 之后（v0.6.4 词级复习叠加层）：
     // 改 stability / lapses 的是上面那次 rateCard 写库，叠加载入哪一步都该在它之后取。
     // 三处 advance() 都不放——键盘那处只在 phase === 'rated'（即刚评过分）时进，
@@ -234,7 +242,7 @@ export default function ReviewArena() {
             // （那条记录要评分完才有）。跳过时 lastInput 为 ''，判据要的正是这个 '' 而非
             // undefined 的差别——取值规则见 revealedInputFor 的文档注释。
             revealedInput={revealedInputFor(revealed, lastInput, pastEntry?.input)}
-            onSkip={() => void handleRate(1, '')}
+            onSkip={() => void handleRate(1, '', true)}
             onSubmit={handleSubmit}
           />
 
@@ -249,7 +257,11 @@ export default function ReviewArena() {
           {revealed && (
             // 结果区现在只管左栏内部：作答行 + 三键 + 下一题。完整词条那一份提到外层网格的
             // 右轨（本题的 snapshot 仍经它取，两个副本读的是同一个词条）。
-            <ResultBlock dto={dto} lastInput={lastInput} correct={correct}>
+            // skipped 两条来源（v0.6.4）：这张卡已进 store 的记账 → 读那条的标记（回看态，
+            // setLastSkipped 早已随换卡重置或更早已被该条覆盖，交给记账才是真的那次）；
+            // 尚未记账 → 读本次评分的局部标记（刚评完那一帧，store 那条还不在 answeredList 里，
+            // 而本组件读的正是 answeredList）。评分键与键盘不传第三个参数，两条都是 false。
+            <ResultBlock lastInput={lastInput} skipped={answeredNow ? pastEntry?.skipped : lastSkipped} correct={correct}>
               {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
               {!answeredNow && (
                 <RatingBar

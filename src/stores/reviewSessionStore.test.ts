@@ -136,16 +136,28 @@ describe('会话记账与策略集合', () => {
     s().startSession([{ cardId: 'c1', wordId: 'w1', template: 'recognize' } as any])
     s().answerCurrent(1, '懒散的 · 草率的')
     expect(s().answered).toEqual([
-      { cardId: 'c1', rating: 1, template: 'recognize', input: '懒散的 · 草率的' },
+      // skipped 是显式标记的字段（v0.6.4），评分路径不传 → 落成 false 而不是缺省
+      { cardId: 'c1', rating: 1, template: 'recognize', input: '懒散的 · 草率的', skipped: false },
     ])
   })
 
-  it('跳过路径记空 input', () => {
+  it('跳过路径记空 input 并置 skipped 标记', () => {
     const s = () => useReviewSessionStore.getState()
     s().reset()
     s().setStrategy('today')
     s().startSession([{ cardId: 'c1', wordId: 'w1', template: 'recognize' } as any])
-    s().answerCurrent(1, '')
+    s().answerCurrent(1, '', true)
     expect(s().answered[0].input).toBe('')
+    expect(s().answered[0].skipped).toBe(true)
+  })
+
+  it('同样的空 input，不传标记就不算跳过——判据在标记上，不在空串上', () => {
+    const s = () => useReviewSessionStore.getState()
+    s().reset()
+    s().setStrategy('today')
+    s().startSession([{ cardId: 'c1', wordId: 'w1', template: 'recall' } as any])
+    // 中译英不输入直接提交后评「忘了」：input 同样是空串，但它不是跳过
+    s().answerCurrent(1, '')
+    expect(s().answered[0].skipped).toBe(false)
   })
 })

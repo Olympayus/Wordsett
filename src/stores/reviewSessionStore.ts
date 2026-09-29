@@ -9,10 +9,21 @@ export interface AnsweredEntry {
   rating: number
   template: Template
   /**
-   * 用户当时的作答原文（选择题＝选中的选项文本；键入题＝键入内容；揭示型与跳过＝''）。
+   * 用户当时的作答原文（选择题＝选中的选项文本；键入题＝键入内容；跳过＝''）。
    * 回看已答题时要靠它重建结果区（spec §4.1）；对错不另存，可由 input + DTO 现场派生。
    */
   input: string
+  /**
+   * 是否走了「跳过」键（v0.6.4）。
+   *
+   * 为什么必须是显式标记而不是靠 `input === ''` 反推：input 是**作答内容**，
+   * 不是**意图**。跳过键提交的正是空串，而任何「没打字就评分」的路径都会借用同一个空串
+   * ——v0.6.4 之前，揭示型题的作答原文恒为空串，于是「揭示后评了忘了」被误标成
+   * 「（跳过）」，统计卡的跳过张数也误计。
+   *
+   * 可选字段：本 store 不持久化，不存在跨版本的旧数据，但让既有构造点不必全改。
+   */
+  skipped?: boolean
 }
 
 export interface FreeScope {
@@ -44,7 +55,7 @@ interface ReviewSessionStore {
   setPhase: (p: SessionPhase) => void
   setFreeScope: (s: FreeScope | null) => void
   startSession: (queue: ReviewCardDTO[], scope?: FreeScope | null) => void
-  answerCurrent: (rating: number, input: string) => void
+  answerCurrent: (rating: number, input: string, skipped?: boolean) => void
   advance: () => void
   /** 导航条跳题：只改题号并把 phase 拨回 'answering'（不重排 answered，只读导航不记账）。 */
   setIndex: (i: number) => void
@@ -70,11 +81,13 @@ export const useReviewSessionStore = create<ReviewSessionStore>((set, get) => ({
   // 调用方就不必记得在 startSession 之前先写一次 freeScope——两处分写时，正确性会吊在
   // 另一个模块 scopeLabel 的 strategy === 'today' 短路分支上。
   startSession: (queue, scope = null) => set({ queue, index: 0, answered: [], phase: 'answering', startedAt: Date.now(), sessionStrategy: get().strategy, freeScope: scope }),
-  answerCurrent: (rating, input) => {
+  // skipped 只由「跳过」键那条调用点传 true，其余评分路径（RatingBar / 键盘 1-3）走默认 false。
+  // 落成显式字段而不从 input 反推，理由见 AnsweredEntry.skipped 的注释。
+  answerCurrent: (rating, input, skipped = false) => {
     const { queue, index, answered } = get()
     const card = queue[index]
     if (!card) return
-    set({ answered: [...answered, { cardId: card.cardId, rating, template: card.template, input }], phase: 'rated' })
+    set({ answered: [...answered, { cardId: card.cardId, rating, template: card.template, input, skipped }], phase: 'rated' })
   },
   advance: () => {
     const { index, queue } = get()

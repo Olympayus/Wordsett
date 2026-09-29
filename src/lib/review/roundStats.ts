@@ -36,14 +36,25 @@ export function roundSummary(queue: ReviewCardDTO[], answered: AnsweredEntry[]):
 }
 
 /**
- * 跳过＝按了「跳过」键：`rating === 1` 且没留下作答原文。
+ * 跳过＝按了「跳过」键，由调用方显式标记（v0.6.4 修正）。
  *
- * 判据只认 rating 1，**不能只看 input 为空**——揭示型题（中译英 / 英文释义题）的「揭示答案」
- * 键提交的也是空串（见 AnswerInput 的 reveal 分支），用户是揭示后正常评分的。
- * 只看 input 会让每张 english_def 都自称「（跳过）」，与统计段的跳过张数对不上。
+ * 旧判据是 `rating === 1 && input === ''`，那是从空串**反推意图**：input 是作答内容，
+ * 任何「没打字就评分」的路径都会给出同一个空串，于是揭示型题（作答原文恒为空）的
+ * 「揭示后评了忘了」被误标成跳过。v0.6.4 起改由调用方在跳过路径上显式置位。
  */
-export function isSkipped(entry: { rating: number; input: string }): boolean {
-  return entry.rating === 1 && entry.input === ''
+export function isSkipped(entry: { rating: number; input: string; skipped?: boolean }): boolean {
+  return entry.skipped === true
+}
+
+/**
+ * 「你的作答」列/行的文案（v0.6.4）。抽出来是因为同一份文案有两处消费点——
+ * 小结的逐题明细与结果区的作答行。两处各写一份时必然漂（同 correctnessLabel 的先例）。
+ *
+ * 「（揭示后评分）」这一支已删：v0.6.4 起英释义题改成键入型，不再有揭示型题。
+ */
+export function answerDisplay(entry: { input: string; skipped?: boolean }): string {
+  if (entry.input) return entry.input
+  return entry.skipped === true ? '（跳过）' : '（未作答）'
 }
 
 /**
@@ -77,6 +88,8 @@ export function templateAccuracy(answered: AnsweredEntry[]): { template: Templat
   })
 }
 
+/** 评分分布。注意**跳过计入「忘了」**（数据层跳过就是 rating=1），
+ *  与 skippedCount 是两个量，两者会同时加一，这是对的。 */
 export function ratingDistribution(answered: AnsweredEntry[]): { again: number; hard: number; good: number } {
   return {
     again: answered.filter(a => a.rating === 1).length,
