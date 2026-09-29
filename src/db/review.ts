@@ -1,7 +1,7 @@
 import { getDb } from './connection'
 import type { DbHandle } from './init'
 import type { DbResult } from './types'
-import { FIELD_KEY_GROUPS, usableTemplates, type FieldMask, type TemplateLog } from '../lib/review/template'
+import { FIELD_KEY_GROUPS, usableTemplates, type FieldMask } from '../lib/review/template'
 import { masteryTier } from '../lib/review/mastery'
 import type { CardContent, InitialFamiliarity, Template } from '../lib/review/types'
 import type { QueueCandidate } from '../lib/review/queue'
@@ -164,56 +164,6 @@ export async function getAllCandidates(h?: DbHandle, opts: CandidateOpts = {}): 
   }
 }
 
-/** 按卡分组的出题日志（含 practice），供 pickTemplate 使用。 */
-export async function getTemplateLogs(
-  cardIds: string[],
-  h?: DbHandle,
-): Promise<DbResult<Record<string, TemplateLog[]>>> {
-  if (cardIds.length === 0) return { ok: true, data: {} }
-  const d = db(h)
-  try {
-    const placeholders = cardIds.map((_, i) => `?${i + 1}`).join(',')
-    const rows = await d.select<Record<string, any>>(
-      `SELECT card_id, template, rating FROM review_logs
-       WHERE card_id IN (${placeholders}) AND template IS NOT NULL
-       ORDER BY reviewed_at ASC`,
-      cardIds,
-    )
-    const out: Record<string, TemplateLog[]> = {}
-    for (const r of rows) {
-      const list = out[r.card_id] ?? (out[r.card_id] = [])
-      list.push({ template: r.template as Template, rating: Number(r.rating) })
-    }
-    return { ok: true, data: out }
-  } catch (e: any) {
-    return { ok: false, error: e.toString() }
-  }
-}
-
-/** 卡的元信息：上次出题模板（轮换的防重复输入）。 */
-export async function getCardMeta(
-  cardId: string,
-  h?: DbHandle,
-): Promise<DbResult<{ cardId: string; wordId: string; lastTemplate: Template | null } | null>> {
-  const d = db(h)
-  try {
-    const rows = await d.select<Record<string, any>>(
-      'SELECT id, word_id, last_template FROM review_cards WHERE id = ?1', [cardId])
-    if (rows.length === 0) return { ok: true, data: null }
-    const r = rows[0]
-    return {
-      ok: true,
-      data: {
-        cardId: r.id,
-        wordId: r.word_id,
-        lastTemplate: (r.last_template ?? null) as Template | null,
-      },
-    }
-  } catch (e: any) {
-    return { ok: false, error: e.toString() }
-  }
-}
-
 /**
  * 取词条出题所需内容（lemma / 音标 / 词性 / 中英释义 / 例句 / 配对释义）。
  * 词不存在返回 null。
@@ -222,7 +172,7 @@ export async function getCardMeta(
  *
  * 例句只取含有目标词的那一条；取不到就让 `example` 为空。掩码层（getAvailabilityMask）要求
  * example 字段的值非空，内容层（本函数）要求那条例句含目标词——两层各判一半，交集才是
- * 能挖空的句子。空 `example` 会让该词拿不到填空题：templatesWithExampleGate 在组卷时剔掉
+ * 能挖空的句子。空 `example` 会让该词拿不到填空题：cardPresentable 在组卷时按卡剔掉
  * cloze（v0.6.3 条目 4c），所以这种词不会出填空题，题面也不会退化成 blankOut('') 那一条横线。
  * 例句里的词能否挖出来由 blankOut 保证。
  *
@@ -424,7 +374,6 @@ export async function applyReview(input: ApplyReviewInput, h?: DbHandle): Promis
       [crypto.randomUUID(), input.cardId, input.reviewedAt, input.rating,
        input.template, input.durationMs ?? null],
     )
-    await d.execute('UPDATE review_cards SET last_template = ?1 WHERE id = ?2', [input.template, input.cardId])
     return { ok: true, data: undefined }
   } catch (e: any) {
     return { ok: false, error: e.toString() }
@@ -441,7 +390,7 @@ export interface PracticeLogInput {
 
 /**
  * 不计分：只写日志（mode='practice'），review_states 全字段不动。
- * 同样每条语句独立提交（连接池限制见 applyReview）；中途失败至多留下已写的 last_template。
+ * 同样每条语句独立提交（连接池限制见 applyReview）；中途失败至多留下已写的日志。
  */
 export async function insertPracticeLog(input: PracticeLogInput, h?: DbHandle): Promise<DbResult<void>> {
   const d = db(h)
@@ -452,15 +401,10 @@ export async function insertPracticeLog(input: PracticeLogInput, h?: DbHandle): 
       [crypto.randomUUID(), input.cardId, input.reviewedAt, input.rating,
        input.template, input.durationMs ?? null],
     )
-    await d.execute('UPDATE review_cards SET last_template = ?1 WHERE id = ?2', [input.template, input.cardId])
     return { ok: true, data: undefined }
   } catch (e: any) {
     return { ok: false, error: e.toString() }
   }
-}
-
-export async function setLastTemplate(cardId: string, template: Template, h?: DbHandle): Promise<void> {
-  await db(h).execute('UPDATE review_cards SET last_template = ?1 WHERE id = ?2', [template, cardId])
 }
 
 /** 薄弱词专项候选卡：lapses ≥ 阈值 ∪ 窗口内存在 rating = 1 的日志（含 practice）。 */

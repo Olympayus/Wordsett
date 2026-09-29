@@ -5,14 +5,11 @@ import {
   getCandidates,
   getAllCandidates,
   getAvailabilityMask,
-  getTemplateLogs,
   getWordContent,
   getDistractorTranslations,
-  getCardMeta,
   getState,
   applyReview,
   insertPracticeLog,
-  setLastTemplate,
   getWeakCardIds,
   getWeakWordsWithCounts,
   getWordReviewOverlay,
@@ -214,21 +211,6 @@ describe('db/review 读路径', () => {
     expect(r.data.find(c => c.wordId === 'w1')!.initialFamiliarity).toBe(1)
   })
 
-  it('getTemplateLogs 按卡分组返回日志，含 practice 模式', async () => {
-    await seedWord(db, 'w1', 'alpha')
-    await registerCards(['w1'], db)
-    const c1 = (await db.select<{ id: string }>('SELECT id FROM review_cards WHERE word_id = ?1', ['w1']))[0].id
-    await db.execute(
-      "INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES ('l1',?1,1000,1,'recall','review')", [c1])
-    await db.execute(
-      "INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES ('l2',?1,2000,3,'recall','practice')", [c1])
-    const r = await getTemplateLogs([c1], db)
-    expect(r.ok).toBe(true)
-    if (!r.ok) return
-    expect(r.data[c1]).toHaveLength(2)
-    expect(r.data[c1].map(l => l.template)).toEqual(['recall', 'recall'])
-  })
-
   it('getWordContent 取齐出题所需字段，并带 3 个跨词干扰释义', async () => {
     await seedWord(db, 'w1', 'alpha')
     for (const [i, w] of ['beta', 'gamma', 'delta', 'epsilon'].entries()) await seedWord(db, `w${i + 2}`, w)
@@ -364,15 +346,6 @@ describe('db/review 读路径', () => {
     expect(seen.size).toBeGreaterThan(1)
   })
 
-  it('getCardMeta 返回 last_template', async () => {
-    await seedWord(db, 'w1', 'alpha')
-    await registerCards(['w1'], db)
-    const c1 = (await db.select<{ id: string }>('SELECT id FROM review_cards WHERE word_id = ?1', ['w1']))[0].id
-    await db.execute('UPDATE review_cards SET last_template = ?1 WHERE id = ?2', ['cloze', c1])
-    const r = await getCardMeta(c1, db)
-    expect(r.ok && r.data!.lastTemplate).toBe('cloze')
-  })
-
   it('getAllCandidates 含未到期的熟词，getCandidates 不含', async () => {
     await seedWord(db, 'w1', 'alpha')   // 未到期的熟词
     await seedWord(db, 'w2', 'beta')    // 到期的熟词
@@ -491,17 +464,26 @@ describe('db/review 写路径与聚合', () => {
     expect(logs).toEqual([{ template: 'recognize', mode: 'review', duration_ms: 4200 }])
   })
 
-  it('applyReview 同步更新 last_template', async () => {
+  it('applyReview 不再回写 last_template：题型的真相只在 review_logs.template 一处', async () => {
+    // v0.6.5 起卡自带题型，「上次出过什么题」不再有消费方（pickTemplate 已删），
+    // 故 review_cards 不再有这一列。钉住「applyReview 不去写一张不存在的列」：
+    // 写回会在库还是旧形状时静默成功，测试也就跟着失去意义。
     await seedWord(db, 'w1', 'alpha')
-    await registerCards(['w1'], db)
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
+    await registerCards(['w1'], db)   // 自带内容，卡必然建得出来（不靠别的用例铺库）
     const c1 = await cardIdOf('w1')
-    await applyReview({
+    const r = await applyReview({
       cardId: c1, rating: 3, template: 'cloze',
       stability: 2, difficulty: 5, dueAt: NOW + 86400000,
       lapses: 0, reps: 1, reviewedAt: NOW,
     }, db)
-    const meta = await getCardMeta(c1, db)
-    expect(meta.ok && meta.data!.lastTemplate).toBe('cloze')
+    expect(r.ok).toBe(true)
+    // 题型仍逐次落进日志（题型正确率的唯一来源）
+    const logs = await db.select<{ template: string }>('SELECT template FROM review_logs WHERE card_id = ?1', [c1])
+    expect(logs).toEqual([{ template: 'cloze' }])
+    // 新形状的表没有 last_template 这一列，写它必然是 SQL 错误
+    const cols = await db.select<{ name: string }>("SELECT name FROM pragma_table_info('review_cards')")
+    expect(cols.map(c => c.name)).not.toContain('last_template')
   })
 
   it('applyReview 重复评分累加 reps 并覆盖 stability', async () => {
@@ -547,15 +529,6 @@ describe('db/review 写路径与聚合', () => {
     expect(states[0].c).toBe(0)
     const logs = await db.select<{ mode: string }>('SELECT mode FROM review_logs')
     expect(logs).toEqual([{ mode: 'practice' }])
-  })
-
-  it('setLastTemplate 记录上次出题模板', async () => {
-    await seedWord(db, 'w1', 'alpha')
-    await registerCards(['w1'], db)
-    const c1 = await cardIdOf('w1')
-    await setLastTemplate(c1, 'listen', db)
-    const r = await db.select<{ last_template: string }>('SELECT last_template FROM review_cards WHERE id = ?1', [c1])
-    expect(r[0].last_template).toBe('listen')
   })
 
   it('registerAllWords 给库里全部词补齐可用题型卡，无内容的词不注册，重复调用不新增', async () => {
@@ -978,6 +951,7 @@ describe('卡级可用性闸门', () => {
     await registerCards(['w1'], db)
     const r = await getCandidates(NOW, db)
     if (!r.ok) throw new Error(r.error)
+    expect(r.data.length).toBeGreaterThan(0)
     expect(r.data.every(c => typeof c.template === 'string')).toBe(true)
     expect(r.data.every(c => !('availableTemplates' in c))).toBe(true)
   })

@@ -1,4 +1,4 @@
-import type { Template } from './types'
+import type { CardContent, Template } from './types'
 
 export type { Template }
 
@@ -60,47 +60,11 @@ export function usableTemplates(mask: FieldMask, opts: TemplateGateOpts = {}): T
 }
 
 /**
- * 最弱题型优先：
- *   1. 未测过的模板优先（探索），按难度序从易到难；
- *   2. 全部测过 → 正确率最低者；
- *   3. 并列时避开上次出过的模板。
+ * 卡级可出题闸门（v0.6.5）：卡自带题型，故闸门按题型逐卡判，不再对模板数组过滤。
+ * 返回 false 的卡本轮不出题，且它的 due_at 不动——内容回来了它自己会回到队列。
  */
-export function pickTemplate(
-  available: Template[],
-  logs: TemplateLog[],
-  lastTemplate: Template | null,
-): Template | null {
-  if (available.length === 0) return null
-
-  const unmeasured = TEMPLATE_DIFFICULTY.filter(
-    t => available.includes(t) && templateAccuracy(logs, t) === null,
-  )
-  if (unmeasured.length > 0) {
-    return unmeasured.find(t => t !== lastTemplate) ?? unmeasured[0]
-  }
-
-  const scored = available.map(t => ({ t, acc: templateAccuracy(logs, t) as number }))
-  const min = Math.min(...scored.map(s => s.acc))
-  const tied = scored.filter(s => s.acc === min).map(s => s.t)
-  if (tied.length > 1 && lastTemplate) {
-    const other = tied.find(t => t !== lastTemplate)
-    if (other) return other
-  }
-  return tied[0]
-}
-
-/**
- * 例句取不到时不出填空题（v0.6.3 条目 4c）。
- *
- * 「这词能不能出填空题」由两层各判一半：掩码层判「有 example 字段」，内容层判「那条例句含目标词」。
- * 交集才是能挖空的句子。缺内容层这一半时，blankOut('') 返回单条横线、clozeSentence 再补一个
- * 词性括号，题面退化成「____ (adj.)」——用户实测到的废题（detrimental / finding）。
- *
- * 「含目标词」的判据**不在这里**，也不另写一份：它只有一处实现，就是 getWordContent 算 example
- * 的那行（value.toLowerCase().includes(lemma)）。本函数只看它算出来的结果，不重判一次——
- * 重判等于把要消灭的那份重复语义再埋回去。
- */
-export function templatesWithExampleGate(available: Template[], example: string): Template[] {
-  if (example !== '') return available
-  return available.filter(t => t !== 'cloze')
+export function cardPresentable(template: Template, content: CardContent): boolean {
+  if (template === 'recognize') return content.distractors.length >= 3
+  if (template === 'cloze') return content.example !== ''
+  return true
 }

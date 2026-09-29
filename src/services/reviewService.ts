@@ -3,7 +3,7 @@ import type { WeakWordRow } from '../db/review'
 import { isListenEnabled } from '../lib/review/ttsGate'
 import { buildQueue, type QueueCandidate, type QueueResult } from '../lib/review/queue'
 import { selectByCategories } from '../lib/review/categoryCounts'
-import { pickTemplate, templateAccuracy, templatesWithExampleGate, type TemplateLog } from '../lib/review/template'
+import { cardPresentable, templateAccuracy, type TemplateLog } from '../lib/review/template'
 import { mastery, retrievability, elapsedDaysSince, NEW_CARD_RNOW, defaultRatingFor } from '../lib/review/mastery'
 import type { CardContent, InitialFamiliarity, ReviewMode, ReviewStrategy, Template } from '../lib/review/types'
 
@@ -61,7 +61,7 @@ async function loadContent(wordId: string): Promise<CardContent | null> {
  *
  * 只处理「例句里确实有目标词」这一种情况——例句的选用已由 `getWordContent` 尽量保证（它只取含有
  * 目标词的条目，取不到就让 example 为空）。
- * v0.6.3 条目 4c 起，取不到例句的词条**不再**拿到填空题（templatesWithExampleGate 在组卷时剔掉），
+ * v0.6.3 条目 4c 起，取不到例句的词条**不再**拿到填空题（cardPresentable 在组卷时剔掉），
  * 下面这条「退化分支」因此不再是出题路径上的常态，只作为防御保留：万一有别的调用方
  * 直接调 blankOut，它也不该崩。
  * 另外例句「含原词」在 db 层是 toLowerCase().includes 的近似判定，与这里的词边界正则未必一致，
@@ -84,7 +84,7 @@ export function blankOut(sentence: string, lemma: string): string {
  * ——括号紧跟空缺，读者不离开句子就知道该填什么词性。词性为空时不插，不留一对空括号。
  *
  * 句子为空（无例句）时 blankOut 返回单条横线，此处照常补括号，题面退化但不崩。
- * v0.6.3 条目 4c 起，取不到例句的词条不再拿到填空题（templatesWithExampleGate 在组卷时剔掉），
+ * v0.6.3 条目 4c 起，取不到例句的词条不再拿到填空题（cardPresentable 在组卷时剔掉），
  * 这条退化分支因此不再是出题路径上的常态，只作为防御保留：万一有别的调用方直接调
  * clozeSentence，它也不该崩。
  */
@@ -102,7 +102,6 @@ export function assembleCardDTO(
   candidate: QueueCandidate,
   template: Template,
   content: CardContent,
-  lastTemplate: Template | null,
 ): ReviewCardDTO {
   const m = mastery(candidate.stability)
   const rNow = candidate.stability === null
@@ -159,7 +158,6 @@ export function assembleCardDTO(
     }
   }
 
-  void lastTemplate
   return {
     cardId: candidate.cardId,
     wordId: candidate.wordId,
@@ -208,20 +206,6 @@ function shuffleDeterministic<T>(items: T[], seed: string): T[] {
   return out
 }
 
-const RECOGNIZE_MIN_DISTRACTORS = 3
-
-/**
- * 认读附加闸门（spec §4.1）：库内可用作干扰的释义不足 3 个时该词不能出认读题。
- * 返回该词实际可出的模板集。
- */
-export function templatesWithDistractorGate(
-  available: Template[],
-  distractors: number,
-): Template[] {
-  if (distractors >= RECOGNIZE_MIN_DISTRACTORS) return available
-  return available.filter(t => t !== 'recognize')
-}
-
 export async function getStrategyCounts(params: ReviewParams) {
   const r = await reviewDb.getStrategyCounts({
     leechThreshold: params.leechThreshold,
@@ -248,7 +232,7 @@ export async function getWeakWords(params: ReviewParams): Promise<WeakWordRow[]>
   return r.ok ? r.data : []
 }
 
-/** 组卷：注册候选卡 → 取候选 → 按策略筛选 → buildQueue → 逐卡选题型并组装 DTO。 */
+/** 组卷：注册候选卡 → 取候选 → 按策略筛选 → buildQueue → 逐卡过闸门并组装 DTO。 */
 export async function getQueue(
   strategy: ReviewStrategy,
   params: ReviewParams,
@@ -260,7 +244,7 @@ export async function getQueue(
   const allowListen = isListenEnabled()
   await reviewDb.registerAllWords(undefined, { allowListen })
   const now = Date.now()
-  const EMPTY: QueueResult = { queue: [], dueCount: 0, newCount: 0, absentCount: 0 }
+  const EMPTY: QueueResult = { queue: [], dueCount: 0, newCount: 0 }
 
   // 自由练习要够到未到期的熟词，因此走不看 due_at 的候选池；
   // 唯一例外是「今日队列重练」——它按定义就是今日到期队列，沿用只看 due_at 的源。
@@ -285,24 +269,12 @@ export async function getQueue(
   // 全库随机：buildQueue 的 R_now 排序会覆盖乱序，故在最后重新打乱
   const ordered = freeScope?.kind === 'random' ? shuffle([...result.queue]) : result.queue
 
-  const logs = await reviewDb.getTemplateLogs(ordered.map(c => c.cardId))
-  const logMap = logs.ok ? logs.data : {}
-
   const queue: ReviewCardDTO[] = []
   for (const c of ordered) {
-    const meta = await reviewDb.getCardMeta(c.cardId)
-    const lastTemplate = meta.ok && meta.data ? meta.data.lastTemplate : null
     const content = await loadContent(c.wordId)
     if (!content) continue
-    // 两道闸门串联，各自只判一件事：干扰项不够 → 不出认读题；例句取不到 → 不出填空题。
-    // 分成两个纯函数而不是合成一个，是为了让每种「为什么不出这道题」都有一条独立用例。
-    const templates = templatesWithExampleGate(
-      templatesWithDistractorGate(c.availableTemplates, content.distractors.length),
-      content.example,
-    )
-    const template = pickTemplate(templates, logMap[c.cardId] ?? [], lastTemplate)
-    if (!template) continue
-    queue.push(assembleCardDTO(c, template, content, lastTemplate))
+    if (!cardPresentable(c.template, content)) continue
+    queue.push(assembleCardDTO(c, c.template, content))
   }
 
   const absent = await getAbsent()
@@ -446,43 +418,33 @@ export async function getStats() {
 }
 
 /**
- * 本轮实际能出的张数（过两道内容闸门）。
+ * 本轮真正出得了题的卡：卡级闸门逐张判，剔除本轮出不了的（新词数就不会虚高）。
  *
  * 用途（v0.6.3 打磨后收窄到一处）：只服务 `getOverview().newCount`——「本轮会引入几个新词」。
  * 此前它还算「今日待复习总数」，那个数现在走掩码层的 `getStrategyCounts().today`（见 getOverview）。
  *
  * 为什么这里仍要过闸门：新词数若把「内容层面出不了题」的新卡也算进去，控制台会印
- * 「新词: 3」而本轮只引入 2 个。只有候选词含 recognize 或 cloze 时才需要读内容——
- * 两道闸门只可能剔除这两个模板。
+ * 「新词: 3」而本轮只引入 2 个。
  */
 async function deliverable(candidates: QueueCandidate[]): Promise<QueueCandidate[]> {
   const out: QueueCandidate[] = []
   for (const c of candidates) {
-    // 与 getQueue 同一组闸门：干扰项不够 → 不出认读题；例句取不到 → 不出填空题（v0.6.3 条目 4c）。
-    // 两道闸门都只可能剔除 recognize / cloze，故不含这两者的词不必读内容。
-    if (!c.availableTemplates.includes('recognize') && !c.availableTemplates.includes('cloze')) {
-      out.push(c); continue
-    }
     const content = await loadContent(c.wordId)
     if (!content) continue
-    const templates = templatesWithExampleGate(
-      templatesWithDistractorGate(c.availableTemplates, content.distractors.length),
-      content.example,
-    )
-    if (templates.length === 0) continue
+    if (!cardPresentable(c.template, content)) continue
     out.push(c)
   }
   return out
 }
 
 /**
- * 今日队列：候选 → buildQueue → 两道闸门（v0.6.3 打磨后只剩一个用途：取本轮新词数）。
+ * 今日队列：候选 → buildQueue → 卡级闸门（v0.6.3 打磨后只剩一个用途：取本轮新词数）。
  *
  * 此前它同时是「今日待复习总数」的来源，控制台与标题栏 chip 都读它——那个数因此会被
  * 当日额度（queueLimit）截断，与「今天到底积压了多少」不是一回事，见 getOverview。
  *
- * 刻意**不**在这里调 registerAllWords：那是「给全库每个词补一张卡」的写循环
- * （每词一条 INSERT，生产环境每条都是一次跨 IPC 的 db 调用），放进分钟级轮询会让
+ * 刻意**不**在这里调 registerAllWords：那是「给全库每个词的每个可用题型各补一张卡」的写循环
+ * （最多每词 5 条 INSERT，生产环境每条都是一次跨 IPC 的 db 调用），放进分钟级轮询会让
  * 标题栏变成写放大来源。补卡仍由 getQueue / getOverview 负责。
  * 补卡与否**不影响** getOverview 的 total：新补出来的卡是 new 卡、没有 due_at，
  * 走不到 getStrategyCounts 的到期集里——两处因此不再需要靠「进过一次复习模块」来对齐。
@@ -504,15 +466,15 @@ export async function getOverview(params: ReviewParams) {
   const stats = await getStats()
   // 到期待复习数走掩码层的到期集（v0.6.3 打磨），**不是**本轮队列的长度：
   // 用户要的是「系统判断今天该复习多少词」——那是掌握程度（due_at）的事，
-  // 与「本轮最多出多少题」（队列上限）无关；与两道内容闸门也无关，那两道判的是
-  // 「这几张现在能不能出题」，让它参与会让同一个数随某个词的内容变动而忽高忽低、
+  // 与「本轮最多出多少题」（队列上限）无关；与卡级内容闸门也无关，那道判的是
+  // 「这张现在能不能出题」，让它参与会让同一个数随某个词的内容变动而忽高忽低、
   // 且做完一整轮也未必归零。
   // 代价（有意接受）：到期积压超过队列上限时，做完一轮这个数不会归零，剩下留到下一轮
   // ——这正是「轮次上限只影响单次学多少个词」的读法。见 DueBadge 的同款说明。
   const { today } = await getStrategyCounts(params)
   return {
     total: today,
-    // 新词数仍是本轮队列里的实际新卡数（额度、队列上限、两道闸门都算数）：它答的是
+    // 新词数仍是本轮队列里的实际新卡数（额度、队列上限、卡级闸门都算数）：它答的是
     // 「本轮会引入几个新词」，与上面那个到期积压是两个量，故不从 total 派生。
     newCount: queue.filter(c => c.stability === null).length,
     // 本轮队列的时长估算。当前**没有消费者**（v0.6.3 起控制台不再读它），

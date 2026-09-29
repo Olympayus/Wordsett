@@ -6,7 +6,7 @@ const {
   invokeMock, getStateMock, applyReviewMock, insertPracticeLogMock,
   registerAllWordsMock, getCandidatesMock, getWordContentMock, getStatsMock,
   getWeakWordsWithCountsMock, getAllCandidatesMock, getAbsentWordsMock,
-  getTemplateLogsMock, getCardMetaMock, getAllWordCategoryMapMock, getStrategyCountsMock,
+  getAllWordCategoryMapMock, getStrategyCountsMock,
 } = vi.hoisted(() => ({
   invokeMock: vi.fn(),
   getStateMock: vi.fn(),
@@ -19,15 +19,13 @@ const {
   getWeakWordsWithCountsMock: vi.fn(),
   getAllCandidatesMock: vi.fn(),
   getAbsentWordsMock: vi.fn(),
-  getTemplateLogsMock: vi.fn(),
-  getCardMetaMock: vi.fn(),
   getAllWordCategoryMapMock: vi.fn(),
   getStrategyCountsMock: vi.fn(),
 }))
 
 // rateCard 只碰这三个 db 入口，直接打桩；fsrs_next 走 Tauri invoke，单独打桩。
 // getOverview 另走 registerAllWords / getCandidates / getWordContent / getStrategyCounts / getStats。
-// getQueue 走自由练习那一路：getAllCandidates 取池、getTemplateLogs + getCardMeta 取题型、
+// getQueue 走自由练习那一路：getAllCandidates 取池、getWordContent 取题面、
 // getAbsentWords 收尾；分类范围还要 getAllWordCategoryMap（另一个 db 模块，动态 import）。
 vi.mock('../db/review', () => ({
   getState: getStateMock,
@@ -40,8 +38,6 @@ vi.mock('../db/review', () => ({
   getWeakWordsWithCounts: getWeakWordsWithCountsMock,
   getAllCandidates: getAllCandidatesMock,
   getAbsentWords: getAbsentWordsMock,
-  getTemplateLogs: getTemplateLogsMock,
-  getCardMeta: getCardMetaMock,
   getStrategyCounts: getStrategyCountsMock,
 }))
 vi.mock('../db/categories', () => ({ getAllWordCategoryMap: getAllWordCategoryMapMock }))
@@ -106,7 +102,7 @@ const MS_PER_DAY = 86_400_000
 
 const candidate = (o: Partial<QueueCandidate> = {}): QueueCandidate => ({
   cardId: 'c1', wordId: 'w1', stability: 10, dueAt: NOW, lastReviewAt: NOW - 10 * MS_PER_DAY,
-  initialFamiliarity: 1, availableTemplates: ['recognize', 'cloze', 'recall'], ...o,
+  initialFamiliarity: 1, template: 'recognize', ...o,
 })
 
 const content = {
@@ -125,7 +121,7 @@ const content = {
 
 describe('reviewService.assembleCardDTO', () => {
   it('认读：题面是单词 + 4 选 1，答案是释义与词性', () => {
-    const dto = assembleCardDTO(candidate(), 'recognize', content, null)
+    const dto = assembleCardDTO(candidate(), 'recognize', content)
     expect(dto.template).toBe('recognize')
     expect(dto.prompt).toMatchObject({ lemma: 'ephemeral' })
     expect((dto.prompt as any).options).toHaveLength(4)
@@ -137,7 +133,7 @@ describe('reviewService.assembleCardDTO', () => {
   it('认读：题面不含 answer 字段，但带词性（v0.6.3 条目 3，评审修复 F1）', () => {
     // 词性必须落在 prompt 上：认读卡面把它渲染在音标之后（design doc §6.2），
     // 缺了这个字段那段渲染就永远走不到（分支恒假）。answer 侧那份保留不动。
-    const dto = assembleCardDTO(candidate(), 'recognize', content, null)
+    const dto = assembleCardDTO(candidate(), 'recognize', content)
     expect(Object.keys(dto.prompt)).not.toContain('translation')
     expect(Object.keys(dto.prompt)).not.toContain('definition')
     expect((dto.prompt as any).partOfSpeech).toBe('adj.')
@@ -145,7 +141,7 @@ describe('reviewService.assembleCardDTO', () => {
   })
 
   it('填空：题面是挖空例句，答案是完整例句与目标词', () => {
-    const dto = assembleCardDTO(candidate(), 'cloze', content, null)
+    const dto = assembleCardDTO(candidate(), 'cloze', content)
     expect((dto.prompt as any).sentence).toContain('____')
     expect((dto.prompt as any).sentence).not.toContain('ephemeral')
     expect((dto.answer as any).lemma).toBe('ephemeral')
@@ -154,7 +150,7 @@ describe('reviewService.assembleCardDTO', () => {
 
   it('填空：词性以括号入句，释义独立成字段（v0.6.2 条目 5），题面仍不含目标词', () => {
     // v0.6.2 起释义不再拼进 sentence，改由 prompt.gloss 承载、前端另起一行渲染。
-    const dto = assembleCardDTO(candidate(), 'cloze', content, null)
+    const dto = assembleCardDTO(candidate(), 'cloze', content)
     expect((dto.prompt as any).sentence).toBe('Fame in this business is ____ (adj.).')
     expect((dto.prompt as any).gloss).toBe('lasting for a very short time')
     expect((dto.prompt as any).partOfSpeech).toBe('adj.')
@@ -164,7 +160,7 @@ describe('reviewService.assembleCardDTO', () => {
 
   it('填空：配对释义缺失时 gloss 为空串（前端据此不渲染释义行）', () => {
     const noGloss = { ...content, exampleGloss: '' }
-    const dto = assembleCardDTO(candidate(), 'cloze', noGloss, null)
+    const dto = assembleCardDTO(candidate(), 'cloze', noGloss)
     const sentence = String((dto.prompt as any).sentence)
     expect(sentence).toContain('____')
     expect(sentence).not.toContain('在句中意为')
@@ -175,13 +171,13 @@ describe('reviewService.assembleCardDTO', () => {
     // 上游 getWordContent 本不该放行这种例句；这里钉住防御分支，避免回归成
     // 「整句 + 空白」那种看起来像空单词的题面。
     const unmatched = { ...content, example: 'The soldiers fanned out', exampleGloss: '' }
-    const dto = assembleCardDTO(candidate(), 'cloze', unmatched, null)
+    const dto = assembleCardDTO(candidate(), 'cloze', unmatched)
     expect((dto.prompt as any).sentence).toBe('The soldiers fanned out')
     expect((dto.prompt as any).sentence).not.toContain('____')
   })
 
   it('中译英：题面是中文释义，答案是单词与音标', () => {
-    const dto = assembleCardDTO(candidate(), 'recall', content, null)
+    const dto = assembleCardDTO(candidate(), 'recall', content)
     expect((dto.prompt as any).translation).toBe('短暂的')
     expect(dto.answer).toMatchObject({ lemma: 'ephemeral', phonetic: '/ɪˈfem(ə)rəl/' })
   })
@@ -190,13 +186,13 @@ describe('reviewService.assembleCardDTO', () => {
     // 夹具里 partOfSpeech 与 firstSensePos 取不同的值：若 recall 退回读 content.partOfSpeech，
     // 这条会红。两个字段语义不同（前者跟例句走、后者跟中文释义走），不该被合并。
     const mixed = { ...content, partOfSpeech: 'n.', firstSensePos: 'adj.' }
-    const dto = assembleCardDTO(candidate(), 'recall', mixed, null)
+    const dto = assembleCardDTO(candidate(), 'recall', mixed)
     expect((dto.prompt as any).partOfSpeech).toBe('adj.')
     expect((dto.prompt as any).partOfSpeech).not.toBe(mixed.partOfSpeech)
   })
 
   it('英文释义题：题面是英文释义，答案是单词与音标', () => {
-    const dto = assembleCardDTO(candidate(), 'english_def', content, null)
+    const dto = assembleCardDTO(candidate(), 'english_def', content)
     expect((dto.prompt as any).definition).toBe(content.definition)
     expect(dto.answer).toMatchObject({ lemma: 'ephemeral' })
   })
@@ -205,21 +201,21 @@ describe('reviewService.assembleCardDTO', () => {
     // 夹具里两个字段取不同的值：若 english_def 退回读 content.partOfSpeech（跟着例句走的那个），
     // 这条会红。题面把释义与词性印在同一行，两者必须同一义项——与 4a 在中译英上的要求同源。
     const mixed = { ...content, partOfSpeech: 'adj.', firstDefPos: 'n.' }
-    const dto = assembleCardDTO(candidate(), 'english_def', mixed, null)
+    const dto = assembleCardDTO(candidate(), 'english_def', mixed)
     expect((dto.prompt as any).definition).toBe(content.definition)
     expect((dto.prompt as any).partOfSpeech).toBe('n.')
     expect((dto.prompt as any).partOfSpeech).not.toBe(mixed.partOfSpeech)
   })
 
   it('听辨：题面不含任何文本（只有播放意图），答案是词与释义', () => {
-    const dto = assembleCardDTO(candidate(), 'listen', content, null)
+    const dto = assembleCardDTO(candidate(), 'listen', content)
     expect(Object.keys(dto.prompt)).toEqual(['playAudio'])
     expect(JSON.stringify(dto.prompt)).not.toContain('ephemeral')
     expect(dto.answer).toMatchObject({ lemma: 'ephemeral', translation: '短暂的' })
   })
 
   it('sched 带出调度派生量，不含词条内容', () => {
-    const dto = assembleCardDTO(candidate(), 'recognize', content, 'cloze')
+    const dto = assembleCardDTO(candidate(), 'recognize', content)
     expect(dto.sched.mastery).toBeCloseTo(Math.exp(-7 / 10), 6)
     expect(dto.sched.rNow).toBeCloseTo(Math.exp(-1), 6)
     expect(dto.sched.lapses).toBe(0)
@@ -227,25 +223,25 @@ describe('reviewService.assembleCardDTO', () => {
   })
 
   it('新卡的 mastery 为 null，rNow 走熟悉度映射', () => {
-    const dto = assembleCardDTO(candidate({ stability: null, initialFamiliarity: 2 }), 'recognize', content, null)
+    const dto = assembleCardDTO(candidate({ stability: null, initialFamiliarity: 2 }), 'recognize', content)
     expect(dto.sched.mastery).toBeNull()
     expect(dto.sched.rNow).toBeCloseTo(0.45, 6)
   })
 
   it('assembleCardDTO 带出 defaultRating：新卡按熟悉度，熟词为 null', () => {
-    expect(assembleCardDTO(candidate({ stability: null, initialFamiliarity: 2 }), 'recognize', content, null).sched.defaultRating).toBe(2)
-    expect(assembleCardDTO(candidate({ stability: 10, initialFamiliarity: 2 }), 'recognize', content, null).sched.defaultRating).toBeNull()
+    expect(assembleCardDTO(candidate({ stability: null, initialFamiliarity: 2 }), 'recognize', content).sched.defaultRating).toBe(2)
+    expect(assembleCardDTO(candidate({ stability: 10, initialFamiliarity: 2 }), 'recognize', content).sched.defaultRating).toBeNull()
   })
 
   it('填空题干缺例句时回退：挖空失败不产生空题面', () => {
     const noExample = { ...content, example: '', exampleGloss: '' }
-    const dto = assembleCardDTO(candidate(), 'cloze', noExample, null)
+    const dto = assembleCardDTO(candidate(), 'cloze', noExample)
     expect((dto.prompt as any).sentence.length).toBeGreaterThan(0)
   })
 
   it('认读：与正确释义同文 / 重复的干扰项被剔除，选项两两不同', () => {
     const messy = { ...content, distractors: ['短暂的', '持久的', '持久的', '明显的', '丰富的'] }
-    const dto = assembleCardDTO(candidate(), 'recognize', messy, null)
+    const dto = assembleCardDTO(candidate(), 'recognize', messy)
     const options = (dto.prompt as any).options as string[]
     expect(options).toHaveLength(4)
     expect(new Set(options).size).toBe(options.length)
@@ -283,14 +279,6 @@ describe('clozeSentence：挖空 + 词性入句（v0.6.2 条目 5）', () => {
   })
 })
 
-describe('reviewService 认读干扰项闸门', () => {
-  it('干扰项不足 3 个时剔除认读，其余模板保留', async () => {
-    const { templatesWithDistractorGate } = await import('./reviewService')
-    expect(templatesWithDistractorGate(['recognize', 'cloze'], 2)).toEqual(['cloze'])
-    expect(templatesWithDistractorGate(['recognize', 'cloze'], 3)).toEqual(['recognize', 'cloze'])
-  })
-})
-
 describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.3 打磨）', () => {
   beforeEach(() => {
     registerAllWordsMock.mockReset()
@@ -312,7 +300,7 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
     getCandidatesMock.mockResolvedValue({
       ok: true,
       data: Array.from({ length: 45 }, (_, i) =>
-        candidate({ cardId: `c${i}`, wordId: `w${i}`, availableTemplates: ['recall'] })),
+        candidate({ cardId: `c${i}`, wordId: `w${i}`, template: 'recall' })),
     })
     getWordContentMock.mockResolvedValue(content)
     getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 45, weak: 0 } })
@@ -324,18 +312,18 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
     getCandidatesMock.mockResolvedValue({
       ok: true,
       data: Array.from({ length: 45 }, (_, i) =>
-        candidate({ cardId: `c${i}`, wordId: `w${i}`, availableTemplates: ['recall'] })),
+        candidate({ cardId: `c${i}`, wordId: `w${i}`, template: 'recall' })),
     })
     getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 7, weak: 0 } })
     expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(7)
   })
 
-  it('两道内容闸门不再作用于 total：例句取不到的词照样算在到期积压里', async () => {
-    // 闸门判的是「这几张现在能不能出题」，不是「今天该不该复习」。让它参与，同一个数
+  it('卡级内容闸门不再作用于 total：例句取不到的词照样算在到期积压里', async () => {
+    // 闸门判的是「这张现在能不能出题」，不是「今天该不该复习」。让它参与，同一个数
     // 会随某个词的内容变动而忽高忽低，且做完一整轮也未必归零（v0.6.3 打磨前的状态）。
     getCandidatesMock.mockResolvedValue({ ok: true, data: [
-      candidate({ cardId: 'c1', wordId: 'w1', availableTemplates: ['cloze'] }),
-      candidate({ cardId: 'c2', wordId: 'w2', availableTemplates: ['cloze'] }),
+      candidate({ cardId: 'c1', wordId: 'w1', template: 'cloze' }),
+      candidate({ cardId: 'c2', wordId: 'w2', template: 'cloze' }),
     ] })
     getWordContentMock.mockImplementation(async (wordId: string) =>
       wordId === 'w1' ? { ...content, example: '' } : content)
@@ -350,10 +338,10 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
     expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(0)
   })
 
-  it('newCount 仍走本轮队列、仍过两道闸门（「新词: n」是另一个量，不从 total 派生）', async () => {
+  it('newCount 仍走本轮队列、仍过卡级闸门（「新词: n」是另一个量，不从 total 派生）', async () => {
     // 干扰项不足 3 个 → 这张新卡本轮出不了题，不该计入「本轮会引入几个新词」。
     getCandidatesMock.mockResolvedValue({
-      ok: true, data: [candidate({ cardId: 'n1', wordId: 'nw1', stability: null, availableTemplates: ['recognize'] })],
+      ok: true, data: [candidate({ cardId: 'n1', wordId: 'nw1', stability: null, template: 'recognize' })],
     })
     getWordContentMock.mockResolvedValue({ ...content, distractors: ['持久的'] })
     getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 45, weak: 0 } })
@@ -364,7 +352,7 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
 
   it('干扰释义够 3 个：同一张新卡计入 newCount，且不混进 total', async () => {
     getCandidatesMock.mockResolvedValue({
-      ok: true, data: [candidate({ cardId: 'n1', wordId: 'nw1', stability: null, availableTemplates: ['recognize'] })],
+      ok: true, data: [candidate({ cardId: 'n1', wordId: 'nw1', stability: null, template: 'recognize' })],
     })
     getWordContentMock.mockResolvedValue(content)
     getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 0, weak: 0 } })
@@ -374,7 +362,7 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
   })
 })
 
-describe('reviewService.getQueue 的两道闸门（概览不再复述这个数）', () => {
+describe('reviewService.getQueue 的卡级闸门（概览不再复述这个数）', () => {
   beforeEach(() => {
     registerAllWordsMock.mockReset()
     getCandidatesMock.mockReset()
@@ -382,32 +370,31 @@ describe('reviewService.getQueue 的两道闸门（概览不再复述这个数�
     registerAllWordsMock.mockResolvedValue(undefined)
   })
 
-  it('只有 cloze 可出、例句取不到：getQueue 出 0 题', async () => {
-    getCandidatesMock.mockResolvedValue({ ok: true, data: [candidate({ availableTemplates: ['cloze'] })] })
-    getTemplateLogsMock.mockResolvedValue({ ok: true, data: {} })
-    getCardMetaMock.mockResolvedValue({ ok: true, data: null })
+  it('一条卡级闸门都过不了的填空卡：getQueue 出 0 题', async () => {
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [candidate({ template: 'cloze' })] })
     getAbsentWordsMock.mockResolvedValue({ ok: true, data: [] })
     getWordContentMock.mockResolvedValue({ ...content, example: '' })
     const { queue } = await getQueue('today', REVIEW_DEFAULTS)
     expect(queue).toEqual([])
   })
 
-  it('三条候选、一条两道闸门都过不了：getQueue 出 2 题', async () => {
+  it('三条候选、一条卡级闸门过不了：getQueue 出 2 题，且题面按卡自己的题型', async () => {
+    // 题型由卡承载后，闸门判的是「这张卡的题型」：cloze 卡看例句、recognize 卡看干扰项，
+    // 不再是「先按可用模板过滤、再在剩下的一堆里挑一道」。
     getCandidatesMock.mockResolvedValue({ ok: true, data: [
-      candidate({ cardId: 'c1', wordId: 'w1', availableTemplates: ['cloze'] }),
-      candidate({ cardId: 'c2', wordId: 'w2', availableTemplates: ['cloze'] }),
-      candidate({ cardId: 'c3', wordId: 'w3', availableTemplates: ['recognize'] }),
+      candidate({ cardId: 'c1', wordId: 'w1', template: 'cloze' }),
+      candidate({ cardId: 'c2', wordId: 'w2', template: 'cloze' }),
+      candidate({ cardId: 'c3', wordId: 'w3', template: 'recognize' }),
     ] })
-    getTemplateLogsMock.mockResolvedValue({ ok: true, data: {} })
-    getCardMetaMock.mockResolvedValue({ ok: true, data: null })
     getAbsentWordsMock.mockResolvedValue({ ok: true, data: [] })
     getWordContentMock.mockImplementation(async (wordId: string) => {
-      if (wordId === 'w1') return { ...content, example: '' }   // 例句取不到 → 两道闸门都过不了
+      if (wordId === 'w1') return { ...content, example: '' }   // 例句取不到 → 这张填空卡过不了
       if (wordId === 'w2') return content                        // cloze 可出
       return { ...content, distractors: ['持久的', '明显的', '丰富的'] } // recognize 可出
     })
     const { queue } = await getQueue('today', REVIEW_DEFAULTS)
-    expect(queue).toHaveLength(2)
+    expect(queue.map(c => c.cardId).sort()).toEqual(['c2', 'c3'])
+    expect(queue.map(c => c.template).sort()).toEqual(['cloze', 'recognize'])
   })
 })
 
@@ -433,12 +420,9 @@ describe('reviewService 薄弱词列表', () => {
 describe('reviewService.getQueue 自由练习的分类范围（v0.6.2 条目 10）', () => {
   beforeEach(() => {
     registerAllWordsMock.mockReset(); getAllCandidatesMock.mockReset(); getAbsentWordsMock.mockReset()
-    getTemplateLogsMock.mockReset(); getCardMetaMock.mockReset()
     getWordContentMock.mockReset(); getAllWordCategoryMapMock.mockReset()
     registerAllWordsMock.mockResolvedValue(undefined)
     getAbsentWordsMock.mockResolvedValue({ ok: true, data: [] })
-    getTemplateLogsMock.mockResolvedValue({ ok: true, data: {} })
-    getCardMetaMock.mockResolvedValue({ ok: true, data: null })
     getWordContentMock.mockResolvedValue(content)
   })
 

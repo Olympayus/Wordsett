@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import {
-  pickTemplate, templateAccuracy, usableTemplates, templatesWithExampleGate,
+  cardPresentable, templateAccuracy, usableTemplates,
   TEMPLATE_DIFFICULTY, FIELD_KEY_GROUPS,
 } from './template'
+import type { CardContent } from './types'
 import type { Template, TemplateLog } from './template'
 
 const log = (template: Template, rating: number): TemplateLog => ({ template, rating })
@@ -40,35 +41,6 @@ describe('review/template', () => {
     ]
     expect(templateAccuracy(logs, 'recall')).toBe(1)
   })
-
-  it('新词（无日志）按难度序取最易的可用模板', () => {
-    expect(pickTemplate(['cloze', 'listen'], [], null)).toBe('cloze')
-    expect(pickTemplate(['listen', 'english_def'], [], null)).toBe('english_def')
-  })
-
-  it('未测过的模板优先于已测过的（探索先于利用）', () => {
-    const logs = [log('recognize', 1), log('recognize', 1)]  // 认读很差
-    // 填空未测过 → 先探索填空，而不是立刻回去刷最弱的认读
-    expect(pickTemplate(['recognize', 'cloze'], logs, 'recognize')).toBe('cloze')
-  })
-
-  it('全部测过后取正确率最低者', () => {
-    const logs = [
-      log('recognize', 4), log('recognize', 4),
-      log('cloze', 1), log('cloze', 1),
-    ]
-    expect(pickTemplate(['recognize', 'cloze'], logs, 'recognize')).toBe('cloze')
-  })
-
-  it('正确率并列时避开上次出过的模板', () => {
-    const logs = [log('recognize', 1), log('cloze', 1)]
-    expect(pickTemplate(['recognize', 'cloze'], logs, 'recognize')).toBe('cloze')
-    expect(pickTemplate(['recognize', 'cloze'], logs, 'cloze')).toBe('recognize')
-  })
-
-  it('无可用模板返回 null', () => {
-    expect(pickTemplate([], [], null)).toBeNull()
-  })
 })
 
 describe('usableTemplates 的听辨门控', () => {
@@ -96,20 +68,27 @@ describe('usableTemplates 的听辨门控', () => {
   })
 })
 
-describe('templatesWithExampleGate（v0.6.3 条目 4c）', () => {
-  it('例句为空串时剔掉 cloze，其余题型不动', () => {
-    const available: Template[] = ['recognize', 'cloze', 'recall', 'english_def']
-    expect(templatesWithExampleGate(available, '')).toEqual(['recognize', 'recall', 'english_def'])
+describe('cardPresentable（v0.6.5：卡级闸门）', () => {
+  const content = (o: Partial<CardContent> = {}): CardContent => ({
+    lemma: 'alpha', phonetic: '/a/', partOfSpeech: 'n.', translation: '甲',
+    definition: '', example: 'alpha is first', exampleGloss: '', matchedPos: 'n.',
+    firstSensePos: 'n.', firstDefPos: 'n.', distractors: ['乙', '丙', '丁'],
+    ...o,
   })
 
-  it('例句非空时原样返回（含空数组）', () => {
-    const available: Template[] = ['recognize', 'cloze']
-    expect(templatesWithExampleGate(available, 'alpha is first')).toBe(available)
-    expect(templatesWithExampleGate([], 'alpha is first')).toEqual([])
+  it('认读题需要至少 3 个干扰项', () => {
+    expect(cardPresentable('recognize', content({ distractors: ['乙', '丙'] }))).toBe(false)
+    expect(cardPresentable('recognize', content({ distractors: ['乙', '丙', '丁'] }))).toBe(true)
   })
 
-  it('本来就没有 cloze 时，空例句不改变列表', () => {
-    const available: Template[] = ['recognize', 'recall']
-    expect(templatesWithExampleGate(available, '')).toEqual(['recognize', 'recall'])
+  it('填空题需要非空例句', () => {
+    expect(cardPresentable('cloze', content({ example: '' }))).toBe(false)
+    expect(cardPresentable('cloze', content())).toBe(true)
+  })
+
+  it('其余题型无内容层闸门', () => {
+    expect(cardPresentable('recall', content({ example: '', distractors: [] }))).toBe(true)
+    expect(cardPresentable('english_def', content({ definition: '' }))).toBe(true)
+    expect(cardPresentable('listen', content({ phonetic: '' }))).toBe(true)
   })
 })
