@@ -20,12 +20,17 @@ import { fieldState, FIELD_STATE_BG, type FieldState } from '../../lib/fieldStat
 import { Button } from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
 import SpeakButton from '../ui/SpeakButton'
+import LeechBadge from '../ui/LeechBadge'
+import StrengthChip from '../ui/StrengthChip'
 import Icon from '../icons'
 import CategoryCapsule from './CategoryCapsule'
 import PhoneticArea from './PhoneticArea'
 import TabBar from './TabBar'
 import WorkbenchNavBar from './WorkbenchNavBar'
 import { useCategoryStore } from '../../stores/categoryStore'
+import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
+import { useSettingsStore } from '../../stores/settingsStore'
+import { isLeech } from '../../lib/review/leech'
 import { useUiStore } from '../../stores/uiStore'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
@@ -753,6 +758,13 @@ export default function WordWorkbench() {
   const { openAssign, openEditor } = useUiStore()
 
   const selectedWord = words.find(w => w.id === selectedWordId)
+  // 词级复习叠加层：词头徽标与记忆强度 chip 的数据源（v0.6.4；出题依据 03 §3.2/§3.3）。
+  // wordId 只能取 selectedWordId——本组件没有 wordId prop，selectedWord.id 与它同值，
+  // 但在下面 `if (!selectedWord) return <EmptyState/>` 早退之前它就可用，hook 无条件调用不违反规则。
+  // overlay 存的是按 wordId 索引的全库表，这里只订阅本词那一项，别订阅整个 store。
+  const wordId = selectedWordId ?? ''
+  const overlay = useReviewOverlayStore(s => s.overlay[wordId])
+  const leechThreshold = useSettingsStore(s => s.review.leechThreshold)
 
   useEffect(() => {
     getDefinitions().then(defs => setDefs(defs))
@@ -1130,6 +1142,11 @@ export default function WordWorkbench() {
                   {selectedWord.lemma}
                 </div>
                 <SpeakButton text={selectedWord.lemma} />
+                {overlay && isLeech(overlay.maxLapses, leechThreshold) && <LeechBadge count={overlay.maxLapses} />}
+                {/* 无复习卡时 overlay 为 undefined → (null, 1) → 档 1，不是设计稿的「中性灰」。取舍：
+                    档 0 语义是「连熟悉度也没有」，而熟悉度是内置字段、默认 clamp 到 1，对真实词永远存在，
+                    displayTier 不可能返回 0（spec §4.5）。按档 1 走既忠于字段事实，也免得「没复习过」看起来像「最弱」。 */}
+                <StrengthChip stability={overlay?.maxStability ?? null} familiarity={overlay?.familiarity ?? 1} />
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>

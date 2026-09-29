@@ -3,6 +3,10 @@ import type { WordWithPreview } from '../../types/word'
 import type { Category } from '../../types/category'
 import type { SidebarMode } from '../../lib/sidebar'
 import { formatPhonetic } from '../../lib/phonetic'
+import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
+import { useSettingsStore } from '../../stores/settingsStore'
+import { isLeech } from '../../lib/review/leech'
+import LeechBadge from '../ui/LeechBadge'
 
 interface Props {
   word: WordWithPreview
@@ -23,6 +27,12 @@ function hexToRgb(hex: string): string {
 export default function WordListItem({ word, categories, selected, collapsed, mode, onClick, onContextMenu }: Props) {
   const collapsedDots = categories.slice(0, 3)   // 收起态色圈限 3 个：匹配 COLLAPSED_CHROME_ALPHABET 的 3 色圈宽度（27px）
   const lineRef = useRef<HTMLDivElement>(null)
+  // 顽固词徽标数据（v0.6.4；出题依据 03 §3.2）。词表是虚拟滚动的，只按本行 wordId 查表，
+  // 不发 IPC——与 categoryStore 的 wordCategoryMap 同一做法。
+  // 收起态（collapsed）下**不渲染徽标**：那里只剩单词名与分类色圈，没有位置，塞进去会把行压变形。
+  const overlay = useReviewOverlayStore(s => s.overlay[word.id])
+  const leechThreshold = useSettingsStore(s => s.review.leechThreshold)
+  const isLeechRow = !collapsed && !!overlay && isLeech(overlay.maxLapses, leechThreshold)
 
   const containerStyle: CSSProperties = {
     display: 'flex',
@@ -133,8 +143,8 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
                   </span>
                 ))}
               </div>
-              {categories.length > 0 && (
-                <div style={{ display: 'flex', gap: '4px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {(categories.length > 0 || isLeechRow) && (
+                <div style={{ display: 'flex', gap: '4px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
                   {categories.map(c => (
                     <span key={c.id} style={{
                       display: 'inline-flex', alignItems: 'center', gap: '4px', height: '18px', padding: '0 8px',
@@ -145,6 +155,7 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
                       {c.name}
                     </span>
                   ))}
+                  {isLeechRow && <LeechBadge count={overlay!.maxLapses} />}
                 </div>
               )}
             </div>

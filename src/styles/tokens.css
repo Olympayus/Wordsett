@@ -52,6 +52,10 @@
   --color-success: #6B8E7F;
   --color-warning: #C17A4E;
   --color-danger: #B85450;
+  /* v0.6.4 顽固词徽标：低饱和砖红。**不复用 --color-danger**——danger 在复习区
+     已经背了「错误」的语义（评分失败那行就在用它），同一个色在两处承担两种意思会串。
+     也与「个人」来源的橙 #C17A4E 刻意拉开色相。 */
+  --color-leech: #A8554E;
   --color-scrim: rgba(28, 24, 20, 0.3);  /* 模态/抽屉覆盖层 */
 
   /* 字体 */
