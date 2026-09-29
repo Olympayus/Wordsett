@@ -6,6 +6,7 @@ import EntrySnapshot from './EntrySnapshot'
 import ArenaNavBar from './ArenaNavBar'
 import SquareButton from '../ui/SquareButton'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
+import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useUiStore } from '../../stores/uiStore'
 import { rateCard, type CardContent, type RateCardResult } from '../../services/reviewService'
@@ -43,6 +44,8 @@ function useNarrowResults(): boolean {
 export default function ReviewArena() {
   const answeredList = useReviewSessionStore(s => s.answered)
   const { queue, index, phase, answerCurrent, advance, reset, setIndex } = useReviewSessionStore()
+  // 词级复习叠加层（连错 / stability）的重取入口，绑定在评分落库那一步（见 handleRate 末）
+  const loadOverlay = useReviewOverlayStore(s => s.loadOverlay)
   const letterHighlight = useSettingsStore(s => s.review.letterHighlight)
   const retention = useSettingsStore(s => s.review.retention)
   // 结果区两栏的断点（v0.6.3 条目 16）：同一个值既决定内容区上限、也决定词条并排还是置底
@@ -149,6 +152,13 @@ export default function ReviewArena() {
     // 落库成功后再记账（answerCurrent 同时把 phase 置为 'rated'，结果区块留在屏上），
     // 推进交给「下一题」按钮 / 再按一次评分键（spec §2.3）。
     answerCurrent(r, input)
+    // 刷新放在**落库成功之后**而不是 advance() 之后（v0.6.4 词级复习叠加层）：
+    // 改 stability / lapses 的是上面那次 rateCard 写库，叠加载入哪一步都该在它之后取。
+    // 三处 advance() 都不放——键盘那处只在 phase === 'rated'（即刚评过分）时进，
+    // 查看小结那处只出现在回看态、评分是更早的轮次落的，两处都是重复取数。
+    // 火而不管：下一题若已排在队尾，取数与渲染没有先后依赖，等它回来即可；
+    // loadOverlay 内部吞掉失败（见 reviewOverlayStore），不会抛进 keydown 处理器。
+    void loadOverlay()
   }
 
   // 揭示后：未评分 → 1 / 2 / 3 评分；已评分 → 同样的键推进下一题（不重复评分）。

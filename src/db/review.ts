@@ -520,6 +520,58 @@ export async function getWeakWordsWithCounts(
   }
 }
 
+/**
+ * 词级复习叠加层（v0.6.4）：一次 GROUP BY 给出全库每个词的
+ * 连错次数与记忆强度所需的 stability，外加初始熟悉度。
+ *
+ * 徽标与记忆强度 chip 共用这一次取数——词表由虚拟滚动渲染、几百行，
+ * 不能每行发一次 IPC。
+ *
+ * **不复用 getWeakWordsWithCounts**：那是薄弱词专项页的取数，口径是
+ * 「lapses ≥ 阈值 ∪ 近 7 天 rating=1」，拿它当徽标数据源会让近 7 天错过一次的词
+ * 全挂上徽标。徽标要的是严格 Leech（01 §3.6），只认 lapses。
+ * 也**不是** getWeakCardIds——那个返回 card id，不是 word id。
+ *
+ * 没有卡的词不出现在结果里：UI 侧按「查不到 = 无记录」处理，
+ * 与「新词不进到期集」是同一取向。
+ */
+export interface WordReviewOverlay {
+  maxLapses: number
+  maxStability: number | null
+  familiarity: InitialFamiliarity
+}
+
+export async function getWordReviewOverlay(h?: DbHandle): Promise<DbResult<Record<string, WordReviewOverlay>>> {
+  const d = db(h)
+  try {
+    const rows = await d.select<Record<string, any>>(
+      `SELECT c.word_id,
+              COALESCE(MAX(s.lapses), 0) AS max_lapses,
+              MAX(s.stability) AS max_stability,
+              (SELECT fv.value FROM field_values fv
+                 JOIN field_definitions fd ON fd.id = fv.field_id
+                WHERE fv.word_id = c.word_id AND fd.key = 'initial_familiarity'
+                ORDER BY fv.display_order LIMIT 1) AS familiarity
+       FROM review_cards c
+       LEFT JOIN review_states s ON s.card_id = c.id
+       GROUP BY c.word_id`,
+    )
+    const out: Record<string, WordReviewOverlay> = {}
+    for (const r of rows) {
+      const fam = Number(r.familiarity)
+      out[r.word_id] = {
+        maxLapses: Number(r.max_lapses) || 0,
+        maxStability: r.max_stability === null || r.max_stability === undefined ? null : Number(r.max_stability),
+        // 与 mapCandidate 同一道夹取：字段值是可编辑自由文本
+        familiarity: (fam === 2 || fam === 3 ? fam : 1) as InitialFamiliarity,
+      }
+    }
+    return { ok: true, data: out }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
 /** 左栏计数：today = 到期且可出题的词数；weak = lapses ≥ 阈值 ∪ 窗口内 rating = 1。 */
 export async function getStrategyCounts(
   opts: { leechThreshold: number; recentWindowMs: number; now: number; allowListen?: boolean },

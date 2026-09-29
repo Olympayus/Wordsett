@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import SquareButton from '../ui/SquareButton'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
+import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useViewStore } from '../../stores/viewStore'
 import { jumpToWord } from '../../lib/review/jumpToWord'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
@@ -25,6 +26,10 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
 
   useEffect(() => {
     getAbsent().then(setAbsent)
+    // 小结每轮到达一次，在这里补一次叠加层取数即可：ReviewArena 已在每次评分落库后
+    // 逐次重取过，这一条兜住「本轮一张都没评」或中途换了词的尾巴，让词表徽标与
+    // 记忆强度 chip 在离开复习区时是当轮结束时的真值。
+    void useReviewOverlayStore.getState().loadOverlay()
   }, [])
 
   const summary = roundSummary(queue, answered)

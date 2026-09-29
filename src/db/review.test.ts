@@ -15,6 +15,7 @@ import {
   setLastTemplate,
   getWeakCardIds,
   getWeakWordsWithCounts,
+  getWordReviewOverlay,
   getStrategyCounts,
   getStats,
   getAbsentWords,
@@ -372,6 +373,50 @@ describe('db/review 读路径', () => {
     expect(r.ok).toBe(true)
     if (!r.ok) return
     expect(r.data.map(c => c.wordId)).toEqual(['w2'])
+  })
+
+  // v0.6.4 词级复习叠加层（01 §3.6）。两个用例共用一份 fixture：beforeEach 每次给的是
+  // 空库，所以这三条形状必须由测试自己铺出来——它们正是 UI 侧三种取值分支
+  // （有记录 / 有卡无记录 / 无卡无记录）。
+  describe('getWordReviewOverlay', () => {
+    beforeEach(async () => {
+      // w1：有卡 + 有 review_states（lapses 3、stability 12）+ initial_familiarity = 3
+      await seedWord(db, 'w1', 'alpha')
+      // w2：有卡、无 review_states 行 → LEFT JOIN 出 NULL，maxLapses 应兜 0、maxStability 应留 null
+      await seedWord(db, 'w2', 'beta')
+      // w3：有词无卡 → 查不到该 key，UI 按「无记录」处理
+      await seedWord(db, 'w3', 'gamma')
+      await registerCards(['w1', 'w2'], db)
+      await seedValue(db, 'fv1', 'w1', 'initial_familiarity', '3')
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES ((SELECT id FROM review_cards WHERE word_id = 'w1'), 12, 5, ?1, 3, 6, 0, ?2)`,
+        [NOW - 1000, NOW - 86400000])
+    })
+
+    it('多卡词取 MAX(lapses)，无复习状态的行取 0 / null', async () => {
+      const r = await getWordReviewOverlay(db)
+      expect(r.ok).toBe(true)
+      if (!r.ok) return
+      // w1 有 review_states 行（lapses 3、stability 12）→ 带出真值
+      expect(r.data.w1.maxLapses).toBe(3)
+      expect(r.data.w1.maxStability).toBe(12)
+      // w2 有卡但无 review_states 行 → 0 / null
+      expect(r.data.w2.maxLapses).toBe(0)
+      expect(r.data.w2.maxStability).toBeNull()
+      // 没有卡的词不出现在结果里（UI 侧按「查不到 = 无记录」处理）
+      expect(r.data.w3).toBeUndefined()
+    })
+
+    it('familiarity 与候选池同源（都读字段）', async () => {
+      const r = await getWordReviewOverlay(db)
+      expect(r.ok).toBe(true)
+      if (!r.ok) return
+      expect(r.data.w1.familiarity).toBe(3)
+      // w2 没有该字段行：子查询留 NULL，Number(null) === 0 落到夹取的 else 分支 → 默认 1，
+      // 与 mapCandidate / getCandidates 的「缺失即 1」同一口径（组卷与徽标不能各说各话）
+      expect(r.data.w2.familiarity).toBe(1)
+    })
   })
 })
 
