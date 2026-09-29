@@ -8,11 +8,13 @@ import { useUiStore } from '../../stores/uiStore'
 import SidebarToolbar from './SidebarToolbar'
 import WordListItem from '../word/WordListItem'
 import ContextMenu, { type MenuItem } from '../ui/ContextMenu'
+import CategoryPickerPopover from '../ui/CategoryPickerPopover'
 import { vocabularySearch } from '../../lib/search'
 import { groupByLetter, groupByCategory, type SidebarMode } from '../../lib/sidebar'
+import { rangeSelect, selectAll, pruneToRows } from '../../lib/selection'
 import type { WordWithPreview } from '../../types/word'
 import type { Category } from '../../types/category'
-import Icon from '../icons'
+import Icon, { type IconName } from '../icons'
 
 type HeaderType = 'letter' | 'category' | 'uncategorized'
 
@@ -44,6 +46,12 @@ export default function WordList({
   onToggleMode: () => void
 }) {
   const { words, selectedWordId, selectWord } = useWordStore()
+  const [selectMode, setSelectMode] = useState(false)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [anchorKey, setAnchorKey] = useState<string | null>(null)
+  const [batchPopover, setBatchPopover] = useState<'add' | 'remove' | null>(null)
+  const { assignMany, unassignMany } = useCategoryStore()
+  const { deleteWords } = useWordStore()
   const { categories, wordCategoryMap } = useCategoryStore()
   const [filter, setFilter] = useState('')
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set())
@@ -133,6 +141,87 @@ export default function WordList({
     }
     return rs
   }, [groups, collapsedGroups, wordCategoryMap, categoryById])
+
+  // 当前实际渲染的词条行键——全选与范围选的作用域就是它，不是全库。
+  const wordRowKeys = useMemo(
+    () => rows.filter((r): r is ItemRow => r.kind === 'item').map(r => r.key),
+    [rows])
+
+  // 批量动作的入参。由 rows 反查而非由 selected 直接映射：键是 `分组键:词id`，
+  // 同一个词属于两个分类时会在分类模式下占两行，两行的 key 不同。按 key 逐行去重后
+  // 得到的才是「词」而不是「行」，否则 assignMany 会收到重复 id（DB 侧 INSERT OR IGNORE /
+  // DELETE 都幂等，无副作用，但确认框里的数字会虚高一倍）。
+  const selectedWordIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const r of rows) if (r.kind === 'item' && selected.has(r.key)) ids.add(r.word.id)
+    return [...ids]
+  }, [rows, selected])
+
+  // 列表因筛选或视图切换而变化后，把已选中但已不可见的键剔掉。
+  // 不做这一步，批量删除会删到用户已经看不见的词。
+  useEffect(() => { setSelected(prev => pruneToRows(prev, wordRowKeys)) }, [wordRowKeys])
+
+  // 锚点同样要跟着走：它是一个行键，所在行被筛掉后就是悬空的。
+  // rangeSelect 在锚点缺失时退化成对目标的单点切换，不会拉出一条错误的范围——
+  // 但把悬空锚点留在 state 里会让「筛选后再 Shift 点一下」的意图变得不可预期，故直接清空。
+  useEffect(() => { setAnchorKey(prev => (prev !== null && !wordRowKeys.includes(prev) ? null : prev)) }, [wordRowKeys])
+
+  const exitSelect = useCallback(() => {
+    setSelectMode(false); setSelected(new Set()); setAnchorKey(null); setBatchPopover(null)
+  }, [])
+
+  useEffect(() => {
+    if (!selectMode) return
+    // 与本组件内其他 window 级 Esc 监听（词条卡浮层、词典返回页回工作台）不冲突：
+    // 那些各自清自己的状态，这里只清选中集。**刻意不停冒泡**——在 selectMode 下 Esc
+    // 唯一该发生的事就是退出选择模式。
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') exitSelect() }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectMode, exitSelect])
+
+  // 三个批量动作的入参都取自已剪枝的 selectedWordIds——它是「当前看得见的选中词」的唯一定义。
+  const runBatchDelete = async () => {
+    const ids = selectedWordIds
+    if (ids.length === 0) return
+    const ok = await useUiStore.getState().confirm({
+      title: '删除单词',
+      message: `确定删除选中的 ${ids.length} 个单词吗？此操作不可撤销。`,
+      danger: true,
+    })
+    if (!ok) return
+    await deleteWords(ids)
+    exitSelect()
+  }
+
+  const runBatchAssign = async (categoryId: string) => {
+    await assignMany(selectedWordIds, categoryId)
+    exitSelect()
+  }
+
+  // 「从分类移除」只对确实属于该分类的选中项生效，其余静默跳过。
+  // 传入的是「已剪枝后的可见选中词」∩「确实挂在这个分类下的词」：
+  // 交集为空时直接短路，连 IPC 都不发（DB 侧 DELETE 本就按 category_id 过滤、天然幂等，
+  // 这里先收窄是为了让「选了一堆不在这分类里的词」这个情形在语义上就是空动作）。
+  const runBatchUnassign = async (categoryId: string) => {
+    const ids = selectedWordIds.filter(id => (wordCategoryMap[id] ?? []).includes(categoryId))
+    if (ids.length === 0) { exitSelect(); return }
+    await unassignMany(ids, categoryId)
+    exitSelect()
+  }
+
+  const handleRowClick = (row: ItemRow, e: React.MouseEvent | React.KeyboardEvent) => {
+    if (!selectMode) { void selectWord(row.word.id); showWorkbench(); return }
+    if (e.shiftKey) { setSelected(prev => rangeSelect(wordRowKeys, anchorKey, row.key, prev)) }
+    else {
+      setSelected(prev => {
+        const next = new Set(prev)
+        if (next.has(row.key)) next.delete(row.key); else next.add(row.key)
+        return next
+      })
+    }
+    setAnchorKey(row.key)
+  }
 
   const parentRef = useRef<HTMLDivElement>(null)
   const shouldVirtualize = rows.length > 100
@@ -253,8 +342,10 @@ export default function WordList({
         selected={row.word.id === selectedWordId}
         collapsed={collapsed}
         mode={mode}
-        onClick={() => { void selectWord(row.word.id); showWorkbench() }}
+        onClick={e => handleRowClick(row, e)}
         onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: 'word', word: row.word }) }}
+        selectionMode={selectMode}
+        checked={selected.has(row.key)}
       />
     )
   }
@@ -267,6 +358,11 @@ export default function WordList({
         onFilterChange={setFilter}
         onToggleMode={onToggleMode}
         onToggleCollapse={onToggleCollapse}
+        selectMode={selectMode}
+        onToggleSelectMode={() => setSelectMode(true)}
+        selectedCount={selected.size}
+        onSelectAll={() => setSelected(selectAll(wordRowKeys))}
+        onExitSelect={exitSelect}
       />
       <div ref={parentRef} className="flex-1 overflow-y-auto" style={{ padding: '8px' }}>
         {searching ? (
@@ -292,6 +388,34 @@ export default function WordList({
           rows.map(renderRow)
         )}
       </div>
+      {/* 批量操作条（v0.6.5 §4.2）：浮在 footer 之上。三个动作，前两个共用分类下拉浮层。
+          收起态（120px）下三个中文标签放不下，换成图标按钮 + tooltip + aria-label——
+          这是本次唯一一处「按宽度换形态」。
+          浮层传 placement="top"：本条贴侧栏底部，向下会被 AppShell 的 <aside>（overflow: hidden）裁掉。 */}
+      {selectMode && selected.size > 0 && (
+        <div style={{ position: 'relative', margin: '6px 8px 8px' }}>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap',
+            padding: '8px', background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
+            boxShadow: 'var(--shadow-raised)',
+          }}>
+            <BatchChip label="加入分类" icon="plus" collapsed={collapsed}
+              onClick={() => setBatchPopover(batchPopover === 'add' ? null : 'add')} />
+            <BatchChip label="从分类移除" icon="close" collapsed={collapsed}
+              onClick={() => setBatchPopover(batchPopover === 'remove' ? null : 'remove')} />
+            <BatchChip label="删除" icon="trash" danger collapsed={collapsed} onClick={() => { void runBatchDelete() }} />
+          </div>
+          {batchPopover === 'add' && (
+            <CategoryPickerPopover align="left" placement="top" onClose={() => setBatchPopover(null)}
+              onPick={categoryId => { void runBatchAssign(categoryId) }} />
+          )}
+          {batchPopover === 'remove' && (
+            <CategoryPickerPopover align="left" placement="top" onClose={() => setBatchPopover(null)}
+              onPick={categoryId => { void runBatchUnassign(categoryId) }} />
+          )}
+        </div>
+      )}
       {menu && (
         <ContextMenu
           x={menu.x}
@@ -301,5 +425,35 @@ export default function WordList({
         />
       )}
     </div>
+  )
+}
+
+/** 批量条上的一颗动作。收起态只留图标，标签进 title 与 aria-label。 */
+function BatchChip({ label, icon, danger, collapsed, onClick }: {
+  label: string
+  icon: IconName
+  danger?: boolean
+  collapsed: boolean
+  onClick: () => void
+}) {
+  return (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      onClick={onClick}
+      style={{
+        display: 'inline-flex', alignItems: 'center', gap: '5px',
+        height: '28px', padding: collapsed ? '0 8px' : '0 10px',
+        border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+        background: 'var(--color-surface-raised)', cursor: 'pointer',
+        color: danger ? 'var(--color-danger)' : 'var(--color-text-primary)',
+        fontFamily: 'var(--font-sans)', fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-medium)',
+        whiteSpace: 'nowrap', flexShrink: 0,
+      }}
+    >
+      <Icon name={icon} size={12} />
+      {!collapsed && label}
+    </button>
   )
 }

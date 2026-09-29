@@ -7,6 +7,7 @@ import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { isLeech } from '../../lib/review/leech'
 import LeechBadge from '../ui/LeechBadge'
+import CheckBox from '../ui/CheckBox'
 
 interface Props {
   word: WordWithPreview
@@ -14,8 +15,17 @@ interface Props {
   selected: boolean
   collapsed: boolean       // 侧边栏收起态
   mode: SidebarMode
-  onClick: () => void
+  /**
+   * 选择模式下点击的含义变了：不再切换当前词条，而是切换勾选。
+   * 键盘激活（Enter / Space）与鼠标点击走同一个回调，所以入参是两种事件的并集——
+   * 两个事件都只被读 `shiftKey`，键盘激活不能因此失效。写成 `React.MouseEvent` 会让
+   * onKeyDown 里的 `onClick(e)` 编译不过（KeyboardEvent 缺 clientX 等成员），用 as 强转
+   * 则等于把类型系统的告警按掉，两者都不选。
+   */
+  onClick: (e: React.MouseEvent | React.KeyboardEvent) => void
   onContextMenu?: (e: React.MouseEvent) => void
+  selectionMode: boolean
+  checked: boolean
 }
 
 function hexToRgb(hex: string): string {
@@ -24,7 +34,7 @@ function hexToRgb(hex: string): string {
   return `${r}, ${g}, ${b}`
 }
 
-export default function WordListItem({ word, categories, selected, collapsed, mode, onClick, onContextMenu }: Props) {
+export default function WordListItem({ word, categories, selected, collapsed, mode, onClick, onContextMenu, selectionMode, checked }: Props) {
   const collapsedDots = categories.slice(0, 3)   // 收起态色圈限 3 个：匹配 COLLAPSED_CHROME_ALPHABET 的 3 色圈宽度（27px）
   const lineRef = useRef<HTMLDivElement>(null)
   // 顽固词徽标数据（v0.6.4；出题依据 03 §3.2）。词表是虚拟滚动的，只按本行 wordId 查表，
@@ -42,7 +52,7 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
     borderRadius: 'var(--radius-md)',
     cursor: 'pointer',
     position: 'relative',
-    background: selected ? 'var(--color-surface)' : 'transparent',
+    background: checked ? 'var(--color-brand-soft)' : (selected ? 'var(--color-surface)' : 'transparent'),
     transition: 'background-color var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth)',
     justifyContent: collapsed && mode === 'category' ? 'center' : undefined,
   }
@@ -55,7 +65,7 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
       className="group"
       onClick={onClick}
       onContextMenu={e => { e.preventDefault(); onContextMenu?.(e) }}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e) } }}
       style={containerStyle}
       onMouseEnter={e => {
         const el = e.currentTarget as HTMLElement
@@ -76,6 +86,19 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
         }
       }}
     >
+      {selectionMode && (
+        // 外层 span 吞掉冒泡并转交给父级的 onClick——勾选框自己是 <button>，
+        // 点它会同时触发自己的 onClick 与行的 onClick，不拦就会勾两次（等于没勾）。
+        // CheckBox 的 onChange 传空函数是刻意的：它是受控组件，状态真源在父级的选中集里，
+        // 切换只走这一条路径。
+        <span
+          style={{ display: 'inline-flex', flexShrink: 0, alignSelf: collapsed ? 'center' : 'flex-start', marginTop: collapsed ? 0 : 2 }}
+          onClick={e => { e.stopPropagation(); onClick(e) }}
+        >
+          <CheckBox checked={checked} onChange={() => {}} label={word.lemma} />
+        </span>
+      )}
+
       {/* 编织线（规格 §4.4）：默认 3px 50% 透明，悬停 text-secondary 实色，选中 brand 4px */}
       <div ref={lineRef} style={{
         width: selected ? '4px' : '3px',
