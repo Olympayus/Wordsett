@@ -12,7 +12,7 @@ const cand = (o: Partial<QueueCandidate> & { cardId: string }): QueueCandidate =
   dueAt: NOW - MS_PER_DAY,
   lastReviewAt: NOW - 10 * MS_PER_DAY,
   initialFamiliarity: 1 as InitialFamiliarity,
-  availableTemplates: ['recognize'] as Template[],
+  template: 'recognize' as Template,
   ...o,
 })
 
@@ -44,15 +44,6 @@ describe('review/queue', () => {
     expect(r.newCount).toBe(3)
   })
 
-  it('无可用模板的词缺席，不计入队列', () => {
-    const r = buildQueue([
-      cand({ cardId: 'a', availableTemplates: [] }),
-      cand({ cardId: 'b' }),
-    ], params)
-    expect(r.queue.map(c => c.cardId)).toEqual(['b'])
-    expect(r.absentCount).toBe(1)
-  })
-
   it('新卡额度为 0 且无到期卡 → 空队列，不报错', () => {
     const r = buildQueue(
       [cand({ cardId: 'a', stability: null })],
@@ -60,7 +51,6 @@ describe('review/queue', () => {
     )
     expect(r.queue).toEqual([])
     expect(r.newCount).toBe(0)
-    expect(r.absentCount).toBe(0)
   })
 
   it('新卡额度限制生效', () => {
@@ -126,5 +116,68 @@ describe('review/queue', () => {
     ], params)
     // 新卡 R_now = 0.15，熟词 R_now = exp(-0.9) ≈ 0.41 → 新卡在前
     expect(r.queue.map(c => c.cardId)).toEqual(['fresh', 'due'])
+  })
+})
+
+describe('每词每轮至多一张卡', () => {
+  it('同一个词的三张到期卡只出一张，其余轮的 due_at 不受影响', () => {
+    const r = buildQueue([
+      cand({ cardId: 'a', wordId: 'w1', template: 'recognize', stability: 5, dueAt: NOW - 30 * MS_PER_DAY, lastReviewAt: NOW - 30 * MS_PER_DAY }),
+      cand({ cardId: 'b', wordId: 'w1', template: 'cloze',     stability: 5, dueAt: NOW - 20 * MS_PER_DAY, lastReviewAt: NOW - 20 * MS_PER_DAY }),
+      cand({ cardId: 'c', wordId: 'w1', template: 'recall',    stability: 5, dueAt: NOW - 10 * MS_PER_DAY, lastReviewAt: NOW - 10 * MS_PER_DAY }),
+    ], params)
+    expect(r.queue).toHaveLength(1)
+    // 选出的是 R_now 最低的那张（逾期最久 = 最记不住）
+    expect(r.queue[0].cardId).toBe('a')
+    expect(r.dueCount).toBe(1)
+  })
+
+  it('不同词的卡各出一张，互不挤占', () => {
+    const r = buildQueue([
+      cand({ cardId: 'a', wordId: 'w1' }),
+      cand({ cardId: 'b', wordId: 'w2' }),
+      cand({ cardId: 'c', wordId: 'w1', template: 'cloze' }),
+    ], params)
+    expect(r.queue.map(c => c.wordId).sort()).toEqual(['w1', 'w2'])
+  })
+})
+
+describe('新词额度按词算', () => {
+  it('额度 2 时取 2 个新词，每词本轮只出一张', () => {
+    const r = buildQueue([
+      cand({ cardId: 'a1', wordId: 'w1', stability: null, dueAt: 0, lastReviewAt: null, template: 'recognize' }),
+      cand({ cardId: 'a2', wordId: 'w1', stability: null, dueAt: 0, lastReviewAt: null, template: 'cloze' }),
+      cand({ cardId: 'b1', wordId: 'w2', stability: null, dueAt: 0, lastReviewAt: null }),
+      cand({ cardId: 'c1', wordId: 'w3', stability: null, dueAt: 0, lastReviewAt: null }),
+    ], { ...params, newCardQuota: 2 })
+    expect(r.newCount).toBe(2)
+    expect(r.queue.every(c => c.stability === null)).toBe(true)
+    expect(new Set(r.queue.map(c => c.wordId)).size).toBe(2)
+  })
+
+  it('新词额度 0 = 只还旧账', () => {
+    const r = buildQueue([
+      cand({ cardId: 'a', wordId: 'w1' }),
+      cand({ cardId: 'b', wordId: 'w2', stability: null, dueAt: 0, lastReviewAt: null }),
+    ], { ...params, newCardQuota: 0 })
+    expect(r.newCount).toBe(0)
+    expect(r.queue.map(c => c.cardId)).toEqual(['a'])
+  })
+
+  it('到期优先：同一个词既有到期卡又有新卡时，本轮只出到期那张', () => {
+    const r = buildQueue([
+      cand({ cardId: 'due', wordId: 'w1', template: 'recognize' }),
+      cand({ cardId: 'new', wordId: 'w1', template: 'cloze', stability: null, dueAt: 0, lastReviewAt: null }),
+      cand({ cardId: 'other', wordId: 'w2', stability: null, dueAt: 0, lastReviewAt: null }),
+    ], params)
+    const forW1 = r.queue.filter(c => c.wordId === 'w1')
+    expect(forW1).toHaveLength(1)
+    expect(forW1[0].cardId).toBe('due')
+  })
+
+  it('队列长度受 queueLimit 封顶（每词每轮一张之后按卡数算）', () => {
+    const many = Array.from({ length: 40 }, (_, i) => cand({ cardId: `c${i}`, wordId: `w${i}` }))
+    const r = buildQueue(many, params)
+    expect(r.queue).toHaveLength(30)
   })
 })
