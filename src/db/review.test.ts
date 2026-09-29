@@ -51,6 +51,44 @@ describe('db/review 读路径', () => {
     expect(rows[0].c).toBe(1)
   })
 
+  it('registerCards 按可用题型建卡：有中文释义 + 例句的词建出三张卡', async () => {
+    await db.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','alpha','alpha','en',1,1)"
+    )
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '第一个')
+    await seedValue(db, 'fv2', 'w1', 'example', 'alpha is first')
+    await registerCards(['w1'], db)
+    const rows = await db.select<{ template: string }>(
+      "SELECT template FROM review_cards WHERE word_id = 'w1' ORDER BY template")
+    // translation → recognize + recall；example → cloze；listen 因 allowListen 缺省 false 不注册
+    expect(rows.map(r => r.template).sort()).toEqual(['cloze', 'recall', 'recognize'])
+  })
+
+  it('registerCards 幂等：重复调用不新增卡', async () => {
+    await db.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','alpha','alpha','en',1,1)"
+    )
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '第一个')
+    await registerCards(['w1'], db)
+    await registerCards(['w1'], db)
+    const rows = await db.select<{ c: number }>(
+      "SELECT count(*) as c FROM review_cards WHERE word_id = 'w1'")
+    expect(rows[0].c).toBe(2)
+  })
+
+  it('registerCards 给内容后续补上的词长出新卡（卡供给随字段生长）', async () => {
+    await db.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','alpha','alpha','en',1,1)"
+    )
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '第一个')
+    await registerCards(['w1'], db)
+    await seedValue(db, 'fv2', 'w1', 'example', 'alpha is first')
+    await registerCards(['w1'], db)
+    const rows = await db.select<{ template: string }>(
+      "SELECT template FROM review_cards WHERE word_id = 'w1' ORDER BY template")
+    expect(rows.map(r => r.template).sort()).toEqual(['cloze', 'recall', 'recognize'])
+  })
+
   it('getAvailabilityMask 按字段组返回布尔掩码', async () => {
     await seedWord(db, 'w1', 'alpha')
     await seedWord(db, 'w2', 'beta')

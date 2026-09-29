@@ -8,16 +8,23 @@ import type { QueueCandidate } from '../lib/review/queue'
 
 const db = (h?: DbHandle): DbHandle => (h ?? (getDb() as unknown as DbHandle))
 
-/** 惰性注册：候选词补一张卡（一词一卡，UNIQUE 索引防重）。 */
-export async function registerCards(wordIds: string[], h?: DbHandle): Promise<void> {
+/** 惰性注册：为每个词的每个可用题型补一张卡（UNIQUE(word_id, template) 防重）。 */
+export async function registerCards(wordIds: string[], h?: DbHandle, opts: CandidateOpts = {}): Promise<void> {
   if (wordIds.length === 0) return
   const d = db(h)
+  const mask = await getAvailabilityMask(wordIds, d)
+  if (!mask.ok) return
   const now = Date.now()
+  const allowListen = opts.allowListen === true
   for (const wordId of wordIds) {
-    await d.execute(
-      'INSERT OR IGNORE INTO review_cards (id, word_id, last_template, created_at) VALUES (?1, ?2, NULL, ?3)',
-      [crypto.randomUUID(), wordId, now],
-    )
+    const m = mask.data[wordId]
+    if (!m) continue
+    for (const template of usableTemplates(m, { allowListen })) {
+      await d.execute(
+        'INSERT OR IGNORE INTO review_cards (id, word_id, template, created_at) VALUES (?1, ?2, ?3, ?4)',
+        [crypto.randomUUID(), wordId, template, now],
+      )
+    }
   }
 }
 
@@ -326,11 +333,11 @@ export async function getDistractorTranslations(wordId: string, n: number, h?: D
   return rows.map(r => String(r.value))
 }
 
-/** 惰性注册：把库里全部词补一张卡（一词一卡，UNIQUE 索引防重）。 */
-export async function registerAllWords(h?: DbHandle): Promise<void> {
+/** 惰性注册：把库里全部词的可用题型卡补齐。 */
+export async function registerAllWords(h?: DbHandle, opts: CandidateOpts = {}): Promise<void> {
   const d = db(h)
   const rows = await d.select<{ id: string }>('SELECT id FROM words')
-  await registerCards(rows.map(r => r.id), d)
+  await registerCards(rows.map(r => r.id), d, opts)
 }
 
 export interface ReviewStateRow {
