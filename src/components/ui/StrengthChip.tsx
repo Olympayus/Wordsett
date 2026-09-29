@@ -1,7 +1,8 @@
 import type { InitialFamiliarity } from '../../lib/review/types'
-import { masteryTooltip, MASTERY_COLORS, masteryBlocks } from '../../lib/review/masteryScale'
-import { displayTier, strengthScore } from '../../lib/review/mastery'
+import { MASTERY_COLORS, masteryBlocks } from '../../lib/review/masteryScale'
+import { displayTier } from '../../lib/review/mastery'
 import Tooltip from './Tooltip'
+import WordMasteryTooltip from './WordMasteryTooltip'
 
 /**
  * 记忆强度 chip（v0.6.4；出题依据 03 §3.3 + V8 原型 M4）。
@@ -13,8 +14,11 @@ import Tooltip from './Tooltip'
  * 再叠一条色条会撞车（spec D4）。
  *
  * 档位走 displayTier：有复习记录以 FSRS 为准，没有才回落到收录时选的熟悉度。
+ * 悬停浮层（WordMasteryTooltip，v0.6.5 spec 4.13）补上逐卡明细与读数来源的解释；
+ * 它的可测部分 masteryTooltipModel 住在 masteryScale.ts，chip 这条边不参与计算。
  */
-export default function StrengthChip({ stability, familiarity }: {
+export default function StrengthChip({ wordId, stability, familiarity }: {
+  wordId: string
   stability: number | null
   familiarity: InitialFamiliarity
 }) {
@@ -22,7 +26,7 @@ export default function StrengthChip({ stability, familiarity }: {
   const { filled, total } = masteryBlocks(tier)
   const color = MASTERY_COLORS[tier]
   return (
-    <Tooltip content={masteryTooltip(strengthScore(stability), tier)}>
+    <Tooltip content={<WordMasteryTooltip wordId={wordId} weakestStability={stability} familiarity={familiarity} />}>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2.5, flexShrink: 0 }}>
         <span style={{ fontFamily: 'var(--font-sans)', fontSize: 11, color: 'var(--color-text-secondary)', marginRight: 4, letterSpacing: '.2px' }}>
           记忆强度

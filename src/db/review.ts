@@ -556,6 +556,43 @@ export async function getWordReviewOverlay(h?: DbHandle): Promise<DbResult<Recor
   }
 }
 
+export interface CardBreakdownRow {
+  template: Template
+  stability: number | null
+  lastReviewAt: number | null
+  /** 这张卡当前是否还能出题（内容没被删）。 */
+  presentable: boolean
+}
+
+/**
+ * 单词语的逐卡明细（spec 4.13）。**按需取数**：只在悬停记忆强度浮层时对一个词查一次，
+ * 不进全库 overlay——几百个词 × 每个题型一行的量不值得常驻。
+ */
+export async function getWordCardBreakdown(wordId: string, h?: DbHandle): Promise<DbResult<CardBreakdownRow[]>> {
+  const d = db(h)
+  try {
+    const rows = await d.select<Record<string, any>>(
+      `SELECT c.template, s.stability, s.last_review_at
+         FROM review_cards c
+         LEFT JOIN review_states s ON s.card_id = c.id
+        WHERE c.word_id = ?1`, [wordId])
+    const mask = await getAvailabilityMask([wordId], d)
+    if (!mask.ok) return mask
+    const m = mask.data[wordId]
+    return {
+      ok: true,
+      data: rows.map(r => ({
+        template: r.template as Template,
+        stability: r.stability === null || r.stability === undefined ? null : Number(r.stability),
+        lastReviewAt: r.last_review_at === null || r.last_review_at === undefined ? null : Number(r.last_review_at),
+        presentable: Boolean(m) && usableTemplates(m!).includes(r.template as Template),
+      })),
+    }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
 /** 左栏计数：today = 到期且可出题的词数；weak = lapses ≥ 阈值 ∪ 窗口内 rating = 1。 */
 export async function getStrategyCounts(
   opts: { leechThreshold: number; recentWindowMs: number; now: number; allowListen?: boolean },

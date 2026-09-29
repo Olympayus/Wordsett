@@ -13,6 +13,7 @@ import {
   getWeakWordIds,
   getWeakWordsWithCounts,
   getWordReviewOverlay,
+  getWordCardBreakdown,
   getStrategyCounts,
   getStats,
   getAbsentWords,
@@ -515,6 +516,27 @@ describe('db/review 读路径', () => {
       expect(r.data.w5.weakestStability).toBe(3)
     })
   })
+
+  // v0.6.5 spec 4.13：浮层里那张逐卡明细表。**按需取数**——只在悬停时对一个词查一次，
+  // 不进全库 overlay（几百个词 × 每题型一行的量不值得常驻）。
+  it('getWordCardBreakdown 按题型列出逐卡稳定度，并标出内容是否还可出题', async () => {
+    await db.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','alpha','alpha','en',1,1)"
+    )
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '第一个')  // cloze 的例句不给 → 填空题不可出
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w1','recognize',1)")
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c2','w1','cloze',1)")
+    await db.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+     VALUES ('c1', 42, 5, 1, 0, 3, 0, 1)`)
+    const r = await getWordCardBreakdown('w1', db)
+    if (!r.ok) throw new Error(r.error)
+    const byTemplate = Object.fromEntries(r.data.map(x => [x.template, x]))
+    expect(byTemplate.recognize.stability).toBe(42)
+    expect(byTemplate.recognize.presentable).toBe(true)
+    expect(byTemplate.cloze.stability).toBeNull()
+    expect(byTemplate.cloze.presentable).toBe(false)
+  })
 })
 
 describe('db/review 写路径与聚合', () => {
@@ -761,6 +783,16 @@ describe('db/review 写路径与聚合', () => {
         `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
          VALUES (?1, ?2, 5, ?3, 0, 3, ?4, ?5)`, [await cardIdOf(s.word), s.stability, s.dueAt, s.suspended, NOW])
     }
+    // w1 的卡挂上了 review_states 但 stability 为 null（LEFT JOIN 出 NULL 的那条路）。
+    // 再给 w6 补一张**完全没评分**的卡，并新加一个只有卡、没有任何 review_states 行的词 w7：
+    // 卡在、状态行没有，于是 MIN 也是 NULL——与「无卡的词」是**另一条** SQL 路径
+    // （有卡 vs 无卡的 LEFT JOIN 命中数不同），两条都得走。
+    // 两张卡都不在 dueByDay 的取数里（那条查的是 review_states，不是词），故到期分布不动。
+    await db.execute(
+      "INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('extra','w6','cloze',1)")
+    await seedWord(db, 'w7', 'g')
+    await db.execute(
+      "INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c7','w7','recognize',1)")
     for (const [i, rating] of [1, 2, 3, 4].entries()) {
       await db.execute(
         `INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode) VALUES (?1,?2,?3,?4,'recall','review')`,
@@ -780,8 +812,12 @@ describe('db/review 写路径与聚合', () => {
     const r = await getStats(NOW, db)
     expect(r.ok).toBe(true)
     if (!r.ok) return
-    // 六个词的稳定性分档：null→0、5→25分→2、12→56分→3、25→76分→4、60→89分→5、30→79分→4
-    expect(r.data.masteryBuckets).toEqual([1, 0, 1, 1, 2, 1])
+    // 七个词的稳定性分档：null→0、5→25分→2、12→56分→3、25→76分→4、60→89分→5、30→79分→4、
+    // w7（只有卡、无状态行）→ MIN 为 NULL → 0，故桶 0 由 1 变 2、柱高之和由 6 变 7。
+    // w6 的 MIN 仍是 30（另一张卡没评分 → NULL 被 MIN 跳过），但它下面挂着一张未到期的卡，
+    // 那张卡没有 review_states 行，对 dueByDay 毫无贡献——分桶按词计一次，到期按行计，两者互不干扰。
+    expect(r.data.masteryBuckets).toEqual([2, 0, 1, 1, 2, 1])
+    expect(r.data.masteryBuckets.reduce((a, b) => a + b, 0)).toBe(7)
     expect(r.data.dueByDay).toEqual([1, 1, 1, 0, 0, 0, 0, 1])
     expect(r.data.recentRatings).toEqual([{ day, again: 1, hard: 1, good: 2 }])
   })
