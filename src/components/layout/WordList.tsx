@@ -39,6 +39,20 @@ interface ItemRow {
 }
 type Row = HeaderRow | ItemRow
 
+/**
+ * 空态文案（v0.6.5 §4.4「空态文案」）。键是视图，值只说**该视图的口径**：
+ * 复习到期 → 今天没有到期的词条 / 本周新增 → 近 7 天没有新增词条 / 顽固词 → 还没有达到
+ * 阈值的顽固词。这三句与通用那句「没有匹配的单词」不是同一种话——后者会被读成
+ * 「你筛错了」，而用户在复习到期视图里其实什么都没做错，只是今天没有到期的东西。
+ * 「完整词库」留在通用那句：它下面空，本来就只可能是筛选框筛空了。
+ */
+const EMPTY_TEXT: Record<SmartViewKey, string> = {
+  all: '没有匹配的单词',
+  due: '今天没有到期的词条',
+  weekNew: '近 7 天没有新增词条',
+  leech: '还没有达到阈值的顽固词',
+}
+
 export default function WordList({
   collapsed,
   onToggleCollapse,
@@ -79,6 +93,10 @@ export default function WordList({
   const activeView = visibleSmartViews(smartViews).includes(smartView) ? smartView : 'all'
   // 视图是附加筛选：先过视图，再过筛选框。
   const viewFiltered = useMemo(() => filterBySmartView(words, activeView, viewInput), [words, activeView, viewInput])
+
+  // 空态取哪一句（§4.4）：**库本身就是空**时说什么都像在指责筛选，保留原那句引导去搜索框；
+  // 否则只要有视图在生效就用它自己的口径——「完整词库」键的值就是通用那一句。
+  const emptyText = words.length === 0 ? '词库为空，使用顶部搜索框添加单词' : EMPTY_TEXT[activeView]
 
   // 筛选：空串显示视图内的全部；非空走词库搜索（lemma + 字段值，沿用现状）
   useEffect(() => {
@@ -421,7 +439,7 @@ export default function WordList({
           <div className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-text-tertiary)' }}>搜索中…</div>
         ) : rows.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-            {words.length === 0 ? '词库为空，使用顶部搜索框添加单词' : '没有匹配的单词'}
+            {emptyText}
           </div>
         ) : shouldVirtualize ? (
           <div style={{ height: virtualizer.getTotalSize(), width: '100%', position: 'relative' }}>
@@ -456,7 +474,7 @@ export default function WordList({
           }}>
             <BatchChip label="加入分类" icon="plus" collapsed={collapsed}
               onClick={() => setBatchPopover(batchPopover === 'add' ? null : 'add')} />
-            <BatchChip label="从分类移除" icon="close" collapsed={collapsed}
+            <BatchChip label="从分类移除" icon="minus" collapsed={collapsed}
               onClick={() => setBatchPopover(batchPopover === 'remove' ? null : 'remove')} />
             <BatchChip label="删除" icon="trash" danger collapsed={collapsed} onClick={() => { void runBatchDelete() }} />
           </div>

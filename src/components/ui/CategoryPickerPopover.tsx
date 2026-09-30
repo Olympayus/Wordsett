@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useUiStore } from '../../stores/uiStore'
 import Icon from '../icons'
@@ -18,6 +19,9 @@ import Icon from '../icons'
  *
  * 全屏透明遮罩用 position: fixed：它只负责捕获外部点击，不需要跟着容器走，
  * 且这样才不会被祖先的 overflow 裁掉（面板本身仍受祖先裁剪）。
+ *
+ * 每项末尾带**该分类现有词数**（§4.6）：从 wordCategoryMap 反向数，不另开一次查询——
+ * 那张表本来就是「词 → 分类 id 列表」，反向聚合即成员数，且与设置页那一列同源同口径。
  */
 export default function CategoryPickerPopover({ onPick, onClose, align = 'right', placement = 'bottom' }: {
   onPick: (categoryId: string) => void
@@ -26,7 +30,23 @@ export default function CategoryPickerPopover({ onPick, onClose, align = 'right'
   placement?: 'bottom' | 'top'
 }) {
   const categories = useCategoryStore(s => s.categories)
+  const wordCategoryMap = useCategoryStore(s => s.wordCategoryMap)
   const openEditor = useUiStore(s => s.openEditor)
+
+  // 「分类 → 成员词数」：wordCategoryMap 反向聚合。一次遍历建完整张表（而非在 map 里
+  // 每行扫一遍全表——那是 O(词数 × 分类数)），键用 Set 保证一个词在同一个分类下
+  // 重复登记也只算一个；本仓不产生重复行，Set 只是让这个数上界正确。
+  const memberCounts = useMemo(() => {
+    const counts = new Map<string, Set<string>>()
+    for (const [wordId, catIds] of Object.entries(wordCategoryMap)) {
+      for (const cid of catIds) {
+        let set = counts.get(cid)
+        if (!set) { set = new Set(); counts.set(cid, set) }
+        set.add(wordId)
+      }
+    }
+    return new Map([...counts].map(([cid, set]) => [cid, set.size]))
+  }, [wordCategoryMap])
 
   return (
     <>
@@ -85,6 +105,11 @@ export default function CategoryPickerPopover({ onPick, onClose, align = 'right'
             <span style={{ width: 10, height: 10, borderRadius: '50%', background: cat.color, flexShrink: 0 }} />
             <span style={{ flex: 1, minWidth: 0, fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {cat.name}
+            </span>
+            {/* 词数是行内的补充读数，不是统计量：走三级灰 + 与正文同字号，不套 .stat-num
+                （那套等宽+主色+半粗是给统计数字的，见 index.css）。名可省略，数不省略。 */}
+            <span style={{ flexShrink: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+              {memberCounts.get(cat.id) ?? 0}
             </span>
           </button>
         ))}

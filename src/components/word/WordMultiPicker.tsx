@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { WordWithPreview } from '../../types/word'
 import { useWordStore } from '../../stores/wordStore'
+import { useCategoryStore } from '../../stores/categoryStore'
 import { useFocusTrap } from '../../lib/useFocusTrap'
 import { selectAll } from '../../lib/selection'
 import CheckBox from '../ui/CheckBox'
@@ -12,6 +13,10 @@ export type PickerDirection = 'add' | 'remove'
  * 待选集（v0.6.5 §4.3）。**方向固定**、不做「勾选态即归属、确定时算差集」的一体式设计：
  * 差集模式在搜索过滤下是隐式全量写——用户搜出 3 个词、动了 1 个，其余 200 个的归属
  * 取决于它们是否恰好被加载进来。对「个人自用、无撤销」的场景太危险。
+ *
+ * 行尾那个「该词现有分类数」（§4.3）是**纯展示的补充读数**，刻意不并进这里：
+ * pickerWords 的入参与返回值只认词表与成员集，它的用例锁的正是这套候选口径。
+ * 分类数另从 wordCategoryMap 取（见组件内 categoryCountOf），两者互不影响。
  */
 export function pickerWords(
   all: WordWithPreview[],
@@ -45,6 +50,7 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
   onClose: () => void
 }) {
   const words = useWordStore(s => s.words)
+  const wordCategoryMap = useCategoryStore(s => s.wordCategoryMap)
   const panelRef = useRef<HTMLDivElement>(null)
   useFocusTrap(open, panelRef)
 
@@ -77,6 +83,10 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
   const shown = useMemo(
     () => pickerWords(words, members, direction, query),
     [words, members, direction, query])
+
+  // 行尾的分类数：wordCategoryMap 本就是「词 → 它所属的分类 id 列表」，长度即答案，
+  // 不另开查询。与上面的候选集**刻意解耦**——读的是 store，不是 pickerWords 的口径。
+  const categoryCountOf = (wordId: string) => (wordCategoryMap[wordId]?.length ?? 0)
 
   if (!open) return null
 
@@ -128,6 +138,12 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
                 })}
               />
               <span style={{ fontFamily: 'var(--font-serif)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{w.lemma}</span>
+              {/* 该词现有分类数（§4.3）：行内补充读数，够不着「统计数字」的量级，
+                  故走三级灰 + xs 字号，不套 .stat-num（那套等宽+主色+半粗是给统计量的）。
+                  「加入」方向下它是这个词有多重归属，「移除」方向下它说明移出去会剩下几个。 */}
+              <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                {categoryCountOf(w.id)}
+              </span>
             </label>
           ))}
         </div>
