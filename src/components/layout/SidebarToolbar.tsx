@@ -25,6 +25,9 @@ interface Props {
   onToggleSelectMode: () => void
   selectedCount: number
   onSelectAll: () => void
+  /** 取消全部勾选（v0.6.5 修订）。与「退出」分开：清空后仍留在选择模式，
+   *  「筛一批 → 全选 → 发现选多了 → 清空 → 再 Shift 范围选」这条动线不用绕出模式再进来。 */
+  onClearAll: () => void
   onExitSelect: () => void
 }
 
@@ -60,7 +63,7 @@ const chip: React.CSSProperties = {
 // 这条动线留住的关键：筛选框在选择模式下仍然可用，且全选的作用域就是筛出来的那些行。
 export default function SidebarToolbar({
   collapsed, filter, onFilterChange, onToggleMode, onToggleCollapse,
-  selectMode, onToggleSelectMode, selectedCount, onSelectAll, onExitSelect,
+  selectMode, onToggleSelectMode, selectedCount, onSelectAll, onClearAll, onExitSelect,
 }: Props) {
   const slots = toolbarSlots({ collapsed, selectMode })
   return (
@@ -92,6 +95,7 @@ export default function SidebarToolbar({
             </span>
             <div style={{ display: 'flex', gap: '4px' }}>
               <button type="button" style={chip} onClick={onSelectAll}>全选</button>
+              <button type="button" style={chip} onClick={onClearAll}>清空</button>
               <button type="button" style={chip} onClick={onExitSelect}>退出</button>
             </div>
           </>

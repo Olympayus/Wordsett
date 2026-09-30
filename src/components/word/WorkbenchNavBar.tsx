@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useViewStore } from '../../stores/viewStore'
 import { useNavHistoryStore } from '../../stores/navHistoryStore'
@@ -52,9 +52,11 @@ export default function WorkbenchNavBar({
   const setEditorMode = useViewStore(s => s.setEditorMode)
   const history = useNavHistoryStore(s => s.history)
   const selectWord = useWordStore(s => s.selectWord)
-  // 「＋」分类下拉的开关（仅 dict 区用）。挂在「合并添加」旁的容器上：那里是 position: relative，
-  // 浮层按它的下沿向下展开——导航条在页面顶部，向下不会撞上祖先的 overflow 裁剪。
+  // 「＋」分类下拉的开关（仅 dict 区用），以及那对按钮所在的容器——浮层的锚点
+  // （v0.6.5 修订：浮层已是 fixed 落位，锚点由它现算。原来这里靠 position: relative
+  //  让面板按容器下沿展开，那条契约已被 popoverPosition 取代）。
   const [pickerOpen, setPickerOpen] = useState(false)
+  const anchorRef = useRef<HTMLDivElement>(null)
 
   // 导航切换不入栈（record:false），否则后退会立刻变成前进
   const go = (dir: 'back' | 'forward') => {
@@ -168,12 +170,11 @@ export default function WorkbenchNavBar({
                 合并后落进默认分类）；「＋」做同一件事，只在选中分类时成功后多归入该分类——
                 词已在库时这条路径依然有意义（v0.6.5 唯一的新能力）。
                 两者共用 onMergeAdd 这一个入口，反馈不会分叉。
-                minWidth: 220 是 CategoryPickerPopover 的**定位容器**：面板自带
-                maxWidth: '100%'，那个百分比按包含块解析，故容器多宽面板就多宽。
-                不给下限的话容器≈两按钮宽（约 120–160px，随「· N 项」变），分类名只剩
-                5–8 个字，且下拉宽度会随勾选数抖动。220 是面板的定宽，等于把容器顶到面板宽上限。
-                容器本身不设 width/justifyContent，故这两颗按钮仍按内容宽右对齐，多出的空档在左。 */}
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px', minWidth: 220 }}>
+                v0.6.5 修订：这里原有一个 minWidth: 220 的空壳，用来给 absolute 定位的下拉
+                撑出宽度；下拉改成 fixed 落位后宽度不再由祖先决定，空壳去掉——它同时正是
+                「＋ 看着没右对齐」的成因（按钮靠左排、右边留了 190px 空档）。
+                容器现在紧贴两颗按钮，故它同时是浮层的锚点元素。 */}
+            <div ref={anchorRef} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               {/* 悬浮说明走 Tooltip 包裹而非 title 属性——accname 2.2 里 title 早于 name-from-content，
                   一挂就把可及名钉成常量「合并添加」，「· N 项」永远不被读出（Icon 是 aria-hidden，不参与命名）。 */}
               <Tooltip content={mergeCount > 0 ? `把勾选的 ${mergeCount} 项合并添加进词条` : '先勾选要添加的词条'} width={260}>
@@ -194,9 +195,12 @@ export default function WorkbenchNavBar({
                 <Icon name="plus" size={12} />
               </SquareButton>
               {/* 不传 placement：默认 'bottom'（向下）对页面顶部的导航条是对的。
-                  onPick 里先关浮层再执行添加，浮层不会悬在已经跳走的页面残影上。 */}
+                  onPick 里先关浮层再执行添加，浮层不会悬在已经跳走的页面残影上。
+                  导航条虽然是 sticky（自成层叠上下文），但 fixed 的包含块仍是视口，
+                  面板不会因此被裁——只有 transform / will-change / contain: paint
+                  才会把 fixed 的包含块改成祖先，本组件没有这些。 */}
               {pickerOpen && (
-                <CategoryPickerPopover onClose={() => setPickerOpen(false)}
+                <CategoryPickerPopover anchor={anchorRef.current} onClose={() => setPickerOpen(false)}
                   onPick={categoryId => { setPickerOpen(false); void onMergeAdd?.(categoryId) }} />
               )}
             </div>

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useImperativeHandle } from 'react'
+import { useState, useMemo, useEffect, useImperativeHandle, useRef } from 'react'
 import type { ReactNode } from 'react'
 import type * as React from 'react'
 import type { DictionaryEntry, DictionaryField } from '../../types/dictionary'
@@ -185,8 +185,10 @@ export default function DictDetailCard({
   // 免跳转添加：合并成功后卡片内「已添加 ✓」反馈（1.5s）；失败则短暂错误提示（2.5s，规格：失败不跳转）
   const [added, setAdded] = useState(false)
   const [error, setError] = useState(false)
-  // 「＋」分类下拉的开关（底部那行是 position: relative，浮层按它的下沿向下展开）
+  // 「＋」分类下拉的开关，以及那颗按钮所在的紧贴容器——浮层的锚点（v0.6.5 修订：
+  // 浮层已是 fixed 落位，锚点由它现算，祖先的 overflow 不再参与）。
   const [pickerOpen, setPickerOpen] = useState(false)
+  const plusAnchorRef = useRef<HTMLDivElement>(null)
   // categoryId 只有「＋」路径传：主按钮不传，走的就是与改前逐字相同的那条路。
   const handleAdd = async (categoryId?: string) => {
     const inputs = buildMergeInputs(visible, selected, source_ as FieldSource)
@@ -399,25 +401,25 @@ export default function DictDetailCard({
           「＋」在同一套 handleAdd 成功后多归入所选分类，故两颗按钮的反馈不可能分叉。
           两颗同用一个 disabled 判据（added || selected.size === 0），成功期间一起禁用。
           tone="surface"：卡片底是纯白 --color-surface，按 SquareButton 的 tone 判据取白底套。
-          flexWrap: wrap：这一行现在多了浮层的定位容器（≥220px），与左对齐的行内内容抢同一条基线，
-          挤了就换行，而不是把卡片撑破。 */}
+          这一行是 justify-end，所以两颗按钮整体贴卡片右内边缘；里面的定位容器不再需要
+          撑宽度（v0.6.5 修订：下拉浮层已改为 fixed 落位，宽度与定位都不再由容器决定），
+          多出来的 220px 空壳一并去掉——它正是「＋ 看着没右对齐」的成因。 */}
       <div className="px-4 py-2 flex items-center justify-end gap-1 flex-wrap"
-        style={{ borderTop: '1px solid var(--color-border)', position: 'relative' }}>
+        style={{ borderTop: '1px solid var(--color-border)' }}>
         <SquareButton size="nav" tone="surface" disabled={added || selected.size === 0} onClick={() => void handleAdd()}>
           {added ? '已添加 ✓' : '添加此词典'}
         </SquareButton>
-        {/* minWidth: 220 同 WorkbenchNavBar：这是浮层的定位容器，面板的 maxWidth: '100%'
-            按包含块解析，容器多窄面板就多窄、分类名被省略号截短。容器不设 width，
-            「＋」仍贴主按钮右侧，多出的空档在左。 */}
-        <div style={{ position: 'relative', display: 'inline-flex', minWidth: 220 }}>
+        {/* 容器紧贴「＋」（inline-flex 由内容定宽），故它同时是浮层的锚点元素：
+            面板左边缘从这里现算，横向对齐不再靠祖先的宽度。 */}
+        <div ref={plusAnchorRef} style={{ display: 'inline-flex' }}>
           <SquareButton size="nav" tone="surface" aria-label="选择分类后添加此词典" disabled={added || selected.size === 0}
             onClick={() => setPickerOpen(o => !o)}>
             <Icon name="plus" size={12} />
           </SquareButton>
-          {/* 不传 placement：默认 'bottom'（向下）对这张卡片底部是对的。
-              onPick 里先关浮层再执行添加；且点分类不会触发按钮的 onClick——浮层不在按钮内。 */}
+          {/* 不传 placement：默认 'bottom'（向下）对这张卡片底部是对的——卡片根节点的
+              overflow: hidden 不再能吃掉落点，面板已是 fixed。 */}
           {pickerOpen && (
-            <CategoryPickerPopover onClose={() => setPickerOpen(false)}
+            <CategoryPickerPopover anchor={plusAnchorRef.current} onClose={() => setPickerOpen(false)}
               onPick={categoryId => { setPickerOpen(false); void handleAdd(categoryId) }} />
           )}
         </div>

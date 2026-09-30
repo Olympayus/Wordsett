@@ -69,6 +69,8 @@ export default function WordList({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchorKey, setAnchorKey] = useState<string | null>(null)
   const [batchPopover, setBatchPopover] = useState<'add' | 'remove' | null>(null)
+  // 批量条那行——两个分类下拉浮层的锚点（浮层是 fixed 落位，锚点由它现算）
+  const batchAnchorRef = useRef<HTMLDivElement>(null)
   const { assignMany, unassignMany } = useCategoryStore()
   const { deleteWords } = useWordStore()
   const { categories, wordCategoryMap } = useCategoryStore()
@@ -426,6 +428,9 @@ export default function WordList({
         onToggleSelectMode={() => setSelectMode(true)}
         selectedCount={selectedWordIds.length}
         onSelectAll={() => setSelected(selectAll(wordRowKeys))}
+        // 清空只清勾选，**不动锚点**：锚点是「上次点在哪一行」这个光标位置，抹掉它会让
+        // 「清空后 Shift 点回去」变成只选一行。表格里清选区也不移动活动单元格，同一个道理。
+        onClearAll={() => setSelected(new Set())}
         onExitSelect={exitSelect}
       />
       <SmartViewList
@@ -461,13 +466,19 @@ export default function WordList({
       {/* 批量操作条（v0.6.5 §4.2）：排在该 flex 列的末尾、footer 之上，是**在流内**的一节
           （不是浮层）——它占掉自己的高度，剩下的给上面的滚动容器，因此不会遮挡 footer。
           三个动作，前两个共用分类下拉浮层。
-          收起态（120px）下三个中文标签放不下，换成图标按钮 + tooltip + aria-label——
+          收起态（最窄 120px）下三个中文标签放不下，换成图标按钮 + tooltip + aria-label——
           这是本次唯一一处「按宽度换形态」。
-          浮层传 placement="top"：本条贴侧栏底部，向下会被 AppShell 的 <aside>（overflow: hidden）裁掉。 */}
+          **一行不肯换行的算法**（v0.6.5 修订）：收起态三颗图标钮 24px + 两道 spacing 各 8px
+          = 88px，恰好装进「侧栏 120 − 两侧 margin 16 − 容器 padding 16 = 88」。原来那版
+          flexWrap: wrap + 每颗 28px 宽（内边距 0 8px）算下来是 92px，超 4px 就折行——
+          折行后三颗挤在左上角，既不是一行也不对称。现在 nowrap + space-between：
+          两端贴边、中间那颗因两侧留白相等而落在正中（三颗等宽时这是恒等式，不是巧合）。
+          浮层传 placement="top"：本条贴侧栏底部，向下会撞上 footer。 */}
       {selectMode && selectedWordIds.length > 0 && (
-        <div style={{ position: 'relative', margin: '6px 8px 8px' }}>
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap',
+        <div style={{ margin: '6px 8px 8px' }}>
+          <div ref={batchAnchorRef} style={{
+            display: 'flex', alignItems: 'center', gap: '4px',
+            flexWrap: 'nowrap', justifyContent: 'space-between',
             padding: '8px', background: 'var(--color-surface)',
             border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
             boxShadow: 'var(--shadow-raised)',
@@ -479,11 +490,11 @@ export default function WordList({
             <BatchChip label="删除" icon="trash" danger collapsed={collapsed} onClick={() => { void runBatchDelete() }} />
           </div>
           {batchPopover === 'add' && (
-            <CategoryPickerPopover align="left" placement="top" onClose={() => setBatchPopover(null)}
+            <CategoryPickerPopover anchor={batchAnchorRef.current} align="left" placement="top" onClose={() => setBatchPopover(null)}
               onPick={categoryId => { void runBatchAssign(categoryId) }} />
           )}
           {batchPopover === 'remove' && (
-            <CategoryPickerPopover align="left" placement="top" onClose={() => setBatchPopover(null)}
+            <CategoryPickerPopover anchor={batchAnchorRef.current} align="left" placement="top" onClose={() => setBatchPopover(null)}
               onPick={categoryId => { void runBatchUnassign(categoryId) }} />
           )}
         </div>
@@ -500,7 +511,10 @@ export default function WordList({
   )
 }
 
-/** 批量条上的一颗动作。收起态只留图标，标签进 title 与 aria-label。 */
+/** 批量条上的一颗动作。收起态只留图标，标签进 title 与 aria-label。
+ *  收起态内边距 6px（而非展开态的 10px）：三颗图标钮因此各 24px 宽，连同两道间距
+ *  恰好是 88px，装进最窄侧栏（120px）那一行的净宽——这是「永不折行」成立的前提，
+ *  改这个数前先看批量条那处的算式。 */
 function BatchChip({ label, icon, danger, collapsed, onClick }: {
   label: string
   icon: IconName
@@ -516,7 +530,7 @@ function BatchChip({ label, icon, danger, collapsed, onClick }: {
       onClick={onClick}
       style={{
         display: 'inline-flex', alignItems: 'center', gap: '5px',
-        height: '28px', padding: collapsed ? '0 8px' : '0 10px',
+        height: '28px', padding: collapsed ? '0 6px' : '0 10px',
         border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
         background: 'var(--color-surface-raised)', cursor: 'pointer',
         color: danger ? 'var(--color-danger)' : 'var(--color-text-primary)',
