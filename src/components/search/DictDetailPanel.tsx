@@ -10,6 +10,7 @@ import { lookupTitleMeta, lookupWord } from '../../services/searchService'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
+import { useCategoryStore } from '../../stores/categoryStore'
 import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
 import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
@@ -79,7 +80,8 @@ export default function DictDetailPanel({ word }: Props) {
 
   // 合并添加：聚合全源勾选字段 → 确保词条存在 → 一次合并 → 跳编辑页
   // 规格：addWord/mergeWordFields 任一失败 → 面板顶部错误提示，不跳转（错误在下次 lookup/attempt 时清除）
-  const handleMergeAdd = async () => {
+  // categoryId 只有「＋」路径传：主按钮不传，走的就是与改前逐字相同的那条路。
+  const handleMergeAdd = async (categoryId?: string) => {
     setMergeError(false)
     const inputs: MergeFieldInput[] = []
     for (const r of results) {
@@ -114,6 +116,13 @@ export default function DictDetailPanel({ word }: Props) {
       // 挂在写入点而不是 wordStore 里：叠加层的刷新时机本就与词条内容不同
       // （reviewOverlayStore 的注释），挂进 store 会把两者重新耦上。
       if (wrote) void useReviewOverlayStore.getState().loadOverlay()
+    }
+    // 「＋」路径：合并成功后再把这个词归入所选分类（v0.6.5 §4.6）。主按钮不传 categoryId，
+    // 走默认分类（ensureWord → addWord 里 assignDefaultToWord 已写过），所以这里只在显式
+    // 选分类时多写一步。放在 mergeWordFields 的成功分支之后、跳转之前：合并失败时提前 return，
+    // 不会给一个没合并成功的词落分类。词已在库时这条路径同样有效——那正是本版新增的能力。
+    if (categoryId) {
+      await useCategoryStore.getState().assignMany([target.id], categoryId)
     }
     void selectWord(target.id)
     showWorkbench()

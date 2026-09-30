@@ -6,6 +6,7 @@ import type { FieldSource } from '../../types/field'
 import type { MergeFieldInput } from '../../services/wordService'
 import { useWordStore } from '../../stores/wordStore'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
+import { useCategoryStore } from '../../stores/categoryStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { isFieldVisible } from '../../lib/fieldTree'
 import type { DisplayFieldKey } from '../../stores/settingsStore'
@@ -16,6 +17,9 @@ import { mergeEntryFields, flattenTree, buildMergeInputs, toggleSubtreeSelection
 import type { FlatNode } from '../../lib/dictPlan'
 import PosTag from '../ui/PosTag'
 import CheckBox from '../ui/CheckBox'
+import SquareButton from '../ui/SquareButton'
+import CategoryPickerPopover from '../ui/CategoryPickerPopover'
+import Icon from '../icons'
 
 interface Props {
   word: string
@@ -44,9 +48,11 @@ const SOURCE_NAMES: Record<string, string> = {
  * 卡片已经有来源标签的文字区分，再叠一层颜色等于让装饰与内容争注意力。
  * 统一到基础字色，让释义成为唯一被看的东西。
  *
- * 抽成函数而不是留一个常量表：调用点只有三处（左侧竖条、徽标底色、「＋ 添加此词典」按钮文字），
- * 徽标上的文字色是硬编码的 `'white'`，本来就不经这里——
- * 「改接线」这类错误才有地方可测——与 SquareButton 的 buttonBackground 同一考虑。
+ * 抽成函数而不是留一个常量表：调用点只有两处（左侧竖条、徽标底色），徽标上的文字色是
+ * 硬编码的 `'white'`，本来就不经这里——「改接线」这类错误才有地方可测——
+ * 与 SquareButton 的 buttonBackground 同一考虑。
+ * （原先第三处「＋ 添加此词典」按钮文字在 v0.6.5 §4.6 拆成 SquareButton 后已不再取色，
+ *  底色改由 SquareButton 的 tone 套决定，此处与它无关。）
  */
 export function sourceAccent(_source: string): string {
   return 'var(--color-text-primary)'
@@ -179,7 +185,10 @@ export default function DictDetailCard({
   // 免跳转添加：合并成功后卡片内「已添加 ✓」反馈（1.5s）；失败则短暂错误提示（2.5s，规格：失败不跳转）
   const [added, setAdded] = useState(false)
   const [error, setError] = useState(false)
-  const handleAdd = async () => {
+  // 「＋」分类下拉的开关（底部那行是 position: relative，浮层按它的下沿向下展开）
+  const [pickerOpen, setPickerOpen] = useState(false)
+  // categoryId 只有「＋」路径传：主按钮不传，走的就是与改前逐字相同的那条路。
+  const handleAdd = async (categoryId?: string) => {
     const inputs = buildMergeInputs(visible, selected, source_ as FieldSource)
     if (inputs.length === 0) return
     // 守卫必须在 ensureWord **之前**求值：ensureWord 收录成功就把新词塞进 store，
@@ -202,6 +211,13 @@ export default function DictDetailCard({
         // 同 handleMergeAdd：熟悉度刚写进库，chip 读的 overlay 还停在收录前，不重取就显示「陌生」。
         // 刷新跟写入放在一起，而不是挂进 wordStore——叠加层的刷新时机与词条内容不同。
         if (wrote) void useReviewOverlayStore.getState().loadOverlay()
+      }
+      // 「＋」路径：合并成功后再把这个词归入所选分类（v0.6.5 §4.6）。主按钮不传 categoryId，
+      // 走默认分类（ensureWord → addWord 里 assignDefaultToWord 已写过），所以这里只在显式
+      // 选分类时多写一步。与面板 handleMergeAdd 同一形状、同一位置：mergeWordFields 失败那一支
+      // 提前走了，不会给一个没合并成功的词落分类。词已在库时同样有效。
+      if (categoryId) {
+        await useCategoryStore.getState().assignMany([word.id], categoryId)
       }
       setError(false)
       setAdded(true)
@@ -378,15 +394,25 @@ export default function DictDetailCard({
         </div>
       )}
 
-      {/* 底部：添加此词典（右下角），复用 handleAdd + added/error 反馈 */}
-      <div className="px-4 py-2 flex items-center justify-end" style={{ borderTop: '1px solid var(--color-border)' }}>
-        <button
-          type="button"
-          className="text-xs font-medium"
-          style={{ color: accent, padding: '4px 10px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: 'transparent', border: '1px solid transparent', fontFamily: 'var(--font-sans)' }}
-          onClick={handleAdd}
-          disabled={added || selected.size === 0}
-        >{added ? '已添加 ✓' : '＋ 添加此词典'}</button>
+      {/* 底部：添加此词典（右下角），复用 handleAdd + added/error 反馈。
+          v0.6.5 §4.6 起拆成主按钮 + 「＋」：主按钮行为与改前逐字相同（落默认分类），
+          「＋」在同一套 handleAdd 成功后多归入所选分类，故两颗按钮的反馈不可能分叉。
+          两颗同用一个 disabled 判据（added || selected.size === 0），成功期间一起禁用。
+          tone="surface"：卡片底是纯白 --color-surface，按 SquareButton 的 tone 判据取白底套。 */}
+      <div className="px-4 py-2 flex items-center justify-end gap-1" style={{ borderTop: '1px solid var(--color-border)', position: 'relative' }}>
+        <SquareButton size="nav" tone="surface" disabled={added || selected.size === 0} onClick={() => void handleAdd()}>
+          {added ? '已添加 ✓' : '添加此词典'}
+        </SquareButton>
+        <SquareButton size="nav" tone="surface" aria-label="选择分类后添加此词典" disabled={added || selected.size === 0}
+          onClick={() => setPickerOpen(o => !o)}>
+          <Icon name="plus" size={12} />
+        </SquareButton>
+        {/* 不传 placement：默认 'bottom'（向下）对这张卡片底部是对的。
+            onPick 里先关浮层再执行添加；且点分类不会触发按钮的 onClick——浮层不在按钮内。 */}
+        {pickerOpen && (
+          <CategoryPickerPopover onClose={() => setPickerOpen(false)}
+            onPick={categoryId => { setPickerOpen(false); void handleAdd(categoryId) }} />
+        )}
       </div>
     </div>
   )

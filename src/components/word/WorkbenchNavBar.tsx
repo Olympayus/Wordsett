@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useViewStore } from '../../stores/viewStore'
 import { useNavHistoryStore } from '../../stores/navHistoryStore'
@@ -6,6 +7,7 @@ import { canGoBack, canGoForward } from '../../lib/navHistory'
 import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
 import Tooltip from '../ui/Tooltip'
+import CategoryPickerPopover from '../ui/CategoryPickerPopover'
 import FamiliarityChoice from '../search/FamiliarityChoice'
 import type { InitialFamiliarityChoice } from '../../services/wordService'
 
@@ -16,8 +18,9 @@ interface WorkbenchNavBarProps {
   onDeleteWord?: () => void
   /** 左箭头行为（仅 region='dict' 使用）：返回工作台 */
   onBack?: () => void
-  /** 右端合并添加（仅 region='dict' 使用） */
-  onMergeAdd?: () => void
+  /** 右端合并添加（仅 region='dict' 使用）。categoryId 是「＋」路径选的分类：
+   *  不传＝主按钮，只走合并（落默认分类）；传了＝合并成功后再多归入这一个分类。 */
+  onMergeAdd?: (categoryId?: string) => void
   mergeCount?: number
   mergeDisabled?: boolean
   /** 词不在库时的初始熟悉度单选（region='dict' 使用）。 */
@@ -49,6 +52,9 @@ export default function WorkbenchNavBar({
   const setEditorMode = useViewStore(s => s.setEditorMode)
   const history = useNavHistoryStore(s => s.history)
   const selectWord = useWordStore(s => s.selectWord)
+  // 「＋」分类下拉的开关（仅 dict 区用）。挂在「合并添加」旁的容器上：那里是 position: relative，
+  // 浮层按它的下沿向下展开——导航条在页面顶部，向下不会撞上祖先的 overflow 裁剪。
+  const [pickerOpen, setPickerOpen] = useState(false)
 
   // 导航切换不入栈（record:false），否则后退会立刻变成前进
   const go = (dir: 'back' | 'forward') => {
@@ -111,7 +117,10 @@ export default function WorkbenchNavBar({
       {/* ⋯ 更多操作（普通模式可见）本轮不实现：⋯ 菜单内容与「删除此标签页」收进菜单是 v0.7.0 段二的独立项，
           本轮没有可放入 ⋯ 的条目；等段二落地时在本组件右侧补上即可。
           ＋ 新增标签页已移除：它与标签条右侧的 ＋ 重复（同一 TAB_GROUPS 选择器），标签条那处保留为唯一入口。 */}
-      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>
+      {/* 右端簇自己也要能换行：外层 flexWrap:'wrap' 只保证这一簇在放不下时整体挪到第二行，
+          簇内若还是 nowrap（默认），窄窗口下它会先溢出而不是内部重排。justifyContent:'flex-end'
+          让换出来的第二行仍靠右对齐，不至于左边缘不齐。 */}
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {region === 'workbench' ? (
           <>
             {/* 编者模式（v0.5.3 §4.1 第 16 条重做）：形态开关，开 = 浅品牌蓝底 + 深字、关 = 暖中性底，
@@ -150,22 +159,42 @@ export default function WorkbenchNavBar({
             ) : (
               <>
                 <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>初始熟悉度</span>
-                <FamiliarityChoice value={familiarity ?? 1} onChange={v => onFamiliarityChange?.(v)} />
+                {/* 三个入参都是可选的：调用方只传 familiarity 而不传 onFamiliarityChange 时，
+                    三键会是「看得见、点得动、什么都不做」的哑控件。disabled 让降级可见而不是静默。 */}
+                <FamiliarityChoice value={familiarity ?? 1} onChange={v => onFamiliarityChange?.(v)} disabled={!onFamiliarityChange} />
               </>
             )}
-            {/* 合并添加（dict 区）：悬浮说明走 Tooltip 包裹而非 title 属性——accname 2.2 里
-                title 早于 name-from-content，一挂就把可及名钉成常量「合并添加」，
-                「· N 项」永远不被读出（Icon 是 aria-hidden，不参与命名）。 */}
-            <Tooltip content={mergeCount > 0 ? `把勾选的 ${mergeCount} 项合并添加进词条` : '先勾选要添加的词条'} width={260}>
+            {/* 添加动作拆成两颗（v0.6.5 §4.6）：主按钮的行为与改前逐字相同（不传 categoryId，
+                合并后落进默认分类）；「＋」做同一件事，只在选中分类时成功后多归入该分类——
+                词已在库时这条路径依然有意义（v0.6.5 唯一的新能力）。
+                两者共用 onMergeAdd 这一个入口，反馈不会分叉。 */}
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {/* 悬浮说明走 Tooltip 包裹而非 title 属性——accname 2.2 里 title 早于 name-from-content，
+                  一挂就把可及名钉成常量「合并添加」，「· N 项」永远不被读出（Icon 是 aria-hidden，不参与命名）。 */}
+              <Tooltip content={mergeCount > 0 ? `把勾选的 ${mergeCount} 项合并添加进词条` : '先勾选要添加的词条'} width={260}>
+                <SquareButton
+                  size="nav"
+                  disabled={mergeDisabled}
+                  onClick={() => onMergeAdd?.()}
+                >
+                  合并添加{mergeCount > 0 ? <> · <span className="stat-num">{mergeCount}</span> 项</> : ''}
+                </SquareButton>
+              </Tooltip>
               <SquareButton
                 size="nav"
+                aria-label="选择分类后添加"
                 disabled={mergeDisabled}
-                onClick={() => onMergeAdd?.()}
+                onClick={() => setPickerOpen(o => !o)}
               >
                 <Icon name="plus" size={12} />
-                合并添加{mergeCount > 0 ? <> · <span className="stat-num">{mergeCount}</span> 项</> : ''}
               </SquareButton>
-            </Tooltip>
+              {/* 不传 placement：默认 'bottom'（向下）对页面顶部的导航条是对的。
+                  onPick 里先关浮层再执行添加，浮层不会悬在已经跳走的页面残影上。 */}
+              {pickerOpen && (
+                <CategoryPickerPopover onClose={() => setPickerOpen(false)}
+                  onPick={categoryId => { setPickerOpen(false); void onMergeAdd?.(categoryId) }} />
+              )}
+            </div>
           </>
         )}
       </div>
