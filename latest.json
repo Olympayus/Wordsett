@@ -1,11 +1,11 @@
 {
-  "version": "0.6.4",
-  "notes": "初始熟悉度：接通了一条断掉的链路——收录时可填「完全陌生/眼熟/认识」，首次复习时三键按它预高亮（不抢焦点），词条卡的记忆强度 chip 据此冷启动，选「眼熟」无需重启即显档 2。英文释义题由揭示型改为键入型（逐字母标红，但不自动判分）；「跳过」不再被误判成「未作答」；记忆强度 5 档改 6 档且图表端点与 chip 词汇统一；新增顽固词徽标（词表行尾 + 词条卡头部）；勾选框 22px→18px。schema v4→5 是留痕不是迁移，旧库直接升级不丢数据。复习调度与计分未动。",
-  "pub_date": "2026-09-29T07:27:06.671Z",
+  "version": "0.6.5",
+  "notes": "此前一个词只有**一张**复习卡，而一张卡只能承载一种题型，于是每次都要在出题那一刻现算「这个词能出什么题」。这套「运行时算题型」的做法有两个绕不开的问题：题型无法被单独排程，也没法单独判定「这张卡现在还能不能出题」。\n\n现在**卡本身就是「词 × 题型」**。一个词有多少种可出的题型，就建多少张卡，各自独立排程。带来的直接变化：\n\n- **一个词可以一轮练多种题型**。同一轮里不会再连着出两道同题型的题；新词额度也改成**按词**算，而不是按卡——练完一个词的五种题型，仍然只算「新学了一个词」。\n- **题型缺内容时只停那一张卡**。比如例句取不到、干扰项不够，填空这张卡暂时不出题，但它不影响这个词的认读、英释义照常练。此前是整词降级。\n- **听辨题会随 TTS 开关消失**。系统没装语音时，那张听辨卡不出题——同一个词的五张卡不会因为一张不可用而一起废掉。\n\n一个词有五张卡了，强度就不能再说「这个词我记得多少」。现在取**五张卡里最弱的那一张**作为这个词的强度——它的意义变得具体了：**这个词里你最不熟的那部分**。可出题的卡才计入（缺内容的那张不拖累整词），而「顽固词」用的连错次数**刻意不过滤**，因为那是历史维度：过去错过的次数不会因为现在不出题而消失。\n\n词条卡头部的记忆强度 chip 现在可以悬停，看到**逐题型的明细**——每种题型各练了多少、稳定性多少、为什么某张卡不出题。",
+  "pub_date": "2026-09-30T10:11:53.656Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFF1S24wQnc1eStKK09SRHZuR0NiV2lka0JncDArMFd4Vk5GM3RoanhpaGRyamRxOEZYQWNleURvckRGU0NXVHZxWUlJT0M2aUJHYWgreTZ4MXd3aXdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNjY2NzM4CWZpbGU6V29yZHNldHRfMC42LjRfeDY0LXNldHVwLmV4ZQpIaStsOVZmTGVSSXRBWWdiMHRzK2dYelAySjdnNVVGbk1WM1NYd1NUNDhNdVpqYStySzdTeTR2STZUdG0xRTJraEY2Z21xbG5NQW1MM29lRWpmYXJBQT09Cg==",
-      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.6.4/Wordsett_0.6.4_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFNlcGFXQk91ZzdaSXlrcVVoM0UvaWRHdWgza3dBYkZUSVNLMm04dm1JQVlIeUlzQkdoMWZ0ZTNjZGxDTlVEb3g4VlI1L1hBN0g1dGJxdXA5V0RRZEFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNzYyNzgxCWZpbGU6V29yZHNldHRfMC42LjVfeDY0LXNldHVwLmV4ZQpaM0FxbDlrSnNmZFZmOStTaC9TS1VKREpVdkJHbmlFNjRId2Q2MzNrQUR1Q3hNR0tGQ2YvN0RIT2d3LzNUT1NWaWVnWmVhQmh5dEF4VHkzVTRiaDVCdz09Cg==",
+      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.6.5/Wordsett_0.6.5_x64-setup.exe"
     }
   }
 }
