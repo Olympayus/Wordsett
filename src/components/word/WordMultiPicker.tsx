@@ -14,6 +14,12 @@ export type PickerDirection = 'add' | 'remove'
  * 差集模式在搜索过滤下是隐式全量写——用户搜出 3 个词、动了 1 个，其余 200 个的归属
  * 取决于它们是否恰好被加载进来。对「个人自用、无撤销」的场景太危险。
  *
+ * 两个方向都是「按成员集取一边」：移除列成员，**加入列非成员**（v0.6.5 修订）。
+ * 加入方向滤掉已在成员里的词，是因为把它们列出来没有任何可表达的意图——勾上再确认
+ * 等于给一个已经在这个分类里的词再写一次同一条归属，用户既看不出差别（行尾的分类数
+ * 不变），也得不到反馈。候选集与「这次操作会改变什么」对齐之后，列表里的每一行
+ * 都是真的待办，确认键的「加入 N 个单词」里的 N 也才是一个真实的数量。
+ *
  * 行尾那个「该词现有分类数」（§4.3）是**纯展示的补充读数**，刻意不并进这里：
  * pickerWords 的入参与返回值只认词表与成员集，它的用例锁的正是这套候选口径。
  * 分类数另从 wordCategoryMap 取（见组件内 categoryCountOf），两者互不影响。
@@ -24,7 +30,9 @@ export function pickerWords(
   direction: PickerDirection,
   query: string,
 ): WordWithPreview[] {
-  const scoped = direction === 'remove' ? all.filter(w => memberIds.has(w.id)) : all
+  // 「移除」要成员、「加入」要非成员：同一谓词取反，避免两条各写一遍过滤条件后漂移
+  const wantMember = direction === 'remove'
+  const scoped = all.filter(w => memberIds.has(w.id) === wantMember)
   const q = query.trim().toLowerCase()
   if (q === '') return scoped
   return scoped.filter(w => w.lemma.toLowerCase().includes(q))
@@ -88,6 +96,17 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
   // 不另开查询。与上面的候选集**刻意解耦**——读的是 store，不是 pickerWords 的口径。
   const categoryCountOf = (wordId: string) => (wordCategoryMap[wordId]?.length ?? 0)
 
+  // 空态说「这里为什么是空的」，按成因分三句，不能只按方向分：
+  //  - 搜索无结果 → 没匹配上（两个方向同一句）
+  //  - 加入方向、没搜索却空 → 词库里的词都已经是这个分类的成员（词库本身为空时另说）
+  //  - 移除方向、没搜索却空 → 这个分类本来就没有词
+  // 「加入」那一支是本次候选集收窄后新出现的态：收窄前它永远列全库，压根空不了。
+  const emptyText = query.trim() !== ''
+    ? '没有匹配的单词'
+    : direction === 'add'
+      ? (words.length === 0 ? '词库为空，使用顶部搜索框添加单词' : '所有单词都已在这个分类里')
+      : (members.size > 0 ? '没有匹配的单词' : '这个分类下还没有单词')
+
   if (!open) return null
 
   return (
@@ -121,10 +140,8 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
 
         <div style={{ flex: 1, overflowY: 'auto', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '4px' }}>
           {shown.length === 0 ? (
-            /* 空态按**分类本来有没有词**分，不按方向分：「移除」入口搜不到东西时
-               说的是「没匹配上」，不是「这个分类是空的」——后者是对用户数据的错误陈述。 */
             <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', padding: '16px', textAlign: 'center' }}>
-              {members.size > 0 ? '没有匹配的单词' : '这个分类下还没有单词'}
+              {emptyText}
             </div>
           ) : shown.map(w => (
             <label key={w.id} style={{ display: 'flex', alignItems: 'center', gap: '9px', padding: '6px 8px', cursor: 'pointer', borderRadius: 'var(--radius-sm)' }}>
