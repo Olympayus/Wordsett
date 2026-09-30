@@ -170,7 +170,12 @@ describe('settingsStore 复习分区', () => {
   })
 
   // persist 的 migrate 只在「存档 version ≠ 本处 version」时才跑（zustand persist 的守卫），
-  // 故加 review 字段必须升 version，否则 v0.6.2 写盘的对象 rehydrate 后该字段是 undefined。
+  // 故加 review 字段必须升 version。
+  // 注意**不是**「存档缺该字段 → rehydrate 后是 undefined」：默认 merge 是
+  // { ...currentState, ...persistedState }，存档铺在当前 state 之上，压根没有这个键时
+  // 它不覆盖、默认值原样留着。真正出事的是**残缺的 review 对象**——正是下面这个
+  // v0.6.2 的六键 legacyReview：migrate 的 `...DEFAULT_REVIEW` 是唯一给 showDueBadge
+  // 补上 true 的地方，不升 version 它就只剩「当前值」，用户先前关掉过的开关会静默复原。
   it('迁移：v0.6.2 写盘的 review（无 showDueBadge）补齐默认开启并保留旧键（v0.6.3 条目 5）', async () => {
     const legacyReview = {
       retention: 0.85, leechThreshold: 6, newCardQuota: 20, queueLimit: 40, letterHighlight: false,
@@ -192,7 +197,7 @@ describe('settingsStore 复习分区', () => {
 describe('smartViews 存档迁移（v0.6.5）', () => {
   it('旧存档（version 7、无 smartViews）迁移后四个视图默认全开', () => {
     // 直接调 migrate：只钉住**合并逻辑本身**（缺键回默认）。它验不出 migrate 有没有挂进
-    // persist——导出了却没人引用的话这条照样绿。接线由下面两条 rehydrate 用例负责。
+    // persist——导出了却没人引用的话这条照样绿。接线由下面那条**残缺存档**的 rehydrate 用例负责。
     const migrated = migrateSettings({ review: DEFAULT_REVIEW, smartViews: undefined })
     expect(migrated.smartViews).toEqual({ all: true, due: true, weekNew: true, leech: true })
   })
@@ -204,22 +209,28 @@ describe('smartViews 存档迁移（v0.6.5）', () => {
     expect(migrated.smartViews).toEqual({ all: true, due: false, weekNew: true, leech: true })
   })
 
-  it('persist 的 version 是 8 —— 旧存档（7）据此触发 migrate', async () => {
-    // 上面两条直接调 migrate 的用例**完全绕过** version，因此没有任何东西钉住这个数字。
-    // 把它回退成 7 全仓依然绿，而 v7 存档从此不再走 migrate。
+  it('persist 的 version 是 8 —— 旧存档（7）据此触发 migrate，迁移后写盘升到 8', async () => {
+    // 本文件里直接调 migrate 的用例**完全绕过** version，因此没有任何东西钉住这个数字：
+    // 把它回退成 7 全仓依然绿，v7 存档从此不再走 migrate。这条把两件事合在一起验：
+    // migrate 之后存档里那个字面量就是 8（改本处 version 会红），且 8 也**写回了** localStorage
+    //（不写回则版本号每次启动都要重算一遍）。两种断言共享同一次播种与 rehydrate，
+    // 刻意不拆成两条——拆开就是同一个测试写两遍，虚增一条覆盖。
     // 自行播种（不依赖前面的用例是否写过 localStorage），单独跑也得绿。
     localStorage.setItem('wordsett-settings', JSON.stringify({
       state: { sidebarMode: 'alphabet' },
       version: 7,
     }))
+    expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(7)
     await useSettingsStore.persist.rehydrate()
     expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(8)
   })
 
-  it('真实 rehydrate 一份 version 7 且无 smartViews 的旧存档 → 四个视图全开（端到端）', async () => {
-    // 走真实 persist.rehydrate 而不是直接调 migrate：只有这条能证明
-    // 「migrate 挂在 persist 上」且「version 确实不相等因而 migrate 真的跑了」。
-    // migrate 若被摘掉、或 version 被回退，这条会红，上面两条则仍然绿。
+  it('真实 rehydrate 一份 version 7 且无 smartViews 的旧存档 → 四个视图全开', async () => {
+    // 对照用例：存档里**压根没有** smartViews 这个键时，走不走 migrate 结果都是全开——
+    // 缺键由 store 自己的 DEFAULT_SMART_VIEWS 兜着（默认 merge 把存档铺在当前 state 之上，
+    // 不存在的键不覆盖）。所以本条**观察不到 migrate 的接线**，三种变异下都绿：
+    // 留它是作为「旧存档最常见的那份形状不炸、不丢视图」的无脑回归，
+    // 以及与下一条的显式对照——真正钉住接线的是**残缺**存档那条。
     localStorage.setItem('wordsett-settings', JSON.stringify({
       state: { sidebarMode: 'alphabet', review: DEFAULT_REVIEW },
       version: 7,
@@ -229,21 +240,16 @@ describe('smartViews 存档迁移（v0.6.5）', () => {
     expect(visibleSmartViews(useSettingsStore.getState().smartViews)).toEqual(['all', 'due', 'weekNew', 'leech'])
   })
 
-  it('真实 rehydrate 一份 version 7 且 smartViews 残缺的旧存档 → 缺键被补齐（端到端）', async () => {
+  it('真实 rehydrate 一份 version 7 且 smartViews 残缺的旧存档 → 缺键被补齐（钉住 migrate 的接线）', async () => {
+    // **这才是端到端层唯一有牙齿的一条**：残缺对象合并进来时，缺的键保留的是**当前**值
+    // （可能已被用户关掉）。migrate 把默认铺在存档之下、给缺键补上 true/默认，
+    // 而它只在 version 不相等时才被调用。因此 migrate 若被摘掉、或 version 被回退成 7，
+    // 本条会红；而上一条「无 smartViews 键」那种形状两种情况下都绿。
     localStorage.setItem('wordsett-settings', JSON.stringify({
       state: { smartViews: { all: true, due: false } },
       version: 7,
     }))
     await useSettingsStore.persist.rehydrate()
     expect(useSettingsStore.getState().smartViews).toEqual({ all: true, due: false, weekNew: true, leech: true })
-  })
-
-  it('迁移后写盘的 version 升到 8', async () => {
-    localStorage.setItem('wordsett-settings', JSON.stringify({
-      state: { sidebarMode: 'alphabet' },
-      version: 7,
-    }))
-    await useSettingsStore.persist.rehydrate()
-    expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(8)
   })
 })
