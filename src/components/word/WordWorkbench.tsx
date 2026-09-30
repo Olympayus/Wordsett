@@ -48,6 +48,22 @@ const FIELD_STYLES: Record<FieldState, CSSProperties> = {
   personal: { background: FIELD_STATE_BG.personal, border: '1px solid color-mix(in srgb, var(--color-accent) 20%, transparent)',      borderLeft: `3px solid ${FIELD_LEFT_COLOR.personal}` },
 }
 
+/**
+ * 窗格左竖条的取色（v0.6.5 §4.7）。
+ *
+ * 普通模式两组都取中性：个人 / 系统词条的差异是**编者视角**的信息，普通模式下并排显示
+ * 会让同一个词条卡里的两个窗格颜色不一致，读起来像两种东西。
+ * 编者模式才按来源三态上色——与普通字段卡在编者模式下的竖条规则对齐。
+ */
+export function fieldPaneLeftBar({ isPosPane, isGroupPane, editorMode, state }: {
+  isPosPane: boolean; isGroupPane: boolean; editorMode: boolean; state: FieldState
+}): string {
+  const NEUTRAL = '3px solid var(--color-border-strong)'
+  if (isPosPane) return NEUTRAL
+  if (isGroupPane && editorMode) return `3px solid ${FIELD_LEFT_COLOR[state]}`
+  return NEUTRAL
+}
+
 // 左端 gutter 宽度（v0.5.2 修订）：手柄宽 10px，不额外留余量。
 // 宽度写死的意义是「手柄显隐不改变文字区宽度」→ 零重排。
 const GUTTER_WIDTH = 10
@@ -158,7 +174,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
     ? {
         background: 'var(--color-surface-raised)',
         border: '1px solid var(--color-border)',
-        borderLeft: isGroupPane ? `3px solid ${FIELD_LEFT_COLOR[state]}` : '3px solid var(--color-border-strong)',
+        borderLeft: fieldPaneLeftBar({ isPosPane, isGroupPane, editorMode, state }),
         borderRadius: 'var(--radius-md)',
         // 左右内边距收到 4px（v0.5.2 修订）：标签离卡片左缘的距离里，这一项每层都要付一次，
         // 词性窗格又是有边框的盒子，收窄后整体正文起点明显左移。
@@ -547,6 +563,14 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
           <>
             {labelText && (
               <span
+                onClick={isGroupPane ? () => onStartEdit(fv) : undefined}
+                onDoubleClick={isGroupPane ? () => onStartEdit(fv) : undefined}
+                role={isGroupPane ? 'button' : undefined}
+                tabIndex={isGroupPane ? 0 : undefined}
+                onKeyDown={isGroupPane ? e => {
+                  if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStartEdit(fv) }
+                } : undefined}
+                title={isGroupPane ? '双击编辑辨析组标题' : undefined}
                 style={{
                   width: 'auto',
                   minWidth: LABEL_COLUMN_WIDTH,
@@ -555,9 +579,32 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
                   fontWeight: 700,
                   letterSpacing: '0.5px',
                   color: 'var(--color-text-secondary)',
+                  cursor: isGroupPane ? 'pointer' : undefined,
                 }}
               >
-                {labelText}
+                {isGroupPane && isEditing ? (
+                  // 容器分支不渲染值格（下方 !isContainer），但组标题带描述值：编辑态必须就地长出输入框，
+                  // 否则点中标题只会进入 editingId 而无处落笔。复用值格的 input + 保存/取消对。
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                    <input
+                      className="px-3 py-1.5 rounded text-sm"
+                      style={{
+                        border: '1px solid var(--color-brand)',
+                        color: 'var(--color-text-primary)',
+                        background: 'var(--color-surface)',
+                        transition: `transform var(--duration-fast) var(--ease-smooth)`,
+                        transform: 'scale(1.005)',
+                      }}
+                      value={editValue}
+                      onChange={e => onEditValueChange(e.target.value)}
+                      autoFocus
+                    />
+                    <Button onClick={onSave}>保存</Button>
+                    <Button variant="secondary" onClick={onCancelEdit}>取消</Button>
+                  </span>
+                ) : (
+                  labelText
+                )}
               </span>
             )}
             {!isContainer && (
