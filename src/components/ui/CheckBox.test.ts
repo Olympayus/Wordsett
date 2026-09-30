@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { checkboxAppearance, CHECKBOX_SIZE, CHECKBOX_INNER, CHECKBOX_INNER_RADIUS } from './CheckBox'
+import { checkboxAppearance, checkboxPaint, CHECKBOX_SIZE, CHECKBOX_INNER, CHECKBOX_RING } from './CheckBox'
 
 describe('checkboxAppearance（v0.6.3 条目 14）', () => {
   const blue = 'var(--color-brand)'
@@ -42,6 +42,46 @@ describe('checkboxAppearance（v0.6.3 条目 14）', () => {
   })
 })
 
+describe('checkboxPaint（v0.6.5 修订：内块是画出来的，控件里没有第二个盒子）', () => {
+  const blue = 'var(--color-brand)'
+  const SURFACE = 'var(--color-surface)'
+
+  // 这一组钉的是本次修的那个偏心：内块曾经是 10×10 的子盒子，布局盒子会被浏览器按
+  // 设备像素取整，非整数缩放下左右两边各取各的整，1.5px 的留白被这一个像素吃掉一半，
+  // 看上去就是色块偏向一侧。现在内块 = 元素自己的 background，位置由外框的盒子决定。
+  it('选中：内块就是元素底色，中心区域没有任何独立盒子可以偏离外框', () => {
+    const p = checkboxPaint({ checked: true, hover: false, color: blue })
+    expect(p.background).toBe(blue)
+    // 最上层是描边（与外框同色），第二层把 3px 以内涂回底色 → 中心 10px 露出上面的 background
+    expect(p.boxShadow).toBe(`inset 0 0 0 ${CHECKBOX_RING}px ${blue}, inset 0 0 0 3px ${SURFACE}`)
+  })
+
+  it('未选：空心——底色是底，只有一圈描边色', () => {
+    const p = checkboxPaint({ checked: false, hover: false, color: blue })
+    expect(p.background).toBe(SURFACE)
+    expect(p.boxShadow).toBe(`inset 0 0 0 ${CHECKBOX_RING}px var(--color-border-strong), inset 0 0 0 3px ${SURFACE}`)
+  })
+
+  it('悬停不预演填入：底色与选中态仍然不同', () => {
+    const hovered = checkboxPaint({ checked: false, hover: true, color: blue })
+    expect(hovered.background).toBe(SURFACE)
+    expect(hovered.boxShadow).toContain(`inset 0 0 0 ${CHECKBOX_RING}px var(--color-text-tertiary)`)
+  })
+
+  it('禁用且选中：仍然只留一圈描边，不出现内块', () => {
+    const p = checkboxPaint({ checked: true, hover: false, disabled: true, color: blue })
+    expect(p.background).toBe(SURFACE)
+    expect(p.boxShadow).toBe(`inset 0 0 0 ${CHECKBOX_RING}px ${blue}, inset 0 0 0 3px ${SURFACE}`)
+  })
+
+  it('两态阴影层数一致——层数不同的过渡不插值，勾选会「啪」地跳一下', () => {
+    const on = checkboxPaint({ checked: true, hover: false, color: blue }).boxShadow
+    const off = checkboxPaint({ checked: false, hover: false, color: blue }).boxShadow
+    expect(on.split('inset').length).toBe(3)
+    expect(off.split('inset').length).toBe(3)
+  })
+})
+
 describe('CheckBox 几何常量（v0.6.5）', () => {
   it('尺寸缩到 16px', () => {
     expect(CHECKBOX_SIZE).toBe(16)
@@ -56,12 +96,7 @@ describe('CheckBox 几何常量（v0.6.5）', () => {
     expect((CHECKBOX_SIZE - CHECKBOX_INNER) / 2).toBe(3)
   })
 
-  it('内块与它的圆角都跟着缩了，不是只改了一半', () => {
-    expect(CHECKBOX_INNER).toBeLessThan(CHECKBOX_SIZE)
-    // 圆角钉死 2：上一条 `RADIUS < SIZE / 4` 在 SIZE=16 时恒成立，给不出任何保护——
-    // 真要让这条有牙齿就得钉死数值。2 是 22px 那一档留下来的值，缩到 16px 后不再跟内块走
-    // （按比例会得到 1.6px，落非整数网格；圆角不缩的取舍与描边同理，见 CheckBox.tsx）。
-    expect(CHECKBOX_INNER_RADIUS).toBeLessThan(CHECKBOX_SIZE / 4)
-    expect(CHECKBOX_INNER_RADIUS).toBe(2)
+  it('描边必须窄于内缩——否则留白那一圈被描边盖满，内块与外框之间就没有缝了', () => {
+    expect(CHECKBOX_RING).toBeLessThan((CHECKBOX_SIZE - CHECKBOX_INNER) / 2)
   })
 })
