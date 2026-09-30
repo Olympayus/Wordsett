@@ -174,8 +174,9 @@ describe('settingsStore 复习分区', () => {
   // 注意**不是**「存档缺该字段 → rehydrate 后是 undefined」：默认 merge 是
   // { ...currentState, ...persistedState }，存档铺在当前 state 之上，压根没有这个键时
   // 它不覆盖、默认值原样留着。真正出事的是**残缺的 review 对象**——正是下面这个
-  // v0.6.2 的六键 legacyReview：migrate 的 `...DEFAULT_REVIEW` 是唯一给 showDueBadge
-  // 补上 true 的地方，不升 version 它就只剩「当前值」，用户先前关掉过的开关会静默复原。
+  // v0.6.2 的五键 legacyReview：migrate 的 `...DEFAULT_REVIEW` 是唯一给 showDueBadge
+  // 补上 true 的地方，不升 version 它就只剩「当前值」，原先关掉过该开关的用户会在迁移
+  // 后看到它被重新打开（保留当前值正是让关着的仍关着，丢的只是那个从未存在过的键）。
   it('迁移：v0.6.2 写盘的 review（无 showDueBadge）补齐默认开启并保留旧键（v0.6.3 条目 5）', async () => {
     const legacyReview = {
       retention: 0.85, leechThreshold: 6, newCardQuota: 20, queueLimit: 40, letterHighlight: false,
@@ -228,9 +229,11 @@ describe('smartViews 存档迁移（v0.6.5）', () => {
   it('真实 rehydrate 一份 version 7 且无 smartViews 的旧存档 → 四个视图全开', async () => {
     // 对照用例：存档里**压根没有** smartViews 这个键时，走不走 migrate 结果都是全开——
     // 缺键由 store 自己的 DEFAULT_SMART_VIEWS 兜着（默认 merge 把存档铺在当前 state 之上，
-    // 不存在的键不覆盖）。所以本条**观察不到 migrate 的接线**，三种变异下都绿：
-    // 留它是作为「旧存档最常见的那份形状不炸、不丢视图」的无脑回归，
-    // 以及与下一条的显式对照——真正钉住接线的是**残缺**存档那条。
+    // 不存在的键不覆盖）。所以本条**观察不到 migrate 的接线**：把 migrate 从 persist 上摘掉、
+    // 或把 version 回退成 7，这两种变异下本条都还是绿的（把 `...DEFAULT_SMART_VIEWS`
+    // 那道默认铺底也一并删掉，它才会红——那属于「合并逻辑」而非「接线」，由本文件里
+    // 直接调 migrate 的用例负责）。留它是作为「旧存档最常见的那份形状不炸、不丢视图」
+    // 的无脑回归，以及与下一条的显式对照——真正钉住接线的是**残缺**存档那条。
     localStorage.setItem('wordsett-settings', JSON.stringify({
       state: { sidebarMode: 'alphabet', review: DEFAULT_REVIEW },
       version: 7,
@@ -241,10 +244,11 @@ describe('smartViews 存档迁移（v0.6.5）', () => {
   })
 
   it('真实 rehydrate 一份 version 7 且 smartViews 残缺的旧存档 → 缺键被补齐（钉住 migrate 的接线）', async () => {
-    // **这才是端到端层唯一有牙齿的一条**：残缺对象合并进来时，缺的键保留的是**当前**值
+    // 端到端层里**有牙齿**的两条是本条与下面那条（都是残缺形状，且都要靠 rehydrate
+    // 才观察得到）：残缺对象合并进来时，缺的键保留的是**当前**值
     // （可能已被用户关掉）。migrate 把默认铺在存档之下、给缺键补上 true/默认，
     // 而它只在 version 不相等时才被调用。因此 migrate 若被摘掉、或 version 被回退成 7，
-    // 本条会红；而上一条「无 smartViews 键」那种形状两种情况下都绿。
+    // 本条与下一条都会红；上一条「无 smartViews 键」那种形状则两种情况下都绿。
     localStorage.setItem('wordsett-settings', JSON.stringify({
       state: { smartViews: { all: true, due: false } },
       version: 7,

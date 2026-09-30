@@ -693,7 +693,11 @@ describe('db/review 读路径', () => {
     const WORDS = 6
     const CARDS_PER_WORD = 4          // 24 行 → 去重后 6 个占位符
     for (let i = 1; i <= WORDS; i++) await seedWord(db, `w${i}`, `lemma${i}`)
-    await registerAllWords(db, { allowListen: true })   // 每个词四张卡（translation+definition+example+phonetic）
+    // 下面先播种字段值，**再**注册——次序不能换：registerCards 走可用性掩码，
+    // 零字段的词一个可用题型都没有、一个词都注册不出来。
+    // 种子只有 chinese_definition / example / phonetic 三组（没有 english_definition），
+    // 但 recognize 与 recall 依赖的是**同一组** translation，故这一组就出两张卡，
+    // 加 cloze（example）与 listen（phonetic）正好四张 = recognize / recall / cloze / listen。
     for (let i = 1; i <= WORDS; i++) {
       await seedValue(db, `fva${i}`, `w${i}`, 'chinese_definition', `第${i}个`)
       await seedValue(db, `fvb${i}`, `w${i}`, 'example', `lemma${i} is here`)

@@ -128,6 +128,12 @@ export async function getWordByLemma(lemma: string): Promise<DbResult<Word | nul
   }
 }
 
+/** 删除单个词条。字段、分类关联、复习卡的清理由外键 `ON DELETE CASCADE` 负责，
+ *  而级联**需要 `PRAGMA foreign_keys = ON` 才会生效——生产当前没有开启它**，
+ *  全仓唯一开着的只有测试适配器（`src/db/test-utils.ts:13`）。
+ *  故此处的实际效果是只删 `words` 一行，`field_values` / `word_categories` /
+ *  `review_cards` / `review_states` / `review_logs` 会留下孤儿行。
+ *  批量版 `deleteWords` 同理。 */
 export async function deleteWord(id: string): Promise<DbResult<void>> {
   try {
     await getDb().execute('DELETE FROM words WHERE id = ?1', [id])
@@ -140,7 +146,9 @@ export async function deleteWord(id: string): Promise<DbResult<void>> {
 // 与 categories 同一档分批：SQLite 变量上限 999，取 200 留足余量。
 const DELETE_BATCH_SIZE = 200
 
-/** 批量删除词条；字段、分类关联、复习卡由外键 ON DELETE CASCADE 级联清掉。 */
+/** 批量删除词条；字段、分类关联、复习卡的清理由外键 `ON DELETE CASCADE` 负责，需
+ *  `foreign_keys` 开启（生产当前未开启，见 src/db/test-utils.ts:13），故实际只删
+ *  `words` 这些行，其余关联表会留下孤儿行。 */
 export async function deleteWords(ids: string[]): Promise<DbResult<void>> {
   try {
     for (let i = 0; i < ids.length; i += DELETE_BATCH_SIZE) {
