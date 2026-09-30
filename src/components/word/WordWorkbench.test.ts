@@ -14,7 +14,7 @@ describe('fieldPaneLeftBar（v0.6.5 §4.7：来源差异只在编者模式现形
       .toBe('3px solid var(--color-weave-personal)')
   })
 
-  it('编者模式：词典来源的组仍是中性', () => {
+  it('编者模式：词典来源的组取来源三态的 original 色', () => {
     expect(fieldPaneLeftBar({ isPosPane: false, isGroupPane: true, editorMode: true, state: 'original' }))
       .toBe('3px solid var(--color-weave-original)')
   })
