@@ -51,7 +51,14 @@ export default function CategoryPickerPopover({ onPick, onClose, align = 'right'
           // 收窄到 maxWidth: 100% 后，面板变成「能用多宽就多宽，名字省略号收尾」，
           // 测量-free（不引 portal、不量坐标），窄容器下依然读得下去。
           // boxSizing: border-box 必需：默认 content-box 下 padding/border 会把它顶出容器。
+          // 代价是**调用方的定位容器有多宽，面板就只有多宽**，窄容器上分类名会被省略号截短
+          // （本组件无能为力，只能保证读得下去）；要足宽请把容器给足 minWidth，见词典返回页两处。
           maxWidth: '100%', boxSizing: 'border-box',
+          // 纵向同理，且这次必须自己收口：分类数无上限，而面板所在的祖先
+          // （AppShell 的 <aside> / 词典返回页的 <main>）都带 overflow: hidden，超出部分
+          // 不是被裁掉就是滚不到——侧栏那条（placement='top'）尤其明显。
+          // maxHeight 取 60vh：半个多屏，够放下二三十个分类，同时给祖先的裁剪留出余量。
+          maxHeight: '60vh', overflowY: 'auto',
           width: '220px', padding: '6px',
           background: 'var(--color-surface)', border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-overlay)',

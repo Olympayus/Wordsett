@@ -167,8 +167,13 @@ export default function WorkbenchNavBar({
             {/* 添加动作拆成两颗（v0.6.5 §4.6）：主按钮的行为与改前逐字相同（不传 categoryId，
                 合并后落进默认分类）；「＋」做同一件事，只在选中分类时成功后多归入该分类——
                 词已在库时这条路径依然有意义（v0.6.5 唯一的新能力）。
-                两者共用 onMergeAdd 这一个入口，反馈不会分叉。 */}
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                两者共用 onMergeAdd 这一个入口，反馈不会分叉。
+                minWidth: 220 是 CategoryPickerPopover 的**定位容器**：面板自带
+                maxWidth: '100%'，那个百分比按包含块解析，故容器多宽面板就多宽。
+                不给下限的话容器≈两按钮宽（约 120–160px，随「· N 项」变），分类名只剩
+                5–8 个字，且下拉宽度会随勾选数抖动。220 是面板的定宽，等于把容器顶到面板宽上限。
+                容器本身不设 width/justifyContent，故这两颗按钮仍按内容宽右对齐，多出的空档在左。 */}
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px', minWidth: 220 }}>
               {/* 悬浮说明走 Tooltip 包裹而非 title 属性——accname 2.2 里 title 早于 name-from-content，
                   一挂就把可及名钉成常量「合并添加」，「· N 项」永远不被读出（Icon 是 aria-hidden，不参与命名）。 */}
               <Tooltip content={mergeCount > 0 ? `把勾选的 ${mergeCount} 项合并添加进词条` : '先勾选要添加的词条'} width={260}>

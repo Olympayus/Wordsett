@@ -398,21 +398,29 @@ export default function DictDetailCard({
           v0.6.5 §4.6 起拆成主按钮 + 「＋」：主按钮行为与改前逐字相同（落默认分类），
           「＋」在同一套 handleAdd 成功后多归入所选分类，故两颗按钮的反馈不可能分叉。
           两颗同用一个 disabled 判据（added || selected.size === 0），成功期间一起禁用。
-          tone="surface"：卡片底是纯白 --color-surface，按 SquareButton 的 tone 判据取白底套。 */}
-      <div className="px-4 py-2 flex items-center justify-end gap-1" style={{ borderTop: '1px solid var(--color-border)', position: 'relative' }}>
+          tone="surface"：卡片底是纯白 --color-surface，按 SquareButton 的 tone 判据取白底套。
+          flexWrap: wrap：这一行现在多了浮层的定位容器（≥220px），与左对齐的行内内容抢同一条基线，
+          挤了就换行，而不是把卡片撑破。 */}
+      <div className="px-4 py-2 flex items-center justify-end gap-1 flex-wrap"
+        style={{ borderTop: '1px solid var(--color-border)', position: 'relative' }}>
         <SquareButton size="nav" tone="surface" disabled={added || selected.size === 0} onClick={() => void handleAdd()}>
           {added ? '已添加 ✓' : '添加此词典'}
         </SquareButton>
-        <SquareButton size="nav" tone="surface" aria-label="选择分类后添加此词典" disabled={added || selected.size === 0}
-          onClick={() => setPickerOpen(o => !o)}>
-          <Icon name="plus" size={12} />
-        </SquareButton>
-        {/* 不传 placement：默认 'bottom'（向下）对这张卡片底部是对的。
-            onPick 里先关浮层再执行添加；且点分类不会触发按钮的 onClick——浮层不在按钮内。 */}
-        {pickerOpen && (
-          <CategoryPickerPopover onClose={() => setPickerOpen(false)}
-            onPick={categoryId => { setPickerOpen(false); void handleAdd(categoryId) }} />
-        )}
+        {/* minWidth: 220 同 WorkbenchNavBar：这是浮层的定位容器，面板的 maxWidth: '100%'
+            按包含块解析，容器多窄面板就多窄、分类名被省略号截短。容器不设 width，
+            「＋」仍贴主按钮右侧，多出的空档在左。 */}
+        <div style={{ position: 'relative', display: 'inline-flex', minWidth: 220 }}>
+          <SquareButton size="nav" tone="surface" aria-label="选择分类后添加此词典" disabled={added || selected.size === 0}
+            onClick={() => setPickerOpen(o => !o)}>
+            <Icon name="plus" size={12} />
+          </SquareButton>
+          {/* 不传 placement：默认 'bottom'（向下）对这张卡片底部是对的。
+              onPick 里先关浮层再执行添加；且点分类不会触发按钮的 onClick——浮层不在按钮内。 */}
+          {pickerOpen && (
+            <CategoryPickerPopover onClose={() => setPickerOpen(false)}
+              onPick={categoryId => { setPickerOpen(false); void handleAdd(categoryId) }} />
+          )}
+        </div>
       </div>
     </div>
   )
