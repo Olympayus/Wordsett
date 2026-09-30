@@ -563,21 +563,25 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
           <>
             {labelText && (
               <span
-                // 编辑态时手势整体让位：input / 保存 / 取消都是本 span 的 DOM 子节点，
-                // 而 Button 不阻断冒泡（Button.tsx 把 onClick 原样 {...props} 透传），
-                // 不让位的话点「取消」会先 setEditingId(null)、再被冒泡上来的这次点击
-                // handleStartEdit 拉回编辑态并把输入回滚成已存值，按钮看上去完全失灵。
-                // 此处返回 null 是**唯一**可行的隔离点：既不能只在按钮上 stopPropagation
-                // （冒泡链上按钮在 span 之后触发，拦不住祖先），也不能无脑 stopPropagation
-                // ——那会把双击拦掉（dblclick 由第二次 click 合成，浏览器在冒泡到根之前
-                // 仍会派发它，但 React 自己的 dispatch 里 click 的 stopPropagation 会在
-                // 第二次派发前生效，正常模式下双击就再也进不了编辑态）。
-                // onKeyDown 也要让位：Tab 落在取消按钮上按 Space/Enter 是原生 click，
-                // 会冒泡上来；不还手就变成「从取消按钮把编辑态又拉回来」。
+                // 编辑态时整组手势让位：input / 保存 / 取消都是本 span 的 DOM 子节点，而 Button
+                // 不阻断冒泡（Button.tsx 把 onClick 原样 {...props} 透传）。点「取消」会先
+                // setEditingId(null)、再被冒泡上来的这次点击 handleStartEdit 拉回编辑态并把
+                // 输入回滚成已存值，按钮看上去完全失灵。
+                // 为什么让位而不是 stopPropagation：React 的 dispatch 是**目标优先**——
+                // accumulateTwoPhaseListeners 自 target 向上收集，processDispatchQueue 正序执行，
+                // 冒泡阶段按钮自己的监听器先跑、祖先 span 后跑。所以 span 里的 stopPropagation
+                // 拦不住已经跑完的子节点（要拦得由**按钮**自己调）；这里选择在编辑态干脆不挂
+                // click 监听器，一处覆盖两个按钮与 input，onDoubleClick 同样由 !isEditing 门控。
+                // onKeyDown 的 e.target !== e.currentTarget 判据：事件来自 input 时不还手，
+                // 否则在标题输入框里敲 Space/Enter 会被 preventDefault 掉并劫持成 onStartEdit
+                // （Tab 落在取消按钮上按 Space 同理）。
                 onClick={isGroupPane && !isEditing ? () => onStartEdit(fv) : undefined}
                 onDoubleClick={isGroupPane && !isEditing ? () => onStartEdit(fv) : undefined}
-                role={isGroupPane ? 'button' : undefined}
-                tabIndex={isGroupPane ? 0 : undefined}
+                // role/tabIndex 只在「尚未编辑、这个 span 本身可点」时成立：编辑态下它已是一个
+                // 装着 input 的容器，再宣称自己是 button 会让无障碍树误报，且这个 tab 站会排在
+                // 它自己的输入框前面。
+                role={isGroupPane && !isEditing ? 'button' : undefined}
+                tabIndex={isGroupPane && !isEditing ? 0 : undefined}
                 onKeyDown={isGroupPane ? e => {
                   if (e.target !== e.currentTarget) return
                   if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStartEdit(fv) }
