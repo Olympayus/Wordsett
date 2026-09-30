@@ -244,11 +244,11 @@ describe('smartViews 存档迁移（v0.6.5）', () => {
   })
 
   it('真实 rehydrate 一份 version 7 且 smartViews 残缺的旧存档 → 缺键被补齐（钉住 migrate 的接线）', async () => {
-    // 端到端层里**有牙齿**的两条是本条与下面那条（都是残缺形状，且都要靠 rehydrate
-    // 才观察得到）：残缺对象合并进来时，缺的键保留的是**当前**值
+    // 端到端层里**有牙齿的两条**是本条与上面那条「persist 的 version 是 8」（两者都走
+    // rehydrate，才会观察到 migrate 到底跑没跑）：残缺对象合并进来时，缺的键保留的是**当前**值
     // （可能已被用户关掉）。migrate 把默认铺在存档之下、给缺键补上 true/默认，
     // 而它只在 version 不相等时才被调用。因此 migrate 若被摘掉、或 version 被回退成 7，
-    // 本条与下一条都会红；上一条「无 smartViews 键」那种形状则两种情况下都绿。
+    // 本条与上面那条都会红；而再上面那条「无 smartViews 键」的形状两种情况下都绿。
     localStorage.setItem('wordsett-settings', JSON.stringify({
       state: { smartViews: { all: true, due: false } },
       version: 7,
