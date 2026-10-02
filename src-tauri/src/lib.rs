@@ -1,8 +1,10 @@
 mod config;
 mod platform;
+mod tray;
 mod tts_player;
 
-use tauri::Manager;
+use tauri::{Emitter, Manager};
+use tray::{close_action, CloseAction};
 use tts_player::{list_english_voices, speak, tts_english_voice_available};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -35,11 +37,56 @@ pub fn run() {
                 .resolve("", BaseDirectory::AppConfig)
                 .map_err(|e| e.to_string())?;
             config::init(&dir);
+
+            app.manage(tray::TrayState::default());
+            // 托盘建立失败不该拦住启动：常驻开关强制视为关，前端会显示提示条。
+            if config::bool_at(&config::get(), "window.close_to_tray", true) {
+                if let Err(e) = tray::init(app.handle()) {
+                    eprintln!("[tray] 托盘建立失败，本次不常驻：{e}");
+                    let _ = config::set_patch(serde_json::json!({
+                        "window": { "close_to_tray": false }
+                    }));
+                }
+            }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .on_window_event(|window, event| {
+            if window.label() != "main" {
+                return;
+            }
+            let tauri::WindowEvent::CloseRequested { api, .. } = event else { return };
+
+            let cfg = config::get();
+            let action = close_action(
+                config::bool_at(&cfg, "window.close_dialog_seen", false),
+                config::bool_at(&cfg, "window.close_to_tray", true),
+            );
+
+            // 三条去向都要 prevent_close：Ask 要让窗口活到前端弹完窗，
+            // Hide 要的是「藏起来」不是「关掉」，Exit 由我们显式 exit
+            // （放行 close 也会退出，但那条路会再触发一次 CloseRequested，绕一圈）。
+            api.prevent_close();
+            match action {
+                CloseAction::Ask => { let _ = window.emit("close-requested", ()); }
+                CloseAction::Hide => hide_main_window(window.app_handle()),
+                CloseAction::Exit => window.app_handle().exit(0),
+            }
+        })
+        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request])
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            // macOS：hide 之后点 Dock 图标 / Cmd+Tab 要能唤回主窗（00 §5）。
+            // Reopen 是 macOS 专属变体（tauri/src/app.rs:279），故整臂按 target 门掉。
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                show_main_window(app);
+            }
+
+            // 非 macOS 上上面那条被 cfg 掉，两个参数都成了未使用。
+            #[cfg(not(target_os = "macos"))]
+            let _ = (app, event);
+        });
 }
 
 /// 返回词典库绝对路径（剥离 Windows `\\?\` 动词前缀后）。
@@ -81,15 +128,26 @@ fn to_loadable_path(path: &std::path::Path) -> String {
 
 /// 显示并聚焦主窗。
 ///
-/// 幂等：窗口已可见时重复调用只做一次 set_focus，不报错。`unminimize` 要在
-/// `show` **之前**——最小化的窗口只 `show` 不会还原，看起来像「点了没反应」。
-// Task 5 的托盘菜单与 macOS `RunEvent::Reopen` 接管这个函数后删掉此属性。
-#[allow(dead_code)]
+/// 幂等：窗口已可见时重复调用只多做一次 set_focus，不报错。
+/// `unminimize` 要在 `show` **之前**——最小化的窗口只 `show` 不会还原，
+/// 看起来像「点了没反应」（Review Focus 5）。
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+        let _ = w.emit("main-window-shown", ());
+    }
+}
+
+/// 隐藏主窗并通知前端补刷一次托盘数字。
+///
+/// 补刷的必要性：窗口一旦不可见，webview 的 60s 轮询可能被系统节流，
+/// 数字会停在隐藏前那一刻。show / hide 两个方向都发同一个事件，前端收到即重算。
+fn hide_main_window(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.hide();
+        let _ = w.emit("main-window-shown", ());
     }
 }
 
