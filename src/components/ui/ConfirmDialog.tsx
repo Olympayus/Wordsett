@@ -14,7 +14,7 @@ export default function ConfirmDialog() {
         position: 'fixed', inset: 0, zIndex: 'var(--z-modal)',
         background: 'var(--color-scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
-      onClick={() => resolveConfirm(false)}
+      onClick={() => { if (req.dismissable !== false) resolveConfirm(false) }}
     >
       <div
         style={{
@@ -40,7 +40,7 @@ export default function ConfirmDialog() {
                 fontFamily: 'var(--font-sans)',
               }}
             >
-              取消
+              {req.cancelLabel ?? '取消'}
             </button>
           )}
           <button

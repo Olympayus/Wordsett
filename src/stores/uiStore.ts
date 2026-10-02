@@ -8,6 +8,13 @@ export interface ConfirmRequest {
   message: string
   danger?: boolean
   confirmLabel?: string
+  /** 次按钮的文案。缺省仍是「取消」。v0.7.0 的关窗弹窗两个按钮都是肯定动作，
+   *  需要能分别命名（「直接退出」/「最小化到托盘」）。 */
+  cancelLabel?: string
+  /** 点遮罩是否等同于点次按钮。**缺省 true**，既有调用点行为不变。
+   *  关窗弹窗必须传 false：那里 `resolveConfirm(false)` 等于「直接退出应用」，
+   *  误点遮罩就把应用关了。 */
+  dismissable?: boolean
   alertMode?: boolean
 }
 
