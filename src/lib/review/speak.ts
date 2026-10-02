@@ -15,7 +15,9 @@ export async function speakWord(text: string, invoke?: Invoker): Promise<void> {
   if (!text) return
   try {
     const fn = invoke ?? (await import('@tauri-apps/api/core')).invoke
-    await fn('speak', { text, rate: 1.0 })
+    // 不传 rate / voice：由 Rust 侧取 shortcuts.json 的当前值（v0.7.0）。
+    // 调用方因此不必知道用户选了什么音色、语速是多少。
+    await fn('speak', { text })
   } catch {
     /* 静默降级：系统没有英文音色时就是这样 */
   }

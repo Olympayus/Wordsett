@@ -2,10 +2,10 @@ import { describe, it, expect, vi } from 'vitest'
 import { speakWord } from './speak'
 
 describe('speakWord（v0.6.3 条目 12）', () => {
-  it('把词与语速传给 speak 命令', async () => {
+  it('只把词传给 speak 命令——语速与音色交给 Rust 侧取 shortcuts.json（v0.7.0）', async () => {
     const invoke = vi.fn().mockResolvedValue(undefined)
     await speakWord('detrimental', invoke)
-    expect(invoke).toHaveBeenCalledWith('speak', { text: 'detrimental', rate: 1.0 })
+    expect(invoke).toHaveBeenCalledWith('speak', { text: 'detrimental' })
   })
 
   it('空文本直接返回，不调命令', async () => {

@@ -79,8 +79,13 @@ enum Cmd {
     /// 枚举英文音色。回 `Vec<(token_id, 显示名)>`，并在挑中第一条时顺带记住它的
     /// token id（枚举即选中，与 winrt 那条的设计一致——见 `tts_player::english_voice`）。
     ListEnglish(Sender<Result<Vec<(String, String)>, String>>),
-    /// 用已选中的 token id 朗读。不等结果。音色由线程自己记着，不随消息传。
-    Speak { text: String },
+    /// 用指定 token id 朗读。`token_id` 为 None 时用线程记着的 `selected`
+    /// （枚举没跑过时的兜底）。`rate` 已是 SAPI 刻度 -10..10。
+    Speak {
+        text: String,
+        token_id: Option<String>,
+        rate: i32,
+    },
 }
 
 /// SAPI5 工作线程的句柄。所有 COM 调用都发生在它自己那条线程上。
@@ -131,12 +136,14 @@ impl SapiWorker {
                                 }
                             }
                         }
-                        // 音色不在消息里传：SpVoice 只能从创建它的单元调用，
-                        // 外部拿不到这条线程上的实例，故由线程自己记着 `selected`。
-                        Cmd::Speak { text } => {
-                            // 枚举没跑过（或没选出英文音色）时 selected 为空，
+                        // 音色**可以**点名，但要由线程自己把名字反查成 token id：
+                        // SpVoice 只能从创建它的单元调用，外部拿不到这条线程上的实例，
+                        // 那条线程自己记着枚举结果，故映射也留在它那里。
+                        Cmd::Speak { text, token_id, rate } => {
+                            // 没点名音色就退回枚举时选中的那条；两者都空时
                             // speak_on_this_thread 会用系统默认音色，不因此让本次朗读失败。
-                            if let Err(e) = speak_on_this_thread(&mut voice, &selected, &text) {
+                            let id = token_id.as_deref().unwrap_or(selected.as_str());
+                            if let Err(e) = speak_on_this_thread(&mut voice, id, &text, rate) {
                                 eprintln!("[tts] sapi5 speak failed: {e}");
                             }
                         }
@@ -167,9 +174,9 @@ impl SapiWorker {
     }
 
     /// 朗读一段文本。不等发声完成——与 WinRT 后端同为「已受理」语义。
-    pub fn speak(&self, text: String) -> Result<(), String> {
+    pub fn speak(&self, text: String, token_id: Option<String>, rate: i32) -> Result<(), String> {
         self.tx
-            .send(Cmd::Speak { text })
+            .send(Cmd::Speak { text, token_id, rate })
             .map_err(|_| "SAPI 线程已退出".to_string())
     }
 }
@@ -233,6 +240,7 @@ fn speak_on_this_thread(
     voice: &mut Option<ISpVoice>,
     token_id: &str,
     text: &str,
+    rate: i32,
 ) -> Result<(), String> {
     use windows::core::HSTRING;
     use windows::Win32::Media::Speech::{ISpObjectToken, SpObjectToken, SpVoice, SPF_ASYNC, SPF_PURGEBEFORESPEAK};
@@ -258,6 +266,9 @@ fn speak_on_this_thread(
             v.SetVoice(&token)
                 .map_err(|e| format!("选中音色失败：{e}"))?;
         }
+        // SetRate 与 SetVoice 同为 SpVoice 的会话级设置，必须在 Speak 之前设。
+        // rate 已是 SAPI 刻度（0.5–2.0 → -5..10，见 tts_player::rate_to_sapi）。
+        v.SetRate(rate).map_err(|e| format!("设置语速失败：{e}"))?;
         // SPF_PURGEBEFORESPEAK 是 engine 级不变式的 SAPI 侧对应物（见 tts_player.rs 顶部）：
         // 连续点「播放读音」时先清空待播队列，否则上一个词会排在这次前面，两条音轨叠着念。
         // WinRT 侧靠 `let _ = t.stop()` 达成同一效果，这里没有 stop 可调，只能靠这个 flag。

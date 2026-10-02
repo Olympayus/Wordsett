@@ -41,6 +41,24 @@ pub fn is_english_voice<L: AsRef<str>>(language: L) -> bool {
     l == "en" || l.starts_with("en-") || l.starts_with("en_")
 }
 
+/// 音色枚举项。**前端契约**（camelCase）。
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct VoiceInfo {
+    /// 显示名，如 `Microsoft Zira Desktop`。**也是 `shortcuts.json` 里 `tts.voice` 的取值**
+    /// ——按名字而非 id 存，是因为 id 在两个后端里不是同一种东西（WinRT 是 token 串、
+    /// SAPI5 是 registry token id），而显示名两处都有，且配置文件是给人看/给人改的。
+    name: String,
+    /// 语言标签。SAPI5 的枚举不回报语言（它按英文过滤后才交出来），故为 None。
+    language: Option<String>,
+}
+
+/// 用户面向的语速 0.5–2.0（1.0 = 常速）→ SAPI 的 `SetRate` 刻度 -10..10（0 = 常速）。
+/// 只取上半段，且越界静默夹住——rate 来自用户可直接编辑的配置文件。
+pub fn rate_to_sapi(rate: f32) -> i32 {
+    ((rate - 1.0) * 10.0).round().clamp(-10.0, 10.0) as i32
+}
+
 /// 探测结果（spec §6.2）。**前端契约，字段名不可变**（camelCase，见 lib.rs:79-81 的同款约束）。
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -225,12 +243,74 @@ pub fn tts_english_voice_available() -> Result<VoiceProbe, String> {
     Ok(probe(&mut guard))
 }
 
-/// 朗读一段文本。rate 缺省 1.0（正常语速）。
+/// 当前已应用到引擎上的音色显示名。用来避免每次朗读都重设一遍（`set_voice` 不便宜）。
+static APPLIED_VOICE: Mutex<Option<String>> = Mutex::new(None);
+
+/// 把用户选中的音色应用到 WinRT 引擎。
+///
+/// `want == None` 表示用户没选（`tts.voice` 为 null），保持探测时选中的那条。
+/// **Review Focus 3**：目标音色已被系统卸载时返回 Err，而不是静默用别的音色——
+/// 静默换音色会让「设置里选了 A、实际念的是 B」无从察觉。
+fn apply_voice(engine: &mut Tts, want: Option<&str>) -> Result<(), String> {
+    let want = match want {
+        Some(w) => w,
+        None => return Ok(()),
+    };
+    if APPLIED_VOICE.lock().map(|a| a.as_deref() == Some(want)).unwrap_or(false) {
+        return Ok(());
+    }
+    let voices = engine.voices().map_err(|e| e.to_string())?;
+    let found = voices
+        .into_iter()
+        .find(|v| v.name() == want)
+        .ok_or_else(|| format!("系统里找不到音色「{want}」，可能已被卸载"))?;
+    engine.set_voice(&found).map_err(|e| e.to_string())?;
+    if let Ok(mut a) = APPLIED_VOICE.lock() {
+        *a = Some(want.to_string());
+    }
+    Ok(())
+}
+
+/// 枚举本机英文音色。数据源跟随**已选定的后端**（与 `probe` 同一分身法）：
+/// SAPI5 已选定时走工作线程的枚举，否则走 WinRT/原生。
+#[tauri::command]
+pub fn list_english_voices() -> Result<Vec<VoiceInfo>, String> {
+    let mut guard = ENGINE.lock().map_err(|_| "内部状态异常（锁中毒）".to_string())?;
+
+    #[cfg(windows)]
+    if let Some(Backend::Sapi(w)) = guard.as_ref() {
+        return Ok(w
+            .list_english_voices()?
+            .into_iter()
+            .map(|(_id, name)| VoiceInfo { name, language: None })
+            .collect());
+    }
+
+    let t = winrt_engine(&mut guard)?;
+    let voices = t.voices().map_err(|e| e.to_string())?;
+    Ok(voices
+        .into_iter()
+        .filter(|v| is_english_voice(v.language()))
+        .map(|v| VoiceInfo {
+            name: v.name().to_string(),
+            language: Some(v.language().to_string()),
+        })
+        .collect())
+}
+
+/// 朗读一段文本。
+///
+/// `rate` / `voice` 省略时取 `shortcuts.json` 的当前值——调用方因此不必重复传参，
+/// 用户在设置页改完立刻生效（每次朗读都读一次配置，不做缓存失效逻辑）。
 ///
 /// WinRT 走单例上已选中的音色（探测时 set_voice 过，见 `english_voice` 的注释）；
-/// SAPI5 走工作线程，音色在枚举时已记下。
+/// SAPI5 走工作线程，音色与语速随消息传下去。
 #[tauri::command]
-pub fn speak(text: String, rate: Option<f32>) -> Result<(), String> {
+pub fn speak(text: String, rate: Option<f32>, voice: Option<String>) -> Result<(), String> {
+    let cfg = crate::config::get();
+    let voice = voice.or_else(|| crate::config::str_at(&cfg, "tts.voice"));
+    let rate = rate.unwrap_or_else(|| crate::config::f32_at(&cfg, "tts.rate", 1.0));
+
     let mut guard = ENGINE.lock().map_err(|e| e.to_string())?;
     let engine = match guard.as_mut() {
         Some(e) => e,
@@ -243,15 +323,26 @@ pub fn speak(text: String, rate: Option<f32>) -> Result<(), String> {
     };
     match engine {
         #[cfg(windows)]
-        Backend::Sapi(w) => w.speak(text),
+        Backend::Sapi(w) => {
+            // token id 由名字反查：SAPI 的 SpVoice 只能从创建它的单元调用，
+            // 那条线程自己记着枚举结果，故由它来完成名字 → id 的映射。
+            let token_id = match voice.as_deref() {
+                Some(name) => w
+                    .list_english_voices()?
+                    .into_iter()
+                    .find(|(_id, n)| n == name)
+                    .map(|(id, _)| id),
+                None => None,
+            };
+            w.speak(text, token_id, rate_to_sapi(rate))
+        }
         Backend::WinRt(t) => {
-            if let Some(r) = rate {
-                // tts 的 set_rate 越界是**报错**不钳制（lib.rs:421-422），直接透传会让
-                // 越界的 rate 变成「点了没声音」。这里先按后端自己的 min/max 夹住
-                // （不硬编码常量，WinRT 为 0.5..=6.0），再调，永远不落进 Err 分支。
-                let (min, max) = (t.min_rate(), t.max_rate());
-                t.set_rate(r.clamp(min, max)).map_err(|e| e.to_string())?;
-            }
+            apply_voice(t, voice.as_deref())?;
+            // tts 的 set_rate 越界是**报错**不钳制（lib.rs:421-422），直接透传会让
+            // 越界的 rate 变成「点了没声音」。这里先按后端自己的 min/max 夹住
+            // （不硬编码常量，WinRT 为 0.5..=6.0），再调，永远不落进 Err 分支。
+            let (min, max) = (t.min_rate(), t.max_rate());
+            t.set_rate(rate.clamp(min, max)).map_err(|e| e.to_string())?;
             // 先停旧播放再读新的：连续出题时不叠读。stop 清空整个待播队列
             // （winrt.rs:213-233），故随后 interrupt=false 入队即从头播。
             // SAPI 侧没有 stop，engine 级不变式由 Speak 的 SPF_PURGEBEFORESPEAK 守住
@@ -265,7 +356,7 @@ pub fn speak(text: String, rate: Option<f32>) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
-    use super::is_english_voice;
+    use super::{is_english_voice, rate_to_sapi};
 
     #[test]
     fn accepts_common_english_language_tags() {
@@ -279,5 +370,24 @@ mod tests {
         for tag in ["zh-CN", "ja-JP", "de-DE", "", "fr"] {
             assert!(!is_english_voice(tag), "{tag} should not count as english");
         }
+    }
+
+    /// 用户面向的语速是 0.5–2.0（1.0 = 常速），SAPI 的 SetRate 是 -10..10（0 = 常速）。
+    /// 映射只取其上半段（0.5 → -5），避免把「稍慢」直接推到 SAPI 的最慢极端。
+    #[test]
+    fn rate_maps_onto_sapi_scale() {
+        assert_eq!(rate_to_sapi(1.0), 0);
+        assert_eq!(rate_to_sapi(1.5), 5);
+        assert_eq!(rate_to_sapi(2.0), 10);
+        assert_eq!(rate_to_sapi(0.5), -5);
+        assert_eq!(rate_to_sapi(0.75), -3); // 四舍五入
+    }
+
+    /// 越界静默夹住，不 panic——rate 来自用户可手改的配置文件。
+    #[test]
+    fn rate_clamps_out_of_range() {
+        assert_eq!(rate_to_sapi(9.0), 10);
+        assert_eq!(rate_to_sapi(-3.0), -10);
+        assert_eq!(rate_to_sapi(0.0), -10);
     }
 }

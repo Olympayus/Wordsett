@@ -1,6 +1,7 @@
 import type { ReviewCardDTO } from '../../services/reviewService'
 import { formatPhonetic } from '../../lib/phonetic'
 import { promptTypeLabel, posNoteText } from '../../lib/review/scopeLabel'
+import { speakWord } from '../../lib/review/speak'
 import SquareButton from '../ui/SquareButton'
 import SpeakButton from '../ui/SpeakButton'
 import AnswerInput, { type InputKind } from './AnswerInput'
@@ -154,14 +155,7 @@ export default function PromptCard({
               tone='surface'：这层与 PromptRow 都不设底，最近一个设了底的祖先是 <main> 的白。 */}
           <SquareButton
             tone="surface"
-            onClick={() => {
-              void (async () => {
-                try {
-                  const { invoke } = await import('@tauri-apps/api/core')
-                  await invoke('speak', { text: String(dto.answer.lemma ?? ''), rate: 1.0 })
-                } catch { /* 静默降级 */ }
-              })()
-            }}
+            onClick={() => { void speakWord(String(dto.answer.lemma ?? '')) }}
           >
             播放读音
           </SquareButton>
