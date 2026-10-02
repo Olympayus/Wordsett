@@ -1,18 +1,23 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import SearchSettings from './SearchSettings'
 import ReviewSettings from './ReviewSettings'
 import SidebarSettings from './SidebarSettings'
+import TrayWindowSettings from './TrayWindowSettings'
 import CategorySettings from './CategorySettings'
 import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings'
+import PlatformSettings from './PlatformSettings'
 
-type SectionKey = 'search' | 'review' | 'sidebar' | 'category' | 'data' | 'about'
+type SectionKey = 'search' | 'review' | 'tray' | 'sidebar' | 'category' | 'data' | 'platform' | 'about'
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'search', label: '搜索设置' },
   { key: 'review', label: '复习' },
+  { key: 'tray', label: '托盘与窗口' },
   { key: 'sidebar', label: '侧边栏显示' },
   { key: 'category', label: '分类管理' },
   { key: 'data', label: '数据' },
+  { key: 'platform', label: '平台权限' },
   { key: 'about', label: '关于' },
 ]
 
@@ -25,6 +30,14 @@ const SETTINGS_CONTENT_WIDTH = 720
 // 关闭按钮与焦点回归 #settings-trigger、480px 定宽、role="dialog"/aria-modal。
 export default function SettingsPage() {
   const [active, setActive] = useState<SectionKey>('search')
+
+  // 「平台权限」分区只在 macOS 存在。**导航项本身也要按平台过滤**——否则 Windows 上
+  // 会留下一个点进去一片空白的导航项，与 03 §2.5「Windows 无此分区」相冲突。
+  const [platformSupported, setPlatformSupported] = useState(false)
+  useEffect(() => {
+    void invoke<{ supported: boolean }>('accessibility_status').then(s => setPlatformSupported(s.supported))
+  }, [])
+  const sections = SECTIONS.filter(s => s.key !== 'platform' || platformSupported)
 
   // v0.5.3 §4.1（第 10 条）：左栏文字改黑色衬线体。两种状态文字都取近黑
   // （--color-text-primary，#1C1814）；选中态改由「暖品牌底 + 2px 品牌色左边条 + 加粗」承载，
@@ -51,7 +64,7 @@ export default function SettingsPage() {
           borderRight: '1px solid var(--color-border)', padding: '16px 0',
         }}
       >
-        {SECTIONS.map(s => (
+        {sections.map(s => (
           <button key={s.key} type="button" onClick={() => setActive(s.key)} style={navStyle(active === s.key)}>
             {s.label}
           </button>
@@ -72,9 +85,11 @@ export default function SettingsPage() {
         <div style={{ maxWidth: SETTINGS_CONTENT_WIDTH, padding: '24px' }}>
           {active === 'search' && <SearchSettings />}
           {active === 'review' && <ReviewSettings />}
+          {active === 'tray' && <TrayWindowSettings />}
           {active === 'sidebar' && <SidebarSettings />}
           {active === 'category' && <CategorySettings />}
           {active === 'data' && <DataSettings />}
+          {active === 'platform' && <PlatformSettings />}
           {active === 'about' && <AboutSettings />}
         </div>
       </div>
