@@ -112,6 +112,11 @@ fn english_voice(engine: &mut Tts) -> std::result::Result<Option<tts::Voice>, St
         None => Ok(None),
         Some(v) => {
             engine.set_voice(&v).map_err(|e| e.to_string())?;
+            // 缓存必须跟着引擎一起改：apply_voice 的快路径只看 APPLIED_VOICE，
+            // 若这里选中音色却不更新它，下次朗读会拿旧名字走快路径、静默念错音色。
+            if let Ok(mut a) = APPLIED_VOICE.lock() {
+                *a = Some(v.name().to_string());
+            }
             Ok(Some(v))
         }
     }
@@ -246,6 +251,15 @@ pub fn tts_english_voice_available() -> Result<VoiceProbe, String> {
 /// 当前已应用到引擎上的音色显示名。用来避免每次朗读都重设一遍（`set_voice` 不便宜）。
 static APPLIED_VOICE: Mutex<Option<String>> = Mutex::new(None);
 
+/// 用户选中的音色在系统里不存在时的**两个后端共用的**唯一原因文案。
+///
+/// 抽成一处是因为 spec §4.4 要求「失败 → 前端显示红字」，而红字只有一句时，
+/// 两个后端各写一份就等于两条用户可分辨的文字——同一个故障看起来像两个问题。
+/// 音色**已被系统卸载**是唯一能走到这里的场景，故措辞直接这么说。
+fn voice_not_found(want: &str) -> String {
+    format!("系统里找不到音色「{want}」，可能已被卸载")
+}
+
 /// 把用户选中的音色应用到 WinRT 引擎。
 ///
 /// `want == None` 表示用户没选（`tts.voice` 为 null），保持探测时选中的那条。
@@ -263,12 +277,27 @@ fn apply_voice(engine: &mut Tts, want: Option<&str>) -> Result<(), String> {
     let found = voices
         .into_iter()
         .find(|v| v.name() == want)
-        .ok_or_else(|| format!("系统里找不到音色「{want}」，可能已被卸载"))?;
+        .ok_or_else(|| voice_not_found(want))?;
     engine.set_voice(&found).map_err(|e| e.to_string())?;
     if let Ok(mut a) = APPLIED_VOICE.lock() {
         *a = Some(want.to_string());
     }
     Ok(())
+}
+
+/// 在 SAPI5 的 `(token_id, 显示名)` 枚举里按显示名查 token id。**纯函数**（spec §6.1）。
+///
+/// 与 `apply_voice` 同一条规矩，只是换到 SAPI5 的输入域上：**点名了却查不到就报错**，
+/// 不退回枚举时选中的那条——那条是另一个音色，静默换掉就是 Review Focus 3 要防的那件事
+/// （spec §4.4「失败（音色被系统卸载）→ 回退系统默认 + 返回 Err」）。
+/// 「调用方没点名」不是这条路径：那是 `None`，由工作线程按枚举时选中的音色处理。
+#[cfg(windows)]
+fn sapi_token_id(voices: &[(String, String)], want: &str) -> Result<String, String> {
+    voices
+        .iter()
+        .find(|(_id, name)| name == want)
+        .map(|(id, _)| id.clone())
+        .ok_or_else(|| voice_not_found(want))
 }
 
 /// 枚举本机英文音色。数据源跟随**已选定的后端**（与 `probe` 同一分身法）：
@@ -327,11 +356,7 @@ pub fn speak(text: String, rate: Option<f32>, voice: Option<String>) -> Result<(
             // token id 由名字反查：SAPI 的 SpVoice 只能从创建它的单元调用，
             // 那条线程自己记着枚举结果，故由它来完成名字 → id 的映射。
             let token_id = match voice.as_deref() {
-                Some(name) => w
-                    .list_english_voices()?
-                    .into_iter()
-                    .find(|(_id, n)| n == name)
-                    .map(|(id, _)| id),
+                Some(name) => Some(sapi_token_id(&w.list_english_voices()?, name)?),
                 None => None,
             };
             w.speak(text, token_id, rate_to_sapi(rate))
@@ -389,5 +414,43 @@ mod tests {
         assert_eq!(rate_to_sapi(9.0), 10);
         assert_eq!(rate_to_sapi(-3.0), -10);
         assert_eq!(rate_to_sapi(0.0), -10);
+    }
+
+    /// Review Focus 3 的 SAPI 侧：点名了音色就必须换成它，或明确报错——
+    /// 绝不退回枚举时选中的那条（那正是「设置里选了 A、实际念的是 B」）。
+    #[cfg(windows)]
+    #[test]
+    fn named_sapi_voice_resolves_to_its_own_token_id() {
+        use super::sapi_token_id;
+
+        let voices = vec![
+            ("HKEY_LOCAL_MACHINE\\..\\ZIRA".to_string(), "Microsoft Zira Desktop".to_string()),
+            ("HKEY_LOCAL_MACHINE\\..\\HAZEL".to_string(), "Microsoft Hazel Desktop".to_string()),
+        ];
+        // 点名谁就取谁的 id，不能总是取第一条（第一条是探测时选中的那条）。
+        assert_eq!(
+            sapi_token_id(&voices, "Microsoft Hazel Desktop").unwrap(),
+            "HKEY_LOCAL_MACHINE\\..\\HAZEL"
+        );
+        assert_eq!(
+            sapi_token_id(&voices, "Microsoft Zira Desktop").unwrap(),
+            "HKEY_LOCAL_MACHINE\\..\\ZIRA"
+        );
+    }
+
+    /// 查不到时必须 Err，且文案与 `apply_voice`（WinRT 侧）逐字相同——
+    /// 同一个故障在两个后端上只该有一条用户可读的原因。
+    #[cfg(windows)]
+    #[test]
+    fn missing_sapi_voice_errors_instead_of_falling_back() {
+        use super::{sapi_token_id, voice_not_found};
+
+        let voices = vec![("id-zira".to_string(), "Microsoft Zira Desktop".to_string())];
+        let err = sapi_token_id(&voices, "已卸载的音色").unwrap_err();
+        assert_eq!(err, voice_not_found("已卸载的音色"));
+        assert_eq!(err, "系统里找不到音色「已卸载的音色」，可能已被卸载");
+
+        // 空枚举同样报错，而不是「没找到就当没点名」。
+        assert!(sapi_token_id(&[], "Microsoft Zira Desktop").is_err());
     }
 }
