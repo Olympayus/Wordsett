@@ -1,4 +1,6 @@
-import { useSyncExternalStore } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
+import { invoke } from '@tauri-apps/api/core'
+import { getConfig, setConfig } from '../../lib/config'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { Toggle } from '../ui/Toggle'
 import { subscribe, getProbe, type VoiceProbe } from '../../lib/review/ttsGate'
@@ -20,9 +22,48 @@ export default function ReviewSettings() {
   // 会一直显示「未探测」，用户看不到诊断信息（v0.6.2 §6.4）。
   const probe = useSyncExternalStore(subscribe, getProbe)
 
+  // `ready` 与 `voice` 必须分开：`voice` 为 null 是**合法值**（「系统默认」），
+  // 拿它当「配置还没读回来」的门会让音色行永不渲染。
+  const [ready, setReady] = useState(false)
+  const [rate, setRate] = useState(1.0)
+  const [voice, setVoice] = useState<string | null>(null)
+  const [ttsError, setTtsError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void getConfig().then(c => { setRate(c.tts.rate); setVoice(c.tts.voice); setReady(true) })
+  }, [])
+
+  /** 改配置 + 立刻用新值试听一次——「点了没变」是这个功能最常见的困惑。
+   *  试听失败要把原因显示出来（spec §4.4「前端显示红字」）：音色被系统卸载时
+   *  静默吞掉的话，用户看到的是「选了下拉框但没声音」，无从判断是设置没生效还是系统没装。 */
+  const applyTts = async (patch: { voice?: string | null; rate?: number }) => {
+    setTtsError(null)
+    try {
+      const next = await setConfig({ tts: patch })
+      setVoice(next.tts.voice)
+      setRate(next.tts.rate)
+      await invoke('speak', { text: 'detrimental' })
+    } catch (e) {
+      setTtsError(String(e))
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <ListenStatus probe={probe} />
+
+      {probe?.available && ready && (
+        <>
+          <VoiceRow current={voice} onChange={v => void applyTts({ voice: v })} errorText={ttsError} />
+          <NumberRow
+            label="朗读语速"
+            hint="1.0 为常速。改动即时生效，只影响之后的朗读。"
+            value={rate}
+            min={0.5} max={2.0} step={0.1}
+            onChange={v => void applyTts({ rate: v })}
+          />
+        </>
+      )}
 
       {/* 开关行只有单行标签，控件右端与下面四个数字框的右边缘对齐（flex-end，不是居中） */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -124,6 +165,50 @@ function ListenStatus({ probe }: { probe: VoiceProbe | null }) {
           <div>macOS：系统设置 → 辅助功能 → 朗读内容 → 系统声音 → 管理声音，免费下载 Ava / Zoe 等增强音色</div>
         </>
       )}
+    </div>
+  )
+}
+
+interface VoiceInfo { name: string; language: string | null }
+
+/**
+ * 音色与语速（v0.7.0 §4.6）。**只在听辨题可用时渲染**：听辨题因系统没有英文音色
+ * 下线时，`ListenStatus` 已经给出「装好后重启软件即可上线」与双平台安装路径，
+ * 这时再摆一个枚举不出任何音色的下拉是误导——与 ListenStatus 注释里
+ * 「在还不知道系统里有没有英文音色之前，让用户去装语音包是误导」是同一条判断。
+ */
+function VoiceRow({ current, onChange, errorText }: {
+  current: string | null; onChange: (v: string | null) => void; errorText: string | null
+}) {
+  const [voices, setVoices] = useState<VoiceInfo[]>([])
+  useEffect(() => {
+    void invoke<VoiceInfo[]>('list_english_voices').then(setVoices).catch(() => setVoices([]))
+  }, [])
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: '13px' }}>听辨题音色</div>
+        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', marginTop: 2 }}>
+          选中后立即生效并试听，重启后保持。
+        </div>
+        {errorText && (
+          <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)', marginTop: 2 }}>{errorText}</div>
+        )}
+      </div>
+      <select
+        aria-label="听辨题音色"
+        value={current ?? ''}
+        onChange={e => onChange(e.target.value || null)}
+        style={{
+          width: 240, padding: '5px 8px', borderRadius: 'var(--radius-lg)',
+          border: '1px solid var(--color-border-strong)', background: 'var(--color-surface)',
+          fontSize: 13, fontFamily: 'var(--font-sans)', color: 'var(--color-text-primary)',
+        }}
+      >
+        <option value="">系统默认</option>
+        {voices.map(v => <option key={v.name} value={v.name}>{v.name}{v.language ? `（${v.language}）` : ''}</option>)}
+      </select>
     </div>
   )
 }
