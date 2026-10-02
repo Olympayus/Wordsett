@@ -1,3 +1,4 @@
+mod config;
 mod tts_player;
 
 use tauri::Manager;
@@ -11,7 +12,18 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir, fsrs_next, speak, tts_english_voice_available])
+        // 启动期同步读一次 shortcuts.json。app_config_dir 的解析方式与 open_data_dir
+        // 保持一致（tauri-plugin-sql 也用同一个目录）。
+        .setup(|app| {
+            use tauri::path::BaseDirectory;
+            let dir = app
+                .path()
+                .resolve("", BaseDirectory::AppConfig)
+                .map_err(|e| e.to_string())?;
+            config::init(&dir);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir, fsrs_next, speak, tts_english_voice_available, config::get_config, config::set_config])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
