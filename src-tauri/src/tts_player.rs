@@ -112,10 +112,14 @@ fn english_voice(engine: &mut Tts) -> std::result::Result<Option<tts::Voice>, St
         None => Ok(None),
         Some(v) => {
             engine.set_voice(&v).map_err(|e| e.to_string())?;
-            // 缓存必须跟着引擎一起改：apply_voice 的快路径只看 APPLIED_VOICE，
-            // 若这里选中音色却不更新它，下次朗读会拿旧名字走快路径、静默念错音色。
+            // 两处缓存都要跟着引擎一起改，否则「系统默认」将无处可恢复：
+            // PROBE_VOICE 是它要恢复到的目标，APPLIED_VOICE 则是 apply_voice 的快路径判据
+            // ——不更新后者，下次朗读会拿旧名字走快路径、静默念错音色。
             if let Ok(mut a) = APPLIED_VOICE.lock() {
                 *a = Some(v.name().to_string());
+            }
+            if let Ok(mut p) = PROBE_VOICE.lock() {
+                *p = Some(v.name().to_string());
             }
             Ok(Some(v))
         }
@@ -251,6 +255,14 @@ pub fn tts_english_voice_available() -> Result<VoiceProbe, String> {
 /// 当前已应用到引擎上的音色显示名。用来避免每次朗读都重设一遍（`set_voice` 不便宜）。
 static APPLIED_VOICE: Mutex<Option<String>> = Mutex::new(None);
 
+/// 探测时选中的那条英文音色，即 `tts.voice = null`（「系统默认」）要恢复到的目标。
+///
+/// **与 `APPLIED_VOICE` 分开记，是因为两者会分叉**：用户从「系统默认」切到 Zira 时，
+/// 引擎上是 Zira（`APPLIED_VOICE`），但「系统默认」该恢复到的仍是探测选中的那条
+/// （`PROBE_VOICE`）。只留一份就分不清「引擎上是 Zira，因为探测选的就是它」和
+/// 「引擎上是 Zira，因为用户点的就是它」——后者必须能被恢复回去。
+static PROBE_VOICE: Mutex<Option<String>> = Mutex::new(None);
+
 /// 用户选中的音色在系统里不存在时的**两个后端共用的**唯一原因文案。
 ///
 /// 抽成一处是因为 spec §4.4 要求「失败 → 前端显示红字」，而红字只有一句时，
@@ -260,27 +272,70 @@ fn voice_not_found(want: &str) -> String {
     format!("系统里找不到音色「{want}」，可能已被卸载")
 }
 
+/// `apply_voice` 每次朗读要做的判定。**纯函数**（spec §6.1）：只读三份状态，不碰引擎。
+///
+/// 之所以能纯：三个入参全部是已经取好的 `Option<&str>`，枚举与 `set_voice` 都在外面。
+/// 抽出来的收益是把「要不要动引擎 / 动到哪条」这张决策表从副作用里剥出来，
+/// 于是「连点两次系统默认不重复枚举」这类要求可以被钉住，而不是靠人读代码确认。
+#[derive(PartialEq, Eq, Debug)]
+enum VoiceAction {
+    /// 不用动引擎：已经是目标音色，或压根没有可恢复的目标。
+    NoChange,
+    /// 把引擎切到这条音色。
+    Apply(String),
+}
+
+/// `tts.voice` → 本次是否要动引擎、以及动到哪条。
+///
+/// `want` 是用户选中的显示名，`None` = 「系统默认」（spec §5.1）。
+/// `applied` 是引擎上**实际**在用的，`probe` 是探测选中的那条（「系统默认」的恢复目标）。
+fn voice_target(
+    want: Option<&str>,
+    applied: Option<&str>,
+    probe: Option<&str>,
+) -> VoiceAction {
+    let target = match want {
+        Some(w) => w,
+        // 「系统默认」解析成探测选中的那条，而不是 OS 的默认嗓音：
+        // zh-CN 机器上后者是用中文嗓音念英文，恰是探测要防的事。
+        // 没有探测记录（探测没跑过 / 机器上没英文音色）就没有可恢复的目标，保持现状。
+        None => match probe {
+            Some(p) => p,
+            None => return VoiceAction::NoChange,
+        },
+    };
+    if applied == Some(target) {
+        VoiceAction::NoChange
+    } else {
+        VoiceAction::Apply(target.to_string())
+    }
+}
+
 /// 把用户选中的音色应用到 WinRT 引擎。
 ///
-/// `want == None` 表示用户没选（`tts.voice` 为 null），保持探测时选中的那条。
-/// **Review Focus 3**：目标音色已被系统卸载时返回 Err，而不是静默用别的音色——
+/// `want == None` 是「系统默认」（spec §5.1：`tts.voice = null`），**不是「不动引擎」**——
+/// 设置页的「系统默认」选项把 `null` 持久化下来，用户从 Zira 切回它就必须真的切回去。
+/// 恢复目标是 `english_voice` 选中的那条（`PROBE_VOICE`）。
+///
+/// **Review Focus 3**：点名了却查不到时返回 Err，而不是静默用别的音色——
 /// 静默换音色会让「设置里选了 A、实际念的是 B」无从察觉。
 fn apply_voice(engine: &mut Tts, want: Option<&str>) -> Result<(), String> {
-    let want = match want {
-        Some(w) => w,
-        None => return Ok(()),
+    let (applied, probe) = (
+        APPLIED_VOICE.lock().ok().and_then(|a| a.clone()),
+        PROBE_VOICE.lock().ok().and_then(|p| p.clone()),
+    );
+    let target = match voice_target(want, applied.as_deref(), probe.as_deref()) {
+        VoiceAction::NoChange => return Ok(()),
+        VoiceAction::Apply(t) => t,
     };
-    if APPLIED_VOICE.lock().map(|a| a.as_deref() == Some(want)).unwrap_or(false) {
-        return Ok(());
-    }
     let voices = engine.voices().map_err(|e| e.to_string())?;
     let found = voices
         .into_iter()
-        .find(|v| v.name() == want)
-        .ok_or_else(|| voice_not_found(want))?;
+        .find(|v| v.name() == target)
+        .ok_or_else(|| voice_not_found(&target))?;
     engine.set_voice(&found).map_err(|e| e.to_string())?;
     if let Ok(mut a) = APPLIED_VOICE.lock() {
-        *a = Some(want.to_string());
+        *a = Some(target);
     }
     Ok(())
 }
@@ -381,7 +436,7 @@ pub fn speak(text: String, rate: Option<f32>, voice: Option<String>) -> Result<(
 
 #[cfg(test)]
 mod tests {
-    use super::{is_english_voice, rate_to_sapi};
+    use super::{is_english_voice, rate_to_sapi, voice_target, VoiceAction};
 
     #[test]
     fn accepts_common_english_language_tags() {
@@ -452,5 +507,65 @@ mod tests {
 
         // 空枚举同样报错，而不是「没找到就当没点名」。
         assert!(sapi_token_id(&[], "Microsoft Zira Desktop").is_err());
+    }
+
+    /// 初始状态不得退化：探测已选中 Zira、用户还没选过（applied==probe）时，
+    /// 「系统默认」必须是空操作——每次朗读都不许重新枚举 + set_voice。
+    #[test]
+    fn default_voice_is_a_noop_before_any_user_choice() {
+        assert_eq!(
+            voice_target(None, Some("Zira"), Some("Zira")),
+            VoiceAction::NoChange
+        );
+    }
+
+    /// 用户从「系统默认」切到 Hazel：引擎上现在是探测选中的 Zira，必须真的动引擎。
+    #[test]
+    fn picking_a_voice_applies_it() {
+        assert_eq!(
+            voice_target(Some("Hazel"), Some("Zira"), Some("Zira")),
+            VoiceAction::Apply("Hazel".to_string())
+        );
+    }
+
+    /// 核心回归：选 Zira → 切回「系统默认」。必须把引擎切**回**探测选中的 Hazel，
+    /// 早退（NoChange）会让设置里显示「系统默认」、实际仍念 Zira。
+    #[test]
+    fn reverting_to_default_restores_the_probe_pick() {
+        assert_eq!(
+            voice_target(None, Some("Zira"), Some("Hazel")),
+            VoiceAction::Apply("Hazel".to_string())
+        );
+    }
+
+    /// 恢复过一次之后再点「系统默认」必须是空操作——APPLIED_VOICE 这时候已等于探测选中的
+    /// 那条，所以第二次不会再触发一次枚举。
+    #[test]
+    fn repeat_default_after_restore_stays_cheap() {
+        assert_eq!(
+            voice_target(None, Some("Hazel"), Some("Hazel")),
+            VoiceAction::NoChange
+        );
+    }
+
+    /// 「系统默认」→ 选 Zira → 再「系统默认」能恢复回去之后，用户又点了一次 Zira：
+    /// 点名必须照旧生效，不能因为缓存里留着 Hazel 而被当成 NoChange。
+    #[test]
+    fn choosing_a_voice_still_reapplies_after_a_restore() {
+        assert_eq!(
+            voice_target(Some("Zira"), Some("Hazel"), Some("Hazel")),
+            VoiceAction::Apply("Zira".to_string())
+        );
+    }
+
+    /// 探测没跑过、或机器上根本没有英文音色时，没有可恢复的目标：保持引擎现状。
+    /// 这不是 UI 能走到的状态（听辨题已 fail-closed 下线），故不报错。
+    #[test]
+    fn default_without_a_probe_pick_keeps_current_voice() {
+        assert_eq!(voice_target(None, None, None), VoiceAction::NoChange);
+        assert_eq!(
+            voice_target(None, Some("Zira"), None),
+            VoiceAction::NoChange
+        );
     }
 }
