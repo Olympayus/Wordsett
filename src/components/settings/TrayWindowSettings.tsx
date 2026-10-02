@@ -7,6 +7,11 @@ const SECTION_TITLE: React.CSSProperties = {
   fontSize: 'var(--text-base)', fontWeight: 'var(--weight-bold)', color: 'var(--color-text-primary)',
 }
 
+/** invoke 的 reject 值类型不固定（Rust 侧是 `Result<_, String>`，但插件层可能给 Error）。 */
+function errText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}
+
 /** 行式条目 + 右侧开关，与 SidebarSettings 的智能视图行同版式。 */
 function ToggleRow({ label, desc, checked, onChange, last }: {
   label: string; desc: string; checked: boolean; onChange: (v: boolean) => void; last?: boolean
@@ -48,16 +53,29 @@ export default function TrayWindowSettings() {
    *
    * 连成一串 promise：连点同一个开关时，第 2 次的写要等第 1 次的 `sync_tray` 落定，
    * 否则两次调用交错，托盘可能停在与开关相反的那一档，且看不出来。
+   *
+   * **两段 try 分开，因为两件事失败后的处境相反，提示不能混成一条**：
+   * - 写盘失败：`setConfig` 什么都没存（`set_patch` 原子写、只在成功后更新缓存），
+   *   开关停在旧值是如实的，提示就是「没存上」的原因。
+   * - 托盘同步失败：配置**已经存了**，开关停在新值，如实反映了盘上状态。
+   *   偏偏这一档最难自查——用户同时看到「设置变了」和「托盘没动」。
+   * 合成一个 catch 会让两者无法分辨，故这里分开写。
    */
   const patch = (p: Record<string, unknown>) => {
     chain.current = chain.current.then(async () => {
       setError(null)
+      let next: AppConfig
       try {
-        setCfg(await setConfig(p))
+        next = await setConfig(p)
+      } catch (e) {
+        setError(`设置未保存：${errText(e)}`)
+        return
+      }
+      setCfg(next)
+      try {
         await invoke<void>('sync_tray')
       } catch (e) {
-        // 不吞：开关已经落盘、托盘却没跟上时，用户看到的正是这里。
-        setError(e instanceof Error ? e.message : String(e))
+        setError(`设置已保存，但托盘未更新（可能需要重启应用）：${errText(e)}`)
       }
     })
   }
