@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { listen } from '@tauri-apps/api/event'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useViewStore } from '../../stores/viewStore'
 import { getStrategyCounts, REVIEW_DEFAULTS } from '../../services/reviewService'
@@ -82,10 +83,25 @@ export default function DueBadge() {
       const { review } = useSettingsStore.getState()
       const n = (await getStrategyCounts({ ...REVIEW_DEFAULTS, ...review })).today
       if (alive) setCount(n)
+      // 托盘菜单第二项与 tooltip 用的是**同一个数**（v0.7.0 §4.8）：
+      // 单位口径与这里一致，都是卡数。Rust 侧带脏标记，数字没变时不做任何事。
+      if (alive) {
+        const { invoke } = await import('@tauri-apps/api/core')
+        await invoke('update_tray_badge', { remaining: n })
+      }
     }
     refresh()
     const timer = setInterval(refresh, 60_000)
-    return () => { alive = false; clearInterval(timer) }
+
+    // 窗口 show / hide 时 Rust 会发这个事件：隐藏后 webview 定时器可能被节流，
+    // 光靠 60s 轮询会让托盘数字停在隐藏前那一刻。收到就补刷一次。
+    const unlisten = listen('main-window-shown', () => { void refresh() })
+
+    return () => {
+      alive = false
+      clearInterval(timer)
+      void unlisten.then(f => f())
+    }
   }, [show, activeModule])
 
   useEffect(() => {

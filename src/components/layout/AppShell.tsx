@@ -17,6 +17,7 @@ import UpdateDialog from '../ui/UpdateDialog'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import FindBar, { registerFindKeyHandler } from '../ui/FindBar'
 import { fitCollapsedWidth, measureMaxWordWidth, resolveSidebarWordFont, COLLAPSED_CHROME_ALPHABET, COLLAPSED_CHROME_CATEGORY, SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
+import { useCloseRequest } from '../../lib/tray/useCloseRequest'
 
 export default function AppShell() {
   const words = useWordStore(s => s.words)
@@ -34,6 +35,9 @@ export default function AppShell() {
     const max = measureMaxWordWidth(words.map(w => w.lemma), resolveSidebarWordFont())  // 与渲染同一字体
     return fitCollapsedWidth(max, chrome)
   }, [collapsed, words, mode])
+
+  // 首次关窗弹窗（v0.7.0 §4.7）
+  useCloseRequest()
 
   // 统一页内查找：注册全局 Ctrl+F（spec §4b，FindBar 单实例）
   useEffect(() => registerFindKeyHandler(), [])
