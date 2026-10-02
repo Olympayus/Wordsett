@@ -1,4 +1,5 @@
 mod config;
+mod platform;
 mod tts_player;
 
 use tauri::Manager;
@@ -36,7 +37,7 @@ pub fn run() {
             config::init(&dir);
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir, fsrs_next, speak, tts_english_voice_available, config::get_config, config::set_config])
+        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir, fsrs_next, speak, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
