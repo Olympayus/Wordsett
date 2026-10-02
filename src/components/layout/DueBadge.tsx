@@ -77,14 +77,14 @@ export default function DueBadge() {
   // 依赖里带 activeModule：离开复习模块时补取一次，做完一整轮退出复习模块，
   // chip 立刻重新取数；不带的话只能等下一次轮询，那个数最坏要在屏上滞留一分钟。
   useEffect(() => {
-    if (!show) return
     let alive = true
     const refresh = async () => {
       const { review } = useSettingsStore.getState()
       const n = (await getStrategyCounts({ ...REVIEW_DEFAULTS, ...review })).today
-      if (alive) setCount(n)
-      // 托盘菜单第二项与 tooltip 用的是**同一个数**（v0.7.0 §4.8）：
-      // 单位口径与这里一致，都是卡数。Rust 侧带脏标记，数字没变时不做任何事。
+      // `show` 只闸住**标题栏**那个数：`tray.show_due_count` 是另一个独立开关，
+      // 关掉标题栏徽标不该让托盘数字也停更（两者是同一个 `n`，见上）。
+      if (alive && show) setCount(n)
+      // 托盘菜单第二项与 tooltip 用的是**同一个数**（v0.7.0 §4.8），故无条件上报。
       if (alive) {
         const { invoke } = await import('@tauri-apps/api/core')
         await invoke('update_tray_badge', { remaining: n })

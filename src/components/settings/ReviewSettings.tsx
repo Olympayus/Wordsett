@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getConfig, setConfig } from '../../lib/config'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -29,23 +29,34 @@ export default function ReviewSettings() {
   const [voice, setVoice] = useState<string | null>(null)
   const [ttsError, setTtsError] = useState<string | null>(null)
 
+  // 写配置串成一串 promise：连敲语速 `1.5` 会连发多次 `setConfig`，交错的话
+  // 后一次写的返回值可能先落地，把界面显示拨回一个中间值。串行化后顺序与敲击
+  // 一致，本地状态也始终来自各自那次写返回的合并结果（与 TrayWindowSettings 同形）。
+  const chain = useRef<Promise<void>>(Promise.resolve())
+
   useEffect(() => {
     void getConfig().then(c => { setRate(c.tts.rate); setVoice(c.tts.voice); setReady(true) })
   }, [])
 
-  /** 改配置 + 立刻用新值试听一次——「点了没变」是这个功能最常见的困惑。
+  /** 改配置 + 用新值试听一次——「点了没变」是这个功能最常见的困惑。
    *  试听失败要把原因显示出来（spec §4.4「前端显示红字」）：音色被系统卸载时
-   *  静默吞掉的话，用户看到的是「选了下拉框但没声音」，无从判断是设置没生效还是系统没装。 */
-  const applyTts = async (patch: { voice?: string | null; rate?: number }) => {
-    setTtsError(null)
-    try {
-      const next = await setConfig({ tts: patch })
-      setVoice(next.tts.voice)
-      setRate(next.tts.rate)
-      await invoke('speak', { text: 'detrimental' })
-    } catch (e) {
-      setTtsError(String(e))
-    }
+   *  静默吞掉的话，用户看到的是「选了下拉框但没声音」，无从判断是设置没生效还是系统没装。
+   *
+   *  试听只给**最终settled 的值**出一次声：这次写的 promise 一旦不再是链条末端
+   *  （说明此刻已有更新的写排在其后），就不再试听——否则敲 `1.5` 会连响好几声。 */
+  const applyTts = (patch: { voice?: string | null; rate?: number }) => {
+    const run = chain.current.then(async () => {
+      setTtsError(null)
+      try {
+        const next = await setConfig({ tts: patch })
+        setVoice(next.tts.voice)
+        setRate(next.tts.rate)
+        if (chain.current === run) await invoke('speak', { text: 'detrimental' })
+      } catch (e) {
+        setTtsError(String(e))
+      }
+    })
+    chain.current = run
   }
 
   return (

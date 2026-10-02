@@ -1,4 +1,5 @@
 import { useUiStore } from '../../stores/uiStore'
+import { scrimDismisses } from '../../lib/confirmDialog'
 
 export default function ConfirmDialog() {
   const req = useUiStore(s => s.confirmReq)
@@ -14,7 +15,7 @@ export default function ConfirmDialog() {
         position: 'fixed', inset: 0, zIndex: 'var(--z-modal)',
         background: 'var(--color-scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
-      onClick={() => { if (req.dismissable !== false) resolveConfirm(false) }}
+      onClick={() => { if (scrimDismisses(req.dismissable)) resolveConfirm(false) }}
     >
       <div
         style={{

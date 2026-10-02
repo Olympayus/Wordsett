@@ -176,9 +176,14 @@ pub fn get() -> Value {
 }
 
 /// 深合并 `patch` → 写盘 → 成功才更新内存 → 返回合并后的完整配置。
+///
+/// 整段事务持同一把 `CACHE` 锁：读缓存、合并、写盘、回填都在锁内完成，两个并发
+/// `set_config` 因此串行化，不会各自读到同一份旧值、后写覆盖前写（丢更新）。
+/// 锁序与 `init` 一致——先 `CACHE` 后 `CONFIG_PATH`——不同路径之间不会交叉死锁。
+/// 写盘放在锁内是可接受的：文件很小、写入罕见。
 pub fn set_patch(patch: Value) -> Result<Value, String> {
-    let mut next = get();
-    merge_patch(&mut next, &patch);
+    // 锁中毒按本模块惯例恢复（`init` / `get` 也都静默忽略中毒），不新增失败面。
+    let mut cache = CACHE.lock().unwrap_or_else(|e| e.into_inner());
 
     let path = CONFIG_PATH
         .lock()
@@ -186,11 +191,14 @@ pub fn set_patch(patch: Value) -> Result<Value, String> {
         .clone()
         .ok_or_else(|| "配置尚未初始化".to_string())?;
 
+    // 直接从 guard 上取：不能在这把锁里再调 `get()`（它会再抢一次 CACHE）。
+    let mut next = cache.clone().unwrap_or_else(defaults);
+    merge_patch(&mut next, &patch);
+
     write_atomic(&path, &next)?;
 
-    if let Ok(mut c) = CACHE.lock() {
-        *c = Some(next.clone());
-    }
+    // 写盘成功了才更新缓存——不变量 2。
+    *cache = Some(next.clone());
     Ok(next)
 }
 
