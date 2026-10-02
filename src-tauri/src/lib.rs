@@ -72,7 +72,7 @@ pub fn run() {
                 CloseAction::Exit => window.app_handle().exit(0),
             }
         })
-        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request])
+        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {

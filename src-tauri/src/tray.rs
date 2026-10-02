@@ -9,7 +9,7 @@
 
 use std::sync::Mutex;
 
-use tauri::menu::{MenuBuilder, MenuItemBuilder};
+use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Manager};
 
@@ -64,6 +64,16 @@ pub fn should_update(last: Option<u32>, next: u32) -> bool {
     last != Some(next)
 }
 
+/// 托盘菜单中间那行（今日剩余 N 张）是否该出现。
+///
+/// 设计 §4.5：`tray.show_due_count` 关掉时**整行移除**（不是灰显、不是换文字），
+/// 图标与其余两行原样保留；打开时该行回来。`tray_built` 表达「此刻托盘本就该在」——
+/// 为假时连托盘都不建、更没有菜单，生产调用点恒传真，入参只为把
+/// 「行存在 ⇔ 托盘在 ∧ 开关开」钉成一张可测真值表（Finding 1 的回归闸）。
+pub fn shows_due_row(tray_built: bool, show_due_count: bool) -> bool {
+    tray_built && show_due_count
+}
+
 /// 托盘图标 id。增删与查都用它。
 const TRAY_ID: &str = "main-tray";
 const MENU_SHOW: &str = "tray-show";
@@ -75,6 +85,38 @@ const MENU_QUIT: &str = "tray-quit";
 pub struct TrayState {
     due: Mutex<Option<tauri::menu::MenuItem<tauri::Wry>>>,
     last: Mutex<Option<u32>>,
+}
+
+/// 构造托盘菜单。`with_due` 决定中间「今日剩余 N 张」那行在不在（设计 §4.5）。
+/// 返回菜单本身与那行（若存在）的句柄，供调用方存进 `TrayState` 以改文案。
+fn build_menu(
+    app: &AppHandle,
+    with_due: bool,
+) -> Result<(Menu<tauri::Wry>, Option<tauri::menu::MenuItem<tauri::Wry>>), String> {
+    let show = MenuItemBuilder::with_id(MENU_SHOW, "显示主窗")
+        .build(app)
+        .map_err(|e| e.to_string())?;
+    let quit = MenuItemBuilder::with_id(MENU_QUIT, "退出")
+        .build(app)
+        .map_err(|e| e.to_string())?;
+
+    if with_due {
+        let due = MenuItemBuilder::with_id(MENU_DUE, "今日无待复习")
+            .enabled(false)
+            .build(app)
+            .map_err(|e| e.to_string())?;
+        let menu = MenuBuilder::new(app)
+            .items(&[&show, &due, &quit])
+            .build()
+            .map_err(|e| e.to_string())?;
+        Ok((menu, Some(due)))
+    } else {
+        let menu = MenuBuilder::new(app)
+            .items(&[&show, &quit])
+            .build()
+            .map_err(|e| e.to_string())?;
+        Ok((menu, None))
+    }
 }
 
 /// 建托盘图标。菜单：显示主窗 / 今日剩余 N 张（灰显）/ 退出。
@@ -95,21 +137,8 @@ pub fn init(app: &AppHandle) -> Result<(), String> {
         .cloned()
         .ok_or_else(|| "应用没有默认窗口图标，托盘无法建立".to_string())?;
 
-    let show = MenuItemBuilder::with_id(MENU_SHOW, "显示主窗")
-        .build(app)
-        .map_err(|e| e.to_string())?;
-    let due = MenuItemBuilder::with_id(MENU_DUE, "今日无待复习")
-        .enabled(false)
-        .build(app)
-        .map_err(|e| e.to_string())?;
-    let quit = MenuItemBuilder::with_id(MENU_QUIT, "退出")
-        .build(app)
-        .map_err(|e| e.to_string())?;
-
-    let menu = MenuBuilder::new(app)
-        .items(&[&show, &due, &quit])
-        .build()
-        .map_err(|e| e.to_string())?;
+    let show_due = config::bool_at(&config::get(), "tray.show_due_count", true);
+    let (menu, due) = build_menu(app, shows_due_row(true, show_due))?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .icon(icon)
@@ -118,7 +147,7 @@ pub fn init(app: &AppHandle) -> Result<(), String> {
         .menu(&menu)
         // 左键不弹菜单，留给「显示主窗」——与菜单首项同一动作。
         .show_menu_on_left_click(false)
-        .tooltip(tooltip_text(0, config::bool_at(&config::get(), "tray.show_due_count", true)))
+        .tooltip(tooltip_text(0, show_due))
         .on_menu_event(|app, event| match event.id().0.as_str() {
             MENU_SHOW => crate::show_main_window(app),
             // 退出是一次到位：不走 CloseRequested，否则关窗分流会再拦一道。
@@ -135,7 +164,7 @@ pub fn init(app: &AppHandle) -> Result<(), String> {
 
     if let Some(state) = app.try_state::<TrayState>() {
         if let Ok(mut d) = state.due.lock() {
-            *d = Some(due);
+            *d = due;
         }
         // 新建的图标永远是「0/默认」文案（菜单项与 tooltip 都是），故脏标记也归零：
         // 若在「无图标」期间有人上报过数字，不清掉它就会让重建后的图标停在默认文案上
@@ -174,13 +203,17 @@ pub fn remove(app: &AppHandle) {
     }
 }
 
-/// 上报待复习卡数。数字没变就不动菜单与 tooltip。
-pub fn set_due_count(app: &AppHandle, remaining: u32) {
+/// 把 `remaining` 落到菜单第二行与 tooltip。
+///
+/// `force = false`（常规 60s 轮询）时先过脏标记——数字没变就不动。
+/// `force = true` 用于配置变更后的强制重绘：那时菜单行可能刚被换过、tooltip 可能刚
+/// 被清过，脏标记反而会拦掉这次必要的刷新（Finding 2 / 约束 (e)）。
+fn render_due(app: &AppHandle, remaining: u32, force: bool) {
     let Some(state) = app.try_state::<TrayState>() else { return };
 
     {
         let Ok(mut last) = state.last.lock() else { return };
-        if !should_update(*last, remaining) {
+        if !force && !should_update(*last, remaining) {
             return;
         }
         *last = Some(remaining);
@@ -188,6 +221,8 @@ pub fn set_due_count(app: &AppHandle, remaining: u32) {
 
     let show = config::bool_at(&config::get(), "tray.show_due_count", true);
 
+    // 开关关掉时 `state.due` 就是 None（那行已被移出菜单），此处自然跳过；
+    // `badge_text` 也会再兜一层（返回 None 即不写文案）。
     if let Ok(due) = state.due.lock() {
         if let Some(item) = due.as_ref() {
             if let Some(text) = badge_text(remaining, show) {
@@ -201,9 +236,70 @@ pub fn set_due_count(app: &AppHandle, remaining: u32) {
     }
 }
 
+/// 上报待复习卡数。数字没变就不动菜单与 tooltip。
+pub fn set_due_count(app: &AppHandle, remaining: u32) {
+    render_due(app, remaining, false);
+}
+
 #[tauri::command]
 pub fn update_tray_badge(app: AppHandle, remaining: u32) {
     set_due_count(&app, remaining);
+}
+
+/// 配置变更后按当前配置重新应用托盘：图标存废、菜单行构成、tooltip 文字。
+///
+/// Finding 3：原先只有关窗结论会碰 `sync`，从设置页改开关要重启才生效
+/// （Task 8 Step 4 验收 #3「关掉最小化到托盘 → 图标消失」因此不可达）。
+/// 本命令把它补上，设置页改完两个开关后调用即可。约束：
+/// - (c) 只改开关时**不重建图标**，只换菜单（`TrayIcon::set_menu`）→ 不闪、不重排；
+/// - (a)(b) 关闭 `tray.show_due_count` 时那行真的移出菜单，打开时回来（§4.5）；
+/// - (f) `window.close_to_tray` 决定图标存废；
+/// - (d)(e)(g) 强制重绘：先取回上一次上报的数字，换菜单后立刻补画一次——
+///   脏标记在配置变更时会被绕过，否则 tooltip 会停在旧值直到下次 60s 轮询。
+#[tauri::command]
+pub fn sync_tray(app: AppHandle) -> Result<(), String> {
+    resync(&app)
+}
+
+/// `sync_tray` 的实现。与 `sync` 的区别：本函数做**全量重应用**（含菜单行构成与
+/// 强制重绘），而 `sync` 只在关窗结论里按 `close_to_tray` 增删图标。
+fn resync(app: &AppHandle) -> Result<(), String> {
+    let cfg = config::get();
+    let close_to_tray = config::bool_at(&cfg, "window.close_to_tray", true);
+    let show_due = config::bool_at(&cfg, "tray.show_due_count", true);
+
+    // (g) 重建会清脏标记，先取回上一次上报的数字，供下面强制补画。
+    let last = app
+        .try_state::<TrayState>()
+        .and_then(|s| s.last.lock().ok().and_then(|l| *l));
+
+    if !close_to_tray {
+        // (f) 开关关掉：图标消失。
+        remove(app);
+        return Ok(());
+    }
+
+    if app.tray_by_id(TRAY_ID).is_some() {
+        // (c) 图标已在：只换菜单，绝不动图标本身。
+        let (menu, due) = build_menu(app, shows_due_row(true, show_due))?;
+        if let Some(tray) = app.tray_by_id(TRAY_ID) {
+            tray.set_menu(Some(menu)).map_err(|e| e.to_string())?;
+        }
+        if let Some(state) = app.try_state::<TrayState>() {
+            if let Ok(mut d) = state.due.lock() {
+                *d = due;
+            }
+        }
+    } else {
+        // (f) 开关打开：建图标，`init` 已按当前 `show_due` 建好菜单。
+        init(app)?;
+    }
+
+    // (d)(e)(g) 强制补画：tooltip 与行文字立刻回到正确值。
+    if let Some(n) = last {
+        render_due(app, n, true);
+    }
+    Ok(())
 }
 
 /// 前端弹窗的结论落回 Rust：写配置、同步托盘、执行隐藏或退出。
@@ -228,7 +324,9 @@ pub fn resolve_close_request(app: AppHandle, close_to_tray: bool) -> Result<(), 
 
 #[cfg(test)]
 mod tests {
-    use super::{badge_text, close_action, should_update, tooltip_text, CloseAction};
+    use super::{
+        badge_text, close_action, should_update, shows_due_row, tooltip_text, CloseAction,
+    };
 
     #[test]
     fn badge_text_covers_both_ends() {
@@ -262,5 +360,16 @@ mod tests {
         assert_eq!(close_action(false, false), CloseAction::Ask, "首次一律先问");
         assert_eq!(close_action(true, true), CloseAction::Hide);
         assert_eq!(close_action(true, false), CloseAction::Exit);
+    }
+
+    /// Finding 1 的回归闸：菜单中间那行「存在 ⇔ 托盘在 ∧ 开关开」。
+    /// 尤其钉住「托盘在但开关关 → 那行不该存在」——旧实现只 set_text、从不移除，
+    /// 关掉开关后该行会一直留着，正是这条要在单测里挡住的。
+    #[test]
+    fn due_row_present_iff_tray_built_and_switch_on() {
+        assert!(shows_due_row(true, true), "托盘在且开关开：该行存在");
+        assert!(!shows_due_row(true, false), "托盘在但开关关：该行必须移除");
+        assert!(!shows_due_row(false, true), "托盘不在：根本没有菜单行");
+        assert!(!shows_due_row(false, false));
     }
 }
