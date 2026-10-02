@@ -21,13 +21,9 @@ export const setConfig = (patch: Record<string, unknown>) =>
   invoke<AppConfig>('set_config', { patch })
 
 /**
- * 关窗弹窗的结论 → 配置补丁。两个按钮都写 `close_dialog_seen`，
- * 所以弹窗只会出现一次。
+ * 关窗弹窗的结论 → Rust。它自己写 `window.close_dialog_seen` 与
+ * `window.close_to_tray`，所以弹窗只会出现一次——**别再在前端补写这两个键**。
+ * 参数名必须是 camelCase：Tauri v2 按此把 JS 参数映射到 Rust 的 `close_to_tray`。
  */
-export function closePatch(primary: boolean) {
-  return { window: { close_dialog_seen: true, close_to_tray: primary } }
-}
-
-/** 把一个关窗结论落到 Rust：写配置 + 隐藏或退出。 */
 export const resolveCloseRequest = (closeToTray: boolean) =>
   invoke<void>('resolve_close_request', { closeToTray })
