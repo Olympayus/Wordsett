@@ -21,7 +21,7 @@ tauri-build = { version = "2.6.3", features = [] }
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
-tauri = { version = "2.11.3", features = [] }
+tauri = { version = "2.11.3", features = ["tray-icon"] }
 tauri-plugin-log = "2"
 tauri-plugin-sql = { version = "2", features = ["sqlite"] }
 tauri-plugin-updater = "2"
@@ -30,6 +30,11 @@ tauri-plugin-fs = "2"
 tauri-plugin-opener = "2"
 fsrs = "6"
 tts = "0.26"
+
+# 单实例（00 篇 §6 总表 #9、04 篇 §2.6）。desktop-only：移动端没有「第二个实例」
+# 这个概念，插件的 API 也只在桌面端编译。
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2"
 
 # SAPI5 回退后端（spec §6.3）。windows 0.58 已由 Tauri 传递引入并锁在 Cargo.lock 里，
 # 这里只是显式声明并开启 Speech/Com 两个 feature——不引新依赖树。

@@ -6,7 +6,20 @@ use tts_player::{speak, tts_english_voice_available};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let builder = tauri::Builder::default();
+
+    // 单实例必须**最先**注册：插件要抢在其它插件之前接管第二个实例的 argv。
+    //
+    // 只在 release 构建里注册。`tauri dev` 改 Rust 代码会杀掉旧进程再起新的，
+    // 旧的若还没退出，新进程会被这条插件判定为「第二个实例」而立刻退出——
+    // 表现是热重载看起来坏了，实际是单实例在正常工作。dev 下不注册，
+    // 这条路径的验收放到 release 安装包上做（spec §7 风险 5）。
+    #[cfg(all(desktop, not(debug_assertions)))]
+    let builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        show_main_window(app);
+    }));
+
+    builder
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
@@ -62,6 +75,20 @@ fn to_loadable_path(path: &std::path::Path) -> String {
         }
     } else {
         s.into_owned()
+    }
+}
+
+/// 显示并聚焦主窗。
+///
+/// 幂等：窗口已可见时重复调用只做一次 set_focus，不报错。`unminimize` 要在
+/// `show` **之前**——最小化的窗口只 `show` 不会还原，看起来像「点了没反应」。
+// Task 5 的托盘菜单与 macOS `RunEvent::Reopen` 接管这个函数后删掉此属性。
+#[allow(dead_code)]
+fn show_main_window(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
     }
 }
 
