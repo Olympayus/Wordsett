@@ -95,13 +95,18 @@ fn parse(text: &str) -> Option<Value> {
 
 /// 读配置。文件缺失 → 写默认值；内容无法解析或顶层非对象 → 备份 + 默认值。
 pub fn load_or_default(dir: &Path) -> Value {
+    // AppConfig 目录未必已存在：全新安装时 tauri-plugin-sql 尚未连接、也没人建过它。
+    // 不建目录，下面写默认值的 fs::write 会 NotFound。
+    if let Err(e) = std::fs::create_dir_all(dir) {
+        eprintln!("[config] 创建配置目录 {} 失败：{e}", dir.display());
+    }
     let path = dir.join(FILE_NAME);
 
     let text = match std::fs::read_to_string(&path) {
         Ok(t) => t,
         Err(_) => {
             let d = defaults();
-            let _ = write_atomic(&path, &d);
+            write_defaults(&path, &d);
             return d;
         }
     };
@@ -119,9 +124,21 @@ pub fn load_or_default(dir: &Path) -> Value {
                 bak.display()
             );
             let d = defaults();
-            let _ = write_atomic(&path, &d);
+            write_defaults(&path, &d);
             d
         }
+    }
+}
+
+/// 铺默认值到盘。失败只记日志、不返回错误：读侧除了降级没有退路，返回默认值总好过
+/// 让启动崩掉；但静默丢弃会让内存里出现一份盘上并不存在的配置，所以必须留痕
+/// （只读卷、磁盘满等）。
+fn write_defaults(path: &Path, d: &Value) {
+    if let Err(e) = write_atomic(path, d) {
+        eprintln!(
+            "[config] 写入默认配置 {} 失败：{e}（本次运行的改动将无法保存）",
+            path.display()
+        );
     }
 }
 
@@ -326,5 +343,90 @@ mod tests {
         write_atomic(&p, &json!({ "a": 1 })).expect("写盘");
         assert!(p.exists());
         assert!(!d.path().join(format!("{FILE_NAME}.tmp")).exists(), "临时文件必须已被 rename 掉");
+    }
+
+    /// 全新安装：AppConfig 目录还不存在。load_or_default 自己得把它建出来，
+    /// 否则写默认值的 fs::write 会 NotFound、shortcuts.json 永远不落盘。
+    #[test]
+    fn load_or_default_creates_missing_directory() {
+        let d = TempDir::new("mkdir");
+        let nested = d.path().join("fresh-install").join("AppConfig");
+        assert!(!nested.exists(), "前提：目录尚不存在");
+
+        let v = load_or_default(&nested);
+
+        assert_eq!(bool_at(&v, "window.close_to_tray", false), true);
+        assert!(
+            nested.join(FILE_NAME).exists(),
+            "目录不存在时也必须把默认配置写出来"
+        );
+    }
+
+    /// `init` 写的是进程级 static（CACHE / CONFIG_PATH），下面的用例必须串行，
+    /// 否则并发跑会互相覆盖缓存与路径。用 `unwrap_or_else` 取回中毒的锁：
+    /// 前一个用例 panic 不该让后面所有用例一起失效。
+    static INIT_LOCK: Mutex<()> = Mutex::new(());
+
+    /// §6.1-3 未知键保留：走真实的 set_config 往返，v0.8.0 写的 actions.grab_word 不能消失。
+    #[test]
+    fn set_config_round_trip_keeps_unknown_keys() {
+        let _g = INIT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let d = TempDir::new("rt-unknown");
+        fs::write(
+            d.path().join(FILE_NAME),
+            r#"{ "actions": { "grab_word": "Alt+KeyW" } }"#,
+        )
+        .unwrap();
+
+        init(d.path());
+        let next = set_patch(json!({ "tray": { "show_due_count": false } })).expect("set_config");
+
+        assert_eq!(next["actions"]["grab_word"], "Alt+KeyW", "返回值须保留未知键");
+        // 读回磁盘：这是 v0.8.0 回退到本版后真正看到的文件
+        let on_disk: Value = serde_json::from_str(&fs::read_to_string(d.path().join(FILE_NAME)).unwrap()).unwrap();
+        assert_eq!(
+            on_disk["actions"]["grab_word"],
+            "Alt+KeyW",
+            "未知键必须原样留在盘上"
+        );
+        assert_eq!(on_disk["tray"]["show_due_count"], false, "patch 必须落盘");
+        assert_eq!(on_disk, get(), "盘上与内存必须是同一份配置");
+    }
+
+    /// §6.1-4 深合并不整体替换：改 tts.voice 不得把同级的 tts.rate 抹掉。
+    #[test]
+    fn set_config_round_trip_merges_deeply() {
+        let _g = INIT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let d = TempDir::new("rt-deep");
+
+        init(d.path());
+        set_patch(json!({ "tts": { "voice": "Microsoft Zira Desktop" } })).expect("set_config");
+
+        let on_disk: Value = serde_json::from_str(&fs::read_to_string(d.path().join(FILE_NAME)).unwrap()).unwrap();
+        assert_eq!(on_disk["tts"]["voice"], "Microsoft Zira Desktop");
+        assert_eq!(on_disk["tts"]["rate"], 1.0, "深合并不许把同级的 rate 抹成默认");
+    }
+
+    /// 不变量 2「写盘成功才更新内存」：写盘失败时内存必须仍是旧值，
+    /// 否则界面会显示一份并不存在的配置。
+    #[test]
+    fn failed_write_leaves_cache_at_old_value() {
+        let _g = INIT_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let d = TempDir::new("rt-failwrite");
+
+        init(d.path());
+        set_patch(json!({ "tts": { "rate": 2.0 } })).expect("set_config");
+        assert_eq!(f32_at(&get(), "tts.rate", 0.0), 2.0);
+
+        // 目录没了 → write_atomic 写 .tmp 时 NotFound，set_patch 必须失败
+        fs::remove_dir_all(d.path()).unwrap();
+        let err = set_patch(json!({ "tts": { "rate": 3.0 } }));
+        assert!(err.is_err(), "写盘失败必须返回 Err");
+
+        assert_eq!(
+            f32_at(&get(), "tts.rate", 0.0),
+            2.0,
+            "写盘失败时内存不得被更新成 3.0"
+        );
     }
 }
