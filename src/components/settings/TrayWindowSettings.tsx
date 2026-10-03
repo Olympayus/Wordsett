@@ -8,18 +8,23 @@ function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
 }
 
-/** 行式条目 + 右侧开关，与 SidebarSettings 的智能视图行同版式。 */
-function ToggleRow({ label, desc, checked, onChange, last }: {
-  label: string; desc: string; checked: boolean; onChange: (v: boolean) => void; last?: boolean
+/**
+ * 行式条目 + 右侧开关。
+ *
+ * 2026-10-03：去掉行间分割线与每项下面的说明文字，标签也不再非加粗——该页只有两行，
+ * 分割线在这里不划分任何东西（原先那条还把「需重启」的提示与第二行割开）；而说明文字
+ * 要讲的两件事都已由标签本身与关窗弹窗的正文覆盖。`desc` 参数保留：调用点的文案留着，
+ * 只不渲染，重新需要时改这一处即可。
+ */
+function ToggleRow({ label, checked, onChange }: {
+  label: string; checked: boolean; onChange: (v: boolean) => void
+  /** 保留但暂不渲染，见上方注释。 */
+  desc?: string
 }) {
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: '12px', padding: '9px 0',
-      borderTop: last ? undefined : '1px solid var(--color-border)',
-    }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '9px 0' }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semibold)' }}>{label}</div>
-        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{desc}</div>
+        <div style={{ fontSize: 'var(--text-sm)' }}>{label}</div>
       </div>
       <Toggle checked={checked} aria-label={label} onChange={onChange} />
     </div>
@@ -93,7 +98,6 @@ export default function TrayWindowSettings() {
         desc="关闭后托盘菜单不再显示待复习数量，悬停提示只留应用名。"
         checked={cfg.tray.show_due_count}
         onChange={v => void patch({ tray: { show_due_count: v } })}
-        last
       />
       {error && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)', marginTop: '8px' }}>{error}</div>}
     </>

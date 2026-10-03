@@ -8,7 +8,11 @@
  * 早先输入框与第一行标签对齐、说明文字溢出到框下方，视觉重心偏上。
  */
 export default function NumberRow({ label, hint, value, min, max, step, integer, onChange }: {
-  label: string; hint: string; value: number; min: number; max: number; step: number
+  label: string
+  /** 说明文字。**可选**：2026-10-03 起「语音」分区按用户要求去掉了所有注释文字，
+   *  留空即为纯标签行。 */
+  hint?: string
+  value: number; min: number; max: number; step: number
   /** 整型项：step 只是输入框提示，不拦手输，故在这里显式取整（保留率与语速是有意的小数，不传）。 */
   integer?: boolean
   onChange: (v: number) => void
@@ -17,7 +21,9 @@ export default function NumberRow({ label, hint, value, min, max, step, integer,
     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
         <span style={{ fontSize: '13px' }}>{label}</span>
-        <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>{hint}</span>
+        {hint && (
+          <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>{hint}</span>
+        )}
       </div>
       <input
         type="number" value={value} min={min} max={max} step={step}

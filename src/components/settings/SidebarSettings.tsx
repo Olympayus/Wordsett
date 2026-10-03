@@ -1,6 +1,6 @@
 import { useSettingsStore } from '../../stores/settingsStore'
 import type { SidebarMode } from '../../lib/sidebar'
-import { SMART_VIEW_META, SMART_VIEW_ORDER, LOCKED_SMART_VIEW, type SmartViewKey } from '../../lib/smartViews'
+import { SMART_VIEW_META, SMART_VIEW_ORDER, LOCKED_SMART_VIEW } from '../../lib/smartViews'
 import { Toggle } from '../ui/Toggle'
 
 const MODES: { mode: SidebarMode; title: string; desc: string }[] = [
@@ -8,22 +8,9 @@ const MODES: { mode: SidebarMode; title: string; desc: string }[] = [
   { mode: 'category', title: '分类模式', desc: '按分类分组，组内可自由排序。收起后显示单词与分类名。' },
 ]
 
-// v0.6.5 §4.4：侧栏四视图逐项开关的说明行。写在设置里而不是只留一个开关，
-// 是因为「复习到期」按词数、「顽固词」跟阈值走，两条口径不看字面就猜不出来。
-const SMART_VIEW_DESC: Record<SmartViewKey, string> = {
-  all: '全部词条，无过滤；按字母或分类分组浏览',
-  due: '今日有到期卡片的词条',
-  weekNew: '近 7 天收录的词条',
-  leech: '任一卡片连错次数达到阈值（默认 4 次）的词条',
-}
-
-// v0.5.3 §4.1（第 13 条）：说明文字在首个句号处断行，句号留在前半行。
-// 无句号的文案防御性地原样返回单行。
-function splitAtFirstPeriod(desc: string): string[] {
-  const i = desc.indexOf('。')
-  if (i < 0) return [desc]
-  return [desc.slice(0, i + 1), desc.slice(i + 1)]
-}
+// v0.6.5 §4.4：侧栏四视图逐项开关。说明文字一遍遍地复述视图名（「今日有到期卡片的词条」
+// 之于「复习到期」），2026-10-03 按用户要求全部去掉；口径差异改由视图名本身承担。
+// `SMART_VIEW_DESC` 与 `splitAtFirstPeriod` 随之删除——留着不渲染只会让人以为还在生效。
 
 // v0.5.3 §4.1（第 11 条）：与 SearchSettings 的 SECTION_TITLE 同一处理 —— 字号 +2 并加粗。
 // 提为模块级常量，便于与 SearchSettings 的小标题保持一致。
@@ -77,30 +64,28 @@ export default function SidebarSettings() {
                 }} />
                 <span style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semibold)', color: 'var(--color-text-primary)' }}>{m.title}</span>
               </div>
-              {/* 说明行用 72% 不透明降一档，避免与标题抢；换色会让两层文字偏离同一族 */}
+              {/* 说明行用 72% 不透明降一档，避免与标题抢；换色会让两层文字偏离同一族。
+                  两处说明都在首个句号处断开（v0.5.3 §4.1 第 13 条；无句号的文案原样返回单行），
+                  原先抽成 splitAtFirstPeriod 函数，只有这里一个调用点，故内联。 */}
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-primary)', opacity: 0.72, lineHeight: 1.5 }}>
-                {splitAtFirstPeriod(m.desc).map((line, i) => <div key={i}>{line}</div>)}
+                {(m.desc.indexOf('。') < 0
+                  ? [m.desc]
+                  : [m.desc.slice(0, m.desc.indexOf('。') + 1), m.desc.slice(m.desc.indexOf('。') + 1)]
+                ).map((line, i) => <div key={i}>{line}</div>)}
               </div>
             </button>
           )
         })}
       </div>
-      <div style={{ ...SECTION_TITLE, margin: '28px 0 6px' }}>智能视图</div>
-      <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', marginBottom: '10px' }}>
-        关闭的视图不再出现在侧栏。
-      </div>
-      {SMART_VIEW_ORDER.map((key, i) => {
+      <div style={{ ...SECTION_TITLE, margin: '28px 0 10px' }}>智能视图</div>
+      {SMART_VIEW_ORDER.map(key => {
         const locked = key === LOCKED_SMART_VIEW
         return (
           <div key={key} style={{
             display: 'flex', alignItems: 'center', gap: '12px', padding: '9px 0',
-            // 分割线只画在行与行之间：首行不加。原来每行都画，于是「智能视图」这个
-            // 小标题底下也横着一道线，把标题和它管的第一行割成互不相干的两块（v0.6.5 修订）。
-            borderTop: i === 0 ? undefined : '1px solid var(--color-border)',
           }}>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semibold)' }}>{SMART_VIEW_META[key].label}</div>
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{SMART_VIEW_DESC[key]}</div>
+              <div style={{ fontSize: 'var(--text-sm)' }}>{SMART_VIEW_META[key].label}</div>
             </div>
             {/* 「完整词库」不可关闭，它那一档就不是开关而是状态说明（v0.6.5 修订）：
                 原来是一条禁用开关 + 一个「常显」，禁用开关既点不动又占着一列，

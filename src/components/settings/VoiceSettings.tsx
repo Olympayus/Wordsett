@@ -96,16 +96,6 @@ export default function VoiceSettings() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <div style={{ fontSize: '13px' }}>朗读音色</div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: 2 }}>
-                选中后立即生效，重启后保持。
-              </div>
-              {/* 枚举为空时说一句：原先整块不渲染来回避「摆一个空下拉」，
-                  现在门控撤了（音色服务所有朗读，与听辨题无关），这句话就是那道门的替代物。 */}
-              {voices.length === 0 && (
-                <div style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', marginTop: 2 }}>
-                  系统里没有找到可选的英文音色；朗读可能不可用。
-                </div>
-              )}
             </div>
             <select
               aria-label="朗读音色"
@@ -124,7 +114,6 @@ export default function VoiceSettings() {
 
           <NumberRow
             label="朗读语速"
-            hint="1.0 为常速，改动即时生效。想听快慢就点小标题旁的喇叭。"
             value={rate}
             min={0.5} max={2.0} step={0.1}
             onChange={v => patch({ rate: v })}
