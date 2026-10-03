@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import SearchSettings from './SearchSettings'
 import ReviewSettings from './ReviewSettings'
+import VoiceSettings from './VoiceSettings'
 import SidebarSettings from './SidebarSettings'
 import TrayWindowSettings from './TrayWindowSettings'
 import CategorySettings from './CategorySettings'
@@ -9,10 +10,11 @@ import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings'
 import PlatformSettings from './PlatformSettings'
 
-type SectionKey = 'search' | 'review' | 'tray' | 'sidebar' | 'category' | 'data' | 'platform' | 'about'
+type SectionKey = 'search' | 'review' | 'voice' | 'tray' | 'sidebar' | 'category' | 'data' | 'platform' | 'about'
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'search', label: '搜索设置' },
   { key: 'review', label: '复习' },
+  { key: 'voice', label: '语音' },
   { key: 'tray', label: '托盘与窗口' },
   { key: 'sidebar', label: '侧边栏显示' },
   { key: 'category', label: '分类管理' },
@@ -85,6 +87,7 @@ export default function SettingsPage() {
         <div style={{ maxWidth: SETTINGS_CONTENT_WIDTH, padding: '24px' }}>
           {active === 'search' && <SearchSettings />}
           {active === 'review' && <ReviewSettings />}
+          {active === 'voice' && <VoiceSettings />}
           {active === 'tray' && <TrayWindowSettings />}
           {active === 'sidebar' && <SidebarSettings />}
           {active === 'category' && <CategorySettings />}

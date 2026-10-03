@@ -3,10 +3,6 @@ import { invoke } from '@tauri-apps/api/core'
 import { getConfig, setConfig, type AppConfig } from '../../lib/config'
 import { Toggle } from '../ui/Toggle'
 
-const SECTION_TITLE: React.CSSProperties = {
-  fontSize: 'var(--text-base)', fontWeight: 'var(--weight-bold)', color: 'var(--color-text-primary)',
-}
-
 /** invoke 的 reject 值类型不固定（Rust 侧是 `Result<_, String>`，但插件层可能给 Error）。 */
 function errText(e: unknown): string {
   return e instanceof Error ? e.message : String(e)
@@ -35,6 +31,10 @@ function ToggleRow({ label, desc, checked, onChange, last }: {
  *
  * 两个开关的值都在 `shortcuts.json` 而不是 zustand：`CloseRequested` 要在
  * Rust 侧同步判断，读不到 localStorage。这里是它的唯一编辑界面。
+ *
+ * 2026-10-03：**不再自画标题**。此前面板内又写了一遍「托盘与窗口」（无衬线、`--text-base`
+ * 加粗），而设置页头部已经用衬线大字给出该分区名，同一屏出现两个同名标题、两种字体。
+ * 分区名由头部那一处承载即可。
  */
 export default function TrayWindowSettings() {
   const [cfg, setCfg] = useState<AppConfig | null>(null)
@@ -82,7 +82,6 @@ export default function TrayWindowSettings() {
 
   return (
     <>
-      <div style={{ ...SECTION_TITLE, marginBottom: '16px' }}>托盘与窗口</div>
       <ToggleRow
         label="关闭主窗时最小化到托盘"
         desc="关掉后点关闭按钮直接退出应用，托盘图标消失。"
