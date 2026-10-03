@@ -1,11 +1,11 @@
 {
-  "version": "0.6.5",
-  "notes": "此前一个词只有**一张**复习卡，而一张卡只能承载一种题型，于是每次都要在出题那一刻现算「这个词能出什么题」。这套「运行时算题型」的做法有两个绕不开的问题：题型无法被单独排程，也没法单独判定「这张卡现在还能不能出题」。\n\n现在**卡本身就是「词 × 题型」**。一个词有多少种可出的题型，就建多少张卡，各自独立排程。带来的直接变化：\n\n- **一个词可以一轮练多种题型**。同一轮里不会再连着出两道同题型的题；新词额度也改成**按词**算，而不是按卡——练完一个词的五种题型，仍然只算「新学了一个词」。\n- **题型缺内容时只停那一张卡**。比如例句取不到、干扰项不够，填空这张卡暂时不出题，但它不影响这个词的认读、英释义照常练。此前是整词降级。\n- **听辨题会随 TTS 开关消失**。系统没装语音时，那张听辨卡不出题——同一个词的五张卡不会因为一张不可用而一起废掉。\n\n一个词有五张卡了，强度就不能再说「这个词我记得多少」。现在取**五张卡里最弱的那一张**作为这个词的强度——它的意义变得具体了：**这个词里你最不熟的那部分**。可出题的卡才计入（缺内容的那张不拖累整词），而「顽固词」用的连错次数**刻意不过滤**，因为那是历史维度：过去错过的次数不会因为现在不出题而消失。\n\n词条卡头部的记忆强度 chip 现在可以悬停，看到**逐题型的明细**——每种题型各练了多少、稳定性多少、为什么某张卡不出题。",
-  "pub_date": "2026-09-30T10:11:53.656Z",
+  "version": "0.7.0",
+  "notes": "关掉窗口后，**应用还在**。\n\n此前点掉窗口就是退出。现在窗口收起来、进程继续留在**系统托盘**，右键托盘图标随时把主窗叫回来，退出走托盘菜单里的「退出」。\n\n- **第一次关窗会问一次**，两个按钮：「最小化到托盘」和「直接退出」。选完就记住，之后沿用；想改去 设置 → 托盘与窗口。\n- **托盘菜单与悬停提示显示今日待复习数**（`今日剩余 12 张`，没有待复习时写「今日无待复习」）。托盘图标本身不动——Windows 没有角标 API，「把数字画进图标」这条整条舍去了。\n- **双击图标不再起第二个进程**，只会把已有窗口叫到前台。开发模式下仍允许多开。\n- **托盘与窗口**分区里的两个开关改完**立刻生效**，不用重启。\n\n## 朗读音色可以自己挑了\n\n听辨题此前只能听系统默认音色。现在 **设置 → 语音** 里能列出系统里的英文音色，挑一个存下来，之后所有朗读都用它——单词发音、听辨题都是。**语速**也在同一处（0.5–2.0 倍），标题旁的**小喇叭按钮**点一下试听当前设置。\n\n选「系统默认」会真的把引擎恢复到系统选中的音色，不是「保持现状」——这一条曾经是个 bug，现在有测试盯着。\n\n## macOS：辅助功能授权状态看得见了\n\n设置里新增 **平台** 分区，在 macOS 上显示系统辅助功能（Accessibility）授权状态，一键跳到系统设置对应页面。加这条是因为「权限没给」这类问题此前完全不可诊断。当前本版还没有划词热键，这一项是为它铺路。\n\n## 数据库\n\n`SCHEMA_VERSION` 维持 6，**本版没有任何表结构变化**。词库、复习进度、分类全部不受影响，升级是无损的。\n\n复习调度与计分一字未动：FSRS 参数、计分口径、到期集的计算方式全部保持原样。本版加的是「应用怎么驻留、声音怎么选、权限看不看得见」这一层公共设施。",
+  "pub_date": "2026-10-03T06:21:15.231Z",
   "platforms": {
     "windows-x86_64": {
-      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFNlcGFXQk91ZzdaSXlrcVVoM0UvaWRHdWgza3dBYkZUSVNLMm04dm1JQVlIeUlzQkdoMWZ0ZTNjZGxDTlVEb3g4VlI1L1hBN0g1dGJxdXA5V0RRZEFVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwNzYyNzgxCWZpbGU6V29yZHNldHRfMC42LjVfeDY0LXNldHVwLmV4ZQpaM0FxbDlrSnNmZFZmOStTaC9TS1VKREpVdkJHbmlFNjRId2Q2MzNrQUR1Q3hNR0tGQ2YvN0RIT2d3LzNUT1NWaWVnWmVhQmh5dEF4VHkzVTRiaDVCdz09Cg==",
-      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.6.5/Wordsett_0.6.5_x64-setup.exe"
+      "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVRRThYcVB4eXdQZFFUYmQ4NWZLZklaZ0ZTYmpBZkVDRG9EYVM5a2FFeVY1UUJ4UnJhRU9rVmJwdERmeThJZ2hnU0F3ZlJQYmdvUWt0ZmdxMmNYWkwxUklNeFlacVNqR3cwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkxMDA4Mjg4CWZpbGU6V29yZHNldHRfMC43LjBfeDY0LXNldHVwLmV4ZQpITExHbVFDTlNzRmlyNGllaFhFdGI3K1N5bG84WVFtRm9kcVF4WW1JVkliL2d5c05HUGIzTVpaRks5Z2hyOTY2NTllSUx2b3Y0NCtvTW54TzEvQXJEUT09Cg==",
+      "url": "https://github.com/Olympayus/Wordsett/releases/download/v0.7.0/Wordsett_0.7.0_x64-setup.exe"
     }
   }
 }
