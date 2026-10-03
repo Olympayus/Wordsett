@@ -4,7 +4,7 @@
 
 Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查询**、**词汇语义网络**与**结构化词汇管理**合二为一：搜索并合并 ECDICT / WordNet 的权威释义，借助 WordNet 语义关系构建词汇网络，再用分层字段、分类系统把你自己的理解沉淀成长期可复用的知识。
 
-![version](https://img.shields.io/badge/version-0.6.5-4A6FA5)
+![version](https://img.shields.io/badge/version-0.7.0-4A6FA5)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![offline](https://img.shields.io/badge/offline-first-yes-6B8E7F)
 ![license](https://img.shields.io/badge/license-MIT-4A6FA5)
@@ -66,6 +66,18 @@ Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查
 ### 🔒 离线优先 · 跨平台
 所有词典与应用数据均存于本机，无账号、无遥测；支持 Windows / macOS / Linux。
 
+### 📥 托盘常驻 · 单实例
+关掉窗口后应用继续留在**系统托盘**，托盘图标是唯一入口，随时可把主窗叫回来，退出走托盘菜单。
+- 首次关窗会问一次「最小化到托盘」还是「直接退出」，之后沿用；可在 **设置 → 托盘与窗口** 更改。
+- 托盘菜单与悬停提示显示**今日剩余待复习数**。
+- 双击图标只把已有窗口叫到前台，不再起第二个进程。
+
+### 🔊 朗读音色与语速
+**设置 → 语音** 里可挑选系统的英文朗读音色（听辨题与单词发音共用），并调整朗读语速（0.5–2.0 倍）；标题旁的小喇叭按钮可随时试听当前设置。
+
+### 🔐 平台授权状态（macOS）
+**设置 → 平台** 显示系统辅助功能（Accessibility）授权状态，并可一键跳转系统设置。
+
 ## 截图
 
 **主界面 · 词库视图** —— 三栏布局
@@ -96,9 +108,9 @@ Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查
 
 | 系统 | 安装包 |
 |------|--------|
-| **Windows** | `Wordsett_0.6.5_x64-setup.exe`（当前发布提供；MSI 暂未随包） |
-| **macOS** | `Wordsett_0.6.5_x64.dmg`（在 macOS 上构建） |
-| **Linux** | `Wordsett_0.6.5_x86_64.AppImage` / `.deb`（在 Linux 上构建；暂未提供） |
+| **Windows** | `Wordsett_0.7.0_x64-setup.exe`（当前发布提供；MSI 暂未随包） |
+| **macOS** | `Wordsett_0.7.0_x64.dmg`（在 macOS 上构建） |
+| **Linux** | `Wordsett_0.7.0_x86_64.AppImage` / `.deb`（在 Linux 上构建；暂未提供） |
 
 下载后**双击运行安装程序**，跟随向导即可完成安装；开始菜单会出现 **Wordsett** 图标。
 
