@@ -350,6 +350,8 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
     const o = await getOverview(REVIEW_DEFAULTS)
     expect(o.newCount).toBe(0)
     expect(o.total).toBe(45)
+    // 空态走的是 0 这一支（本夹具队列空、而 total 是 45）：deliverable 若被错接成 total 派生，这里会得 45。
+    expect(o.deliverable).toBe(0)
   })
 
   it('干扰释义够 3 个：同一张新卡计入 newCount，且不混进 total', async () => {

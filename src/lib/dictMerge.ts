@@ -5,8 +5,8 @@ import { stripGlossExamples } from './wordnetParse'
 
 // ecdict 行首词性前缀。建字段时 ecdictParse 已经剥过一遍（POS_RE），这里再剥一次是为
 // 兜住异形数据——去重宁可多剥一层，不可漏判成「两条」。
-// 交替顺序与 ecdictParse.POS_RE 一致（最长前缀优先）：漏了 vt/vi/adv 会让 'a' 抢在 'adj'
-// 前面，把英文冠词 A 当词性剥掉，同一句释义两侧判等键就会不一致。
+// 词性码表与最长前缀优先的交替顺序同 ecdictParse.POS_RE，但有两处刻意不同：不收裸 a
+// （它会把英文冠词 A 一起剥掉，同一句释义两侧判等键就会不一致）、且要求后随空白。
 // 冠词 a/an 与单字母词性码 a 同形，故 a/an 只在「后跟句点」时当词性剥（见 POS_ARTICLE_RE）；
 // 裸 a 不剥——否则 'a male singer' 与 'N. A male singer' 会算出两个不同的判等键。
 const POS_PREFIX_RE = /^(vt|vi|adj|adv|aux|prep|conj|pron|abbr|num|art|int|ad|n|v|s)\.?\s+/i

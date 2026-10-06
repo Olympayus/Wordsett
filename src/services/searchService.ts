@@ -54,7 +54,7 @@ export async function relatedWords(word: string): Promise<RelatedWords> {
   return wordnet.relatedWords(word)
 }
 
-// 标题信息（徽标/音标/词根/领域）：独立于 dictionaries 开关直查两库
+// 标题信息（徽标/音标/词根/领域）：直查两库——合并结果页已无逐源门控（dictionaries 开关随设置页删除）
 export async function lookupTitleMeta(word: string): Promise<TitleMeta> {
   if (!word.trim()) {
     return { phonetic: null, badges: null, wordRoots: [], domains: { categories: [], regions: [], usages: [] } }

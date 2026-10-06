@@ -55,7 +55,7 @@ export default function DictDetailPanel({ word }: Props) {
 
   // 展示态的在库判据实时求值：启动时 loadWords() 未落地的一瞬会短暂多算成「库外」，代价只是多问一次；
   // 反过来若在这里快照，导入后词表变化会看不见。写入端的守卫另在 handleMergeAdd 里现算。
-  // 判据与写入守卫的 isWordInLibrary 逐字符相同，但这里必须订阅式：helper 读 getState()
+  // 判据与写入守卫 isWordInLibrary 的出处同一份，但这里必须订阅式：helper 读 getState()
   // 是一次快照，用在 JSX 里词表变化就不会重渲染（R15）。
   const inLibrary = useWordStore(s => s.words.some(w => w.lemma.toLowerCase() === word.toLowerCase()))
 
