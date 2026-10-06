@@ -8,8 +8,6 @@ export type DisplayFieldKey =
   | 'english_definition' | 'example' | 'exchange' | 'synonyms'
   | 'derivatives'
 
-export type DictionaryKey = 'ecdict' | 'wordnet'
-
 export type TitleInfoKey =
   | 'showBadges' | 'showPhonetic' | 'showWordRoot'
   | 'showCollinsStars'
@@ -27,27 +25,24 @@ export interface ReviewSettings {
 
 export interface SettingsStore {
   displayFields: Record<DisplayFieldKey, boolean>
-  dictionaries: Record<DictionaryKey, boolean>
   sidebarMode: SidebarMode
   titleInfo: Record<TitleInfoKey, boolean>
   review: ReviewSettings
   /** 侧栏四个智能视图逐项开关（v0.6.5 §4.4）。`all` 恒为 true，见 setSmartView。 */
   smartViews: Record<SmartViewKey, boolean>
   setDisplayField: (key: DisplayFieldKey, on: boolean) => void
-  setDictionary: (key: DictionaryKey, on: boolean) => void
   setSidebarMode: (mode: SidebarMode) => void
   setTitleInfo: (key: TitleInfoKey, on: boolean) => void
   setReview: <K extends keyof ReviewSettings>(key: K, value: ReviewSettings[K]) => void
   setSmartView: (key: SmartViewKey, on: boolean) => void
 }
 
-// 默认（规格 §7）：词典返回词条全开（含词源相关词）、本地词典全开、字母模式
+// 默认（规格 §7）：词典返回词条全开（含词源相关词）、字母模式
 const DEFAULT_DISPLAY_FIELDS: Record<DisplayFieldKey, boolean> = {
   phonetic: true, part_of_speech: true, chinese_definition: true,
   english_definition: true, example: true, exchange: true, synonyms: true,
   derivatives: true,
 }
-const DEFAULT_DICTIONARIES: Record<DictionaryKey, boolean> = { ecdict: true, wordnet: true }
 export const DEFAULT_TITLE_INFO: Record<TitleInfoKey, boolean> = {
   showBadges: true, showPhonetic: true, showWordRoot: true,
   showCollinsStars: true,
@@ -71,25 +66,21 @@ export const DEFAULT_SMART_VIEWS: Record<SmartViewKey, boolean> = {
  * 直接调用则负责钉住合并逻辑本身（缺键回默认、旧值被保留）。两条合起来才是一对。
  */
 export function migrateSettings(persisted: unknown): SettingsStore {
-  const state = (persisted ?? {}) as Partial<SettingsStore> & { displayFields?: Record<string, boolean> }
+  const state = (persisted ?? {}) as Partial<SettingsStore> & { displayFields?: Record<string, boolean>; dictionaries?: unknown }
   const fields: Record<string, boolean> = { ...DEFAULT_DISPLAY_FIELDS, ...(state.displayFields) }
   delete fields.etymology
   if (fields.synonyms === undefined) fields.synonyms = true
-  const dictionaries: Record<DictionaryKey, boolean> = { ...DEFAULT_DICTIONARIES, ...(state.dictionaries) }
   const titleInfo: Record<TitleInfoKey, boolean> = { ...DEFAULT_TITLE_INFO, ...state.titleInfo }
+  // v0.8.x 词典合并：dictionaries 键此后没有任何读取方（searchService 已不再读它），
+  // 从合并结果里显式剔除，避免它作为一份谁都看不懂的残留长期留在 localStorage 里。
+  // 升到 9 的真正理由与 v0.6.5 那次的措辞不同：这里不是「缺键要兜底」，而是
+  // 「多键要删除」——而 zustand 的 merge 只会覆盖键，永远不会删键，所以必须靠 migrate。
+  const { dictionaries: _dropped, ...rest } = state
   return {
-    ...state,
-    displayFields: fields, dictionaries, titleInfo,
+    ...rest,
+    displayFields: fields,
+    titleInfo,
     review: { ...DEFAULT_REVIEW, ...state.review },
-    // 加 smartViews 必须同时把 persist 的 version 从 7 升到 8。
-    // 注意这里**不是**「缺键会变成 undefined」——zustand 的默认 merge 是
-    // { ...currentState, ...persistedState }，存档铺在当前 state 之上，
-    // 存档里压根没有 smartViews 这个键时，它不会覆盖 store 自己的
-    // DEFAULT_SMART_VIEWS，四个视图照常全开。
-    // 真正出事的是**残缺的 smartViews 对象**（如 { all, due }）：它只盖掉存档里有的键，
-    // 缺的键保留**当前**（可能已被用户关掉）的值——用户先关掉的视图会静默地重新打开。
-    // 所以下面这行把默认铺在存档之上、给缺键兜底，是**唯一**一处补齐缺键的地方；
-    // 而它只有在 version 不相等、migrate 真的被调用时才会执行。少那次升版 = 这行形同虚设。
     smartViews: { ...DEFAULT_SMART_VIEWS, ...state.smartViews },
   } as SettingsStore
 }
@@ -98,13 +89,11 @@ export const useSettingsStore = create<SettingsStore>()(
   persist(
     (set) => ({
       displayFields: DEFAULT_DISPLAY_FIELDS,
-      dictionaries: DEFAULT_DICTIONARIES,
       sidebarMode: 'alphabet',
       titleInfo: DEFAULT_TITLE_INFO,
       review: DEFAULT_REVIEW,
       smartViews: DEFAULT_SMART_VIEWS,
       setDisplayField: (key, on) => set(s => ({ displayFields: { ...s.displayFields, [key]: on } })),
-      setDictionary: (key, on) => set(s => ({ dictionaries: { ...s.dictionaries, [key]: on } })),
       setSidebarMode: (mode) => set({ sidebarMode: mode }),
       setTitleInfo: (key, on) => set(s => ({ titleInfo: { ...s.titleInfo, [key]: on } })),
       setReview: (key, value) => set(s => ({ review: { ...s.review, [key]: value } })),
@@ -122,7 +111,9 @@ export const useSettingsStore = create<SettingsStore>()(
       // 存档里缺的那把键就只能按当前的（可能已被用户改过）值留着。
       // v0.6.5：加 smartViews → 8，同理。这一次的实际后果更隐蔽：残缺的 smartViews 存档
       // 合并进来时缺键保留旧值，用户关掉的视图会静默重新打开（细节见 migrateSettings 里的注释）。
-      version: 8,
+      // v0.8.x：删 dictionaries → 9。理由与上两次相反：这次不是「缺键要兜底」而是「多键要删除」，
+      // 而 zustand 的 merge 只会覆盖键、从不删键，所以必须靠 migrate 显式剔除。
+      version: 9,
       storage: createJSONStorage(() => localStorage),
       migrate: migrateSettings,
       onRehydrateStorage: () => (_, error) => {
@@ -130,7 +121,6 @@ export const useSettingsStore = create<SettingsStore>()(
           // 损坏/缺失数据 → 回退默认值
           useSettingsStore.setState({
             displayFields: DEFAULT_DISPLAY_FIELDS,
-            dictionaries: DEFAULT_DICTIONARIES,
             sidebarMode: 'alphabet',
             titleInfo: DEFAULT_TITLE_INFO,
             review: DEFAULT_REVIEW,
@@ -140,7 +130,6 @@ export const useSettingsStore = create<SettingsStore>()(
       },
       partialize: (s) => ({
         displayFields: s.displayFields,
-        dictionaries: s.dictionaries,
         sidebarMode: s.sidebarMode,
         titleInfo: s.titleInfo,
         review: s.review,

@@ -21,18 +21,6 @@ const TOOLTIP_DICTS: { name: string; lines: string[] }[] = [
   { name: 'WordNet', lines: ['✗ 音标 ✓ 词性 ✗ 中文释义', '✓ 英文释义 ✓ 近义词 ✓ 例句', '✗ 词形变化 ✗ 词源 ✓ 词源相关词'] },
 ]
 
-// 词典开关区的提示内容（v0.4.3 §7：只影响详情数据，建议与语义网络不受影响）
-const DICT_SECTION_TOOLTIP = (
-  <>
-    <div style={{ fontWeight: 'var(--weight-semibold)', marginBottom: '8px', color: 'var(--color-text-primary)' }}>词典开关说明</div>
-    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
-      <div>切换后仅影响词典详情返回数据（词典标签页不再显示该词典）。</div>
-      <div>搜索建议仍可能出现该词典独有的词，点进去可能查无结果。</div>
-      <div>语义网络（WordNet 词义网络）不受此开关影响。</div>
-    </div>
-  </>
-)
-
 // v0.5.3 §4.1（第 11 条）：小标题字号 +2（--text-sm 13px → --text-base 15px）并加粗
 const SECTION_TITLE: React.CSSProperties = { fontSize: 'var(--text-base)', fontWeight: 'var(--weight-bold)', color: 'var(--color-text-primary)' }
 
@@ -175,8 +163,6 @@ function DictRow({ label, sub, checked, onChange }: {
 }
 
 export default function SearchSettings() {
-  const dictionaries = useSettingsStore(s => s.dictionaries)
-  const setDictionary = useSettingsStore(s => s.setDictionary)
   const titleInfo = useSettingsStore(s => s.titleInfo)
   const setTitleInfo = useSettingsStore(s => s.setTitleInfo)
 
@@ -198,7 +184,7 @@ export default function SearchSettings() {
                 </div>
               ))}
               <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', marginTop: '8px', fontStyle: 'italic' }}>
-                ✗ 表示该词典本身不包含此字段，与您的开关设置无关。
+                ✗ 表示该词典本身不包含此字段。
               </div>
             </>
           } />
@@ -223,16 +209,6 @@ export default function SearchSettings() {
             onChange={on => setTitleInfo(r.key, on)}
           />
         ))}
-      </div>
-
-      {/* 词典（本地词典开关）：置于「词典返回词条」之下（分割线已去掉，改为块间距） */}
-      <div style={{ marginTop: '32px', marginBottom: '24px' }}>
-        <div style={{ ...SECTION_TITLE, marginBottom: '12px' }}>
-          词典
-          <HoverInfo content={DICT_SECTION_TOOLTIP} />
-        </div>
-        <DictRow label="ECDICT" sub="常用英汉词典" checked={dictionaries.ecdict} onChange={on => setDictionary('ecdict', on)} />
-        <DictRow label="WordNet" sub="词义网络词典" checked={dictionaries.wordnet} onChange={on => setDictionary('wordnet', on)} />
       </div>
     </>
   )

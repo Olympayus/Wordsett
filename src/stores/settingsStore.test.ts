@@ -8,7 +8,6 @@ const DEFAULT = {
     english_definition: true, example: true, exchange: true, synonyms: true,
     derivatives: true,
   },
-  dictionaries: { ecdict: true, wordnet: true },
   sidebarMode: 'alphabet',
 }
 
@@ -17,22 +16,11 @@ describe('settingsStore（规格 §7）', () => {
     useSettingsStore.setState(JSON.parse(JSON.stringify(DEFAULT)))
   })
 
-  it('默认值：字段开关全开（含词源相关词）、词典开关全开、字母模式、抽屉关闭', () => {
+  it('默认值：字段开关全开（含词源相关词）、字母模式、抽屉关闭', () => {
     const s = useSettingsStore.getState()
     expect(s.sidebarMode).toBe('alphabet')
     expect(Object.values(s.displayFields).every(Boolean)).toBe(true)
     expect(s.displayFields.derivatives).toBe(true)
-    expect(s.dictionaries.ecdict).toBe(true)
-    expect(s.dictionaries.wordnet).toBe(true)
-  })
-
-  it('setDictionary 切换单词典开关', () => {
-    useSettingsStore.getState().setDictionary('wordnet', false)
-    const s = useSettingsStore.getState()
-    expect(s.dictionaries.wordnet).toBe(false)
-    expect(s.dictionaries.ecdict).toBe(true)
-    useSettingsStore.getState().setDictionary('ecdict', false)
-    expect(useSettingsStore.getState().dictionaries.ecdict).toBe(false)
   })
 
   it('setDisplayField 只改单个字段', () => {
@@ -56,7 +44,7 @@ describe('settingsStore（规格 §7）', () => {
     expect(parsed.state.sidebarMode).toBe('category')
     expect(parsed.state.displayFields.phonetic).toBe(false)
     expect(Object.keys(parsed.state).sort()).toEqual(
-      ['dictionaries', 'displayFields', 'review', 'sidebarMode', 'smartViews', 'titleInfo']
+      ['displayFields', 'review', 'sidebarMode', 'smartViews', 'titleInfo']
     )
   })
 
@@ -74,8 +62,6 @@ describe('settingsStore（规格 §7）', () => {
     expect(s.displayFields.phonetic).toBe(false)
     expect(s.displayFields.synonyms).toBe(true)
     expect(s.displayFields.derivatives).toBe(true)
-    expect(s.dictionaries.ecdict).toBe(true)
-    expect(s.dictionaries.wordnet).toBe(true)
     expect('etymology' in s.displayFields).toBe(false)
   })
 })
@@ -210,10 +196,10 @@ describe('smartViews 存档迁移（v0.6.5）', () => {
     expect(migrated.smartViews).toEqual({ all: true, due: false, weekNew: true, leech: true })
   })
 
-  it('persist 的 version 是 8 —— 旧存档（7）据此触发 migrate，迁移后写盘升到 8', async () => {
+  it('persist 的 version 是 9 —— 旧存档（7）据此触发 migrate，迁移后写盘升到 9', async () => {
     // 本文件里直接调 migrate 的用例**完全绕过** version，因此没有任何东西钉住这个数字：
     // 把它回退成 7 全仓依然绿，v7 存档从此不再走 migrate。这条把两件事合在一起验：
-    // migrate 之后存档里那个字面量就是 8（改本处 version 会红），且 8 也**写回了** localStorage
+    // migrate 之后存档里那个字面量就是 9（改本处 version 会红），且 9 也**写回了** localStorage
     //（不写回则版本号每次启动都要重算一遍）。两种断言共享同一次播种与 rehydrate，
     // 刻意不拆成两条——拆开就是同一个测试写两遍，虚增一条覆盖。
     // 自行播种（不依赖前面的用例是否写过 localStorage），单独跑也得绿。
@@ -223,7 +209,7 @@ describe('smartViews 存档迁移（v0.6.5）', () => {
     }))
     expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(7)
     await useSettingsStore.persist.rehydrate()
-    expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(8)
+    expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(9)
   })
 
   it('真实 rehydrate 一份 version 7 且无 smartViews 的旧存档 → 四个视图全开', async () => {
@@ -255,5 +241,27 @@ describe('smartViews 存档迁移（v0.6.5）', () => {
     }))
     await useSettingsStore.persist.rehydrate()
     expect(useSettingsStore.getState().smartViews).toEqual({ all: true, due: false, weekNew: true, leech: true })
+  })
+})
+
+describe('settingsStore 迁移到 9：丢弃 dictionaries', () => {
+  it('v8 存档里的 dictionaries 键被丢掉，其余设置原样保留', async () => {
+    localStorage.setItem('wordsett-settings', JSON.stringify({
+      state: {
+        displayFields: { phonetic: false, part_of_speech: true, chinese_definition: true, english_definition: true, example: true, exchange: true, synonyms: true, derivatives: true },
+        dictionaries: { ecdict: true, wordnet: false },
+        sidebarMode: 'category',
+        titleInfo: { showBadges: true, showPhonetic: false, showWordRoot: true, showCollinsStars: true, showDomainCategory: true, showDomainRegion: true, showDomainUsage: true },
+        review: { retention: 0.9, leechThreshold: 4, newCardQuota: 10, queueLimit: 30, letterHighlight: true, showDueBadge: true },
+        smartViews: { all: true, due: true, weekNew: true, leech: true },
+      },
+      version: 8,
+    }))
+    await useSettingsStore.persist.rehydrate()
+    const s = useSettingsStore.getState()
+    expect('dictionaries' in s).toBe(false)
+    expect(s.sidebarMode).toBe('category')          // 其余设置一个不丢
+    expect(s.displayFields.phonetic).toBe(false)
+    expect(s.titleInfo.showPhonetic).toBe(false)
   })
 })
