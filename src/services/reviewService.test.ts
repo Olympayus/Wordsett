@@ -361,6 +361,9 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
     const o = await getOverview(REVIEW_DEFAULTS)
     expect(o.newCount).toBe(1)
     expect(o.total).toBe(0)
+    // 空态与「开始复习」按钮看的是本轮能出几题，不是到期积压：这张新卡确实出得了题，
+    // 所以 deliverable 必须是 1——它正是「17 个新词却提示暂无可复习的内容」那条 bug 的回归。
+    expect(o.deliverable).toBe(1)
   })
 })
 

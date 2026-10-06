@@ -483,15 +483,18 @@ export async function getOverview(params: ReviewParams) {
   // 同一个函数另外给出摊平后的词 id 集合（todayWordIds）给按词筛选的视图层。
   // 代价（有意接受）：到期积压超过队列上限时，做完一轮这个数不会归零，剩下留到下一轮
   // ——这正是「轮次上限只影响单次学多少个词」的读法。见 DueBadge 的同款说明。
+  // **注意：它不再是空态判据**（v0.8.x 起看 deliverable），别再把 UI 的 empty 接到它上面。
   const { today } = await getStrategyCounts(params)
   return {
     total: today,
     // 新词数仍是本轮队列里的实际新卡数（额度、队列上限、卡级闸门都算数）：它答的是
     // 「本轮会引入几个新词」，与上面那个到期积压是两个量，故不从 total 派生。
     newCount: queue.filter(c => c.stability === null).length,
-    // 本轮队列的时长估算。当前**没有消费者**（v0.6.3 起控制台不再读它），
-    // 保留是为了不改动 getOverview 的返回形状；不要据此认为它跟着 total 走。
-    estimateMinutes: Math.max(1, Math.round(queue.length * 0.3)),
+    // 「本轮实际能出几道题」＝ todayQueue 过了额度/上限与卡级闸门之后的长度。
+    // 这是**空态与「开始复习」按钮唯一该看的数**：total 是到期积压，而新卡没有 due_at、
+    // 走不到 getStrategyCounts 的到期集里——拿 total 判空会把「今天只有新词可学」
+    // 整页变成空态，连按钮一起藏掉（OverviewPanel 是提前 return）。
+    deliverable: queue.length,
     // 三图与近 14 天趋势都要 dueByDay / recentRatings，故整包透出而非只给 masteryBuckets
     stats,
   }

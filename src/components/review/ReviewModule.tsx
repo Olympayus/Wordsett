@@ -67,7 +67,7 @@ export default function ReviewModule() {
       } catch {
         if (!alive || id !== reqIdRef.current) return
         setCounts({ today: 0, weak: 0 })
-        setOverview({ total: 0, newCount: 0, estimateMinutes: 0, stats: { masteryBuckets: [0, 0, 0, 0, 0, 0], dueByDay: [], recentRatings: [] } })
+        setOverview({ total: 0, newCount: 0, deliverable: 0, stats: { masteryBuckets: [0, 0, 0, 0, 0, 0], dueByDay: [], recentRatings: [] } })
       }
     }
     run()
@@ -124,11 +124,10 @@ export default function ReviewModule() {
         {showOverview && strategy === 'today' && (
           <OverviewPanel
             title="今日复习"
-            total={overview?.total ?? 0}
             stats={overview?.stats ?? { masteryBuckets: [], dueByDay: [], recentRatings: [] }}
             onStart={handleStart}
             startLabel="开始复习"
-            empty={(overview?.total ?? 0) === 0}
+            canStart={(overview?.deliverable ?? 0) > 0}
           />
         )}
         {live && <ReviewArena />}
