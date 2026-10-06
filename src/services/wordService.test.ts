@@ -200,7 +200,8 @@ describe('wordService.mergeFields 显式父子匹配键', () => {
       walk(flat)
       return keys
     }
-    // 完全模拟 DictDetailPanel.handleMergeAdd：逐源 buildInputs 后拼接一次 mergeFields
+    // 两棵独立构建的树各 buildInputs 后拼接，验证 tempId 跨源命名空间不相撞
+    // （生产侧是单次调用，此处刻意分源以构造碰撞）
     const inputs = [
       ...buildMergeInputs(ecdictFields, selectAll(ecdictFields)),
       ...buildMergeInputs(wordnetFields, selectAll(wordnetFields)),
