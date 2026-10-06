@@ -245,23 +245,58 @@ describe('smartViews 存档迁移（v0.6.5）', () => {
 })
 
 describe('settingsStore 迁移到 9：丢弃 dictionaries', () => {
+  // 其余设置的取样值刻意**全部非默认**：迁移若把它们弄丢、回落到 DEFAULT_*，
+  // 断言非默认值就会红。用默认值取样时「被抹掉」与「原样保留」长得一模一样，验不出来。
+  const SURVIVORS = {
+    displayFields: { phonetic: false, part_of_speech: true, chinese_definition: true, english_definition: true, example: true, exchange: true, synonyms: true, derivatives: true },
+    sidebarMode: 'category',
+    titleInfo: { showBadges: true, showPhonetic: false, showWordRoot: true, showCollinsStars: true, showDomainCategory: true, showDomainRegion: true, showDomainUsage: true },
+    review: { retention: 0.8, leechThreshold: 7, newCardQuota: 15, queueLimit: 45, letterHighlight: false, showDueBadge: false },
+    smartViews: { all: true, due: false, weekNew: true, leech: false },
+  }
+
+  const expectSurvivorsIntact = (s: ReturnType<typeof useSettingsStore.getState>) => {
+    expect(s.sidebarMode).toBe('category')          // 其余设置一个不丢
+    expect(s.displayFields.phonetic).toBe(false)
+    expect(s.titleInfo.showPhonetic).toBe(false)
+    expect(s.review.leechThreshold).toBe(7)
+    expect(s.review.showDueBadge).toBe(false)
+    expect(s.smartViews.due).toBe(false)
+    expect(s.smartViews.leech).toBe(false)
+  }
+
   it('v8 存档里的 dictionaries 键被丢掉，其余设置原样保留', async () => {
     localStorage.setItem('wordsett-settings', JSON.stringify({
-      state: {
-        displayFields: { phonetic: false, part_of_speech: true, chinese_definition: true, english_definition: true, example: true, exchange: true, synonyms: true, derivatives: true },
-        dictionaries: { ecdict: true, wordnet: false },
-        sidebarMode: 'category',
-        titleInfo: { showBadges: true, showPhonetic: false, showWordRoot: true, showCollinsStars: true, showDomainCategory: true, showDomainRegion: true, showDomainUsage: true },
-        review: { retention: 0.9, leechThreshold: 4, newCardQuota: 10, queueLimit: 30, letterHighlight: true, showDueBadge: true },
-        smartViews: { all: true, due: true, weekNew: true, leech: true },
-      },
+      state: { ...SURVIVORS, dictionaries: { ecdict: true, wordnet: false } },
       version: 8,
     }))
     await useSettingsStore.persist.rehydrate()
     const s = useSettingsStore.getState()
     expect('dictionaries' in s).toBe(false)
-    expect(s.sidebarMode).toBe('category')          // 其余设置一个不丢
-    expect(s.displayFields.phonetic).toBe(false)
-    expect(s.titleInfo.showPhonetic).toBe(false)
+    expectSurvivorsIntact(s)
+  })
+
+  it('残缺的 dictionaries（缺 ecdict 键）同样被丢掉，其余设置不丢', async () => {
+    // 本任务的命名评审焦点：残缺/异形的 dictionaries 键。迁移用的是对象解构，
+    // 与键的形状无关，故残缺对象与完整对象走同一条剔除路径。
+    localStorage.setItem('wordsett-settings', JSON.stringify({
+      state: { ...SURVIVORS, dictionaries: { wordnet: false } },
+      version: 8,
+    }))
+    await useSettingsStore.persist.rehydrate()
+    const s = useSettingsStore.getState()
+    expect('dictionaries' in s).toBe(false)
+    expectSurvivorsIntact(s)
+  })
+
+  it('异形的 dictionaries（非对象）被丢弃，不影响其余设置', async () => {
+    localStorage.setItem('wordsett-settings', JSON.stringify({
+      state: { ...SURVIVORS, dictionaries: 'oops' },
+      version: 8,
+    }))
+    await useSettingsStore.persist.rehydrate()
+    const s = useSettingsStore.getState()
+    expect('dictionaries' in s).toBe(false)
+    expectSurvivorsIntact(s)
   })
 })

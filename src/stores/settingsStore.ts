@@ -81,6 +81,15 @@ export function migrateSettings(persisted: unknown): SettingsStore {
     displayFields: fields,
     titleInfo,
     review: { ...DEFAULT_REVIEW, ...state.review },
+    // v0.6.5 加 smartViews 时把 persist 的 version 从 7 升到 8，正是为了让下面这行生效。
+    // 注意这里**不是**「缺键会变成 undefined」——zustand 的默认 merge 是
+    // { ...currentState, ...persistedState }，存档铺在当前 state 之上，
+    // 存档里压根没有 smartViews 这个键时，它不会覆盖 store 自己的
+    // DEFAULT_SMART_VIEWS，四个视图照常全开。
+    // 真正出事的是**残缺的 smartViews 对象**（如 { all, due }）：它只盖掉存档里有的键，
+    // 缺的键保留**当前**（可能已被用户关掉）的值——用户先关掉的视图会静默地重新打开。
+    // 所以下面这行把默认铺在存档之上、给缺键兜底，是**唯一**一处补齐缺键的地方；
+    // 而它只有在 version 不相等、migrate 真的被调用时才会执行。少那次升版 = 这行形同虚设。
     smartViews: { ...DEFAULT_SMART_VIEWS, ...state.smartViews },
   } as SettingsStore
 }
