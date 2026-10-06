@@ -1,10 +1,10 @@
 import { EcdictProvider } from '../providers/ecdict'
 import { WordNetProvider } from '../providers/wordnet'
-import { useSettingsStore } from '../stores/settingsStore'
 import { sortLemmasByRelevance } from '../lib/lemmaSort'
 import { rankChineseHits } from '../lib/chineseSearch'
 import type { ChineseSearchHit } from '../lib/chineseSearch'
-import type { DictionaryEntry } from '../types/dictionary'
+import type { DictionaryField } from '../types/dictionary'
+import { mergeSources } from '../lib/dictMerge'
 import type { RelatedWords } from '../providers/wordnet'
 import { getCachedDb } from '../providers/dbCache'
 import { resolveDictPath, toSqliteUrl } from '../providers/dictPath'
@@ -29,19 +29,17 @@ export async function searchLemmas(query: string): Promise<string[]> {
   return sortLemmasByRelevance(query, deduped).slice(0, 20)
 }
 
-// 阶段二：精确查询单词详情（按设置中词典开关过滤：关闭的词典不查询、不返回；语义网络不受此开关影响）
-export async function lookupWord(word: string): Promise<{ source: string; entries: DictionaryEntry[] }[]> {
+// 阶段二：精确查询单词详情。
+// 两个词典的结果在**服务层**合流成一棵按词性分组的字段树——返回形状里不再有「来源」，
+// 分区自此只存在于每个节点上的来源小标记。空数组＝两个词典都没查到（界面走「未找到」态）。
+export async function lookupWord(word: string): Promise<DictionaryField[]> {
   if (!word.trim()) return []
   const normalized = word.toLowerCase().trim()
-  const { dictionaries } = useSettingsStore.getState()
   const [ecdictEntries, wordnetEntries] = await Promise.all([
-    dictionaries.ecdict ? ecdict.lookup(normalized) : Promise.resolve([] as DictionaryEntry[]),
-    dictionaries.wordnet ? wordnet.lookup(normalized) : Promise.resolve([] as DictionaryEntry[]),
+    ecdict.lookup(normalized),
+    wordnet.lookup(normalized),
   ])
-  const results: { source: string; entries: DictionaryEntry[] }[] = []
-  if (ecdictEntries.length > 0) results.push({ source: 'ecdict', entries: ecdictEntries })
-  if (wordnetEntries.length > 0) results.push({ source: 'wordnet', entries: wordnetEntries })
-  return results
+  return mergeSources([...ecdictEntries, ...wordnetEntries])
 }
 
 // 阶段一·中文：查询 ECDICT 中文释义，返回匹配的英文单词 + 首个命中行释义（供下拉补显）
