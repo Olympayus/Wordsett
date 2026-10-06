@@ -58,9 +58,11 @@ export function flattenTree(fields: DictionaryField[]): FlatNode[] {
   return walk(fields, null)
 }
 
-// 由勾选集构建 MergeFieldInput[]：父先子后，tempId=source:key，子引用父 tempId；
+// 由勾选集构建 MergeFieldInput[]：父先子后，tempId=来源:key，子引用父 tempId；
 // 隐式补选已勾选节点的全部祖先（保证无游离释义不变量）。
-export function buildMergeInputs(fields: DictionaryField[], selected: Set<string>, source: FieldSource): MergeFieldInput[] {
+// 来源不再由调用方传入：合并树上的每个节点自带 source（见 lib/dictMerge），
+// 手搭的树没盖戳时回落到 'user'。
+export function buildMergeInputs(fields: DictionaryField[], selected: Set<string>): MergeFieldInput[] {
   const flat = flattenTree(fields)
   const all: FlatNode[] = []
   const collect = (nodes: FlatNode[]) => { for (const n of nodes) { all.push(n); collect(n.children) } }
@@ -77,20 +79,23 @@ export function buildMergeInputs(fields: DictionaryField[], selected: Set<string
   for (const k of selected) addLineage(k)
 
   const out: MergeFieldInput[] = []
-  const walk = (nodes: FlatNode[]) => {
+  // parentSource 走**父节点**的来源：tempId 与 parentTempId 必须在同一命名空间，
+  // 否则另一源里同路径的兄弟会把子节点挂到错误的父 tempId 下（v0.4.0 词性错位）。
+  const walk = (nodes: FlatNode[], parentSource: FieldSource | null) => {
     for (const n of nodes) {
       if (!effective.has(n.key)) continue
+      const src = n.field.source ?? 'user'
       out.push({
         key: n.field.key,
         value: n.field.value,
-        source,
-        tempId: `${source}:${n.key}`,
-        ...(n.parentKey ? { parentTempId: `${source}:${n.parentKey}` } : {}),
+        source: src,
+        tempId: `${src}:${n.key}`,
+        ...(n.parentKey ? { parentTempId: `${parentSource!}:${n.parentKey}` } : {}),
       })
-      walk(n.children)
+      walk(n.children, src)
     }
   }
-  walk(flat)
+  walk(flat, null)
   return out
 }
 

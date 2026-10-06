@@ -3,10 +3,10 @@ import { mergeEntryFields, flattenTree, buildMergeInputs, toggleSubtreeSelection
 import type { DictionaryField } from '../types/dictionary'
 
 const fields: DictionaryField[] = [
-  { key: 'part_of_speech', value: 'n.', children: [
+  { key: 'part_of_speech', value: 'n.', source: 'ecdict' as const, children: [
     { key: 'chinese_definition', value: '大气' },
-    { key: 'english_definition', value: 'the atmosphere', children: [
-      { key: 'synonyms', value: '', children: [{ key: 'synonym_item', value: 'air' }] },
+    { key: 'english_definition', value: 'the atmosphere', source: 'ecdict' as const, children: [
+      { key: 'synonyms', value: '', source: 'ecdict' as const, children: [{ key: 'synonym_item', value: 'air' }] },
     ] },
   ] },
   { key: 'exchange', value: '', children: [{ key: 'exchange_item', value: '过去式: observed' }] },
@@ -38,13 +38,13 @@ describe('flattenTree', () => {
 describe('buildMergeInputs', () => {
   it('父先子后，子引用父 tempId', () => {
     const sel = new Set(['0', '0-1', '0-1-0'])
-    const inputs = buildMergeInputs(fields, sel, 'ecdict')
+    const inputs = buildMergeInputs(fields, sel)
     expect(inputs.map(i => i.key)).toEqual(['part_of_speech', 'english_definition', 'synonyms'])
     expect(inputs[1].tempId).toBe('ecdict:0-1')
     expect(inputs[2].parentTempId).toBe('ecdict:0-1')
   })
   it('勾选子但漏勾父：自动隐式补选祖先（保证无游离释义）', () => {
-    const inputs = buildMergeInputs(fields, new Set(['0-1-0']), 'wordnet')
+    const inputs = buildMergeInputs(fields, new Set(['0-1-0']))
     expect(inputs.map(i => i.key)).toEqual(['part_of_speech', 'english_definition', 'synonyms'])
   })
 })

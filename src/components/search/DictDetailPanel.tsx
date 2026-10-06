@@ -14,12 +14,7 @@ import { useCategoryStore } from '../../stores/categoryStore'
 import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
 import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
-import type { DictionaryEntry } from '../../types/dictionary'
-
-interface DetailResult {
-  source: string
-  entries: DictionaryEntry[]
-}
+import type { DictionaryField } from '../../types/dictionary'
 
 interface Props {
   word: string
@@ -44,7 +39,7 @@ function tabStyle(active: boolean): CSSProperties {
 // 词典详情视图（D2）：替换右侧区域。导航条返回/Esc 回词编辑视图（Task 5 追加「添加成功回编辑视图」）。
 // 词典 | 语义网络 双 Tab；导航条右端「合并添加」聚合全源勾选字段一次合并后跳编辑页（需求 2b 后半）。
 export default function DictDetailPanel({ word }: Props) {
-  const [results, setResults] = useState<DetailResult[]>([])
+  const [fields, setFields] = useState<DictionaryField[]>([])
   const [loading, setLoading] = useState(true)
   const [lookupError, setLookupError] = useState(false)
   const [mergeError, setMergeError] = useState(false)
@@ -65,30 +60,25 @@ export default function DictDetailPanel({ word }: Props) {
   const inLibrary = useWordStore(s => s.words.some(w => w.lemma.toLowerCase() === word.toLowerCase()))
 
   // 初始熟悉度（spec 4.6）：只对库外词问一次，写入随「合并添加」一起发生。
-  // 所有权在本面板：卡片级「＋ 添加此词典」也用这个值（卡片自己不留一份状态，两份会漂）。
+  // 所有权在本面板：只此一处状态，别处不留副本（两份会漂）。
   const [familiarity, setFamiliarity] = useState<InitialFamiliarityChoice>(1)
 
-  // 每张卡片的受控句柄 + 勾选数（卡片 ref/上报均为可选的，重复合并安全：mergeWordFields 幂等去重）
-  const cardRefs = useRef<Record<string, DictDetailCardHandle | null>>({})
-  const [selectionCounts, setSelectionCounts] = useState<Record<string, number>>({})
-  const handleSelectionChange = useCallback((source: string, count: number) => {
-    setSelectionCounts(prev => ({ ...prev, [source]: count }))
-  }, [])
+  // 受控句柄 + 勾选数（卡片 ref/上报均为可选的，重复合并安全：mergeWordFields 幂等去重）
+  const cardRef = useRef<DictDetailCardHandle | null>(null)
+  // 卡片勾选数上报（导航条「添加 · N 项」的计数与 disabled 判据）。单卡后不再按源索引。
+  const [selectionCount, setSelectionCount] = useState(0)
+  const handleSelectionChange = useCallback((count: number) => setSelectionCount(count), [])
 
   // Controller 裁定：仅标题信息区勾选（无卡片勾选）时合并按钮仍需可见
-  const anySelected = results.some(r => (selectionCounts[r.source] ?? 0) > 0) || stripInputs.length > 0
+  const anySelected = selectionCount > 0 || stripInputs.length > 0
 
   // 合并添加：聚合全源勾选字段 → 确保词条存在 → 一次合并 → 跳编辑页
   // 规格：addWord/mergeWordFields 任一失败 → 面板顶部错误提示，不跳转（错误在下次 lookup/attempt 时清除）
   // categoryId 只有「＋」路径传：主按钮不传，走的就是与改前逐字相同的那条路。
   const handleMergeAdd = async (categoryId?: string) => {
     setMergeError(false)
-    const inputs: MergeFieldInput[] = []
-    for (const r of results) {
-      const built = cardRefs.current[r.source]?.buildInputs()
-      if (built) inputs.push(...built)
-    }
-    // 标题信息区（唯一独立条）勾选并入聚合，保证仅 strip 勾选也能合并
+    // 单卡 + 独立的标题条：两处勾选就是全部输入
+    const inputs: MergeFieldInput[] = cardRef.current?.buildInputs() ?? []
     inputs.push(...stripInputs)
     if (inputs.length === 0) return
     // 守卫用的在库判据现算，且必须在 ensureWord 之前取：ensureWord 收录成功会把新词塞进 store，
@@ -129,20 +119,20 @@ export default function DictDetailPanel({ word }: Props) {
     showWorkbench()
   }
 
-  // 阶段二：精确查询词典详情（两个词典源堆叠）
+  // 阶段二：精确查询词典详情（两源合流成一棵字段树，节点带来源标记）
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setLookupError(false)
     setMergeError(false)
-    setResults([])
-    setSelectionCounts({})
+    setFields([])
+    setSelectionCount(0)
     setNetworkCount(0)
     setMeta(null)
     setStripInputs([])
     setFamiliarity(1)
     lookupWord(word)
-      .then(r => { if (!cancelled) setResults(r) })
+      .then(r => { if (!cancelled) setFields(r) })
       .catch(e => { console.error('Word lookup failed:', e); if (!cancelled) setLookupError(true) })
       .finally(() => { if (!cancelled) setLoading(false) })
     // 标题信息元数据独立拉取：失败静默置空（badges/音标/词根/领域为增量信息，不影响主查询）
@@ -171,7 +161,7 @@ export default function DictDetailPanel({ word }: Props) {
           region="dict"
           onBack={showWorkbench}
           onMergeAdd={handleMergeAdd}
-          mergeCount={results.reduce((n, r) => n + (selectionCounts[r.source] ?? 0), 0) + stripInputs.length}
+          mergeCount={selectionCount + stripInputs.length}
           mergeDisabled={!anySelected}
           familiarity={familiarity}
           onFamiliarityChange={setFamiliarity}
@@ -230,24 +220,19 @@ export default function DictDetailPanel({ word }: Props) {
             <div className="flex items-center justify-center py-8" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-accent)' }}>
               词典查询出错，请确认词典文件是否存在
             </div>
-          ) : results.length === 0 ? (
+          ) : fields.length === 0 ? (
             <div className="flex items-center justify-center py-8" style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)' }}>
               未找到 &ldquo;{word}&rdquo; 的词典结果
             </div>
           ) : (
             <>
               <div className="space-y-4">
-                {results.map(result => (
-                  <DictDetailCard
-                    key={result.source}
-                    word={word}
-                    source={result.source}
-                    entries={result.entries}
-                    ref={el => { cardRefs.current[result.source] = el }}
-                    onSelectionChange={handleSelectionChange}
-                    familiarity={familiarity}
-                  />
-                ))}
+                <DictDetailCard
+                  ref={cardRef}
+                  word={word}
+                  fields={fields}
+                  onSelectionChange={handleSelectionChange}
+                />
               </div>
 
               {mergeError && (

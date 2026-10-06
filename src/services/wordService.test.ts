@@ -186,12 +186,12 @@ describe('wordService.mergeFields 显式父子匹配键', () => {
     // ecdict：n.→中文释义 / adj.→中文释义；wordnet：adj.→英文释义 / n.→英文释义
     // （两源同路径索引但词性互换 → 未命名空间化时必错位）
     const ecdictFields: DictionaryField[] = [
-      { key: 'part_of_speech', value: 'n.', children: [{ key: 'chinese_definition', value: '大钢琴' }] },
-      { key: 'part_of_speech', value: 'adj.', children: [{ key: 'chinese_definition', value: '壮丽的' }] },
+      { key: 'part_of_speech', value: 'n.', source: 'ecdict', children: [{ key: 'chinese_definition', value: '大钢琴' }] },
+      { key: 'part_of_speech', value: 'adj.', source: 'ecdict', children: [{ key: 'chinese_definition', value: '壮丽的' }] },
     ]
     const wordnetFields: DictionaryField[] = [
-      { key: 'part_of_speech', value: 'adj.', children: [{ key: 'english_definition', value: 'large and impressive' }] },
-      { key: 'part_of_speech', value: 'n.', children: [{ key: 'english_definition', value: 'a piano with strings' }] },
+      { key: 'part_of_speech', value: 'adj.', source: 'wordnet', children: [{ key: 'english_definition', value: 'large and impressive' }] },
+      { key: 'part_of_speech', value: 'n.', source: 'wordnet', children: [{ key: 'english_definition', value: 'a piano with strings' }] },
     ]
     const selectAll = (fields: DictionaryField[]) => {
       const flat = flattenTree(fields)
@@ -202,8 +202,8 @@ describe('wordService.mergeFields 显式父子匹配键', () => {
     }
     // 完全模拟 DictDetailPanel.handleMergeAdd：逐源 buildInputs 后拼接一次 mergeFields
     const inputs = [
-      ...buildMergeInputs(ecdictFields, selectAll(ecdictFields), 'ecdict'),
-      ...buildMergeInputs(wordnetFields, selectAll(wordnetFields), 'wordnet'),
+      ...buildMergeInputs(ecdictFields, selectAll(ecdictFields)),
+      ...buildMergeInputs(wordnetFields, selectAll(wordnetFields)),
     ]
     const ok = await mergeFields(w.data.id, inputs)
     expect(ok).toBe(true)
