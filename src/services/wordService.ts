@@ -6,12 +6,22 @@ import { getFieldValuesForWord } from '../db/fields'
 import { getDefinitions, renumberWordByTemplate } from './fieldService'
 import { assignDefaultToWord } from './categoryService'
 
-export async function addWord(lemma: string): Promise<Word | null> {
+export interface AddWordOptions {
+  /**
+   * 「＋ 选择分类后添加」路径专用：跳过默认分类写入。
+   * 该路径的语义是「只加入我选的那一个分类」，而收录路径默认会先写一次默认分类，
+   * 于是新词同时落在两个分类里——调用方在 ensureWord 之前就把这个开关决定好，
+   * 因为默认分类是在 addWord 内部落库的，出来之后已经晚了。
+   */
+  skipDefaultCategory?: boolean
+}
+
+export async function addWord(lemma: string, opts?: AddWordOptions): Promise<Word | null> {
   const existing = await wordsDb.getWordByLemma(lemma)
   if (existing.ok && existing.data) return existing.data
 
   const result = await wordsDb.createWord({ lemma })
-  if (result.ok && result.data) {
+  if (result.ok && result.data && !opts?.skipDefaultCategory) {
     await assignDefaultToWord(result.data.id)
   }
   return result.ok ? result.data : null

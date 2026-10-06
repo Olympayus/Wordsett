@@ -197,7 +197,9 @@ export default function DictDetailCard({
     // 那时再问「在不在库」，刚收录的库外词也会翻成「已在库」，熟悉度被静默丢掉——
     // 而这条路径正是为了不丢它才加的。判据与面板合并路径共用 isWordInLibrary。
     const wordWasInLibrary = isWordInLibrary(word_)
-    const word = await ensureWord(word_)
+    // ＋ 路径用 skipDefaultCategory：它的语义是「只加入我选的那个分类」，
+    // 若照旧先落默认分类，新词会同时挂在两个分类下（本项要修的就是这个）。
+    const word = await ensureWord(word_, categoryId ? { skipDefaultCategory: true } : undefined)
     if (!word) {
       setError(true)
       window.setTimeout(() => setError(false), 2500)
@@ -214,10 +216,11 @@ export default function DictDetailCard({
         // 刷新跟写入放在一起，而不是挂进 wordStore——叠加层的刷新时机与词条内容不同。
         if (wrote) void useReviewOverlayStore.getState().loadOverlay()
       }
-      // 「＋」路径：合并成功后再把这个词归入所选分类（v0.6.5 §4.6）。主按钮不传 categoryId，
-      // 走默认分类（ensureWord → addWord 里 assignDefaultToWord 已写过），所以这里只在显式
-      // 选分类时多写一步。与面板 handleMergeAdd 同一形状、同一位置：mergeWordFields 失败那一支
-      // 提前走了，不会给一个没合并成功的词落分类。词已在库时同样有效。
+      // 「＋」路径：合并成功后再把这个词归入所选分类。主按钮不传 categoryId，走的就是
+      // ensureWord → addWord 里 assignDefaultToWord 那条路（默认分类只写一次，见上）；
+      // ＋ 路径则在 addWord 阶段就跳过了默认分类，这里补上用户真正选的那个。
+      // 与面板 handleMergeAdd 同一形状、同一位置：mergeWordFields 失败那一支提前走了，
+      // 不会给一个没合并成功的词落分类。词已在库时同样有效。
       if (categoryId) {
         await useCategoryStore.getState().assignMany([word.id], categoryId)
       }

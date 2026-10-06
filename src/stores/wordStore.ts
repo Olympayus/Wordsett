@@ -21,7 +21,7 @@ interface WordStore {
   addFieldValue: (fieldId: string, parentId?: string | null) => Promise<FieldValue | null>
   deleteFieldValue: (fvId: string) => Promise<void>
   reorderFieldValues: (entries: { id: string; displayOrder: number }[]) => Promise<void>
-  addWord: (lemma: string) => Promise<Word | null>
+  addWord: (lemma: string, opts?: wordService.AddWordOptions) => Promise<Word | null>
   mergeWordFields: (wordId: string, fields: MergeFieldInput[]) => Promise<boolean>
   deleteWord: (id: string) => Promise<void>
   deleteWords: (ids: string[]) => Promise<void>
@@ -118,8 +118,8 @@ export const useWordStore = create<WordStore>((set, get) => ({
     await get().loadWords()
   },
 
-  addWord: async (lemma) => {
-    const word = await wordService.addWord(lemma)
+  addWord: async (lemma, opts) => {
+    const word = await wordService.addWord(lemma, opts)
     if (word) {
       await get().loadWords()
       await useCategoryStore.getState().loadWordCategoryMap()  // 新词默认分类即时进入侧边栏分组

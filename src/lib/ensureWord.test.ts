@@ -18,7 +18,9 @@ describe('ensureWord', () => {
     const addWord = vi.fn().mockResolvedValue(created)
     useWordStore.setState({ words: [], addWord: addWord as never })
     const w = await ensureWord('ball')
-    expect(addWord).toHaveBeenCalledWith('ball')
+    // 不传 opts 时 ensureWord 照样把第二参原样透传下去（undefined），「＋」路径的
+    // skipDefaultCategory 正是靠这条透传到达 addWord——所以断言要带上那个 undefined。
+    expect(addWord).toHaveBeenCalledWith('ball', undefined)
     expect(w?.id).toBe('w2')
   })
 })

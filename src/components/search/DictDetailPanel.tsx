@@ -95,7 +95,7 @@ export default function DictDetailPanel({ word }: Props) {
     // 那时再算，刚收录的库外词也会翻成「已在库」。这里不能沿用渲染期求值的那一份——
     // 面板开着时启动加载的 loadWords() 或设置里的词典导入都可能改写词表，渲染期那份会过期。
     const wordWasInLibrary = isWordInLibrary(word)
-    const target = await ensureWord(word)
+    const target = await ensureWord(word, categoryId ? { skipDefaultCategory: true } : undefined)
     if (!target) {
       setMergeError(true)
       return
@@ -117,9 +117,10 @@ export default function DictDetailPanel({ word }: Props) {
       // （reviewOverlayStore 的注释），挂进 store 会把两者重新耦上。
       if (wrote) void useReviewOverlayStore.getState().loadOverlay()
     }
-    // 「＋」路径：合并成功后再把这个词归入所选分类（v0.6.5 §4.6）。主按钮不传 categoryId，
-    // 走默认分类（ensureWord → addWord 里 assignDefaultToWord 已写过），所以这里只在显式
-    // 选分类时多写一步。放在 mergeWordFields 的成功分支之后、跳转之前：合并失败时提前 return，
+    // 「＋」路径：合并成功后再把这个词归入所选分类。主按钮不传 categoryId，走的就是
+    // ensureWord → addWord 里 assignDefaultToWord 那条路（默认分类只写一次，见上）；
+    // ＋ 路径则在 addWord 阶段就跳过了默认分类，这里补上用户真正选的那个。
+    // 放在 mergeWordFields 的成功分支之后、跳转之前：合并失败时提前 return，
     // 不会给一个没合并成功的词落分类。词已在库时这条路径同样有效——那正是本版新增的能力。
     if (categoryId) {
       await useCategoryStore.getState().assignMany([target.id], categoryId)

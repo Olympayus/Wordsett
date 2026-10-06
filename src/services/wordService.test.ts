@@ -2,7 +2,8 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { getDb } from '../db/connection'
 import * as wordsDb from '../db/words'
 import { createTestDb, type DbLike } from '../db/test-utils'
-import { deleteWord, deleteWords, getPreviews, mergeFields, setInitialFamiliarity } from './wordService'
+import { addWord, deleteWord, deleteWords, getPreviews, mergeFields, setInitialFamiliarity } from './wordService'
+import * as categoriesDb from '../db/categories'
 import { clearDefinitionsCache } from './fieldService'
 import { getFieldValuesForWord } from '../db/fields'
 import * as fieldsDb from '../db/fields'
@@ -305,5 +306,33 @@ describe('wordService 词操作', () => {
     const previews = await getPreviews()
     const p = previews.find(x => x.id === w.data.id)
     expect(p?.partOfSpeechTags).toEqual(['v.'])
+  })
+})
+
+describe('wordService.addWord 的默认分类归属', () => {
+  it('＋ 路径：skipDefaultCategory 让新词只落所选分类，不落默认分类', async () => {
+    const def = await categoriesDb.createCategory({ name: '默认', color: '#888888', isDefault: true })
+    const chosen = await categoriesDb.createCategory({ name: '业务', color: '#123456' })
+    if (!def.ok || !chosen.ok) throw new Error('createCategory failed')
+
+    const word = await addWord('skiptest', { skipDefaultCategory: true })
+    if (!word) throw new Error('addWord failed')
+    await categoriesDb.assignCategoryToWord(word.id, chosen.data.id)
+
+    const r = await categoriesDb.getCategoriesForWord(word.id)
+    if (!r.ok) throw new Error('getCategoriesForWord failed')
+    expect(r.data.map(c => c.id)).toEqual([chosen.data.id])
+  })
+
+  it('主按钮路径：不传 skipDefaultCategory 时新词仍落默认分类', async () => {
+    const def = await categoriesDb.createCategory({ name: '默认二', color: '#888888', isDefault: true })
+    if (!def.ok) throw new Error('createCategory failed')
+
+    const word = await addWord('defaulttest')
+    if (!word) throw new Error('addWord failed')
+
+    const r = await categoriesDb.getCategoriesForWord(word.id)
+    if (!r.ok) throw new Error('getCategoriesForWord failed')
+    expect(r.data.map(c => c.id)).toEqual([def.data.id])
   })
 })
