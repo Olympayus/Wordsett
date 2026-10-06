@@ -8,6 +8,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { isLeech } from '../../lib/review/leech'
 import LeechBadge from '../ui/LeechBadge'
 import CheckBox from '../ui/CheckBox'
+import SpeakButton from '../ui/SpeakButton'
 
 interface Props {
   word: WordWithPreview
@@ -147,13 +148,26 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
       ) : (
         <>
           <div style={{ flex: 1, minWidth: 0 }}>
-            {/* 行 1：单词 */}
-            <div style={{
-              fontFamily: 'var(--font-serif)', fontSize: 'var(--text-base)', fontWeight: 'var(--weight-semibold)',
-              color: 'var(--color-text-primary)', lineHeight: 1.3,
-              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-            }}>
-              {word.lemma}
+            {/* 行 1：单词 + 发音（v0.8.x 侧栏喇叭）。喇叭紧跟单词右侧，与工作台、词典页同款位置。
+                外层 span 吞掉冒泡且**不转交**父级 onClick：点喇叭只出声，不得切换当前词条、
+                也不得在选择模式下改勾选。收起态不渲染——那里只有单词名与色圈。
+                keydown 一并吞掉：喇叭是 <button>，空格激活它时 keydown 会冒泡到行的
+                onKeyDown，那里同样会触发一次「激活行」。 */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{
+                fontFamily: 'var(--font-serif)', fontSize: 'var(--text-base)', fontWeight: 'var(--weight-semibold)',
+                color: 'var(--color-text-primary)', lineHeight: 1.3, minWidth: 0,
+                whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+              }}>
+                {word.lemma}
+              </div>
+              <span
+                style={{ display: 'inline-flex', flexShrink: 0 }}
+                onClick={e => e.stopPropagation()}
+                onKeyDown={e => e.stopPropagation()}
+              >
+                <SpeakButton text={word.lemma} size={14} />
+              </span>
             </div>
             {/* 行 2：左 音标·词性（可换行）｜右 分类胶囊（右对齐）；词性与音标同为纯文本，无边框 */}
             <div style={{
