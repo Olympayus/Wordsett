@@ -41,7 +41,7 @@ vi.mock('../providers/wordnet', () => ({
   },
 }))
 
-describe('lookupWord 两源合流（v0.8.x 词典合并）', () => {
+describe('lookupWord 两源合流（v0.7.1 词典合并）', () => {
   it('返回一棵树：同词性合流成一个父，重复的英文释义只留 WordNet 那条', async () => {
     const fields = await lookupWord('apple')
     const pos = fields.filter(f => f.key === 'part_of_speech')

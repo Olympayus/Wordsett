@@ -67,7 +67,7 @@ export default function DueBadge() {
   // 代价（有意接受）：积压超过队列上限时，做完一轮这个数不会归零，剩下的留到下一轮。
   // 另一面：新词不计入这个数（新卡没有 due_at），所以「今天只有新词可学」时 chip 不显示
   // ——控制台的「新词: n」仍然照报。
-  // **但复习页的空态不再看这个数**（v0.8.x 起看 getOverview().deliverable）：
+  // **但复习页的空态不再看这个数**（v0.7.1 起看 getOverview().deliverable）：
   // 这里不报，不等于那页没题可出。
   //
   // 参数：today 只由到期集与 allowListen 决定，**与四个设置项都无关**，故这里不再订阅

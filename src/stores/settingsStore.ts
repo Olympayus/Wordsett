@@ -71,7 +71,7 @@ export function migrateSettings(persisted: unknown): SettingsStore {
   delete fields.etymology
   if (fields.synonyms === undefined) fields.synonyms = true
   const titleInfo: Record<TitleInfoKey, boolean> = { ...DEFAULT_TITLE_INFO, ...state.titleInfo }
-  // v0.8.x 词典合并：dictionaries 键此后没有任何读取方（searchService 已不再读它），
+  // v0.7.1 词典合并：dictionaries 键此后没有任何读取方（searchService 已不再读它），
   // 从合并结果里显式剔除，避免它作为一份谁都看不懂的残留长期留在 localStorage 里。
   // 升到 9 的真正理由与 v0.6.5 那次的措辞不同：这里不是「缺键要兜底」，而是
   // 「多键要删除」——而 zustand 的 merge 只会覆盖键，永远不会删键，所以必须靠 migrate。
@@ -120,7 +120,7 @@ export const useSettingsStore = create<SettingsStore>()(
       // 存档里缺的那把键就只能按当前的（可能已被用户改过）值留着。
       // v0.6.5：加 smartViews → 8，同理。这一次的实际后果更隐蔽：残缺的 smartViews 存档
       // 合并进来时缺键保留旧值，用户关掉的视图会静默重新打开（细节见 migrateSettings 里的注释）。
-      // v0.8.x：删 dictionaries → 9。理由与上两次相反：这次不是「缺键要兜底」而是「多键要删除」，
+      // v0.7.1：删 dictionaries → 9。理由与上两次相反：这次不是「缺键要兜底」而是「多键要删除」，
       // 而 zustand 的 merge 只会覆盖键、从不删键，所以必须靠 migrate 显式剔除。
       version: 9,
       storage: createJSONStorage(() => localStorage),

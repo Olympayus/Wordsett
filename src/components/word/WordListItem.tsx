@@ -148,7 +148,7 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
       ) : (
         <>
           <div style={{ flex: 1, minWidth: 0 }}>
-            {/* 行 1：单词 + 发音（v0.8.x 侧栏喇叭）。喇叭紧跟单词右侧，与工作台、词典页同款位置。
+            {/* 行 1：单词 + 发音（v0.7.1 侧栏喇叭）。喇叭紧跟单词右侧，与工作台、词典页同款位置。
                 外层 span 吞掉冒泡且**不转交**父级 onClick：点喇叭只出声，不得切换当前词条、
                 也不得在选择模式下改勾选。收起态不渲染——那里只有单词名与色圈。
                 keydown 一并吞掉：喇叭是 <button>，空格激活它时 keydown 会冒泡到行的

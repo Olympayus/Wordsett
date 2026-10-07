@@ -483,7 +483,7 @@ export async function getOverview(params: ReviewParams) {
   // 同一个函数另外给出摊平后的词 id 集合（todayWordIds）给按词筛选的视图层。
   // 代价（有意接受）：到期积压超过队列上限时，做完一轮这个数不会归零，剩下留到下一轮
   // ——这正是「轮次上限只影响单次学多少个词」的读法。见 DueBadge 的同款说明。
-  // **注意：它不再是空态判据**（v0.8.x 起看 deliverable），别再把 UI 的 empty 接到它上面。
+  // **注意：它不再是空态判据**（v0.7.1 起看 deliverable），别再把 UI 的 empty 接到它上面。
   const { today } = await getStrategyCounts(params)
   return {
     total: today,
