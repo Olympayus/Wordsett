@@ -96,8 +96,7 @@ export default function DictDetailCard({
     setSelected(all)
   }, [word_, flat])
 
-  // 卡片整体折叠；词性组默认全部展开（v0.4.4：默认展开，用户可「全部收起」），换词时重置为空
-  const [collapsed, setCollapsed] = useState(false)
+  // 词性组默认全部展开（v0.4.4：默认展开，用户可「全部收起」），换词时重置为空
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
   useEffect(() => {
     setCollapsedKeys(new Set())
@@ -276,7 +275,7 @@ export default function DictDetailCard({
         borderColor: 'var(--color-border)',
         background: 'var(--color-surface)',
       }}>
-      {/* 卡片头部：条目计数 + 「全部展开/收起」 + 折叠 */}
+      {/* 卡片头部：条目计数 + 「全部展开/收起」（右对齐） */}
       <div className="px-4 py-2.5 flex items-center gap-2">
         {totalDefs.cn + totalDefs.en > 0 && (
           <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-surface-sunken)', padding: '1px 8px', borderRadius: 'var(--radius-full)' }}>
@@ -291,22 +290,12 @@ export default function DictDetailCard({
             onClick={toggleAll}
           >{allCollapsed ? '全部展开' : '全部收起'}</button>
         )}
-        <button
-          aria-label={collapsed ? '展开' : '折叠'}
-          className={containerKeys.size === 0 ? 'ml-auto' : undefined}
-          onClick={() => setCollapsed(c => !c)}
-          style={{ width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-tertiary)' }}
-        >
-          <span style={{ display: 'inline-block', transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 200ms' }}>▾</span>
-        </button>
       </div>
 
-      {/* 卡片内容 - POS 分组树（整卡折叠时隐藏） */}
-      {!collapsed && (
-        <div className="px-4 py-3 space-y-3 text-sm">
-          {renderFlat(flat)}
-        </div>
-      )}
+      {/* 卡片内容 - POS 分组树 */}
+      <div className="px-4 py-3 space-y-3 text-sm">
+        {renderFlat(flat)}
+      </div>
     </div>
   )
 }
