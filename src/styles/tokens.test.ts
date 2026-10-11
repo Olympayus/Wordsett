@@ -26,7 +26,8 @@ describe('tokens.css', () => {
       '--color-pos', '--color-border', '--color-border-strong',
       '--color-success', '--color-warning', '--color-danger', '--color-leech',
       '--radius-sm', '--radius-md', '--radius-lg', '--radius-xl', '--radius-full',
-      '--text-xs', '--text-sm', '--text-base', '--text-lg', '--space-4', '--shadow-overlay',
+      '--text-xs', '--text-sm', '--text-base', '--text-lg', '--space-4',
+      '--shadow-soft', '--shadow-raised', '--shadow-overlay',
       '--z-sticky', '--z-overlay',
     ]) expect(value(n), n).toBeTruthy()
   })
