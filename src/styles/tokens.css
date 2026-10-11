@@ -1,15 +1,16 @@
 :root {
-  /* 基础表面 */
-  --color-canvas: #F6F4EF;
-  --color-surface: #FFFFFF;
-  --color-surface-hover: #FAF9F6;
-  --color-surface-raised: #FCFBF8;
-  --color-surface-sunken: #EFECE5;
+  /* 基础表面（v0.7.2：七档收敛成五档，靠明度分层不靠投影） */
+  --color-chrome: #EEECE5;          /* 标题栏 / 活动栏（新增） */
+  --color-surface-sunken: #F5F3ED;  /* 索引栏 */
+  --color-canvas: #F9F8F5;          /* 内容面 */
+  --color-surface: #FFFFFF;         /* 阅读面（不变） */
+  --color-surface-raised: #F3F1EA;  /* 凹陷 / 次级块（改语义） */
+  --color-surface-hover: #F0F1EE;   /* 悬停（比内容面深一档，白面上也看得见） */
 
   /* 文字 */
   --color-text-primary: #1C1814;
-  --color-text-secondary: #7A7368;
-  --color-text-tertiary: #B5AFA3;
+  --color-text-secondary: #57514A;
+  --color-text-tertiary: #767064;
 
   /* 品牌与强调 */
   --color-brand: #4A6FA5;
@@ -118,10 +119,10 @@
   --z-modal: 40;
   --z-toast: 50;
 
-  /* 阴影（仅浮起态） */
+  /* 阴影：v0.7.2 起全站只留浮层那一个。soft / raised 不再有消费点，名字保留以便回退。 */
   --shadow-soft: 0 1px 2px rgba(28, 24, 20, 0.04);
   --shadow-raised: 0 2px 8px rgba(28, 24, 20, 0.06);
-  --shadow-overlay: 0 8px 24px rgba(28, 24, 20, 0.08);
+  --shadow-overlay: 0 8px 24px rgba(28, 24, 20, 0.10);
 }
 
 /* 统一页内查找命中高亮（spec §4b，FindBar.tsx 的 CSS Custom Highlight API） */
