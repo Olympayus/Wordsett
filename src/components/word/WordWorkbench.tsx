@@ -82,7 +82,7 @@ const reveal = (on: boolean): CSSProperties => ({
   opacity: on ? 1 : 0,
   visibility: on ? 'visible' : 'hidden',
   pointerEvents: on ? 'auto' : 'none',
-  transition: 'opacity 150ms var(--ease-smooth)',
+  transition: 'opacity var(--duration-fast) var(--ease-smooth)',
 })
 
 // 容器字段（#5 键判定，取代「有子级且无值」推断：刚建的空容器立即按容器渲染）
@@ -181,7 +181,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
         padding: '8px 4px',
         marginBottom: '6px',
         position: 'relative',
-        transition: 'background-color 200ms var(--ease-smooth), border-color 200ms var(--ease-smooth)',
+        transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
       }
     : {}
   const isEditing = editingId === fv.id
@@ -435,7 +435,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
                 borderRadius: 'var(--radius-md)',
                 padding: isLevel1 ? '8px 4px' : '6px 4px',
                 marginBottom: '2px',
-                transition: 'background-color 200ms var(--ease-smooth), border-color 200ms var(--ease-smooth)',
+                transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
                 position: 'relative',
                 ...draggingStyle,
               }
@@ -445,7 +445,7 @@ function FieldCard({ fv, depth, ...rest }: FieldCardProps) {
                 borderRadius: 'var(--radius-md)',
                 padding: isLevel1 ? '8px 4px' : '6px 4px',
                 marginBottom: isLevel1 ? '2px' : '0',
-                transition: 'background-color 200ms var(--ease-smooth), border-color 200ms var(--ease-smooth)',
+                transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
                 position: 'relative',
                 ...draggingStyle,
               }
@@ -838,7 +838,7 @@ export default function WordWorkbench() {
     if (selectedWordId) loadWordCategories(selectedWordId)
   }, [selectedWordId])
 
-  // Cleanup saved state after animation completes
+  // Cleanup saved state after the indicator has been shown
   useEffect(() => {
     if (saved) {
       const timer = setTimeout(() => setSaved(false), 500)
@@ -1153,7 +1153,7 @@ export default function WordWorkbench() {
       onMouseLeave={() => setHoveredId(null)}
       style={{
         opacity: fadeIn ? 1 : 0,
-        transition: 'opacity 100ms var(--ease-smooth)',
+        transition: 'opacity var(--duration-fast) var(--ease-smooth)',
         height: '100%',
         overflowY: 'auto',
         background: 'var(--color-surface)',
@@ -1188,7 +1188,7 @@ export default function WordWorkbench() {
                       height: '24px',
                       background: 'var(--color-brand)',
                       borderRadius: '2px',
-                      animation: 'weave-pulse 500ms var(--ease-smooth)',
+                      transition: 'background-color var(--duration-fast) var(--ease-smooth)',
                       flexShrink: 0,
                     }}
                   />

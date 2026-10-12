@@ -8,13 +8,14 @@ import type { CSSProperties, ReactNode } from 'react'
 // 几何按容器适配而非照搬参考文档的 50px/132px：设置页的开关行高约 30px、导航条内边距 6px，
 // 50px 高的按钮会把这两处都撑变形。故只取文档的「圆角方形」观感（方正圆角 + 发丝边），
 // 高度与最小宽由 size 决定。字号同理：导航条里与 28×28 的箭头按钮同排，不能压过箭头。
-// 过渡白名单只有 transform 与 background-color：按压回弹走 transform、状态换色走底色，
-// 不动画 box-shadow / width / 边距。box-shadow 仅用于非动画的静态内描边。
+// 过渡白名单只剩 background-color（v0.7.2 spec §1.4：动效收敛成 90ms linear 一档，
+// 按压位移与缩放一并删除）。不动画 box-shadow / width / 边距，
+// box-shadow 仅用于非动画的静态内描边。
 // 圆角 6px：参考文档给的是 14px（圆润方形），但按钮实际只有 34px 高（导航条内更矮），
 // 14px 圆角占高度近四成，轮廓读作「胶囊/圆」而非「圆角方形」。6px 保留一点柔度同时
 // 保持方正感，也是项目上一版按钮用过的值。
 const BUTTON_RADIUS = 6
-const BUTTON_TRANSITION = 'transform 150ms cubic-bezier(.25,.1,.25,1), background-color 150ms cubic-bezier(.25,.1,.25,1)'
+const BUTTON_TRANSITION = 'background-color var(--duration-fast) var(--ease-smooth)'
 
 // ── 配色（v0.6.2 条目 1：按按钮的**直接父级背景**分两套）────────────────────────
 // 画布套＝v0.6.1 的现状值；白底套整体浅一阶——同样的按钮压在纯白上会显得更重，
@@ -172,10 +173,8 @@ interface Props {
 }
 
 export default function SquareButton({ children, onClick, disabled, title, pressed, size = 'default', tone = 'canvas', grow, minWidth, role, 'aria-checked': ariaChecked, 'aria-label': ariaLabel, 'aria-keyshortcuts': ariaKeyshortcuts, highlight }: Props) {
-  // hover / 按压必须用 JS 模拟：项目视觉一律走内联 style，不引 CSS class（见文件头注释）。
-  // 按压用三事件配对而非 click —— 指针在按钮上松开才算有效，避免按下后滑出仍触发视觉反馈。
+  // hover 必须用 JS 模拟：项目视觉一律走内联 style，不引 CSS class（见文件头注释）。
   const [hover, setHover] = useState(false)
-  const [pressing, setPressing] = useState(false)
   const on = Boolean(pressed)
   // 底色规则在 buttonBackground 里（含「为什么合成单值」）；此处只消费它的结果。
   const background = buttonBackground({ disabled, on, hover, tone })
@@ -189,11 +188,8 @@ export default function SquareButton({ children, onClick, disabled, title, press
       aria-label={ariaLabel}
       aria-keyshortcuts={ariaKeyshortcuts}
       onClick={onClick}
-      onPointerDown={() => { if (!disabled) setPressing(true) }}
-      onPointerUp={() => setPressing(false)}
-      onPointerLeave={() => { setPressing(false); setHover(false) }}
       onMouseEnter={() => { if (!disabled) setHover(true) }}
-      onMouseLeave={() => { setHover(false); setPressing(false) }}
+      onMouseLeave={() => setHover(false)}
       style={{
         ...BUTTON_BASE,
         // 顺序有讲究：grow 自带 minWidth: 0，必须排在 minWidth **之后**才不抹掉调用方给的下限；
@@ -204,10 +200,8 @@ export default function SquareButton({ children, onClick, disabled, title, press
         ...(size === 'row' ? BUTTON_SIZE_ROW : null),
         ...(disabled ? BUTTON_DISABLED : null),
         ...(background !== null ? { background } : null),
-        // 放在 background 之后、pressing 之前：后面两个键都不写 box-shadow，
-        // 故这圈内描边不会被压掉；而它自己也不动 background，两态不打架。
+        // 顺序在 background 之后：box-shadow 只写内描边、不写 background，两态不打架。
         ...(highlight ? { boxShadow: 'inset 0 0 0 1.5px var(--color-brand)' } : {}),
-        ...(pressing && !disabled ? { transform: 'scale(.96)' } : null),
       }}
     >
       {children}

@@ -1,6 +1,1 @@
-@keyframes weave-pulse {
-  0%   { transform: scaleX(1); }
-  30%  { transform: scaleX(1.5); }
-  70%  { transform: scaleX(1); }
-  100% { transform: scaleX(1); }
-}
+/* v0.7.2 起本文件只保留页内查找高亮；动效一律写在使用处的 transition 上。 */

@@ -28,7 +28,7 @@ const chipBase: CSSProperties = {
   display: 'inline-flex', alignItems: 'center', gap: 4,
   borderRadius: 4, padding: '2px 6px', position: 'relative',
   fontFamily: 'var(--font-phonetic)', fontSize: 15, color: 'var(--color-text-primary)',
-  transition: 'background-color 150ms var(--ease-smooth)',
+  transition: 'background-color var(--duration-fast) var(--ease-smooth)',
 }
 const iconBtn: CSSProperties = {
   width: 18, height: 18, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
@@ -61,7 +61,7 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
     opacity: on ? 1 : 0,
     visibility: on ? 'visible' : 'hidden',
     pointerEvents: on ? 'auto' : 'none',
-    transition: 'opacity 150ms var(--ease-smooth)',
+    transition: 'opacity var(--duration-fast) var(--ease-smooth)',
   })
 
   // 音标 chip 用音标字体/格式化；词根等纯文本模式用正文字体（避免不同字号造成行内布局跳动）

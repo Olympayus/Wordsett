@@ -96,20 +96,23 @@
   --space-10: 40px;
   --space-12: 48px;
 
-  /* 圆角 */
+  /* 圆角：按角色分配（spec §1.4）——色点与小标记 4、按钮 6、
+     输入框 / 页签 / 面板 8、浮层 12、胶囊类 full。值本身不动。 */
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
   --radius-xl: 12px;
   --radius-full: 9999px;
 
-  /* 动效 */
-  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --duration-instant: 80ms;
-  --duration-fast: 150ms;
-  --duration-normal: 250ms;
-  --duration-slow: 400ms;
+  /* 动效：只留一档。background-color / color 90ms linear（spec §1.4）。
+     删掉 250 / 400ms 与 out-back 缓动、按压位移与缩放；
+     别处的 var(--duration-*) / var(--ease-*) 引用不动，自动落到这一档。 */
+  --ease-smooth: linear;
+  --ease-out-back: linear;    /* 名字保留（值也并进同一档，token 名不删） */
+  --duration-instant: 90ms;
+  --duration-fast: 90ms;
+  --duration-normal: 90ms;
+  --duration-slow: 90ms;
 
   /* 层级 */
   --z-base: 0;

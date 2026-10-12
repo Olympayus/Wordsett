@@ -20,6 +20,20 @@ describe('tokens.css', () => {
     expect(value('--color-text-tertiary')).toBe('#767064')
   })
 
+  it('动效只有一档（background-color / color 90ms linear）', () => {
+    expect(value('--duration-fast')).toBe('90ms')
+    expect(value('--duration-instant')).toBe('90ms')
+    expect(value('--ease-smooth')).toBe('linear')
+  })
+
+  it('圆角刻度不动（4 / 6 / 8 / 12 / full）', () => {
+    expect(value('--radius-sm')).toBe('4px')
+    expect(value('--radius-md')).toBe('6px')
+    expect(value('--radius-lg')).toBe('8px')
+    expect(value('--radius-xl')).toBe('12px')
+    expect(value('--radius-full')).toBe('9999px')
+  })
+
   it('token 名一个不少（Tailwind v4 同名叠写靠声明顺序，删名会静默回落）', () => {
     for (const n of [
       '--color-brand', '--color-brand-soft', '--color-brand-softer', '--color-accent',

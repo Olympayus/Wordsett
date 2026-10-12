@@ -72,7 +72,7 @@ export default function UpdateDialog() {
           {phase === 'downloading' && (
             <>
               <div style={{ height: 6, borderRadius: 3, background: 'var(--color-surface-sunken)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${pct ?? 0}%`, background: 'var(--color-brand)', borderRadius: 3, transition: 'width 150ms var(--ease-smooth)' }} />
+                <div style={{ height: '100%', width: `${pct ?? 0}%`, background: 'var(--color-brand)', borderRadius: 3, transition: 'width var(--duration-fast) var(--ease-smooth)' }} />
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 12, color: 'var(--color-text-secondary)' }}>
                 <span>{pct === null ? '下载中…' : `${pct}%`}</span>
@@ -88,7 +88,8 @@ export default function UpdateDialog() {
           {phase === 'installing' && (
             <>
               <div style={{ height: 6, borderRadius: 3, background: 'var(--color-surface-sunken)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: '100%', background: 'var(--color-brand)', borderRadius: 3, opacity: 0.5, animation: 'weave-pulse 1.2s ease-in-out infinite' }} />
+                {/* 安装阶段满条：静止显示（v0.7.2 删掉 weave-pulse 闪烁，进度已由下载条承载） */}
+                <div style={{ height: '100%', width: '100%', background: 'var(--color-brand)', borderRadius: 3, opacity: 0.5 }} />
               </div>
               <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', marginTop: 6 }}>安装完成后将自动重启 Wordsett</div>
             </>
