@@ -1,9 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import {
-  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, isSkipped, answerDisplay, correctnessLabel,
+  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, isSkipped, answerDisplay, correctnessLabel, correctAnswerText,
 } from './roundStats'
 import type { ReviewCardDTO } from '../../services/reviewService'
 import type { AnsweredEntry } from '../../stores/reviewSessionStore'
+import type { Template } from './types'
 import { TEMPLATE_DIFFICULTY } from './template'
 
 const card = (cardId: string, template: ReviewCardDTO['template'], prompt: any, answer: any): ReviewCardDTO =>
@@ -161,5 +162,24 @@ describe('correctnessLabel（v0.6.3 条目 17）', () => {
 
   it('判错写「错误」不写「不正确」——两处消费点必须同一份文案', () => {
     expect(correctnessLabel(false)).not.toContain('不正确')
+  })
+})
+
+describe('correctAnswerText', () => {
+  const card = (template: Template, answer: Record<string, unknown>) =>
+    ({ cardId: 'c', wordId: 'w', template, prompt: {}, answer, sched: {} }) as unknown as ReviewCardDTO
+
+  it('认读题给中文释义', () => {
+    expect(correctAnswerText(card('recognize', { translation: '天空的', partOfSpeech: 'adj.' }))).toBe('天空的')
+  })
+  it('填空 / 中译英 / 英文释义 / 听辨都给单词', () => {
+    for (const t of ['cloze', 'recall', 'english_def', 'listen'] as Template[]) {
+      expect(correctAnswerText(card(t, { lemma: 'celestial' }))).toBe('celestial')
+    }
+  })
+  it('认读题缺 translation 时退到 lemma，两者都缺给空串', () => {
+    expect(correctAnswerText(card('recognize', { lemma: 'celestial' }))).toBe('celestial')
+    expect(correctAnswerText(card('recognize', {}))).toBe('')
+    expect(correctAnswerText(card('cloze', { lemma: '   ' }))).toBe('')
   })
 })

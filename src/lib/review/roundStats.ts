@@ -122,3 +122,18 @@ export function wordLabelFor(card: ReviewCardDTO): string {
   }
   return card.cardId
 }
+
+/**
+ * 「正确答案」这一栏的文本（v0.7.2）。数据一直在手上（`dto.answer`），先前只是没渲染。
+ *
+ * 取值按题型分两支：认读题问的是「这个词是什么意思」，答的是释义；其余四题问的都是
+ * 「这个意思/读音是哪个词」，答的是单词本身。两支都带兜底——取值空串会让整栏空白，
+ * 比显示一个次优来源更糟。
+ */
+export function correctAnswerText(card: ReviewCardDTO): string {
+  const a = card.answer as Record<string, unknown>
+  const pick = (v: unknown): string => (v === null || v === undefined ? '' : String(v).trim())
+  const lemma = pick(a.lemma)
+  const translation = pick(a.translation)
+  return card.template === 'recognize' ? (translation || lemma) : (lemma || translation)
+}
