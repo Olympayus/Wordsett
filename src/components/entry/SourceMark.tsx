@@ -14,7 +14,8 @@ export default function SourceMark({ state }: { state: FieldState }) {
   const personal = state === 'personal'
   return (
     <span
-      aria-hidden
+      role="img"
+      aria-label={personal ? '个人' : '已编辑'}
       style={{
         display: 'inline-block', width: '6px', height: '6px', borderRadius: '1px',
         marginLeft: '5px', verticalAlign: '1px', flexShrink: 0,
@@ -25,12 +26,18 @@ export default function SourceMark({ state }: { state: FieldState }) {
   )
 }
 
-/** 义项左缘那根圆头竖条。原始态用规则线，故永远渲染（占位不跳）。 */
+/**
+ * 义项左缘那根圆头竖条（绝对定位，离开文档流）。
+ *
+ * 与 `SourceMark` 承载同一份信息，故自身 `aria-hidden`（两处都命名会重复播报）。
+ * `original` 不渲染：来源三态由「形状标记 + 彩色左条」共同表达，原始值两者皆无；
+ * 左侧留白由 `FlowRow` 自己的左内边距撑住，不靠这根条占位——绝对定位的元素本就不占位。
+ */
 export function SourceBar({ state }: { state: FieldState }) {
+  if (state === 'original') return null
   const background =
     state === 'personal' ? 'var(--color-accent)'
-    : state === 'edited' ? 'color-mix(in srgb, var(--color-weave-edited) 45%, transparent)'
-    : 'var(--color-border)'
+    : 'color-mix(in srgb, var(--color-weave-edited) 45%, transparent)'
   return (
     <span aria-hidden style={{ position: 'absolute', left: 0, top: '4px', bottom: '4px', width: '3px', borderRadius: 'var(--radius-full)', background }} />
   )
