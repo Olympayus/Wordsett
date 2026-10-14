@@ -113,6 +113,29 @@ interface FieldCardProps extends FieldCardCtx {
   labelOverride?: string | null
   /** 义号（FlowRow 的左槽）：工作区释义仍用 labelOverride 里的「(n)」，故此处默认不传。 */
   no?: number | string
+  /**
+   * true = 作 SenseFlow 组的 run-in 头渲染（仅主标签页的根容器用）：只出可交互的头行
+   * （拖拽手柄 / 单击编辑 / 行尾操作簇 + 衬线斜体的标签与横线），**不出子行**——
+   * 子行由组装配另作义项行。同一份拖拽 / hover / 编辑 / 菜单机制因此两种形态共用。
+   */
+  asGroupHead?: boolean
+}
+
+/**
+ * 子行的 `labelOverride`（FieldCard 内部与 SenseFlow 的组装配共用一份，避免两处各写一遍）：
+ * 词性子级编「中文释义(1)」/「英文释义(1)」；近义词辨析组用组描述作小标题；其余无 override。
+ * `counters` 跨同级累计，故调用方每个父节点传一个。
+ */
+function childLabelOverride(
+  parentKey: string, childKey: string, child: FieldValue, counters: { zh: number; en: number },
+): string | null {
+  if (parentKey === 'part_of_speech') {
+    if (childKey === 'chinese_definition') { counters.zh += 1; return `中文释义(${counters.zh})` }
+    if (childKey === 'english_definition') { counters.en += 1; return `英文释义(${counters.en})` }
+    return null
+  }
+  if (childKey === 'synonym_discrimination_group') return child.value
+  return null
 }
 
 /**
@@ -142,7 +165,7 @@ function RowMenu({ items }: { items: MenuItem[] }) {
 
 // 单个字段行（v0.7.2 改用原语外壳）：grip 拖拽（仅 grip 激活拖拽）+ 同级插入指示线 + 行尾操作簇。
 // 旧代码里「卡片容器 + 左条 + 三态徽章 + 角落控件」的四层圆角嵌套，换成 FlowRow + SourceMark + RowActions。
-function FieldCard({ fv, depth, parentFv, labelOverride, no, ...ctx }: FieldCardProps) {
+function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false, ...ctx }: FieldCardProps) {
   const {
     defs, editorMode, editingId, editValue, insertIndicator, addMenu,
     onStartEdit, onEditValueChange, onSave, onCancelEdit, onDelete, onAddSibling,
@@ -176,8 +199,13 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, ...ctx }: FieldCard
   const zhCount = posChildren.filter(c => childKey(c) === 'chinese_definition').length
   const enCount = posChildren.filter(c => childKey(c) === 'english_definition').length
 
-  // 行尾「＋」加到**本行所在容器**：容器行即自身，叶子行取父节点。
-  const containerFv = isContainer ? fv : parentFv
+  // 行尾「＋」加到**本行所在容器**：容器行即自身；能带子字段的行也取自身；纯叶子行才取父节点。
+  // 「能带子字段」不能只看 CONTAINER_FIELD_KEYS——释义（chinese_definition / english_definition）
+  // 不在那张表里，但 ALLOWED_CHILD_KEYS 给了它们子类型（例句 / 使用场景 / 近义词）。
+  // 若只认容器表，刚建的空释义（isContainer=false）会把 containerFv 落到词性窗格，
+  // 行尾 ＋ 就变成「再加一条释义」，该释义的第一个子项永远加不上去（有子项后 bug 才消失）。
+  const rowHasAllowedChildren = (ALLOWED_CHILD_KEYS[def.key] ?? []).length > 0
+  const containerFv = isContainer || rowHasAllowedChildren ? fv : parentFv
   const containerDef = containerFv ? defs.find(d => d.id === containerFv.fieldId) : undefined
   const containerChildDefs = containerDef ? defs.filter(d => (ALLOWED_CHILD_KEYS[containerDef.key] ?? []).includes(d.key)) : []
   const containerLabel = containerDef ? containerDef.name : ''
@@ -191,6 +219,28 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, ...ctx }: FieldCard
   const showsButtons = containsId(fv, hoveredId)
   const draggingStyle = isDragging ? { transform: 'scale(1.02)', boxShadow: 'var(--shadow-raised)' } : null
 
+  // 拖拽手柄（左端 gutter）：FlowRow 行与 run-in 头共用。宽度固定 10px，手柄显隐不改变文字区宽度 → 零重排。
+  const grip = (
+    <span style={{ width: GUTTER_WIDTH, flexShrink: 0, alignSelf: 'center', display: 'inline-flex', alignItems: 'center' }}>
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        {...listeners}
+        {...attributes}
+        title="拖动排序"
+        aria-label="拖动排序"
+        style={{
+          width: '10px', height: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
+          cursor: isDragging ? 'grabbing' : 'grab', color: 'var(--color-text-tertiary)',
+          flexShrink: 0, alignSelf: 'center', touchAction: 'none', ...reveal(showsButtons),
+        }}
+      >
+        <Icon name="grip" size={10} />
+      </button>
+    </span>
+  )
+
   // 行尾菜单条目：编辑 / 添加同级 / 删除。普通与编者同一套（先前编者模式单露红桶）。
   // 容器（非词性 / 非辨析组）无值格可编辑，不出「编辑」。
   const menuItems: MenuItem[] = [
@@ -203,43 +253,42 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, ...ctx }: FieldCard
 
   // ②a：叶子容器（子项均为终端项）不渲染树状分支，子项平铺。词性窗格永不平铺。
   const hasTerminalChildren = shouldFlattenChildren(isPosPane, hasChildren, fv.children ?? [], isGroupPane)
+  const childCounters = { zh: 0, en: 0 }
   const renderedChildren = hasChildren
-    ? (() => {
-        let zhNum = 0
-        let enNum = 0
-        return fv.children!.map(child => {
-          const cKey = childKey(child)
-          let childLabel: string | null = null
-          if (isPosPane) {
-            if (cKey === 'chinese_definition') { zhNum += 1; childLabel = `中文释义(${zhNum})` }
-            else if (cKey === 'english_definition') { enNum += 1; childLabel = `英文释义(${enNum})` }
-          } else if (cKey === 'synonym_discrimination_group') {
-            // 近义词辨析组：小标题 = 提取后的短标题（v0.5.3 §2.2，非原始组描述）
-            childLabel = child.value
-          }
-          return (
-            <FieldCard key={child.id} fv={child} depth={depth + 1} parentFv={fv} labelOverride={childLabel} {...ctx} />
-          )
-        })
-      })()
+    ? fv.children!.map(child => (
+        <FieldCard
+          key={child.id} fv={child} depth={depth + 1} parentFv={fv}
+          labelOverride={childLabelOverride(def.key, childKey(child), child, childCounters)}
+          {...ctx}
+        />
+      ))
     : null
 
-  // 正文内容槽：grip + 标签 / 值（或词性窗格的 pill + 计数）。
-  const content = isPosPane ? (
-    isEditing ? (
-      <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', flex: 1 }}>
-        <input
-          className="w-full px-3 py-1.5 rounded text-sm"
-          style={{ border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)', maxWidth: '240px' }}
-          value={editValue}
-          onChange={e => onEditValueChange(e.target.value)}
-          autoFocus
-        />
-        <Button onClick={onSave}>保存</Button>
-        <Button variant="secondary" onClick={onCancelEdit}>取消</Button>
-      </span>
-    ) : (
-      <>
+  // run-in 头（SenseFlow 的 `head`，仅主标签页的根容器走这里）：衬线斜体的词性标签（或字段名）
+  // + 中/英计数 + 拉到右缘的长横线；窗格自己的手柄 / 单击编辑 / 行尾簇原样保留。
+  // 词性窗格的头标签是**值**（`adj.`），不是字段名（`词性`）——后者会与每个义项行的 POS 标签重复。
+  const headLabelStyle: CSSProperties = {
+    fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '16px', fontWeight: 600, whiteSpace: 'nowrap',
+  }
+  const headCounts = isPosPane
+    ? `中文 ${zhCount} · 英文 ${enCount}`
+    : (hasChildren ? String(posChildren.length) : undefined)
+  const groupHead = (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', padding: '2px 0 2px 11px' }}>
+      {grip}
+      {isPosPane && isEditing ? (
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+          <input
+            className="px-3 py-1.5 rounded text-sm"
+            style={{ border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)', maxWidth: '240px' }}
+            value={editValue}
+            onChange={e => onEditValueChange(e.target.value)}
+            autoFocus
+          />
+          <Button onClick={onSave}>保存</Button>
+          <Button variant="secondary" onClick={onCancelEdit}>取消</Button>
+        </span>
+      ) : isPosPane ? (
         <span
           onClick={() => editorMode && onStartEdit(fv)}
           onDoubleClick={() => !editorMode && onStartEdit(fv)}
@@ -247,23 +296,31 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, ...ctx }: FieldCard
           tabIndex={0}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStartEdit(fv) } }}
           title={editorMode ? '点击编辑词性标签' : '双击编辑词性标签'}
-          style={{
-            display: 'inline-flex', alignItems: 'center', height: '20px', padding: '0 10px',
-            borderRadius: 'var(--radius-sm)', fontSize: 'var(--text-xs)', fontWeight: 700, letterSpacing: '0.5px',
-            background: 'transparent', color: 'var(--color-pos)', border: '1.5px solid var(--color-pos)',
-            whiteSpace: 'nowrap', flexShrink: 0, cursor: 'pointer',
-          }}
+          style={{ ...headLabelStyle, cursor: 'pointer' }}
         >
-          {def.name} {fv.value}
+          {fv.value}
         </span>
-        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>
-          中文: <span className="stat-num">{zhCount}</span>
-          {' · '}
-          英文: <span className="stat-num">{enCount}</span>
-        </span>
-      </>
-    )
-  ) : (
+      ) : (
+        <span style={headLabelStyle}>{def.name}</span>
+      )}
+      {!isEditing && headCounts !== undefined && (
+        <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{headCounts}</span>
+      )}
+      <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />
+      <span style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+        <SourceMark state={rowState} />
+        <RowActions
+          visible={editorMode || showsButtons}
+          onAdd={() => onToggleAddMenu(fv)}
+          menu={<RowMenu items={menuItems} />}
+        />
+      </span>
+    </div>
+  )
+
+  // 正文内容槽：标签 / 值。词性窗格的内容（POS 标签 + 中英计数）改由 run-in 头承担
+  // （词性窗格一律作组的头渲染，见 groupHead），故此处不再有词性分支。
+  const content = (
     <>
       {labelText && (
         <span
@@ -382,45 +439,30 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, ...ctx }: FieldCard
         />
       )}
 
-      {/* 行：FlowRow 承载来源条 / 义号 / 正文 / 行尾槽。行尾槽 = 来源标 + 操作簇（常驻占位）。 */}
+      {/* 行体：组的根容器走 run-in 头（groupHead）；其余行走 FlowRow
+          （来源条 / 义号 / 正文 / 行尾槽，行尾槽 = 来源标 + 操作簇，常驻占位）。 */}
       <div style={{ position: 'relative' }}>
-        <FlowRow
-          no={no}
-          state={rowState}
-          end={
-            <>
-              <SourceMark state={rowState} />
-              <RowActions
-                visible={editorMode || showsButtons}
-                onAdd={() => onToggleAddMenu(fv)}
-                menu={<RowMenu items={menuItems} />}
-              />
-            </>
-          }
-        >
-          <span style={{ display: 'flex', alignItems: 'baseline', gap: '4px', flex: 1, minWidth: 0 }}>
-            {/* 左端 gutter：手柄的落点（v0.5.2 修订）。宽度固定 10px，手柄显隐不改变文字区宽度 → 零重排。 */}
-            <span style={{ width: GUTTER_WIDTH, flexShrink: 0, alignSelf: 'center', display: 'inline-flex', alignItems: 'center' }}>
-              <button
-                type="button"
-                ref={setActivatorNodeRef}
-                {...listeners}
-                {...attributes}
-                title="拖动排序"
-                aria-label="拖动排序"
-                style={{
-                  width: '10px', height: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
-                  cursor: isDragging ? 'grabbing' : 'grab', color: 'var(--color-text-tertiary)',
-                  flexShrink: 0, alignSelf: 'center', touchAction: 'none', ...reveal(showsButtons),
-                }}
-              >
-                <Icon name="grip" size={10} />
-              </button>
+        {asGroupHead ? groupHead : (
+          <FlowRow
+            no={no}
+            state={rowState}
+            end={
+              <>
+                <SourceMark state={rowState} />
+                <RowActions
+                  visible={editorMode || showsButtons}
+                  onAdd={() => onToggleAddMenu(fv)}
+                  menu={<RowMenu items={menuItems} />}
+                />
+              </>
+            }
+          >
+            <span style={{ display: 'flex', alignItems: 'baseline', gap: '4px', flex: 1, minWidth: 0 }}>
+              {grip}
+              {content}
             </span>
-            {content}
-          </span>
-        </FlowRow>
+          </FlowRow>
+        )}
 
         {/* 行级「＋ 添加」菜单：加到本行所在容器（沿用 ALLOWED_CHILD_KEYS 的判据）。 */}
         {addMenu?.target === 'row' && addMenu.id === fv.id && containerFv && (
@@ -433,7 +475,8 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, ...ctx }: FieldCard
         )}
       </div>
 
-      {hasChildren && (
+      {/* 子行：run-in 头形态下子行由组装配另作义项行，此处不出。 */}
+      {!asGroupHead && hasChildren && (
         <div style={hasTerminalChildren
           ? { marginTop: '4px' }
           : {
@@ -459,6 +502,7 @@ export default function WordWorkbench() {
   const [entryValue, setEntryValue] = useState('')  // 进入编辑时的值
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [addMenu, setAddMenu] = useState<AddMenuState>(null)
+  const [saved, setSaved] = useState(false)
   const [fadeIn, setFadeIn] = useState(true)
   const [insertIndicator, setInsertIndicator] = useState<InsertIndicator | null>(null)
   const [capsuleExpanded, setCapsuleExpanded] = useState(false)
@@ -483,6 +527,14 @@ export default function WordWorkbench() {
     if (selectedWordId) loadWordCategories(selectedWordId)
   }, [selectedWordId])
 
+  // 保存确认条（v0.7.2 恢复；Task 2 Ruling 12 把「保存脉冲条」的动画换成同一元素上的
+  // background-color 过渡，故留下的是**确认**，不是脉冲）：置位后 500ms 自动收起。
+  useEffect(() => {
+    if (!saved) return
+    const timer = setTimeout(() => setSaved(false), 500)
+    return () => clearTimeout(timer)
+  }, [saved])
+
   // Fade-in on word switch
   useEffect(() => {
     setFadeIn(false)
@@ -490,7 +542,9 @@ export default function WordWorkbench() {
     return () => cancelAnimationFrame(raf)
   }, [selectedWordId])
 
-  // Esc 关闭工作台浮层（＋ 添加菜单；⋯ 菜单与两级展开由 ContextMenu 自管）
+  // Esc 关闭「＋ 添加」浮层：页级与行级共用同一份 addMenu 状态，故一处清空即可。
+  // 行级 ⋯ 菜单由 ContextMenu 自管（它自己监听 Esc / 点外）。原先 ⋯ 菜单里的「添加子词条」
+  // 二级展开已取消——子类型改由行尾 ＋ 打开 AddMenu 提供（见 FieldCard 的 containerChildDefs）。
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setAddMenu(null)
@@ -562,6 +616,7 @@ export default function WordWorkbench() {
       })
     }
     setEditingId(null)
+    setSaved(true)  // 保存确认条：仅在真实落库后置位（未改动早退的那条不置）
   }
 
   const handleDelete = async () => {
@@ -781,16 +836,34 @@ export default function WordWorkbench() {
   }
 
   const tabLabel = effectiveTab ? TAB_GROUPS[effectiveTab].label : ''
-  // 正文流（SenseFlow）：字段列表整体走一条正文流。每行连同其父节点一起带上——
-  // 行尾「＋」要加到**本行所在容器**，叶子行的容器就是父节点（平铺标签页的子项也不例外）。
-  const flowRows: { fv: FieldValue; parentFv: FieldValue | null; depth: number }[] = isFlatTab
-    ? sortedTabValues.flatMap(root => (root.children ?? []).map(child => ({ fv: child, parentFv: root, depth: isGroupTab ? 0 : 1 })))
-    : sortedTabValues.map(v => ({ fv: v, parentFv: null, depth: 0 }))
-  const flowGroups: SenseGroup[] = flowRows.length > 0
-    ? [{ pos: tabLabel, items: flowRows.map(({ fv, parentFv, depth }) => (
-        <FieldCard key={fv.id} fv={fv} depth={depth} parentFv={parentFv} {...cardCtx} />
-      )) }]
-    : []
+  // 正文流（SenseFlow）：字段列表走一条正文流。
+  //  · 主标签页：**每个根容器一个组**，run-in 头就是该容器的头——词性窗格给出 POS 标签（衬线斜体）
+  //    + 中/英计数，其余根容器（补充）用字段名；头里保留窗格自己的拖拽 / 编辑 / 行尾簇，子行（释义…）
+  //    作义项行。这与返回页「每个顶层容器一个 run-in 头」的用法一致。
+  //  · 平铺标签页：整体一个头（页签名），子项直接作义项行（与旧行为一致，根容器仍跳过）。
+  // 每行连同其父节点一起带上——行尾「＋」要加到**本行所在容器**，叶子行的容器就是父节点。
+  const flatRows: { fv: FieldValue; parentFv: FieldValue | null; depth: number }[] = sortedTabValues
+    .flatMap(root => (root.children ?? []).map(child => ({ fv: child, parentFv: root, depth: isGroupTab ? 0 : 1 })))
+  const flowGroups: SenseGroup[] = isFlatTab
+    ? (flatRows.length > 0
+        ? [{ pos: tabLabel, items: flatRows.map(({ fv, parentFv, depth }) => (
+            <FieldCard key={fv.id} fv={fv} depth={depth} parentFv={parentFv} {...cardCtx} />
+          )) }]
+        : [])
+    : sortedTabValues.map(root => {
+        const counters = { zh: 0, en: 0 }
+        const rootKey = keyOfFv(root)
+        return {
+          head: <FieldCard key={root.id} fv={root} depth={0} parentFv={null} asGroupHead {...cardCtx} />,
+          items: (root.children ?? []).map(child => (
+            <FieldCard
+              key={child.id} fv={child} depth={1} parentFv={root}
+              labelOverride={childLabelOverride(rootKey, keyOfFv(child), child, counters)}
+              {...cardCtx}
+            />
+          )),
+        }
+      })
 
   // 页级「＋ 添加」菜单条目：本标签页全部可加项（沿用 addableLeafKeys 判据）+ 新建标签页 / 词根 / 音标
   const pageAddItems: AddItem[] = effectiveTab
@@ -853,6 +926,17 @@ export default function WordWorkbench() {
           headword={selectedWord.lemma}
           leechCount={overlay && isLeech(overlay.maxLapses, leechThreshold) ? overlay.maxLapses : undefined}
           strength={<StrengthChip wordId={selectedWord.id} stability={overlay?.weakestStability ?? null} familiarity={overlay?.familiarity ?? 1} />}
+          savedMark={saved ? (
+            // 保存确认条（v0.7.2 恢复；Task 2 Ruling 12 把「保存脉冲条」的动画换成了同一元素上的
+            // background-color 过渡，故留下的是**确认**）：4×24 品牌色竖条，500ms 后由上面的 effect 收起。
+            <span
+              aria-hidden="true"
+              style={{
+                width: '4px', height: '24px', background: 'var(--color-brand)', borderRadius: '2px', flexShrink: 0,
+                transition: 'background-color var(--duration-fast) var(--ease-smooth)',
+              }}
+            />
+          ) : undefined}
           rows={
             <>
               <div style={{ marginTop: '7px' }}>
@@ -961,7 +1045,7 @@ export default function WordWorkbench() {
           onDragCancel={handleDragCancel}
         >
           <div style={{ marginTop: '8px' }}>
-            {flowRows.length > 0
+            {flowGroups.length > 0
               ? <SenseFlow groups={flowGroups} />
               : (
                 <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: 'var(--color-text-tertiary)' }}>

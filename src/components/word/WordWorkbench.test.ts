@@ -40,10 +40,13 @@ describe('rowSourceState（v0.7.2 §8.2：来源三态只在编者模式现形�
 describe('工作区改用原语（源码级守卫）', () => {
   const src = readFileSync(new URL('./WordWorkbench.tsx', import.meta.url), 'utf8')
 
-  it('行尾簇常驻占位：RowActions 始终存在，只由 opacity 控显隐（不得条件渲染）', () => {
-    expect(src).toMatch(/RowActions/)
-    expect(src).not.toMatch(/\{hovered && <RowActions/)          // brief §Step 4 的原始判据
-    expect(src).not.toMatch(/showsButtons\s*&&\s*<RowActions/)   // 也不得换名后条件渲染
+  it('行尾簇常驻占位：RowActions 只由 visible 属性控显隐，绝不被 && / ? 条件渲染', () => {
+    // 正面：必须挂 visible 属性（opacity 的驱动），而不是别的开关。
+    expect(src).toMatch(/<RowActions\s+visible=/)
+    // 反面：任何 `x && <RowActions` / `x ? <RowActions`（含改名后的变量、含括号）都不得出现——
+    // 这是 v0.5.2 hover 折行抖动的回归形态。比只钉两个字面拼写（hovered / showsButtons）宽得多。
+    expect(src).not.toMatch(/&&\s*\(?\s*<RowActions/)
+    expect(src).not.toMatch(/\?\s*\(?\s*<RowActions/)
   })
 
   it('旧的卡片左条与三态徽章已删净（FIELD_LEFT_COLOR / fieldPaneLeftBar）', () => {
@@ -53,18 +56,16 @@ describe('工作区改用原语（源码级守卫）', () => {
     expect(src).not.toMatch(/fieldPaneLeftBar\s*\(/)
   })
 
-  it('字段行走 FlowRow + SourceMark 原语', () => {
-    expect(src).toMatch(/<FlowRow/)
-    expect(src).toMatch(/<SourceMark/)
+  it('字段行走 FlowRow + SourceMark，且两处来源态都接同一个 rowState（接线去掉即失败）', () => {
+    // 不是「<FlowRow 出现过」这种存在性断言：钉的是接线本身——FlowRow 收到 no + rowState，
+    // SourceMark 也收到同一个 rowState（来源条与来源标同源）。改坏任一接线，这两条即失败。
+    expect(src).toMatch(/<FlowRow\s+no=\{no\}\s+state=\{rowState\}/)
+    expect(src).toMatch(/<SourceMark state=\{rowState\} \/>/)
   })
 
   it('leechCount 按 isLeech(overlay.maxLapses, leechThreshold) 门控，不直接传 maxLapses', () => {
     expect(src).toMatch(/isLeech\(overlay\.maxLapses, leechThreshold\)/)
     expect(src).not.toMatch(/leechCount=\{overlay\.maxLapses\}/)
-  })
-
-  it('来源三态经 rowSourceState 门控（与两个原语同判据，不在别处再写一份）', () => {
-    expect(src).toMatch(/rowSourceState\(/)
   })
 
   it('页级「＋ 添加」与行级「＋」共用 AddMenu；容器内虚线圆钮已删', () => {

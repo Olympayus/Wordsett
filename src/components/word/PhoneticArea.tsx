@@ -80,8 +80,9 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
         style={{
           ...chipBase,
           ...displayFont,
-          // 编者模式按来源三态上色（v0.5.2 修订）：与字段卡同一套中性 / 已编辑 / 个人底色，
-          // 原先是与三态无关的硬编码蓝。普通模式仍只在整行 hover 时给底色。
+          // 编者模式按来源三态给底色（FIELD_STATE_BG：中性 / 已编辑 / 个人），原先是与三态无关的硬编码蓝。
+          // 字段卡（v0.7.2 起）已改用形状编码——SourceMark 方点 + SourceBar 左条，不再用底色，
+          // 故这里是 FIELD_STATE_BG 仅剩的消费点。普通模式仍只在整行 hover 时给底色。
           background: isEditing ? 'var(--color-brand-soft)' : editorMode
             ? FIELD_STATE_BG[fieldState(fv)]
             : (rowHover ? 'var(--color-surface-sunken)' : 'transparent'),
