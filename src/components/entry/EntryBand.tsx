@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import LeechBadge from '../ui/LeechBadge'
 import SpeakButton from '../ui/SpeakButton'
-import { formatPhonetic } from '../../lib/phonetic'
 import { leechTooltip } from '../../lib/review/leech'
 
 /**
@@ -12,11 +11,16 @@ import { leechTooltip } from '../../lib/review/leech'
  * 头带里的字段行由调用方给（工作区给可编辑的，返回页给可勾选的），
  * 因为「这一行能不能编辑/勾选」是页面私有的行为。
  */
-export default function EntryBand({ headword, phonetic, speak = true, leechCount, strength, rows }: {
+export default function EntryBand({ headword, speak = true, leechCount, strength, rows }: {
   headword: string
-  phonetic?: string
   speak?: boolean
-  /** 连错次数；给了才渲染右上角的顽固词标记 */
+  /**
+   * 连错次数；**给了才**渲染右上角的顽固词标记（判据是 `!== undefined`）。
+   * 注意 0 **不是**「缺席」值：调用方通常从 `overlay.maxLapses`（非顽固词也为 0）
+   * 取值，直接传会把整库每个词都标成「连错 0 次」的顽固词。调用方须自行按策略门控，
+   * 生产口径是 `isLeech(maxLapses, leechThreshold)`（见 `src/lib/review/leech.ts`，
+   * 例 `WordWorkbench.tsx`）；`> 0` **不可**代用——阈值可配且 `isLeech` 在阈值为 0（「关掉」）时返回 false。
+   */
   leechCount?: number
   /** 记忆强度那一簇（传现成的 StrengthChip） */
   strength?: ReactNode
@@ -26,19 +30,13 @@ export default function EntryBand({ headword, phonetic, speak = true, leechCount
   return (
     <div style={{ borderBottom: '1px solid var(--color-border)', padding: '14px 0 12px' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-        <span style={{ fontFamily: 'var(--font-serif)', fontSize: '31px', fontWeight: 600, lineHeight: 1.15, letterSpacing: '-.01em' }}>{headword}</span>
+        <span style={{ fontFamily: 'var(--font-serif)', fontSize: '31px', fontWeight: 600, lineHeight: 1.15, letterSpacing: '-.01em', whiteSpace: 'nowrap' }}>{headword}</span>
         {speak && <SpeakButton text={headword} size={16} />}
         <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '11.5px', color: 'var(--color-text-tertiary)' }}>
-          {leechCount !== undefined && <><LeechBadge count={leechCount} compact /><span>顽固词 · {leechTooltip(leechCount)}</span></>}
-          {strength && <><span style={{ marginLeft: leechCount !== undefined ? '6px' : 0 }}>记忆强度</span>{strength}</>}
+          {leechCount !== undefined && <><span aria-hidden="true"><LeechBadge count={leechCount} compact /></span><span>顽固词 · {leechTooltip(leechCount)}</span></>}
+          {strength && <><span>记忆强度</span>{strength}</>}
         </span>
       </div>
-      {phonetic && (
-        <div style={{ display: 'flex', gap: '10px', marginTop: '7px', fontSize: '13px' }}>
-          <span style={{ width: '62px', flex: 'none', fontSize: '11.5px', color: 'var(--color-text-tertiary)', paddingTop: '2px' }}>音标</span>
-          <span style={{ fontFamily: 'var(--font-phonetic)', fontSize: '15px' }}>{formatPhonetic(phonetic)}</span>
-        </div>
-      )}
       {rows}
     </div>
   )
