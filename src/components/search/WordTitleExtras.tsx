@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { MergeFieldInput } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
 import { buildTitleMetaInputs, type TitleStripSelection } from '../../lib/titleStrip'
@@ -7,6 +8,18 @@ import CheckBox from '../ui/CheckBox'
 
 interface Props { meta: TitleMeta | null; onInputsChange: (inputs: MergeFieldInput[]) => void }
 
+// 头带字段行的标签列（v0.7.2）：与 EntryBand 内置音标行同款 62px 左列。
+const LABEL_COL: CSSProperties = {
+  width: '62px', flex: 'none', fontSize: '11.5px', color: 'var(--color-text-tertiary)', paddingTop: '2px',
+}
+
+/**
+ * 音标 / 词根两条可勾选字段行（v0.7.2 §8.3）。
+ *
+ * 不再是一条独立盒子——由 `DictDetailPanel` 交给 `EntryBand` 的 `rows`，与头带同幅。
+ * 勾选框保留：它们是返回页唯一能**单独勾选合并**的两项（其余字段在正文流的行尾勾选），
+ * 未勾选是中性描边。音标归本组件渲染（`EntryBand` 的 `phonetic` 不再传，避免音标出现两次）。
+ */
 export default function WordTitleExtras({ meta, onInputsChange }: Props) {
   const titleInfo = useSettingsStore(s => s.titleInfo)
   const [sel, setSel] = useState<TitleStripSelection>({ phonetic: true, wordRoot: true })
@@ -29,25 +42,21 @@ export default function WordTitleExtras({ meta, onInputsChange }: Props) {
   const showWordRoot = titleInfo.showWordRoot && meta.wordRoots.length > 0
   if (phonetic === null && !showWordRoot) return null
 
-  const checkable = (label: string, checked: boolean, onToggle: (v: boolean) => void) => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 0' }}>
-      <CheckBox checked={checked} onChange={onToggle} label={label} />
-      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-secondary)' }}>{label}</span>
-    </span>
-  )
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, margin: '4px 0 14px' }}>
+    <>
       {phonetic !== null && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {checkable('音标', sel.phonetic, v => setSel(s => ({ ...s, phonetic: v })))}
-          <span style={{ fontFamily: 'var(--font-phonetic)', fontSize: 15 }}>/{phonetic}/</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '7px' }}>
+          <span style={LABEL_COL}>音标</span>
+          <span style={{ fontFamily: 'var(--font-phonetic)', fontSize: '15px' }}>/{phonetic}/</span>
+          <span style={{ display: 'inline-flex' }}>
+            <CheckBox checked={sel.phonetic} onChange={v => setSel(s => ({ ...s, phonetic: v }))} label="音标" />
+          </span>
         </div>
       )}
 
       {showWordRoot && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-          {checkable('词根', sel.wordRoot, v => setSel(s => ({ ...s, wordRoot: v })))}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '7px' }}>
+          <span style={LABEL_COL}>词根</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {meta.wordRoots.map((r, i) => (
               <span key={i} style={{ fontSize: 13, color: 'var(--color-text-primary)' }}>
@@ -55,8 +64,11 @@ export default function WordTitleExtras({ meta, onInputsChange }: Props) {
               </span>
             ))}
           </div>
+          <span style={{ display: 'inline-flex', marginTop: 2 }}>
+            <CheckBox checked={sel.wordRoot} onChange={v => setSel(s => ({ ...s, wordRoot: v }))} label="词根" />
+          </span>
         </div>
       )}
-    </div>
+    </>
   )
 }

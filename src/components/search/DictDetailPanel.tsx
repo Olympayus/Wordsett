@@ -5,7 +5,7 @@ import WordTitleExtras from './WordTitleExtras'
 import SemanticNetwork from './SemanticNetwork'
 import TitleChips, { CollinsStars } from './TitleChips'
 import WorkbenchNavBar from '../word/WorkbenchNavBar'
-import SpeakButton from '../ui/SpeakButton'
+import EntryBand from '../entry/EntryBand'
 import { lookupTitleMeta, lookupWord } from '../../services/searchService'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
@@ -21,24 +21,33 @@ interface Props {
   word: string
 }
 
-// Tab 栏样式：active 品牌蓝下边框（方案 B mockup）
+// 页签样式：凸起页签（圆角顶、白底、压住下面那道 2px 线），色值走 token（借 word/TabBar 的视觉）。
 function tabStyle(active: boolean): CSSProperties {
   return {
-    fontFamily: 'var(--font-sans)',
-    fontSize: 'var(--text-sm)',
-    color: active ? 'var(--color-brand)' : 'var(--color-text-secondary)',
-    fontWeight: active ? 'var(--weight-semibold)' : 'var(--weight-medium)',
-    padding: '7px 14px',
-    border: 'none',
-    borderBottom: `2px solid ${active ? 'var(--color-brand)' : 'transparent'}`,
-    marginBottom: -1,
-    background: 'transparent',
-    cursor: 'pointer',
+    position: 'relative', padding: '7px 20px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
+    borderRadius: '8px 8px 0 0', zIndex: 1, border: 'none', fontFamily: 'var(--font-sans)',
+    background: active ? 'var(--color-surface)' : 'transparent',
+    color: active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+    fontWeight: active ? 600 : 400,
+    ...(active ? { border: '1px solid var(--color-border)', borderBottom: 'none', marginBottom: -2 } : {}),
   }
+}
+
+// 非活动页签的 hover：起底色并转主色（与 FreeScopeTabs / TabBar 同款；活动页签不动）。
+const tabHoverOn = (active: boolean) => (e: React.MouseEvent<HTMLButtonElement>) => {
+  if (active) return
+  e.currentTarget.style.background = 'var(--color-surface-hover)'
+  e.currentTarget.style.color = 'var(--color-brand)'
+}
+const tabHoverOff = (active: boolean) => (e: React.MouseEvent<HTMLButtonElement>) => {
+  if (active) return
+  e.currentTarget.style.background = 'transparent'
+  e.currentTarget.style.color = 'var(--color-text-secondary)'
 }
 
 // 词典详情视图（D2）：替换右侧区域。导航条返回/Esc 回词编辑视图（Task 5 追加「添加成功回编辑视图」）。
 // 词典 | 语义网络 双 Tab；导航条右端「合并添加」聚合全源勾选字段一次合并后跳编辑页（需求 2b 后半）。
+// v0.7.2 §8.3：整页改用展示原语——头带（EntryBand）→ 凸起页签 → 正文流（SenseFlow）→ 一行细动作。
 export default function DictDetailPanel({ word }: Props) {
   const [fields, setFields] = useState<DictionaryField[]>([])
   const [loading, setLoading] = useState(true)
@@ -157,7 +166,8 @@ export default function DictDetailPanel({ word }: Props) {
         minHeight: '100%', display: 'flex', flexDirection: 'column',
       }}>
         {/* 导航条（v0.5.3 §3.4）：与工作台同款同位置；左箭头返回工作台、右端合并添加。
-            v0.6.5 §4.5 起初始熟悉度三键也收进右端（原先是页面底部的收录区），状态仍归本面板。 */}
+            v0.6.5 §4.5 起初始熟悉度三键也收进右端（原先是页面底部的收录区），状态仍归本面板。
+            v0.7.2 §8.3：返回页分支加一条面包屑（词典 › 词），不再有别的浮动装饰。 */}
         <WorkbenchNavBar
           region="dict"
           onBack={showWorkbench}
@@ -167,43 +177,33 @@ export default function DictDetailPanel({ word }: Props) {
           familiarity={familiarity}
           onFamiliarityChange={setFamiliarity}
           inLibrary={inLibrary}
+          breadcrumb={<>词典 › <b style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>{word}</b></>}
         />
 
-        {/* 单词标题行（v0.5.3 §3.3）：星级紧随单词并与单词基线对齐；徽标与领域标签在右侧两行右对齐。
-            单词+星级 包一层 items-baseline：跨字体大小/行高比固定 px 偏移稳健；外层 items-start 保留给两行 TitleChips。 */}
-        <div className="flex items-start gap-2 mb-4">
-          {/* 单词+星级（基准线对齐组）：无 marginLeft:auto，星级紧邻单词右侧 */}
-          <div className="flex items-baseline gap-2">
-            <span style={{
-              fontFamily: 'var(--font-serif)', fontSize: 'var(--text-2xl)',
-              fontWeight: 'var(--weight-bold)', color: 'var(--color-text-primary)',
-              lineHeight: 1.2, whiteSpace: 'nowrap',
-            }}>
-              {word}
-            </span>
-            <CollinsStars meta={meta} />
-          </div>
-          {/* 发音按钮：所在的外层是 flex items-start（不是 items-baseline），图标靠
-              alignSelf:'center' 在行内居中。行高由最高的兄弟决定，而右侧 TitleChips 会渲染
-              徽标行 + 领域行两行，故该居中是相对「单词/星级」与「徽标组」之间的中点，不等价于
-              对齐单词/星级那一行——两行标签都在时可能看着偏下，待目视确认。
-              尺寸 17px：本处没传 size，取 SpeakButton 的默认值（与工作台一致）；
-              复习题面那处显式传 16。 */}
-          <span style={{ alignSelf: 'center', display: 'inline-flex' }}>
-            <SpeakButton text={word} />
-          </span>
-          <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>
-            <TitleChips meta={meta} />
-          </div>
-        </div>
+        {/* 词条头带（v0.7.2 §8.3）：单词 / 喇叭由 EntryBand 出；星级与徽标 / 领域标签并进头带
+            （EntryBand 没有这两项的槽位，故走 rows 的第一行）；音标 / 词根由 WordTitleExtras 交出
+            （可单独勾选合并，勾选框保留）。返回页不看顽固词与记忆强度，两个都不传。 */}
+        <EntryBand
+          headword={word}
+          rows={
+            <>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginTop: '7px' }}>
+                <CollinsStars meta={meta} />
+                <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>
+                  <TitleChips meta={meta} />
+                </div>
+              </div>
+              <WordTitleExtras key={word} meta={meta} onInputsChange={setStripInputs} />
+            </>
+          }
+        />
 
-        {/* 标题独立条：音标行/词根行（可勾选合并；徽标/领域在标题行右侧，见 TitleChips；key={word} 换词 remount 重置勾选） */}
-        <WordTitleExtras key={word} meta={meta} onInputsChange={setStripInputs} />
-
-        {/* Tab 栏：词典 | 语义网络（语义网络徽章为 relatedWords 真实计数） */}
-        <div style={{ display: 'flex', gap: 2, borderBottom: '1px solid var(--color-border)', marginBottom: 16 }}>
-          <button type="button" onClick={() => setTab('dict')} style={tabStyle(tab === 'dict')}>词典</button>
-          <button type="button" onClick={() => setTab('network')} style={tabStyle(tab === 'network')}>
+        {/* Tab 栏：词典 | 语义网络（凸起页签；语义网络徽章为 relatedWords 真实计数） */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: '4px 0 0', borderBottom: '2px solid var(--color-border-strong)', marginTop: 12, marginBottom: 16 }}>
+          <button type="button" onClick={() => setTab('dict')} style={tabStyle(tab === 'dict')}
+            onMouseEnter={tabHoverOn(tab === 'dict')} onMouseLeave={tabHoverOff(tab === 'dict')}>词典</button>
+          <button type="button" onClick={() => setTab('network')} style={tabStyle(tab === 'network')}
+            onMouseEnter={tabHoverOn(tab === 'network')} onMouseLeave={tabHoverOff(tab === 'network')}>
             语义网络
             <span style={{ marginLeft: 4, padding: '1px 8px', borderRadius: 'var(--radius-full)', fontSize: 11, fontWeight: 'var(--weight-medium)', background: 'var(--color-surface-sunken)', color: 'var(--color-text-secondary)' }}>
               {networkCount}
@@ -227,14 +227,12 @@ export default function DictDetailPanel({ word }: Props) {
             </div>
           ) : (
             <>
-              <div className="space-y-4">
-                <DictDetailCard
-                  ref={cardRef}
-                  word={word}
-                  fields={fields}
-                  onSelectionChange={handleSelectionChange}
-                />
-              </div>
+              <DictDetailCard
+                ref={cardRef}
+                word={word}
+                fields={fields}
+                onSelectionChange={handleSelectionChange}
+              />
 
               {mergeError && (
                 <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)', textAlign: 'center', paddingTop: '12px' }}>

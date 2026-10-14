@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useViewStore } from '../../stores/viewStore'
 import { useNavHistoryStore } from '../../stores/navHistoryStore'
 import { useWordStore } from '../../stores/wordStore'
@@ -29,6 +29,8 @@ interface WorkbenchNavBarProps {
   onFamiliarityChange?: (v: InitialFamiliarityChoice) => void
   /** 词已在库：三键整组换成「已在库」四字，保持右端宽度接近、按钮不左右跳。 */
   inLibrary?: boolean
+  /** 返回页（region='dict'）的面包屑（词典 › 词），渲染在返回箭头之后。工作区不传。 */
+  breadcrumb?: ReactNode
 }
 
 // 导航按钮（V8 .nav-btn）：无边框无底色，hover 才起底色；高取 NAV_CONTROL_HEIGHT，
@@ -48,7 +50,7 @@ const navBtn = (disabled = false): CSSProperties => ({
 // 形态对齐 V8 原型 .ed-toolbar：圆角描边浮条（--color-surface 底 + 1px 描边），而非仅一条下边框。
 export default function WorkbenchNavBar({
   region, onDeleteWord, onBack, onMergeAdd, mergeCount = 0, mergeDisabled = false,
-  familiarity, onFamiliarityChange, inLibrary = false,
+  familiarity, onFamiliarityChange, inLibrary = false, breadcrumb,
 }: WorkbenchNavBarProps) {
   const editorMode = useViewStore(s => s.editorMode)
   const setEditorMode = useViewStore(s => s.setEditorMode)
@@ -103,6 +105,10 @@ export default function WorkbenchNavBar({
       >
         <Icon name="arrow-left" size={15} />
       </button>
+      {/* 返回页面包屑（v0.7.2 §8.3）：返回箭头之后、右端动作簇之前，是导航条上唯一的浮动文字。 */}
+      {region === 'dict' && breadcrumb && (
+        <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{breadcrumb}</span>
+      )}
       {/* dict 区无法推进历史指针，其前进箭头必然禁用，故不渲染 */}
       {region === 'workbench' && (
         <button

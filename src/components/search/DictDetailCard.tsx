@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useImperativeHandle } from 'react'
+import { Fragment, useState, useMemo, useEffect, useImperativeHandle } from 'react'
 import type { ReactNode } from 'react'
 import type * as React from 'react'
 import type { DictionaryField } from '../../types/dictionary'
@@ -8,8 +8,10 @@ import { isFieldVisible } from '../../lib/fieldTree'
 import type { DisplayFieldKey } from '../../stores/settingsStore'
 import { flattenTree, buildMergeInputs, toggleSubtreeSelection, shouldNumberField, countZhEn, countAllDefinitions } from '../../lib/dictPlan'
 import type { FlatNode } from '../../lib/dictPlan'
-import PosTag from '../ui/PosTag'
 import CheckBox from '../ui/CheckBox'
+import SenseFlow from '../entry/SenseFlow'
+import type { SenseGroup } from '../entry/SenseFlow'
+import FlowRow from '../entry/FlowRow'
 
 interface Props {
   word: string
@@ -22,7 +24,8 @@ export interface DictDetailCardHandle {
   buildInputs: () => MergeFieldInput[] | null
 }
 
-// 字段类型 → 展示标签（词性节点用胶囊，故此处不映射）
+// 字段类型 → 展示标签（词性节点由 SenseFlow 的 run-in 头承担，故此处不映射）。
+// v0.7.2 起释义不再拼「中文释义(1)」这类标签——义号移进 FlowRow 的左槽。
 function fieldLabel(key: string): string {
   switch (key) {
     case 'chinese_definition': return '中文释义'
@@ -35,6 +38,11 @@ function fieldLabel(key: string): string {
     case 'synonym_discrimination': return '近义词辨析'
     default: return ''
   }
+}
+
+// 一行的标题：近义词辨析组的标题就是组描述（spec：注释小字改小标题），其余走字段标签。
+function rowLabel(node: FlatNode): string {
+  return node.field.key === 'synonym_discrimination_group' ? node.field.value : fieldLabel(node.field.key)
 }
 
 export default function DictDetailCard({
@@ -102,13 +110,6 @@ export default function DictDetailCard({
     setCollapsedKeys(new Set())
   }, [word_])
 
-  const toggleCollapse = (key: string) =>
-    setCollapsedKeys(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key); else next.add(key)
-      return next
-    })
-
   // 全部展开/收起：当前全部折叠 → 展开（清空 collapsedKeys）；否则收起（加入所有容器 key）
   const allCollapsed = containerKeys.size > 0 && [...containerKeys].every(k => collapsedKeys.has(k))
   const toggleAll = () => {
@@ -139,41 +140,6 @@ export default function DictDetailCard({
     setSelected(prev => toggleSubtreeSelection(prev, allNodeKeys, key))
   }
 
-  // 叶子值渲染（例句/词形变化项等特殊排版）
-  const renderValue = (node: FlatNode): ReactNode => {
-    const key = node.field.key
-    switch (key) {
-      case 'example':
-        return <div style={{ color: 'var(--color-text-secondary)', fontSize: '13px', fontStyle: 'italic' }}>"{node.field.value}"</div>
-      case 'exchange_item': {
-        const colonIdx = node.field.value.indexOf(':')
-        if (colonIdx > 0) {
-          return (
-            <div style={{ fontSize: '13px' }}>
-              <span style={{ color: 'var(--color-text-secondary)' }}>{node.field.value.substring(0, colonIdx)}:</span>{' '}
-              <span style={{ fontFamily: 'var(--font-serif)' }}>{node.field.value.substring(colonIdx + 1).trim()}</span>
-            </div>
-          )
-        }
-        return <div style={{ fontSize: '13px' }}>{node.field.value}</div>
-      }
-      case 'synonym_discrimination_item': {
-        const colonIdx = node.field.value.indexOf(':')
-        if (colonIdx > 0) {
-          return (
-            <div style={{ fontSize: '13px' }}>
-              <span style={{ color: 'var(--color-text-secondary)' }}>{node.field.value.substring(0, colonIdx)}:</span>{' '}
-              <span>{node.field.value.substring(colonIdx + 1).trim()}</span>
-            </div>
-          )
-        }
-        return <div style={{ fontSize: '13px' }}>{node.field.value}</div>
-      }
-      default:
-        return <div>{node.field.value}</div>
-    }
-  }
-
   // 中英释义行尾的来源小标记（其余字段类型不带）。只做提示，不参与勾选与入库。
   const sourceMark = (node: FlatNode) => {
     const src = node.field.source
@@ -181,121 +147,128 @@ export default function DictDetailCard({
     return (
       <span
         title={src === 'wordnet' ? '来自 WordNet' : '来自 ECDICT'}
-        style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-text-tertiary)', flexShrink: 0 }}
+        style={{ fontSize: 11, color: 'var(--color-text-tertiary)', flexShrink: 0 }}
       >
         {src === 'wordnet' ? '·wn' : '·ec'}
       </span>
     )
   }
 
-  // 叶子/带值容器的「标题 + 值同行」内容（其余纯容器标题独占一行）
-  const inlineContent = (node: FlatNode, label: string) => (
-    <div className="flex items-baseline gap-1.5 flex-wrap" style={{ flex: 1, minWidth: 0 }}>
-      {label && <span style={{ color: 'var(--color-text-secondary)', fontSize: 12, fontWeight: 700, letterSpacing: '0.5px' }}>{label}</span>}
-      {(!node.children.length || shouldNumberField(node.field.key)) && renderValue(node)}
-      {sourceMark(node)}
-    </div>
-  )
+  // 行尾槽（FlowRow 的 end）：来源标 + 勾选框。
+  // 勾选框沿用卡片既有激活形态（v0.7.2 Ruling 36）：<button> 自己经 onChange 切换，外层 span
+  // 只吞冒泡。FlowRow 本身没有行级 onClick（整行不再点击折叠），这层吞冒泡是防御性的——
+  // 一旦将来给行加点击，勾选框不会被顺手带上。
+  const endSlot = (node: FlatNode, checkboxLabel: string): ReactNode => {
+    const isContainer = node.children.length > 0
+    return (
+      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        {sourceMark(node)}
+        <span style={{ display: 'inline-flex' }} onClick={e => e.stopPropagation()}>
+          <CheckBox
+            checked={selected.has(node.key)}
+            label={checkboxLabel}
+            onChange={isContainer ? () => toggleSubtree(node.key) : () => toggle(node.key)}
+          />
+        </span>
+      </span>
+    )
+  }
 
-  // 递归渲染 flat 树：容器/词性行整棵勾选、行点击或 chevron 折叠；叶子与带值容器「标题+值」同行；
-  // 子级 16px 缩进、无分割线；词性组默认展开（collapsedKeys）。
-  const renderFlat = (nodes: FlatNode[]): ReactNode => {
-    const seen = new Map<string, number>()
-    const seenIndex = (key: string) => {
-      const idx = seen.get(key) ?? 0
-      seen.set(key, idx + 1)
-      return idx
+  // 一行的正文内容（spec §8.2）：中英释义、例句（衬线斜体 + 短破折号）、
+  // 词形变化 / 近义词辨析项（「标签: 值」），容器行显示其标题。
+  const renderContent = (node: FlatNode): ReactNode => {
+    switch (node.field.key) {
+      case 'chinese_definition':
+        return node.field.value
+      case 'english_definition':
+        return (
+          <span style={{ fontFamily: 'var(--font-serif)', fontSize: '14.5px', lineHeight: 1.65, color: 'var(--color-text-secondary)' }}>
+            {node.field.value}
+          </span>
+        )
+      case 'example':
+        return (
+          <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: 1.65, color: 'var(--color-text-secondary)' }}>
+            <span style={{ color: 'var(--color-border-strong)', marginRight: '8px' }}>–</span>{node.field.value}
+          </span>
+        )
+      case 'exchange_item':
+      case 'synonym_discrimination_item': {
+        const colonIdx = node.field.value.indexOf(':')
+        if (colonIdx > 0) {
+          return (
+            <>
+              <span style={{ color: 'var(--color-text-secondary)' }}>{node.field.value.substring(0, colonIdx)}:</span>{' '}
+              <span style={{ fontFamily: 'var(--font-serif)' }}>{node.field.value.substring(colonIdx + 1).trim()}</span>
+            </>
+          )
+        }
+        return node.field.value
+      }
+      default:
+        // 容器行（例句 / 近义词 / 词形变化…）：显示标题；叶子：显示值
+        return node.children.length > 0 ? rowLabel(node) : node.field.value
     }
+  }
 
-    return nodes.map(node => {
+  // 组内行：FlowRow 一行 + 其子级（文档序递归）。义号在中/英释义间**连续**（1..N），
+  // 容器行不编号；折叠态由「全部收起/展开」驱动（SenseFlow 的 run-in 头没有单组折叠控件）。
+  const renderRows = (nodes: FlatNode[], counter: { n: number }): ReactNode =>
+    nodes.map(node => {
       const isContainer = node.children.length > 0
-      const isPos = node.field.key === 'part_of_speech'
       const isDefinition = shouldNumberField(node.field.key)
-      const z = countZhEn(node)
+      const no = isDefinition ? ++counter.n : undefined
+      const label = rowLabel(node)
+      const checkboxLabel = isDefinition && no !== undefined ? `${label}(${no})` : (label || node.field.value || node.field.key)
       const collapsed = isContainer && collapsedKeys.has(node.key)
-      // 近义词辨析组的"小标题"=组描述（spec：注释小字改小标题，组为父级、成员为叶子）
-      const label = node.field.key === 'synonym_discrimination_group'
-        ? node.field.value
-        : (fieldLabel(node.field.key) + (isDefinition ? `(${seenIndex(node.field.key) + 1})` : ''))
-      // 复选框可访问名：词性用「词性 <tag>」，其余优先字段标签、其次字段值、最后字段 key
-      const checkboxLabel = isPos ? `词性 ${node.field.value}` : (label || node.field.value || node.field.key)
-
       return (
-        <div key={node.key}>
-          <div
-            className="flex items-start gap-2 cursor-pointer rounded px-1"
-            onClick={() => (isContainer ? toggleCollapse(node.key) : toggle(node.key))}
-            style={{ padding: '6px 4px' }}
-          >
-            {/* marginTop 是按**盒子高度**手调的光学对齐偏移：盒子的顶边与首行文字的 x-height
-                对齐，盒子矮 4px 后沿用 3 会显得偏下。改这个值前先改 CheckBox 的尺寸常量。 */}
-            <span
-              style={{ marginTop: 2, display: 'inline-flex', flexShrink: 0 }}
-              onClick={e => e.stopPropagation()}
-            >
-              <CheckBox
-                checked={selected.has(node.key)}
-                label={checkboxLabel}
-                onChange={isContainer ? () => toggleSubtree(node.key) : () => toggle(node.key)}
-              />
-            </span>
-            {isPos
-              ? <div className="flex items-center gap-1.5">
-                  <PosTag value={node.field.value} />
-                  <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)' }}>
-                    中 <b style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{z.cn}</b> · 英 <b style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{z.en}</b>
-                  </span>
-                </div>
-              : inlineContent(node, label)}
-            {isContainer && (
-              <button
-                type="button"
-                aria-label={collapsed ? '展开分组' : '折叠分组'}
-                onClick={e => { e.stopPropagation(); toggleCollapse(node.key) }}
-                className="ml-auto"
-                style={{ border: 'none', background: 'transparent', padding: '0 2px', cursor: 'pointer', color: 'var(--color-text-tertiary)', fontSize: 11, fontFamily: 'var(--font-sans)' }}
-              >{collapsed ? '▸' : '▾'}</button>
-            )}
-          </div>
-          {isContainer && !collapsed && (
-            <div style={{ paddingLeft: 16 }}>
-              {renderFlat(node.children)}
-            </div>
-          )}
-        </div>
+        <Fragment key={node.key}>
+          <FlowRow no={no} state="original" end={endSlot(node, checkboxLabel)}>
+            {renderContent(node)}
+          </FlowRow>
+          {isContainer && !collapsed && renderRows(node.children, counter)}
+        </Fragment>
       )
     })
-  }
+
+  // 正文流分组（SenseFlow）：每个顶层容器（词性组 / 补充 / 词形变化…）一个 run-in 头。
+  // 词性组右侧计数沿用 countZhEn（中 N · 英 M），其余容器显示子项数。
+  const groups: SenseGroup[] = flat.map(node => {
+    const isPos = node.field.key === 'part_of_speech'
+    const z = countZhEn(node)
+    const collapsed = node.children.length > 0 && collapsedKeys.has(node.key)
+    return {
+      pos: isPos ? node.field.value : (rowLabel(node) || node.field.value),
+      counts: isPos ? `中 ${z.cn} · 英 ${z.en}` : (node.children.length > 0 ? String(node.children.length) : undefined),
+      items: collapsed ? null : renderRows(node.children.length > 0 ? node.children : [node], { n: 0 }),
+    }
+  })
 
   const totalDefs = countAllDefinitions(fields)
 
   return (
-    <div className="rounded-lg border overflow-hidden"
-      style={{
-        borderColor: 'var(--color-border)',
-        background: 'var(--color-surface)',
-      }}>
-      {/* 卡片头部：条目计数 + 「全部展开/收起」（右对齐） */}
-      <div className="px-4 py-2.5 flex items-center gap-2">
-        {totalDefs.cn + totalDefs.en > 0 && (
-          <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-surface-sunken)', padding: '1px 8px', borderRadius: 'var(--radius-full)' }}>
-            共 <b style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{totalDefs.cn + totalDefs.en}</b> 条释义
-          </span>
-        )}
-        {containerKeys.size > 0 && (
-          <button
-            type="button"
-            className="ml-auto text-xs font-medium"
-            style={{ color: 'var(--color-text-secondary)', padding: '4px 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: 'transparent', border: '1px solid transparent', fontFamily: 'var(--font-sans)' }}
-            onClick={toggleAll}
-          >{allCollapsed ? '全部展开' : '全部收起'}</button>
-        )}
-      </div>
+    <>
+      {/* 正文流上方一行细动作（spec §8.3）：条目计数 + 全部展开/收起，右对齐。
+          那张大卡已去掉（v0.7.2），卡片头降为这一行。 */}
+      {(totalDefs.cn + totalDefs.en > 0 || containerKeys.size > 0) && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', padding: '2px 0 6px' }}>
+          {totalDefs.cn + totalDefs.en > 0 && (
+            <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-surface-sunken)', padding: '1px 8px', borderRadius: 'var(--radius-full)' }}>
+              共 <b style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{totalDefs.cn + totalDefs.en}</b> 条释义
+            </span>
+          )}
+          {containerKeys.size > 0 && (
+            <button
+              type="button"
+              className="text-xs font-medium"
+              style={{ color: 'var(--color-text-secondary)', padding: '4px 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: 'transparent', border: '1px solid transparent', fontFamily: 'var(--font-sans)' }}
+              onClick={toggleAll}
+            >{allCollapsed ? '全部展开' : '全部收起'}</button>
+          )}
+        </div>
+      )}
 
-      {/* 卡片内容 - POS 分组树 */}
-      <div className="px-4 py-3 space-y-3 text-sm">
-        {renderFlat(flat)}
-      </div>
-    </div>
+      <SenseFlow groups={groups} />
+    </>
   )
 }
