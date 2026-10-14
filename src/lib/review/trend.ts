@@ -21,7 +21,7 @@ export function dayTotal(d: DayRating): number {
 }
 
 /**
- * 当日正确率＝good / 总评分数。与 templateAccuracy 的「rating ≥ 3 算对」同口径：
+ * 当日记得率（v0.7.2 改名：原名正确率）＝good / 总评分数。与 templateAccuracy 的「rating ≥ 3 算对」同口径：
  * good 恰好收下 rating ≥ 3（4 折入 good，3 落 good），分母是全部评分数。
  * 空日返回 0（调用方只画有评分的日子，但保底口径写死在这里，免得分支各自发挥）。
  */
@@ -85,10 +85,10 @@ export function subtitleFor(kind: 'rating' | 'due' | 'mastery' | 'trend', stats:
     case 'trend': {
       const total = stats.recentRatings.reduce((n, r) => n + dayTotal(r), 0)
       if (total === 0) return '近 14 天还没有复习记录'
-      // 按当日复习量加权，不能对每日正确率取简单平均——那会让只有 1 张的日子
+      // 按当日复习量加权，不能对每日记得率取简单平均——那会让只有 1 张的日子
       // 与有 20 张的日子等权。
       const accSum = stats.recentRatings.reduce((n, r) => n + dayAccuracy(r) * dayTotal(r), 0)
-      return `合计: ${total} 张 · 平均正确率: ${Math.round((accSum / total) * 100)}%`
+      return `合计: ${total} 张 · 平均记得率: ${Math.round((accSum / total) * 100)}%`
     }
   }
 }

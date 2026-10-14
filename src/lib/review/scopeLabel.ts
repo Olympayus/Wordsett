@@ -20,7 +20,7 @@ export const FREE_SCOPE_LABEL: Record<FreeScopeKind, string> = {
 }
 
 /**
- * 控制台的正确率文案（v0.6.2 §4.1）。已答 0 时返回 `—`——
+ * 控制台的「记得率」文案（v0.7.2 改名：原名正确率；v0.6.2 §4.1 抽取）。已答 0 时返回 `—`——
  * 0/0 是未定义，写成 0% 会被用户读成「全错了」（Review Focus 2）。
  */
 export function accuracyText(answeredCount: number, correctCount: number): string {
@@ -29,14 +29,12 @@ export function accuracyText(answeredCount: number, correctCount: number): strin
 }
 
 /**
- * 控制台的正确数（spec §8.1）。判据 `rating >= 3` 与 `template.ts` 的 `templateAccuracy`
- * 同一处（那里也是 `>= 3`，并注明 Good/Easy 都算对）。
+ * 控制台的「记得率」分子（v0.7.2 改名：原名 correctCount / 正确率）。
  *
- * 用 `>= 3` 而非 `=== 3` 是刻意的：rating 4（轻松）在数据层已算「记得」，只是还没有 UI。
- * 写成 `=== 3` 会让将来 4 分档一上线，这行数字就无声地少算。
- *
- * 抽成函数而非留在 `ReviewModule` 里内联 filter：仓库没有组件测试 harness，
- * 内联的判据无从断言——spec §8.1 点的正是这一条。
+ * 它读的是 review_logs 里的 rating，客观上判不出对错（日志里没有客观结论这一列，
+ * 要补就得动 schema），所以它量的是**记忆程度**：rating >= 3（记得 / 记得很牢）的占比。
+ * 结算页那个「正确率」才是客观正误，两者刻意分开——正误和记忆程度不该互相折算。
+ * 判据保持 `>= 3` 而不是 `=== 3`：rating 4 已经算记得。
  */
 export function correctCount(answered: { rating: number }[]): number {
   return answered.filter(a => a.rating >= 3).length

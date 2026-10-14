@@ -3,7 +3,7 @@ import { accuracyText } from '../../lib/review/scopeLabel'
 /**
  * 左栏顶部小控制台（v0.6.1 §3.1，v0.6.2 §4.1 扩容，v0.6.3 条目 1、2 重排）。
  *
- * 两态：空闲态报全局量（今日待复习 / 新词 / 薄弱词），做题态报范围 / 题型 / 做题进度 / 正确率。
+ * 两态：空闲态报全局量（今日待复习 / 新词 / 薄弱词），做题态报范围 / 题型 / 做题进度 / 记得率。
  * 空闲态那两个数**不同源**（v0.6.3 打磨）：「n 张待复习」是到期积压量（getOverview().total，
  * 掩码层到期集），可以大于一轮的题数——单轮上限由设置的「队列上限」管；
  * 「新词: n」是本轮队列里实际会引入的新词数。同一个数在标题栏 chip 上也印一次，两处同源。
@@ -35,7 +35,9 @@ export default function ReviewConsole({ overview, weakCount, session }: {
     const { total, answeredCount, correctCount, scopeLabel, templateLabel } = session
     const pct = total > 0 ? (answeredCount / total) * 100 : 0
     return (
-      <div style={{ border: '1px solid var(--color-border)', background: 'var(--color-brand-softer)', borderRadius: 'var(--radius-lg)', padding: '9px 10px', marginBottom: '8px' }}>
+      <div style={{ border: '1px solid var(--color-border)', background: 'var(--color-surface-raised)', borderRadius: 'var(--radius-lg)', padding: '9px 10px', marginBottom: '8px' }}>
+        {/* 会话进行中：底改中性（v0.7.2），不再铺品牌蓝底——这一块是读数不是主色区。
+            边框早就有一道 1px --color-border，故只换背景，不另加线（否则重复）。 */}
         {/* 范围 / 题型：同一版式两行——标签左、值右；范围值走衬线体（条目 2） */}
         <div style={{ display: 'flex', gap: 8, fontSize: '10px', color: 'var(--color-text-secondary)' }}>
           <span>范围</span>
@@ -56,8 +58,10 @@ export default function ReviewConsole({ overview, weakCount, session }: {
         <div style={{ height: '3px', marginTop: '8px', background: 'var(--color-border)', borderRadius: '2px' }}>
           <div style={{ width: `${pct}%`, height: '100%', background: 'var(--color-brand)', borderRadius: '2px' }} />
         </div>
+        {/* v0.7.2：这一块是数据层的 rating 口径（rating ≥ 3 的占比），量的是记忆程度，
+            不是客观正误，故指标名从「正确率」改为「记得率」（结算页的「正确率」才是客观正误）。 */}
         <div style={{ marginTop: '6px', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-          正确数: <span className="stat-num">{correctCount}</span>　正确率: <span className="stat-num">{accuracyText(answeredCount, correctCount)}</span>
+          记得率: <span className="stat-num">{accuracyText(answeredCount, correctCount)}</span>
         </div>
       </div>
     )

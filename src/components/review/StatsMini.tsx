@@ -13,7 +13,7 @@ export interface ReviewStats {
  * 过类型检查、过 lint、渲染也像模像样，只在卡面写错数字。kind 写错则更隐蔽——趋势图搬进来时
  * 就差点把 TrendBar 带着上一张卡的 kind 一起改名。标题字面取自 spec §4.2 的表。
  *
- * 趋势卡标题不带期间（v0.6.3 打磨）：spec §4.2 写的是「近 14 天 · 复习量 / 正确率」，
+ * 趋势卡标题不带期间（v0.6.3 打磨）：spec §4.2 写的是「近 14 天 · 复习量 / 正确率」（v0.7.2 该指标改名为「记得率」），
  * 而卡头右上角自 v0.6.3 条目 7 起已由 periodFor('trend') 常驻「近 14 天」，
  * 标题里再写一遍是同一句话印两次。故只删期间前缀，「 / 」两侧的空格保留——
  * 全仓的斜杠写法都有空格（控制台的「已答 8 / 17」、本条原文）。
@@ -22,7 +22,7 @@ const CARDS = [
   { title: '遗忘曲线变动', kind: 'rating', render: (d: ReviewStats) => <RatingSpark data={d.recentRatings} /> },
   { title: '明日压力', kind: 'due', render: (d: ReviewStats) => <DueBars data={d.dueByDay} /> },
   { title: '熟知度分布', kind: 'mastery', render: (d: ReviewStats) => <MasteryBuckets data={d.masteryBuckets} /> },
-  { title: '复习量 / 正确率', kind: 'trend', render: (d: ReviewStats) => <TrendBars data={d.recentRatings} /> },
+  { title: '复习量 / 记得率', kind: 'trend', render: (d: ReviewStats) => <TrendBars data={d.recentRatings} /> },
 ] as const
 
 /**
@@ -163,7 +163,7 @@ function MasteryBuckets({ data }: { data: number[] }) {
   )
 }
 
-/** 近 14 天柱状：柱高＝当日复习量，柱色深浅＝当日正确率。与旧 OverviewPanel.TrendBar 同一判据。 */
+/** 近 14 天柱状：柱高＝当日复习量，柱色深浅＝当日记得率。与旧 OverviewPanel.TrendBar 同一判据。 */
 function TrendBars({ data }: { data: ReviewStats['recentRatings'] }) {
   const max = Math.max(1, ...data.map(dayTotal))
   return (
@@ -175,7 +175,7 @@ function TrendBars({ data }: { data: ReviewStats['recentRatings'] }) {
           return (
             <div
               key={r.day}
-              title={`${r.day}：${n} 张，正确率 ${Math.round(acc * 100)}%`}
+              title={`${r.day}：${n} 张，记得率 ${Math.round(acc * 100)}%`}
               style={{ flex: 1, height: `${Math.max(3, (n / max) * H)}px`, background: 'var(--color-brand)', opacity: 0.35 + acc * 0.65, borderRadius: '2px 2px 0 0' }}
             />
           )

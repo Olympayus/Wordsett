@@ -9,7 +9,7 @@ describe('lib/review/trend', () => {
     expect(dayTotal(day(0, 0, 0))).toBe(0)
   })
 
-  it('正确率＝good / 总数，与 templateAccuracy 的「rating ≥ 3 算对」同口径', () => {
+  it('记得率＝good / 总数，与 templateAccuracy 的「rating ≥ 3 算对」同口径', () => {
     // good 3 / 总 6 = 0.5。hard（rating 2）不计入分子——与 templateAccuracy 一样只看 rating ≥ 3。
     expect(dayAccuracy(day(1, 2, 3))).toBeCloseTo(0.5)
     expect(dayAccuracy(day(0, 0, 4))).toBe(1)     // 全记得
@@ -18,7 +18,7 @@ describe('lib/review/trend', () => {
     expect(dayAccuracy(day(2, 2, 0))).toBe(0)
   })
 
-  it('正确率在无评分的空日不除零', () => {
+  it('记得率在无评分的空日不除零', () => {
     expect(dayAccuracy(day(0, 0, 0))).toBe(0)
   })
 
@@ -57,9 +57,9 @@ describe('四宫格卡片的补充文字（v0.6.2 条目 9）', () => {
     expect(s).toBe('共 62 张，峰值在第 2 天')   // 5+22+17+9+5+3+1=62，不含今天的 0（brief 写的 78 是笔误）；峰值 22 在 dueByDay 的索引 2
   })
 
-  it('趋势卡报出合计与平均正确率', () => {
+  it('趋势卡报出合计与平均记得率', () => {
     const s = subtitleFor('trend', stats)
-    expect(s).toBe('合计: 12 张 · 平均正确率: 67%')   // 6 + 6；加权正确率 = 8 good / 12 = 66.7% → 67%
+    expect(s).toBe('合计: 12 张 · 平均记得率: 67%')   // 6 + 6；加权记得率 = 8 good / 12 = 66.7% → 67%
   })
 
   it('评分卡报出合计与加权均值', () => {
@@ -131,7 +131,7 @@ describe('卡片标题与 subtitleFor 的 kind 一一对应（防对调）', () 
     { kind: 'rating', frag: '均值' },
     { kind: 'due', frag: '峰值在第' },
     { kind: 'mastery', frag: '全库词汇数' },
-    { kind: 'trend', frag: '平均正确率' },
+    { kind: 'trend', frag: '平均记得率' },
   ] as const
 
   it('每个 kind 产出自己那张卡的文案，互不串台', () => {

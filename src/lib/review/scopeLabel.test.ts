@@ -37,7 +37,7 @@ describe('accuracyText（Review Focus 2）', () => {
   })
 })
 
-describe('correctCount（spec §8.1 控制台：正确数 = rating >= 3 计数）', () => {
+describe('记得率（correctCount；spec §8.1 控制台 rating >= 3 计数）', () => {
   it('空数组为 0', () => {
     expect(correctCount([])).toBe(0)
   })

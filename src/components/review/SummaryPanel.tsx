@@ -7,14 +7,14 @@ import { jumpToWord } from '../../lib/review/jumpToWord'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
 import { getAbsent } from '../../services/reviewService'
 import {
-  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, answerDisplay, correctnessLabel,
+  roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, answerDisplay, correctnessLabel, correctAnswerText,
 } from '../../lib/review/roundStats'
 
 /**
  * 本轮小结（v0.6.1 §3.9 → v0.6.2 条目 18 三段式）。
  *
  * 上＝统计（答题 / 正确 / 正确率 / 跳过），中＝图表（复习首页四图的本轮变体），
- * 下＝逐题明细（单词 | 题型 | 作答 | 正误 | 记忆评分）。
+ * 下＝逐题明细（单词 | 题型 | 作答 | 正确答案 | 正误 | 记忆评分）。
  *
  * 「答错的词」清单已删——明细表的「正误」列覆盖了它。
  * 「暂无可出题内容」保留为明细表下方的链接行：它来自 getAbsent()，是「库里没进过队列
@@ -70,7 +70,7 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
           <tr>
-            {['单词', '题型', '你的作答', '正误', '记忆评分'].map(h => (
+            {['单词', '题型', '你的作答', '正确答案', '正误', '记忆评分'].map(h => (
               <th key={h} style={{ textAlign: 'left', padding: '0 8px 6px', fontSize: '10.5px', color: 'var(--color-text-tertiary)', fontWeight: 600 }}>{h}</th>
             ))}
           </tr>
@@ -91,6 +91,9 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
                 </td>
                 <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12px', color: 'var(--color-text-secondary)' }}>{counts.find(x => x.template === c.template)?.label ?? c.template}</td>
                 <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12.5px' }}>{entry ? answerDisplay(entry) : '（未作答）'}</td>
+                {/* 「正确答案」直接由本行的 DTO（c）算出：c 就是这一行的 ReviewCardDTO，
+                    无需再回 queue 里按 cardId 找一遍（那会在未作答行上取到 undefined）。 */}
+                <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12.5px', color: 'var(--color-text-secondary)' }}>{correctAnswerText(c)}</td>
                 <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12px', fontWeight: 600, color: ok === null ? 'var(--color-text-tertiary)' : ok ? 'var(--color-success)' : 'var(--color-danger)' }}>
                   {correctnessLabel(ok)}
                 </td>
