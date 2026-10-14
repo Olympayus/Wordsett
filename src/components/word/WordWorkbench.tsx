@@ -896,6 +896,7 @@ export default function WordWorkbench() {
   // 头带里的字段行（音标 / 词根 / 分类）：与返回页同一形态。标签取设计稿 .frow .lb 的形式——
   // 62px 定宽列 / 11.5px / 常规字重 / 三级字色 / padding-top 2，与返回页 WordTitleExtras 的
   // LABEL_COL 逐项一致（评审 Minor M-1：两页曾一为 12px/700/次级、一为 11.5px/三级，看着不是一列）。
+  // 各行 gap 同为 10px（设计稿 .frow 的 gap），与返回页 WordTitleExtras 一致（评审：改前 8px）。
   const bandRowLabel: CSSProperties = { width: '62px', flexShrink: 0, fontSize: '11.5px', color: 'var(--color-text-tertiary)', paddingTop: 2 }
 
   return (
@@ -975,8 +976,9 @@ export default function WordWorkbench() {
                   stacked
                 />
               </div>
-              {/* 分类行（规格 §5.1）：分类胶囊 + 「+」新建/选择分类 */}
-              <div style={{ marginTop: '7px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+              {/* 分类行（规格 §5.1）：分类胶囊 + 「+」新建/选择分类。行距 gap 取 10px（设计稿 .frow 的 gap，
+                  showcase-v2:158/594；与返回页 WordTitleExtras 及上面两条 PhoneticArea 行同值）。 */}
+              <div style={{ marginTop: '7px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
                 <span style={bandRowLabel}>分类</span>
                 <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                   {shownCapsules.map(cat => (

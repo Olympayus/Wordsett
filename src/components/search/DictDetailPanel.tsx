@@ -201,18 +201,20 @@ export default function DictDetailPanel({ word }: Props) {
         />
 
         {/* Tab 栏：词典 | 语义网络（凸起页签；语义网络徽章为 relatedWords 真实计数）。
-            底取 --color-surface-sunken，与工作台 TabBar 同一 .tabs 配方（设计稿两页同款）——
-            否则白页签落在白页上，凸起只剩那道 1px 描边在撑。 */}
+            条面底 = --color-surface-sunken：**刻意偏离设计稿**——设计稿 .tabs 用 --paper（showcase-v2:172），
+            而 --paper = #F9F8F5 正是我们的 --color-canvas；两页（此处与工作台 TabBar）在代码里都走 sunken。
+            分支基线时 sunken 是更暗的一档（#EFECE5），条面确实凹陷，v0.7.2 的新档位只是压缩了这一步、
+            未撤销意图——勿改回 canvas，否则白页签落白页、hover 的凹陷值（tabHoverOn）也失去依据。 */}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: '4px 0 0', background: 'var(--color-surface-sunken)', borderBottom: '2px solid var(--color-border-strong)', marginTop: 12, marginBottom: 16 }}>
           <button type="button" onClick={() => setTab('dict')} style={tabStyle(tab === 'dict')}
             onMouseEnter={tabHoverOn(tab === 'dict')} onMouseLeave={tabHoverOff(tab === 'dict')}>词典</button>
           <button type="button" onClick={() => setTab('network')} style={tabStyle(tab === 'network')}
             onMouseEnter={tabHoverOn(tab === 'network')} onMouseLeave={tabHoverOff(tab === 'network')}>
             语义网络
-            {/* 计数胶囊：底原为 --color-surface-sunken，条面改 sunken 后与条面同色、非活动页签上
-                就看不见了。改 --color-chrome——比条面（sunken 95.8）深 2.47 L*、比活动页签的白面
-                深 6.63 L*，两种态都读得出来，且仍是「一个面」而非边框色。 */}
-            <span style={{ marginLeft: 4, padding: '1px 8px', borderRadius: 'var(--radius-full)', fontSize: 11, fontWeight: 'var(--weight-medium)', background: 'var(--color-chrome)', color: 'var(--color-text-secondary)' }}>
+            {/* 计数按设计稿 .tab .cnt（showcase-v2:175）：11px 纯文本 / 三级字色 / 左距 5px，
+                无底、无内边距、无圆角。改前的胶囊既偏离设计，又把 --color-chrome 用到了
+                标题栏 / 活动栏以外的用途（spec §1.1）。 */}
+            <span style={{ marginLeft: 5, fontSize: 11, color: 'var(--color-text-tertiary)' }}>
               {networkCount}
             </span>
           </button>

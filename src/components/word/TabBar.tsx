@@ -29,6 +29,10 @@ export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, o
   const [ctx, setCtx] = useState<{ tab: TabKey; x: number; y: number } | null>(null)
 
   return (
+    // 条面底 = --color-surface-sunken：**刻意偏离设计稿**——设计稿 .tabs 用 --paper（showcase-v2:172），
+    // 而 --paper = #F9F8F5 正是我们的 --color-canvas；两页（此处与词典返回页 DictDetailPanel）都走 sunken。
+    // 分支基线时 sunken 是更暗的一档（#EFECE5），条面确实凹陷，v0.7.2 的新档位只是压缩了这一步、
+    // 未撤销意图——勿改回 canvas，否则白页签落白页、hover 的凹陷值（TAB_HOVER_BG）也失去依据。
     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: '4px 24px 0', background: 'var(--color-surface-sunken)', borderBottom: '2px solid var(--color-border-strong)', position: 'relative', marginTop: 14 }}>
       {tabs.map(t => {
         const active = t === activeTab
