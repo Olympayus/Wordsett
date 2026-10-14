@@ -86,8 +86,10 @@ export default function DataSettings() {
       <div>
         <div style={{ ...SECTION_TITLE, marginBottom: '6px' }}>导入词库</div>
         <SquareButton tone="surface" onClick={handlePick} disabled={busy}>选择备份文件…</SquareButton>
+        {/* v0.7.2 §6 C 类：plan 盒的底从 --color-brand-soft 改中性 --color-surface-raised，
+            并补一道 1px 规则线（--color-border）——凹陷面 + 规则线是 spec §6 对 C 类的配方。 */}
         {plan && (
-          <div style={{ marginTop: '10px', padding: '10px 12px', background: 'var(--color-surface-raised)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)' }}>
+          <div style={{ marginTop: '10px', padding: '10px 12px', background: 'var(--color-surface-raised)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-sm)' }}>
             <div>{fmt(plan)}</div>
             {/* 「确认导入」与上方两个按钮同语言（暖中性底 + 深字），不再单列品牌底 + 白字变体：
                 变体色（--color-brand 浅品牌底 + 白字）与 SquareButton 的暖中性底 + 深字
@@ -97,7 +99,7 @@ export default function DataSettings() {
                 但 tone 仍走 canvas 而非 surface——判据是**直接父级**：它压的盒是
                 --color-surface-raised（L* 95.1），不是纯白（100）。白底套的 hover 是
                 --color-surface-sunken（L* 95.8），压在这个 95.1 的盒上只差 0.7 L*，
-                一 hover 就糊进容器里、读不出来了；画布套则留 5.8（静止）/ 4.4（hover）。
+                一 hover 就糊进容器里、读不出来了；画布套则留 6.8（静止）/ 4.4（hover）。
                 「比兄弟按钮重一档」是这条规则的代价，认。 */}
             <div style={{ marginTop: '8px' }}>
               <SquareButton tone="canvas" onClick={handleApply} disabled={busy}>确认导入</SquareButton>

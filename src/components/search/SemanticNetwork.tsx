@@ -140,10 +140,13 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
 
   return (
     <div>
+      {/* 面包屑路径条（v0.7.2 §6 C 类）：装饰底改中性——凹陷面 surface-raised + 一道 1px
+          规则线（--color-border），与 ReviewConsole 的会话块同一配方。 */}
       {data.path.length > 1 && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', fontSize: 12,
           color: 'var(--color-text-secondary)', background: 'var(--color-surface-raised)',
+          border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-md)', padding: '6px 10px', marginBottom: 14,
         }}>
           {data.path.map((p, i) => (
