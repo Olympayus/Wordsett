@@ -84,7 +84,7 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
           // 原先是与三态无关的硬编码蓝。普通模式仍只在整行 hover 时给底色。
           background: isEditing ? 'var(--color-brand-soft)' : editorMode
             ? FIELD_STATE_BG[fieldState(fv)]
-            : (rowHover ? '#F4F1EC' : 'transparent'),
+            : (rowHover ? 'var(--color-surface-sunken)' : 'transparent'),
         }}
         onMouseEnter={() => setChipHover(fv.id)}
         onMouseLeave={() => setChipHover(null)}
