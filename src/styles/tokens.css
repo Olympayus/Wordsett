@@ -58,9 +58,9 @@
   --color-leech: #A8554E;
   --color-scrim: rgba(28, 24, 20, 0.3);  /* 模态/抽屉覆盖层 */
 
-  /* 字体 */
-  --font-serif: 'Iowan Old Style', 'Palatino Linotype', 'Book Antiqua', 'Cambria', 'Georgia', 'Noto Serif SC', serif;
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', 'Noto Sans SC', sans-serif;
+  /* 字体（v0.7.2：三族随包，声明在 fonts.css） */
+  --font-serif: 'Literata', 'Noto Serif SC', 'Songti SC', Georgia, serif;
+  --font-sans: 'IBM Plex Sans', 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Cascadia Code', monospace;
   --font-phonetic: 'Lucida Sans Unicode', 'Doulos SIL', 'Charis SIL', sans-serif;
 

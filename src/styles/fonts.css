@@ -1,0 +1,41 @@
+/* v0.7.2：三族随包（都是 OFL，见 public/fonts/OFL.txt）。
+   每个 src 都以 local() 打头——装了同名字体的机器直接吃系统的，包内文件只是兜底。
+   中文只随包 sans 这一支（中文正文全在 --font-sans 下）；中文衬线继续走系统回退。 */
+
+@font-face {
+  font-family: 'Literata';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: local('Literata Regular'), url('/fonts/literata-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: normal; font-weight: 600; font-display: swap;
+  src: local('Literata SemiBold'), url('/fonts/literata-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Literata';
+  font-style: italic; font-weight: 400; font-display: swap;
+  src: local('Literata Italic'), url('/fonts/literata-400i.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal; font-weight: 400; font-display: swap;
+  src: local('IBM Plex Sans'), url('/fonts/plex-sans-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal; font-weight: 500; font-display: swap;
+  src: local('IBM Plex Sans Medium'), url('/fonts/plex-sans-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal; font-weight: 600; font-display: swap;
+  src: local('IBM Plex Sans SemiBold'), url('/fonts/plex-sans-600.woff2') format('woff2');
+}
+/* 中文一支可变字体覆盖 400/500/600；缺字由后面的系统字体接住（三段回退的第三段） */
+@font-face {
+  font-family: 'Noto Sans SC';
+  font-style: normal; font-weight: 100 900; font-display: swap;
+  src: local('Noto Sans SC'), local('Source Han Sans SC'), local('思源黑体'),
+       url('/fonts/noto-sans-sc-var.woff2') format('woff2');
+}
