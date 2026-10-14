@@ -112,7 +112,7 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
           {absent.map((a, i) => (
             <span key={a.wordId}>
               {i > 0 && ' · '}
-              <button type="button" onClick={() => void jumpToWord(a.wordId)} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', font: 'inherit', color: 'var(--color-brand)', textDecoration: 'underline' }}>
+              <button type="button" onClick={() => void jumpToWord(a.wordId)} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', font: 'inherit', color: 'var(--color-text-primary)', textDecoration: 'underline' }}>
                 {a.lemma}
               </button>
             </span>
@@ -201,7 +201,9 @@ function SeriesLine({ data }: { data: number[] }) {
 function StackedBars({ rows }: { rows: { label: string; n: number }[] }) {
   const total = rows.reduce((a, b) => a + b.n, 0)
   if (total === 0) return <div style={{ fontSize: '12px', color: 'var(--color-text-tertiary)' }}>—</div>
-  const colors = ['var(--color-brand)', '#7f9bb8', '#a9bccf', '#c9d4e0', 'var(--color-border)']
+  // 明度阶梯收进 token（v0.7.2 §6 C 类）：第 1 档用品牌蓝本身，中间三阶是 tokens.css 的
+  // --m-bar-1..3（品牌蓝的浅三阶），末档回落 --color-border。它是**读数**的色阶，故保留蓝。
+  const colors = ['var(--color-brand)', 'var(--m-bar-1)', 'var(--m-bar-2)', 'var(--m-bar-3)', 'var(--color-border)']
   return (
     <div style={{ display: 'flex', height: 16, borderRadius: 8, overflow: 'hidden' }}>
       {rows.map((r, i) => (

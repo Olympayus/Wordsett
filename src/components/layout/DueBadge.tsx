@@ -135,11 +135,12 @@ export default function DueBadge() {
           cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--color-text-secondary)',
         }}
       >
-        {/* 不套 .stat-num（index.css:23）——这是一次明确的豁免，不是漏掉。
-            .stat-num 只定义三件事：等宽字体、主文字色、semibold 字重。这个数三条全覆盖：
-            衬线（--font-serif）因为它要当展示性标题看，不为跟别的读数对齐；字重 700；
-            **颜色**——分档色承载信息，档位就靠这个数本身的颜色说（t1 深暖棕 / t2 暖橙），
-            换回主文字色等于把档位抹掉。三条定义全被有意覆盖时挂这个类只是噪音。
+        {/* 不套 .stat-num——这是一次明确的豁免，不是漏掉。
+            .stat-num（index.css）定义四件事：无衬线字体、表格数字（tabular-nums）、主文字色、
+            semibold 字重。这个数四条都按自己的定法覆盖：字体走衬线（--font-serif）——它要当
+            展示性标题看，不为跟别的读数对齐；字重 700；**颜色**——分档色承载信息，档位就靠
+            这个数本身的颜色说（t1 深暖棕 / t2 暖橙），换回主文字色等于把档位抹掉；也不给
+            tabular-nums（它是标题，不是要对齐的列读数）。四条定义全被有意覆盖时挂这个类只是噪音。
             .stat-num 那条约定要的是「统计读数彼此长得一样」，而按档位变色的展示标题是另一回事。
             窗口里那个大数字豁免同一类，但只覆盖两条（见下）。 */}
         <span
@@ -163,10 +164,10 @@ export default function DueBadge() {
                 长度（队列长度受队列上限截断，通常更小）。眉标必须描述它上面那个数。 */}
             <div style={{ fontSize: 11.5, color: 'var(--color-text-tertiary)', marginBottom: 8 }}>今日待复习</div>
             {/* 同样不套 .stat-num，还是一次明确的豁免：理由与 chip 里那个数一致——
-                分档色承载档位信息，衬线是展示性处理而非等宽读数，两条都按自己的定法覆盖。
+                分档色承载档位信息，衬线是展示性处理而非无衬线的列读数，两条都按自己的定法覆盖。
                 字重这一条要说准：本元素没写 font-weight，也**没挂 .stat-num**，所以它继承祖先的
                 默认字重（正文 normal 400）；「按 .stat-num 的 semibold 走」是错的——类不在这
-                个元素上，那条声明无从生效。即：声明上只覆盖两条，第三条走的是正文的默认值。 */}
+                个元素上，那条声明无从生效。即：声明上只覆盖两条（字体与颜色），其余走正文的默认值。 */}
             <div style={{ fontFamily: 'var(--font-serif)', fontSize: 30, lineHeight: 1, color: model.numColor }}>
               {count}{' '}
               <small style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 6 }}>张待复习</small>

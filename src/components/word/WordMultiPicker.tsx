@@ -156,7 +156,7 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
               />
               <span style={{ fontFamily: 'var(--font-serif)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{w.lemma}</span>
               {/* 该词现有分类数（§4.3）：行内补充读数，够不着「统计数字」的量级，
-                  故走三级灰 + xs 字号，不套 .stat-num（那套等宽+主色+半粗是给统计量的）。
+                  故走三级灰 + xs 字号，不套 .stat-num（那套无衬线+表格数字+主色+半粗是给统计量的）。
                   「加入」方向下它是这个词有多重归属，「移除」方向下它说明移出去会剩下几个。 */}
               <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
                 {categoryCountOf(w.id)}

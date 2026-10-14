@@ -199,7 +199,7 @@ export default function CategoryPickerPopover({ anchor, onPick, onClose, align =
               {cat.name}
             </span>
             {/* 词数是行内的补充读数，不是统计量：走三级灰 + 与正文同字号，不套 .stat-num
-                （那套等宽+主色+半粗是给统计数字的，见 index.css）。名可省略，数不省略。 */}
+                （那套无衬线+表格数字+主色+半粗是给统计数字的，见 index.css）。名可省略，数不省略。 */}
             <span style={{ flexShrink: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
               {memberCounts.get(cat.id) ?? 0}
             </span>

@@ -262,7 +262,7 @@ export default function DictDetailCard({
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', padding: '2px 0 6px' }}>
           {totalDefs.cn + totalDefs.en > 0 && (
             <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-surface-sunken)', padding: '1px 8px', borderRadius: 'var(--radius-full)' }}>
-              共 <b style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--color-text-primary)' }}>{totalDefs.cn + totalDefs.en}</b> 条释义
+              共 <b style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: 'var(--color-text-primary)' }}>{totalDefs.cn + totalDefs.en}</b> 条释义
             </span>
           )}
           {containerKeys.size > 0 && (

@@ -7,8 +7,20 @@ import Icon from '../icons'
 import { Button } from '../ui/Button'
 import CheckBox from '../ui/CheckBox'
 
-// 规格 §6.2 分类色板（8 色），与 tokens.css --color-cat-1..8 一致
-export const CATEGORY_COLORS = ['#7A7368', '#6B8E7F', '#4A6FA5', '#8B6A8B', '#C17A4E', '#B85450', '#5A7A8C', '#8B7355']
+// 规格 §6.2 分类色板（8 色）：唯一色值来源是 tokens.css 的 --color-cat-1..8
+// （v0.7.2 §6 D 类：裸 hex 收进 token，此处只引用变量名，不再复制一份 hex）。
+// 选中某色后落库的就是这个变量名字符串——渲染层（CategoryCapsule 的色块、设置页分类行）
+// 用 `background: <color>` 直接吃它，CSS 会解析变量。
+export const CATEGORY_COLORS = Array.from({ length: 8 }, (_, i) => `var(--color-cat-${i + 1})`)
+
+// 兼容 v0.7.2 之前落库的 hex 色值（老行存的是这 8 个 hex，新行存 token 名）。
+// **仅**用于把「编辑已有分类」载入的旧值归一到 token，好让色板能正确高亮当前选中色——
+// 否则老分类打开编辑框会一个色都不亮。待库里不再有旧行（或补一次数据迁移）即可删除本表。
+const LEGACY_HEX = ['#7A7368', '#6B8E7F', '#4A6FA5', '#8B6A8B', '#C17A4E', '#B85450', '#5A7A8C', '#8B7355']
+const normalizeColor = (c: string): string => {
+  const i = LEGACY_HEX.indexOf(c.toUpperCase())
+  return i >= 0 ? CATEGORY_COLORS[i] : c
+}
 
 interface Props {
   open: boolean
@@ -30,7 +42,7 @@ export default function CategoryEditorModal({ open, category, wordId, onClose, o
   useEffect(() => {
     if (!open) return
     setName(category?.name ?? '')
-    setColor(category?.color ?? CATEGORY_COLORS[0])
+    setColor(normalizeColor(category?.color ?? CATEGORY_COLORS[0]))
     setDescription(category?.description ?? '')
     setIsDefault(category?.isDefault ?? false)
     setError('')
@@ -127,11 +139,11 @@ export default function CategoryEditorModal({ open, category, wordId, onClose, o
         <div style={{ marginBottom: '16px' }}>
           <div style={labelStyle}>分类颜色</div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {CATEGORY_COLORS.map(c => (
+            {CATEGORY_COLORS.map((c, i) => (
               <button
                 key={c}
                 type="button"
-                aria-label={`选择颜色 ${c}`}
+                aria-label={`选择颜色 ${i + 1}`}
                 onClick={() => setColor(c)}
                 style={{
                   width: '28px', height: '28px', borderRadius: '50%', cursor: 'pointer',

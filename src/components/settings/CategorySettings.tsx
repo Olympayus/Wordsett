@@ -42,7 +42,7 @@ function CategoryRow({ cat, count, onEdit, onDelete, onBatchAdd, onBatchRemove }
         <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{cat.name}</div>
         {cat.description && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{cat.description}</div>}
       </div>
-      {/* 计数常驻：数字走 .stat-num（等宽 + 主色 + 半粗），汉字无衬线二级灰 */}
+      {/* 计数常驻：数字走 .stat-num（无衬线 + 表格数字 + 主色 + 半粗），汉字无衬线二级灰 */}
       <span style={{ whiteSpace: 'nowrap' }}>
         {/* className 统一数字格式（与工作区左下、侧栏分组、词性计数同源），
             字号仍内联——.stat-num 不设字号，WordList.tsx:241 也是类 + 内联字号。 */}
@@ -51,7 +51,7 @@ function CategoryRow({ cat, count, onEdit, onDelete, onBatchAdd, onBatchRemove }
       </span>
       {/* 批量两枚按钮排在编辑之前：紧邻分类名，「加一批 / 减一批」先于「改这个分类本身」 */}
       <button type="button" title={`批量加入「${cat.name}」`} aria-label={`批量加入「${cat.name}」`} onClick={onBatchAdd}
-        style={{ ...btnBase, color: hovered ? 'var(--color-brand)' : 'var(--color-text-secondary)' }}
+        style={{ ...btnBase, color: hovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
         <Icon name="plus" size={16} />
@@ -63,7 +63,7 @@ function CategoryRow({ cat, count, onEdit, onDelete, onBatchAdd, onBatchRemove }
         <Icon name="minus" size={16} />
       </button>
       <button type="button" title="编辑分类" aria-label="编辑分类" onClick={onEdit}
-        style={{ ...btnBase, color: hovered ? 'var(--color-brand)' : 'var(--color-text-secondary)' }}
+        style={{ ...btnBase, color: hovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
         <Icon name="edit" size={16} />

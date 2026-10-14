@@ -7,7 +7,8 @@ import type { FieldState } from '../../lib/fieldState'
  * 卡片上的「已编辑 / 个人」小徽章、以及 `fieldState.FIELD_STATE_BG` 的底色表。
  * 现在统一成「形状 + 一根圆头左条」，颜色只承担**数据标记**的意思：
  * 个人 = 陶土（唯一彩色的来源标记），已编辑 = 品牌蓝的空心方（那是字段的**状态**，不是内容分类）。
- * 底色不再参与编码——卡片底色现在是三档面的事。
+ * 底色不再参与**卡片**的编码——卡片底色现在是三档面的事。但 `FIELD_STATE_BG` 仍给**音标行**
+ * 按三态上底色（PhoneticArea.tsx），故底色只对卡片退出编码，不是全仓退出。
  */
 export default function SourceMark({ state }: { state: FieldState }) {
   if (state === 'original') return null

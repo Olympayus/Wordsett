@@ -115,14 +115,16 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
                 borderRadius: 'var(--radius-sm)',
                 transition: 'color var(--duration-fast) var(--ease-smooth), text-decoration-color var(--duration-fast) var(--ease-smooth)',
               }}
-              onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-brand)'; e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.textUnderlineOffset = '2px' }}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.textUnderlineOffset = '2px' }}
               onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.textDecoration = 'none' }}
             >
               {w}
             </button>
           </Tooltip>
           {isWordCollected(w, collectedWords) && (
-            <span aria-label="已收录" title="已收录" style={{ color: 'var(--color-brand)', fontSize: 10, fontWeight: 700 }}>✓</span>
+            // 「已收录」是**内容的数据标记**（这个词在不在库里），§6 规则 3：蓝不做数据标记，
+            // 故用中性二级灰，不再用品牌蓝。
+            <span aria-label="已收录" title="已收录" style={{ color: 'var(--color-text-secondary)', fontSize: 10, fontWeight: 700 }}>✓</span>
           )}
         </span>
       ))}
@@ -141,7 +143,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
       {data.path.length > 1 && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap', fontSize: 12,
-          color: 'var(--color-text-secondary)', background: 'var(--color-brand-soft)',
+          color: 'var(--color-text-secondary)', background: 'var(--color-surface-raised)',
           borderRadius: 'var(--radius-md)', padding: '6px 10px', marginBottom: 14,
         }}>
           {data.path.map((p, i) => (
@@ -173,7 +175,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
                 <button
                   type="button"
                   onClick={() => setExpanded(prev => ({ ...prev, [key]: !prev[key] }))}
-                  style={{ fontSize: 12, color: 'var(--color-brand)', padding: '3px 9px', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
+                  style={{ fontSize: 12, color: 'var(--color-text-primary)', padding: '3px 9px', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
                 >
                   {isExpanded ? '收起' : `+${items.length - 9} 更多`}
                 </button>
@@ -184,7 +186,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
       })}
 
       <div style={{ fontSize: 12, color: 'var(--color-text-tertiary)', borderTop: '1px dashed var(--color-border)', marginTop: 12, paddingTop: 9 }}>
-        点胶囊 → <b style={{ color: 'var(--color-brand)' }}>重新查询该词</b>，网络随词刷新
+        点胶囊 → <b style={{ color: 'var(--color-text-primary)' }}>重新查询该词</b>，网络随词刷新
       </div>
     </div>
   )

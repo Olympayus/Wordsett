@@ -48,9 +48,14 @@ export default function ConfirmDialog() {
             type="button"
             onClick={() => resolveConfirm(true)}
             style={{
-              padding: '6px 14px', border: 'none', borderRadius: 6,
-              background: danger ? 'var(--color-danger)' : 'var(--color-brand)',
-              color: '#FFFFFF', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)',
+              padding: '6px 14px', borderRadius: 6,
+              // v0.7.2 §6 规则 2：肯定动作不再是品牌蓝实底——非危险走中性配方
+              // （浅暖灰底 + 1px 深描边，与 Button/SquareButton 同一语言）；
+              // 危险动作用 --color-danger（§6 规则 3 的对错/危险色），白字保留。
+              border: danger ? 'none' : '1px solid rgba(0,0,0,.16)',
+              background: danger ? 'var(--color-danger)' : 'var(--color-border)',
+              color: danger ? 'var(--color-surface)' : 'var(--color-text-primary)',
+              fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)',
             }}
           >
             {confirmLabel}

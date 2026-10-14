@@ -14,7 +14,8 @@ import { speakWord } from '../../lib/review/speak'
 export default function SpeakButton({ text, size = 17, label = '播放发音', tone = 'tertiary', onPlay }: {
   text: string; size?: number; label?: string
   /** 静止态的颜色。默认 `tertiary`（词条卡/题面那三处的现状）；设置页的小标题旁是近黑
-   *  加粗字，`tertiary` 压在旁边太淡，故那里传 `secondary`。hover 一律转品牌色，不随此变。 */
+   *  加粗字，`tertiary` 压在旁边太淡，故那里传 `secondary`。hover 一律转主文字色 +
+   *  悬停底（v0.7.2 §6 规则 2：不再转品牌蓝——蓝不做「可点」的通用提示），不随此变。 */
   tone?: 'tertiary' | 'secondary'
   /** 接管默认的 `speakWord`。调用方自己负责错误——见上方注释。 */
   onPlay?: () => void
@@ -30,8 +31,8 @@ export default function SpeakButton({ text, size = 17, label = '播放发音', t
       onMouseLeave={() => setHover(false)}
       onClick={() => { if (onPlay) onPlay(); else void speakWord(text) }}
       style={{
-        border: 'none', background: hover ? 'var(--color-brand-softer)' : 'transparent',
-        color: hover ? 'var(--color-brand)' : `var(--color-text-${tone})`,
+        border: 'none', background: hover ? 'var(--color-surface-hover)' : 'transparent',
+        color: hover ? 'var(--color-text-primary)' : `var(--color-text-${tone})`,
         padding: 2, cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
         borderRadius: 'var(--radius-sm)', flexShrink: 0,
         transition: 'color var(--duration-fast) var(--ease-smooth), background-color var(--duration-fast) var(--ease-smooth)',

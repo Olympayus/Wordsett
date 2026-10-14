@@ -84,11 +84,12 @@ export default function CategoryAssignModal({ open, wordId, onClose, onCreateNew
             onClick={onCreateNew}
             style={{
               border: 'none', background: 'transparent', cursor: 'pointer',
-              fontSize: 'var(--text-sm)', color: 'var(--color-brand)',
+              // v0.7.2 §6 规则 2：可点提示不再用品牌蓝，hover 转主文字色 + 悬停底。
+              fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
               fontFamily: 'var(--font-sans)', padding: '6px 8px', borderRadius: 'var(--radius-sm)',
               transition: 'background-color var(--duration-fast) var(--ease-smooth)',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-brand-softer)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
           >
             + 新建分类

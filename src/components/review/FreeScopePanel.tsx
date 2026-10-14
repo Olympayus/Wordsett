@@ -198,7 +198,7 @@ export default function FreeScopePanel({ categories, onStart }: {
                     <span style={{ fontWeight: 600, fontSize: 13, fontFamily: 'var(--font-serif)', minWidth: 96 }}>{r.name}</span>
                     <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-text-secondary)' }}>
                       {/* 两个数字都套 .stat-num（v0.6.3 评审 F3）：同一行里只给待复习数套、
-                          词数留在外面，会让两个数一种等宽一种比例，读起来像两种量。 */}
+                          词数留在外面，会让两个数一种表格数字一种比例数字，读起来像两种量。 */}
                       <span className="stat-num">{r.wordCount}</span> 词 · 待复习 <span className="stat-num">{r.dueCount}</span>
                     </span>
                   </label>

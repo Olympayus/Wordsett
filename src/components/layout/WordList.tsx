@@ -483,7 +483,6 @@ export default function WordList({
             flexWrap: 'nowrap', justifyContent: 'space-between',
             padding: '8px', background: 'var(--color-surface)',
             border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
-            boxShadow: 'var(--shadow-raised)',
           }}>
             <BatchChip label="加入分类" icon="plus" collapsed={collapsed}
               onClick={() => setBatchPopover(batchPopover === 'add' ? null : 'add')} />

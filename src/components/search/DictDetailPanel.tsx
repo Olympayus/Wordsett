@@ -34,10 +34,11 @@ function tabStyle(active: boolean): CSSProperties {
 }
 
 // 非活动页签的 hover：起底色并转主色（与 FreeScopeTabs / TabBar 同款；活动页签不动）。
+// v0.7.2 §6 规则 2：转的是主文字色，不再是品牌蓝。
 const tabHoverOn = (active: boolean) => (e: React.MouseEvent<HTMLButtonElement>) => {
   if (active) return
   e.currentTarget.style.background = 'var(--color-surface-hover)'
-  e.currentTarget.style.color = 'var(--color-brand)'
+  e.currentTarget.style.color = 'var(--color-text-primary)'
 }
 const tabHoverOff = (active: boolean) => (e: React.MouseEvent<HTMLButtonElement>) => {
   if (active) return

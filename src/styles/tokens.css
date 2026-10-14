@@ -63,6 +63,12 @@
   --m-mastery-0: #D8D2C4; --m-mastery-1: #C7D0DB; --m-mastery-2: #A7B9CB;
   --m-mastery-3: #86A2C1; --m-mastery-4: #6789B0; --m-mastery-5: #4B6E9C;
 
+  /* 堆叠条明度阶梯（v0.7.2 §6 C 类）：SummaryPanel 的「本轮题型构成 / 评分分布」两图
+     按行序取色。第 1 档直接用 --color-brand 本身，末档回落 --color-border；
+     这里只放中间的三阶浅蓝（品牌蓝的明度阶梯，逐阶变浅）。它们是**读数**的色阶，
+     不是界面语言，故收进 token 而不动色值。唯一消费点是 SummaryPanel 的 StackedBars。 */
+  --m-bar-1: #7F9BB8; --m-bar-2: #A9BCCF; --m-bar-3: #C9D4E0;
+
   /* 字体（v0.7.2：三族随包，声明在 fonts.css） */
   --font-serif: 'Literata', 'Noto Serif SC', 'Songti SC', Georgia, serif;
   --font-sans: 'IBM Plex Sans', 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
@@ -127,7 +133,9 @@
   --z-modal: 40;
   --z-toast: 50;
 
-  /* 阴影：v0.7.2 起全站只留浮层那一个；soft / raised 仍有 4 处消费，由 Task 19 摘，名字保留以便回退。 */
+  /* 阴影：v0.7.2 起全站只留浮层那一个；soft / raised 的消费点已由 Task 19 全部摘除
+     （SmartViewList 选中项 / WordList 批量条 / TabBar 添加钮 hover / WordWorkbench 拖拽）。
+     名字保留以便回退——tokens.test.ts 钉住这两个名字不得删除。 */
   --shadow-soft: 0 1px 2px rgba(28, 24, 20, 0.04);
   --shadow-raised: 0 2px 8px rgba(28, 24, 20, 0.06);
   --shadow-overlay: 0 8px 24px rgba(28, 24, 20, 0.10);

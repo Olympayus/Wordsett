@@ -129,7 +129,7 @@ export default function ReviewModule() {
       <main className="flex-1 overflow-auto" style={{ background: 'var(--color-surface)' }}>
         <SessionGuard />
         {emptyNotice && (
-          <span style={{ display: 'block', padding: '12px 32px 0', fontSize: '12px', color: '#c0705a' }}>{emptyNotice}</span>
+          <span style={{ display: 'block', padding: '12px 32px 0', fontSize: '12px', color: 'var(--color-danger)' }}>{emptyNotice}</span>
         )}
         {showOverview && strategy === 'free' && (
           <FreeScopePanel

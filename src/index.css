@@ -18,11 +18,15 @@ body {
   outline-offset: 2px;
 }
 
-/* 统计数字统一格式：等宽 + 主色 + 半粗。
+/* 统计数字统一格式：无衬线 + 表格数字 + 主色 + 半粗。
    左下角「单词总数」、侧栏分组计数、词性右侧中英释义计数共用同一份，
-   三处都靠这几个属性表达「这是个数字」，各自内联写会漂移。 */
+   三处都靠这几个属性表达「这是个数字」，各自内联写会漂移。
+   v0.7.2 §1.5：等宽体不再承担「这是个数字」的装饰性用途（等宽只留给真正的
+   代码/路径场合），改用 Plex Sans 的表格数字（tabular-nums）——数字仍逐位对齐，
+   但字形归回正文族，与周围汉字不再两族并排。 */
 .stat-num {
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   color: var(--color-text-primary);
   font-weight: var(--weight-semibold);
 }

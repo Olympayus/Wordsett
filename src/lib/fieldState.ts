@@ -9,8 +9,9 @@ export const fieldState = (fv: FieldValue): FieldState =>
   fv.edited ? 'edited' : (fv.source === 'user' ? 'personal' : 'original')
 
 /**
- * 三态底色。卡片容器与 chip 都用它上色，避免两处各写一份色值而漂移。
- * 注意：卡片另有三态左边条（--color-weave-*）与边框，那属卡片的结构语义，不在此表内。
+ * 三态底色。**音标行是它仅剩的消费点**（PhoneticArea.tsx：编者模式下按来源三态上底）。
+ * 字段卡（v0.7.2 起）已不再用底色编码，改由形状承载——SourceMark 的方点与 SourceBar 的
+ * 左条（`--color-weave-edited` 在 SourceMark.tsx 仍在用，故 weave token 不删）。
  */
 export const FIELD_STATE_BG: Record<FieldState, string> = {
   original: 'var(--color-surface-sunken)',

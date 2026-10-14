@@ -96,8 +96,8 @@ function ChartFrame({ left, right, children }: { left: string; right: string; ch
     <div style={{ position: 'relative', height: H, marginBottom: 16 }}>
       {children}
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, background: 'var(--color-border-strong)' }} />
-      <span style={{ position: 'absolute', left: 0, bottom: -14, fontSize: 9.5, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-mono)' }}>{left}</span>
-      <span style={{ position: 'absolute', right: 0, bottom: -14, fontSize: 9.5, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-mono)' }}>{right}</span>
+      <span style={{ position: 'absolute', left: 0, bottom: -14, fontSize: 9.5, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{left}</span>
+      <span style={{ position: 'absolute', right: 0, bottom: -14, fontSize: 9.5, color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-sans)', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>{right}</span>
     </div>
   )
 }

@@ -260,7 +260,7 @@ export default function AnswerInput({
         {matches && (
           <div aria-hidden="true" style={{ position: 'absolute', inset: 0, padding: '8px 10px', fontSize: '14px', color: 'var(--color-text-primary)', pointerEvents: 'none', whiteSpace: 'pre' }}>
             {Array.from(value.trim()).map((ch, i) => (
-              <span key={i} style={{ color: matches[i] ? 'var(--color-text-primary)' : '#c0705a' }}>{ch}</span>
+              <span key={i} style={{ color: matches[i] ? 'var(--color-text-primary)' : 'var(--color-danger)' }}>{ch}</span>
             ))}
           </div>
         )}

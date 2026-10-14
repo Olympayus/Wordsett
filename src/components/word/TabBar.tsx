@@ -31,7 +31,7 @@ export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, o
               type="button"
               onClick={() => onSelect(t)}
               onContextMenu={e => { e.preventDefault(); setCtx({ tab: t, x: e.clientX, y: e.clientY }) }}
-              onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-brand)' } }}
+              onMouseEnter={e => { if (!active) { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' } }}
               onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' } }}
               style={{
                 position: 'relative', padding: editorMode ? '7px 26px 7px 20px' : '7px 20px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
@@ -71,8 +71,8 @@ export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, o
         <button
           type="button" title="添加标签页" aria-label="添加标签页"
           onClick={() => setAddOpen(v => !v)}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface)'; e.currentTarget.style.boxShadow = 'var(--shadow-soft)'; e.currentTarget.style.color = 'var(--color-brand)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}
           style={{
             width: 26, height: 26, borderRadius: 6, border: 'none', background: 'transparent',
             cursor: 'pointer', color: 'var(--color-text-secondary)', fontSize: 17, fontWeight: 600,

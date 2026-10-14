@@ -14,8 +14,8 @@ export const SCOPE_TABS: { key: FreeScopeKind; label: string }[] = [
  * 只借 word/TabBar.tsx 的凸起标签视觉——**不带**它的「＋ 添加标签页」下拉与右键删除菜单：
  * 自由练习的范围是固定四种，没有增删的语义。
  *
- * 色值已全部换成色板 token（四个 hex 与 tokens.css 逐字节相同，渲染结果不变）。
- * word/TabBar.tsx 里的同四个值仍是硬编码——那是它自己的既有代码，本次不动。
+ * 色值已全部换成色板 token（与 tokens.css 逐字节相同，渲染结果不变）。
+ * word/TabBar.tsx 的同款凸起页签也已在 v0.7.2 清掉硬编码 hex（Task 18），两处现在都走 token。
  */
 export default function FreeScopeTabs({ active, onSelect, right }: {
   active: FreeScopeKind
@@ -33,7 +33,7 @@ export default function FreeScopeTabs({ active, onSelect, right }: {
             type="button"
             aria-current={on ? 'true' : undefined}
             onClick={() => onSelect(t.key)}
-            onMouseEnter={e => { if (!on) { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-brand)' } }}
+            onMouseEnter={e => { if (!on) { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' } }}
             onMouseLeave={e => { if (!on) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' } }}
             style={{
               position: 'relative', padding: '7px 20px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',

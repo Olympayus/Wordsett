@@ -240,7 +240,7 @@ export default function ReviewArena() {
             // 而 setRevealed(true) 只在评分成功后跑：跳过落库失败时 revealed 仍为假、整块结果区
             // 不渲染，错误若只挂在块内就成「点了没反应」（题面不变、跳过还在、无提示）。
             // 评分成功时 setRateError(null) 已把它清掉，故成功后的「跳过」不会留残影。
-            <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: '#c0705a' }}>{rateError}</span>
+            <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: 'var(--color-danger)' }}>{rateError}</span>
           )}
 
           {revealed && (

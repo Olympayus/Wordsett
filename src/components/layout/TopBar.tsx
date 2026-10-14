@@ -146,7 +146,9 @@ export default function TopBar() {
         background: 'var(--color-canvas)', borderBottom: '1px solid var(--color-border)',
       }}
     >
-      {/* 左：Logo 32×32（规格 §3：圆角 radius-md，渐变 brand→#3A5A8A），点击回词编辑视图 */}
+      {/* 左：Logo 32×32（规格 §3：圆角 radius-md），点击回词编辑视图。
+          v0.7.2 §6：删掉品牌蓝的手写加深渐变（原 linear-gradient(brand, #3A5A8A)），
+          改单色品牌蓝底 + 白字（§1.4「删掉装饰性渐变」，#3A5A8A 随之消失）。 */}
       <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
         <button
           type="button"
@@ -157,7 +159,7 @@ export default function TopBar() {
           style={{
             width: '32px', height: '32px', flexShrink: 0, cursor: 'pointer', border: 'none',
             borderRadius: 'var(--radius-md)',
-            background: 'linear-gradient(135deg, var(--color-brand) 0%, #3A5A8A 100%)',
+            background: 'var(--color-brand)',
             display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
           }}
         >

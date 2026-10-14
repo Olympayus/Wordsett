@@ -217,7 +217,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     return (node.children ?? []).some(c => containsId(c, id))
   }
   const showsButtons = containsId(fv, hoveredId)
-  const draggingStyle = isDragging ? { transform: 'scale(1.02)', boxShadow: 'var(--shadow-raised)' } : null
+  // v0.7.2 §1.1：投影已全站摘除，拖拽反馈只剩轻微放大（scale 保留——它是拖拽态的位移提示，
+  // 不是 §1.4 要删的「按压」缩放）。
+  const draggingStyle = isDragging ? { transform: 'scale(1.02)' } : null
 
   // 拖拽手柄（左端 gutter）：FlowRow 行与 run-in 头共用。宽度固定 10px，手柄显隐不改变文字区宽度 → 零重排。
   const grip = (
@@ -992,7 +994,7 @@ export default function WordWorkbench() {
                         cursor: 'pointer', fontFamily: 'var(--font-sans)',
                         transition: 'color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
                       }}
-                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-brand)'; e.currentTarget.style.borderColor = 'var(--color-brand)' }}
+                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.borderColor = 'var(--color-text-primary)' }}
                       onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
                     >
                       {capsuleExpanded ? '收起' : `+${extraCapsules.length}`}
@@ -1014,7 +1016,7 @@ export default function WordWorkbench() {
                       color: 'var(--color-text-tertiary)',
                       transition: 'color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-brand)'; e.currentTarget.style.borderColor = 'var(--color-brand)' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.borderColor = 'var(--color-text-primary)' }}
                     onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
                   >
                     <Icon name="plus" size={16} />

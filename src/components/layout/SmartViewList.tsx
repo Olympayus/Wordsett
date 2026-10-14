@@ -8,7 +8,8 @@ import Icon from '../icons'
  *  间距（v0.6.5 修订）：原来容器只有左右下三个方向的内边距、项与项之间也没有任何间隙，
  *  于是一行贴一行、第一行直接顶住上面的筛选框——选中项有自己的底色与阴影，贴在一起时
  *  它和相邻项、和筛选框之间就分不出层次了。现在：上 10px 把这一组与筛选框分开，
- *  项间 2px 让相邻两项的底色框各自独立成块（选中框本身就带 --shadow-soft，一点余量就够）。 */
+ *  项间 2px 让相邻两项的底色框各自独立成块（v0.7.2：选中项的投影已摘除——§1.1 起靠明度
+ *  分层不靠投影，选中框是白底 --color-surface，压在索引栏 --color-surface-sunken 上，一点余量就够）。 */
 export default function SmartViewList({ views, active, counts, onSelect }: {
   views: SmartViewKey[]
   active: SmartViewKey
@@ -30,7 +31,6 @@ export default function SmartViewList({ views, active, counts, onSelect }: {
               display: 'flex', alignItems: 'center', gap: '7px', width: '100%',
               padding: '6px 8px', border: 'none', borderRadius: 'var(--radius-md)',
               background: on ? 'var(--color-surface)' : 'transparent',
-              boxShadow: on ? 'var(--shadow-soft)' : undefined,
               cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-sans)',
             }}
             onMouseEnter={e => { if (!on) e.currentTarget.style.background = 'var(--color-surface-hover)' }}
