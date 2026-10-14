@@ -24,17 +24,17 @@ const BUTTON_TRANSITION = 'background-color var(--duration-fast) var(--ease-smoo
 //
 // 阶梯参考（L*，v0.7.2 五档面实测）：#FFFFFF 100 → 画布 --color-canvas #F9F8F5 97.6
 //   → 白底套 rest #E8E4DE 90.7 → 白底套 hover --color-surface-sunken #F5F3ED 95.8；
-//   画布套 rest（--color-border-strong 60% + --color-surface-sunken）#E4E0DA 89.3
+//   画布套 rest（--color-border-strong 70% + --color-surface-sunken）#E1DDD7 88.3
 //   → hover --color-border #E8E4DE 90.7。
-// 白底套的 hover 阶差 5.1 L*；画布套只剩 1.4 L*——**低于 v0.6.1 定下的 2 L* 可读门槛**
+// 白底套的 hover 阶差 5.1 L*；画布套 2.4 L*，清过 v0.6.1 定下的 2 L* 可读门槛。
 // （Task 1 把 --color-border-strong / --color-surface-sunken 一并改浅后，画布套的 rest
-//  与 hover 被压近）。这是已知、**本次未修**的偏差：调 NEUTRAL_REST_CANVAS 的混合比即可
-//  恢复，但会牵动所有画布套按钮的观感，留待评审定夺，不属蓝色收窄范围。
+//  与 hover 一度被压到 1.4 L*；本次评审把 NEUTRAL_REST_CANVAS 的混合比从 60% 提到 70%，
+//  阶差恢复到 2.4 L*——由 #E1DDD7 的 88.3 与 hover #E8E4DE 的 90.7 实测而来。）
 // NEUTRAL_HOVER_CANVAS 与 NEUTRAL_REST_SURFACE 是**同一档**（--color-border），
 // 这是两套阶梯各自右移一阶的必然结果，不是笔误。改动其一必须同时改另一处，
 // 否则 hover 的阶差会塌掉：但 BUTTON_TONES 的形状把两套摆成了彼此独立，
 // 只调一档不会报错、只会悄悄破坏这个对应关系。
-const NEUTRAL_REST_CANVAS = 'color-mix(in srgb, var(--color-border-strong) 60%, var(--color-surface-sunken))'  // #E4E0DA
+const NEUTRAL_REST_CANVAS = 'color-mix(in srgb, var(--color-border-strong) 70%, var(--color-surface-sunken))'  // #E1DDD7
 const NEUTRAL_HOVER_CANVAS = 'var(--color-border)'                                                             // #E8E4DE
 const NEUTRAL_REST_SURFACE = 'var(--color-border)'                                                             // #E8E4DE
 const NEUTRAL_HOVER_SURFACE = 'var(--color-surface-sunken)'                                                     // #F5F3ED

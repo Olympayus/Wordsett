@@ -130,21 +130,27 @@ export default function DueBadge() {
         style={{
           ...model.style,
           display: 'inline-flex', alignItems: 'center', gap: 6,
-          background: open ? 'var(--color-brand-softer)' : 'var(--color-surface)',
-          border: `1px solid ${open ? 'var(--color-brand)' : borderColor}`,
+          // 展开态走中性底 + 规则线（v0.7.2 spec §6）。原来展开态铺 --color-brand-softer 底 +
+          // --color-brand 边，于是 t2 档展开时同一枚 chip 上蓝（底/边）与陶土（数字）并存。
+          // 现改为：底色随「待复习」这一状态走中性（--color-surface-raised 凹陷面），规则线由
+          // 那道 1px --color-border 边充当（边框本就有一道，不另加线）。收起态的档位色
+          // （数字 numColor / 描边 borderColor）不动——那是「待复习」的档位标记，不是这枚 chip 的展开态。
+          background: open ? 'var(--color-surface-raised)' : 'var(--color-surface)',
+          border: `1px solid ${open ? 'var(--color-border)' : borderColor}`,
           cursor: 'pointer', fontFamily: 'var(--font-sans)', color: 'var(--color-text-secondary)',
         }}
       >
         {/* 不套 .stat-num——这是一次明确的豁免，不是漏掉。
             .stat-num（index.css）定义四件事：无衬线字体、表格数字（tabular-nums）、主文字色、
-            semibold 字重。这个数四条都按自己的定法覆盖：字体走衬线（--font-serif）——它要当
+            semibold 字重。这个数三条按自己的定法覆盖：字体走衬线（--font-serif）——它要当
             展示性标题看，不为跟别的读数对齐；字重 700；**颜色**——分档色承载信息，档位就靠
-            这个数本身的颜色说（t1 深暖棕 / t2 暖橙），换回主文字色等于把档位抹掉；也不给
-            tabular-nums（它是标题，不是要对齐的列读数）。四条定义全被有意覆盖时挂这个类只是噪音。
+            这个数本身的颜色说（t1 深暖棕 / t2 暖橙），换回主文字色等于把档位抹掉。tabular-nums
+            这一条按 v0.7.2 spec §6「数字用 tabular」采用（不再靠等宽体，改用表格数字口径）。
+            四条定义里只剩颜色/字体/字重三条与 .stat-num 不同，挂这个类仍是噪音，故仍不挂。
             .stat-num 那条约定要的是「统计读数彼此长得一样」，而按档位变色的展示标题是另一回事。
-            窗口里那个大数字豁免同一类，但只覆盖两条（见下）。 */}
+            窗口里那个大数字豁免同一类（见下）。 */}
         <span
-          style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 700, lineHeight: 1, color: model.numColor }}
+          style={{ fontFamily: 'var(--font-serif)', fontSize: 15, fontWeight: 700, lineHeight: 1, color: model.numColor, fontVariantNumeric: 'tabular-nums' }}
         >{count}</span>
         <span>张待复习</span>
       </button>
@@ -167,8 +173,9 @@ export default function DueBadge() {
                 分档色承载档位信息，衬线是展示性处理而非无衬线的列读数，两条都按自己的定法覆盖。
                 字重这一条要说准：本元素没写 font-weight，也**没挂 .stat-num**，所以它继承祖先的
                 默认字重（正文 normal 400）；「按 .stat-num 的 semibold 走」是错的——类不在这
-                个元素上，那条声明无从生效。即：声明上只覆盖两条（字体与颜色），其余走正文的默认值。 */}
-            <div style={{ fontFamily: 'var(--font-serif)', fontSize: 30, lineHeight: 1, color: model.numColor }}>
+                个元素上，那条声明无从生效。tabular-nums 与 chip 里那个数同源（v0.7.2 spec §6），
+                使同一枚徽标的数字口径一致。即：声明上覆盖字体与颜色，另加 tabular-nums，其余走正文的默认值。 */}
+            <div style={{ fontFamily: 'var(--font-serif)', fontSize: 30, lineHeight: 1, color: model.numColor, fontVariantNumeric: 'tabular-nums' }}>
               {count}{' '}
               <small style={{ fontFamily: 'var(--font-sans)', fontSize: 12.5, fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 6 }}>张待复习</small>
             </div>
