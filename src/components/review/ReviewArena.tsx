@@ -41,7 +41,7 @@ function useNarrowResults(): boolean {
 /**
  * 提交时的客观判分。取不到目标返回 null —— 绝不退化成「错」（Review Focus 1）。
  *
- * 本地纯函数、只此一份判据：Task 8 把 autoGrades 扩到全部键入型之后，此处无需改动，
+ * 本地纯函数、只此一份判据：autoGrades 已覆盖全部键入型模板，判分不再按模板分支，
  * 判据仍只有这一处。choice 分支直接与选项列表（[translation, ...distractors]）比对，
  * 因为选择题的「正确选项」就是 content.translation，即 answer.translation。
  */

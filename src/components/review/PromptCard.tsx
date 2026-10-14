@@ -11,7 +11,7 @@ export function inputKindFor(template: ReviewCardDTO['template']): InputKind {
   switch (template) {
     case 'recognize': return 'choice'
     case 'cloze': return 'typed'
-    case 'recall': return 'typed'        // spec §4.1：中译英是键入（仅拼写辅助，不判分）
+    case 'recall': return 'typed'        // spec §4.1：中译英是键入
     case 'english_def': return 'typed'   // v0.6.4：由 reveal 改 typed，与中译英同档
     case 'listen': return 'typed'
     default: return 'reveal'
@@ -34,14 +34,15 @@ export function typedTarget(dto: ReviewCardDTO): string | undefined {
 }
 
 /**
- * 是否自动判分。中译英与英文释义题**不判分**——键入仅为拼写辅助，对错由用户自己按三键评。
+ * 是否自动判分。v0.7.2 起**全部键入型题型都判**（含中译英与英文释义）。
  *
- * 与 inputKindFor 并排放在这里，是因为 ReviewArena 的 handleSubmit 要按它分支；
- * 先前那里写的是 `dto.template !== 'recall'`，english_def 一加入就会静默开始自动判分，
- * 与本版决策相反。判据收口到这一个函数后，新增自评题型只改这里。
+ * 旧实现把这两型排除在外，理由是「键入仅为拼写辅助，对错由用户自己按三键评」——
+ * 但那条路径实际拿「记忆程度」当了正误在用：结算明细表用 rating >= 3 反推正误，
+ * 于是「答对但选了模糊」显示错误，答题页与结算页互相矛盾。现在五种题型一律有客观结论，
+ * 三键回到它本来的职责（排期），正误与记忆程度这才真的分开。
  */
 export function autoGrades(template: ReviewCardDTO['template']): boolean {
-  return inputKindFor(template) === 'typed' && template !== 'recall' && template !== 'english_def'
+  return inputKindFor(template) === 'typed'
 }
 
 /**

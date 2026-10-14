@@ -34,13 +34,11 @@ describe('typedTarget', () => {
 })
 
 describe('autoGrades', () => {
-  it('中译英与英文释义题不自动判分', () => {
-    expect(autoGrades('recall')).toBe(false)
-    expect(autoGrades('english_def')).toBe(false)
-  })
-
-  it('填空与听辨自动判分', () => {
+  it('自动判分：全部键入型都判（v0.7.2 起中译英与英文释义也判）', () => {
     expect(autoGrades('cloze')).toBe(true)
     expect(autoGrades('listen')).toBe(true)
+    expect(autoGrades('recall')).toBe(true)
+    expect(autoGrades('english_def')).toBe(true)
+    expect(autoGrades('recognize')).toBe(false)   // 认读是选择题，走另一支比对
   })
 })
