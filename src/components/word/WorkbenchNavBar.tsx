@@ -124,7 +124,10 @@ export default function WorkbenchNavBar({
           ＋ 新增标签页已移除：它与标签条右侧的 ＋ 重复（同一 TAB_GROUPS 选择器），标签条那处保留为唯一入口。 */}
       {/* 右端簇自带 flexWrap:'wrap'：窄窗口下这一簇被压到放不下时在簇内重排，而不是先溢出
           （缺省的 nowrap 会溢出）。导航条高由 min-height 撑——簇长高时条跟着长高，故不写死
-          height。justifyContent:'flex-end' 让重排出来的行仍靠右对齐，不至于左边缘不齐。 */}
+          height。justifyContent:'flex-end' 让重排出来的行仍靠右对齐，不至于左边缘不齐。
+          簇与其内的锚点 div 都不设底色，按钮脚下就是本条的内容面底（见下方导航条容器的
+          background），故簇内 SquareButton 一律取 tone="surface"（规则：tone 随直接父级底
+          选套，透明父级不算、再往上看一层——「脚下说了算」）。 */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {region === 'workbench' ? (
           <>
@@ -136,6 +139,7 @@ export default function WorkbenchNavBar({
                 而这里的状态由 aria-checked 播报、可见文字「编者」本身已够指名。 */}
             <SquareButton
               size="nav"
+              tone="surface"
               pressed={editorMode}
               role="switch"
               aria-checked={editorMode}
@@ -183,6 +187,7 @@ export default function WorkbenchNavBar({
               <Tooltip content={mergeCount > 0 ? `把勾选的 ${mergeCount} 项合并添加进词条` : '先勾选要添加的词条'} width={260}>
                 <SquareButton
                   size="nav"
+                  tone="surface"
                   disabled={mergeDisabled}
                   onClick={() => onMergeAdd?.()}
                 >
@@ -191,6 +196,7 @@ export default function WorkbenchNavBar({
               </Tooltip>
               <SquareButton
                 size="nav"
+                tone="surface"
                 aria-label="选择分类后添加"
                 disabled={mergeDisabled}
                 onClick={() => setPickerOpen(o => !o)}

@@ -12,8 +12,8 @@ import { NAV_CONTROL_HEIGHT } from '../../lib/layout'
 // 过渡白名单只剩 background-color（v0.7.2 spec §1.4：动效收敛成 90ms linear 一档，
 // 按压位移与缩放一并删除）。不动画 box-shadow / width / 边距，
 // box-shadow 仅用于非动画的静态内描边。
-// 圆角 6px：参考文档给的是 14px（圆润方形），但按钮实际只有 34px 高（导航条内更矮），
-// 14px 圆角占高度近四成，轮廓读作「胶囊/圆」而非「圆角方形」。6px 保留一点柔度同时
+// 圆角 6px：参考文档给的是 14px（圆润方形），但按钮实际只有 31px 高（导航条内更矮），
+// 14px 圆角占高度四成五，轮廓读作「胶囊/圆」而非「圆角方形」。6px 保留一点柔度同时
 // 保持方正感，也是项目上一版按钮用过的值。
 const BUTTON_RADIUS = 6
 const BUTTON_TRANSITION = 'background-color var(--duration-fast) var(--ease-smooth)'
