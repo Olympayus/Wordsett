@@ -1,7 +1,7 @@
 import { useRef, type CSSProperties } from 'react'
 import type { WordWithPreview } from '../../types/word'
 import type { Category } from '../../types/category'
-import type { SidebarMode } from '../../lib/sidebar'
+import { SIDEBAR_ROW_PADDING, type SidebarMode } from '../../lib/sidebar'
 import { formatPhonetic } from '../../lib/phonetic'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -57,12 +57,12 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
     display: 'flex',
     alignItems: collapsed ? 'center' : 'flex-start',
     gap: '10px',
-    padding: collapsed ? (mode === 'alphabet' ? '6px 10px' : '6px 8px') : '8px 12px',
+    padding: collapsed ? (mode === 'alphabet' ? '6px 10px' : '6px 8px') : SIDEBAR_ROW_PADDING,
     borderRadius: 'var(--radius-md)',
     cursor: 'pointer',
     position: 'relative',
     background: restingBackground,
-    transition: 'background-color var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth)',
+    transition: 'background-color var(--duration-fast) var(--ease-smooth)',
     justifyContent: collapsed && mode === 'category' ? 'center' : undefined,
   }
 
@@ -82,7 +82,6 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
         // 选中信号，优先级高于「当前词条」与 hover 反馈，否则一悬停勾选色就没了
         // （这些处理器直写 style，绕过了 React 的样式驱动，不写回去就得等下次渲染自愈）。
         if (!selected && !checked) el.style.background = 'var(--color-surface-hover)'
-        el.style.transform = collapsed ? 'translateX(0)' : 'translateX(2px)'
         if (!selected && !checked && lineRef.current) {
           lineRef.current.style.background = 'var(--color-text-secondary)'
           lineRef.current.style.opacity = '1'
@@ -94,7 +93,6 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
         // 且 checked 的优先级与 containerStyle 完全一致（见 restingBackground）。
         // 编织线不归 checked 管：它的 React 样式只看 selected，故这里的重置本来就对。
         el.style.background = restingBackground
-        el.style.transform = 'translateX(0)'
         if (lineRef.current) {
           lineRef.current.style.background = selected ? 'var(--color-brand)' : 'var(--color-border)'
           lineRef.current.style.opacity = selected ? '1' : '0.5'
@@ -168,15 +166,21 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
               >
                 <SpeakButton text={word.lemma} size={14} />
               </span>
+              {isLeechRow && (
+                // 右上角：不再和行 2 右端的分类胶囊抢位置（v0.7.2）
+                <span style={{ marginLeft: 'auto', paddingRight: '2px' }}>
+                  <LeechBadge count={overlay!.maxLapses} compact />
+                </span>
+              )}
             </div>
             {/* 行 2：左 音标·词性（可换行）｜右 分类胶囊（右对齐）；词性与音标同为纯文本，无边框 */}
             <div style={{
-              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginTop: '3px',
+              display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '8px', marginTop: '2px',
             }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: '5px', flexWrap: 'wrap', minWidth: 0 }}>
                 {word.phonetic && (
                   <span style={{
-                    fontFamily: 'var(--font-phonetic)', fontSize: 'var(--text-sm)',
+                    fontFamily: 'var(--font-phonetic)', fontSize: '11.5px', lineHeight: 1.3,
                     color: 'var(--color-text-secondary)', whiteSpace: 'nowrap',
                   }}>
                     {formatPhonetic(word.phonetic)}
@@ -187,26 +191,25 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
                 )}
                 {(word.partOfSpeechTags ?? []).map((p, i) => (
                   <span key={i} style={{
-                    fontFamily: 'var(--font-phonetic)', fontSize: 'var(--text-sm)',
+                    fontFamily: 'var(--font-phonetic)', fontSize: '11.5px', lineHeight: 1.3,
                     color: 'var(--color-text-secondary)', whiteSpace: 'nowrap',
                   }}>
                     {p}
                   </span>
                 ))}
               </div>
-              {(categories.length > 0 || isLeechRow) && (
+              {categories.length > 0 && (
                 <div style={{ display: 'flex', gap: '4px', flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center' }}>
                   {categories.map(c => (
                     <span key={c.id} style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '4px', height: '18px', padding: '0 8px',
-                      borderRadius: 'var(--radius-full)', fontSize: 'var(--text-xs)', fontWeight: 'var(--weight-medium)',
+                      display: 'inline-flex', alignItems: 'center', gap: '4px', height: '16px', padding: '0 7px',
+                      borderRadius: 'var(--radius-full)', fontSize: '10.5px', fontWeight: 'var(--weight-medium)',
                       background: `rgba(${hexToRgb(c.color)}, 0.12)`, color: c.color, whiteSpace: 'nowrap',
                     }}>
-                      <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: c.color, flexShrink: 0 }} />
+                      <span style={{ width: '5px', height: '5px', borderRadius: '50%', background: c.color, flexShrink: 0 }} />
                       {c.name}
                     </span>
                   ))}
-                  {isLeechRow && <LeechBadge count={overlay!.maxLapses} />}
                 </div>
               )}
             </div>

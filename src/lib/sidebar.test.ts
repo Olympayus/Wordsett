@@ -1,5 +1,9 @@
+import { readFileSync } from 'node:fs'
 import { describe, it, expect } from 'vitest'
-import { groupByLetter, groupByCategory, fitCollapsedWidth } from './sidebar'
+import {
+  groupByLetter, groupByCategory, fitCollapsedWidth,
+  SIDEBAR_ROW_HEIGHT, SIDEBAR_ROW_HEIGHT_COLLAPSED,
+} from './sidebar'
 import type { WordWithPreview } from '../types/word'
 import type { Category } from '../types/category'
 
@@ -40,5 +44,22 @@ describe('sidebar 收起宽度（D1）', () => {
     expect(fitCollapsedWidth(0, 40)).toBe(120)
     expect(fitCollapsedWidth(90, 40)).toBe(130)
     expect(fitCollapsedWidth(300, 40)).toBe(240)
+  })
+})
+
+describe('sidebar 行高常量（v0.7.2）', () => {
+  it('行高常量在 40–52 之间（44 是设计值，回落位是 48–52）', () => {
+    expect(SIDEBAR_ROW_HEIGHT).toBeGreaterThanOrEqual(40)
+    expect(SIDEBAR_ROW_HEIGHT).toBeLessThanOrEqual(52)
+  })
+
+  it('收起态行高不变（32）', () => {
+    expect(SIDEBAR_ROW_HEIGHT_COLLAPSED).toBe(32)
+  })
+
+  it('虚拟列表的估算高度引用常量，不再写死 76 / 32（防止两处分家）', () => {
+    const src = readFileSync(new URL('../components/layout/WordList.tsx', import.meta.url), 'utf8')
+    expect(src).toContain('SIDEBAR_ROW_HEIGHT')
+    expect(src).not.toMatch(/collapsed\s*\?\s*32\s*:\s*76/)
   })
 })

@@ -13,7 +13,7 @@ import WordListItem from '../word/WordListItem'
 import ContextMenu, { type MenuItem } from '../ui/ContextMenu'
 import CategoryPickerPopover from '../ui/CategoryPickerPopover'
 import { vocabularySearch } from '../../lib/search'
-import { groupByLetter, groupByCategory, type SidebarMode } from '../../lib/sidebar'
+import { groupByLetter, groupByCategory, SIDEBAR_ROW_HEIGHT, SIDEBAR_ROW_HEIGHT_COLLAPSED, type SidebarMode } from '../../lib/sidebar'
 import { rangeSelect, selectAll, pruneToRows, selectedWordIdsFromRows } from '../../lib/selection'
 import { SMART_VIEW_ORDER, filterBySmartView, smartViewCount, visibleSmartViews } from '../../lib/smartViews'
 import type { SmartViewKey } from '../../lib/smartViews'
@@ -288,7 +288,9 @@ export default function WordList({
     getScrollElement: () => parentRef.current,
     estimateSize: (i) => {
       const r = rows[i]
-      if (r.kind === 'item') return collapsed ? 32 : 76
+      // 引用 sidebar.ts 的常量而非写死 76/32：估算值一旦与真实行高分家，虚拟列表的
+      // 滚动条与 scrollToIndex 吸附位置会一路漂（v0.7.2 行高 76 → 44，故提取常量）。
+      if (r.kind === 'item') return collapsed ? SIDEBAR_ROW_HEIGHT_COLLAPSED : SIDEBAR_ROW_HEIGHT
       return 28
     },
     overscan: 6,

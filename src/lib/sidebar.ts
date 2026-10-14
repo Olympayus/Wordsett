@@ -5,6 +5,24 @@ export type SidebarMode = 'alphabet' | 'category'
 
 export const SIDEBAR_EXPANDED_WIDTH = 300
 
+/**
+ * 展开态一行的高度（v0.7.2：76 → 48）。
+ *
+ * 逐项相加：上下内边距 12（6 + 6）+ 词头一行 19.5（15px × 1.3）+ 行间距 2 +
+ * 行 2 一行 14.95（11.5px × 1.3）= 48.45 ≈ 48。
+ *
+ * 设计稿给的是 44px，但 44 在算术上到不了：扣掉 12 的内边距与 2 的行距，只剩 34 摊给
+ * 两行文字，而词头 15px/1.3 一行就 19.5 —— 压到 44 只能裁切 11.5px 的行 2 文本。
+ * 故取设计文档 line 301 的 §7 逃生舱（「44px 是紧的，不合适就停在 48–52」），这里取 48。
+ *
+ * **虚拟列表的估算高度必须引用它**——估算值一旦与真实行高分家，滚动条与 scrollToIndex
+ * 的吸附位置会一路漂。
+ */
+export const SIDEBAR_ROW_HEIGHT = 48
+export const SIDEBAR_ROW_PADDING = '6px 12px'
+/** 收起态行高（未改） */
+export const SIDEBAR_ROW_HEIGHT_COLLAPSED = 32
+
 export interface LetterGroup {
   letter: string
   words: WordWithPreview[]
