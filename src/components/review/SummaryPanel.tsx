@@ -45,7 +45,7 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
       <SectionTitle>统计</SectionTitle>
       <div style={{ display: 'flex', gap: 10 }}>
         <Stat label="答题" value={String(summary.answeredCount)} unit="张" />
-        <Stat label="正确" value={String(summary.correctCount)} unit="张" />
+        <Stat label="正确" value={String(summary.correctCount)} unit={`/ ${summary.judgedCount} 张`} />
         <Stat label="正确率" value={summary.accuracy.replace('%', '')} unit={summary.accuracy === '—' ? '' : '%'} />
         <Stat label="跳过" value={String(summary.skippedCount)} unit="张" />
       </div>
@@ -78,7 +78,10 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
         <tbody>
           {queue.map(c => {
             const entry = answered.find(a => a.cardId === c.cardId)
-            const ok = entry ? entry.rating >= 3 : null
+            // 正误读客观结论 correct（v0.7.2），不再拿 rating ≥ 3 充当——否则「答对但选了模糊」
+            // 会被明细表判成错误，与头部「正确 n / 已判 n」的口径对不上。entry 可能为 undefined
+            // （未作答的卡这一行照渲染），那个分支仍落 null（显示「—」）。
+            const ok = entry ? (entry.correct ?? null) : null
             return (
               <tr key={c.cardId}>
                 <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: '12.5px' }}>

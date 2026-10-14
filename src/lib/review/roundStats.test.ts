@@ -11,11 +11,24 @@ const card = (cardId: string, template: ReviewCardDTO['template'], prompt: any, 
   ({ cardId, wordId: `w-${cardId}`, template, prompt, answer, sched: { dueAt: 0, reps: 0, lapses: 0, lastReviewAt: null, mastery: null, rNow: 0, defaultRating: null } })
 
 describe('roundSummary', () => {
-  it('答题数与正确数按 rating>=3 计', () => {
-    const s = roundSummary([], [{ cardId: 'a', rating: 3, template: 'recognize', input: 'x' }, { cardId: 'b', rating: 1, template: 'cloze', input: 'y' }])
-    expect(s.answeredCount).toBe(2)
-    expect(s.correctCount).toBe(1)
-    expect(s.accuracy).toBe('50%')
+  it('正确数按客观结论计，跳过与未判分不进分母（v0.7.2）', () => {
+    const answered = [
+      { cardId: 'a', rating: 3, template: 'cloze', input: 'x', correct: true },
+      { cardId: 'b', rating: 2, template: 'cloze', input: 'y', correct: true },   // 答对但选了模糊
+      { cardId: 'c', rating: 1, template: 'cloze', input: 'z', correct: false },
+      { cardId: 'd', rating: 1, template: 'cloze', input: '', skipped: true, correct: null },
+    ] as AnsweredEntry[]
+    const s = roundSummary([], answered)
+    expect(s.answeredCount).toBe(4)
+    expect(s.judgedCount).toBe(3)
+    expect(s.correctCount).toBe(2)        // 不再是 1
+    expect(s.accuracy).toBe('67%')        // 2/3，跳过不进分母
+    expect(s.skippedCount).toBe(1)
+  })
+
+  it('一条未判分都没有时正确率是「—」（0/0 未定义，不是 0%）', () => {
+    const answered = [{ cardId: 'd', rating: 1, template: 'cloze', input: '', skipped: true, correct: null }] as AnsweredEntry[]
+    expect(roundSummary([], answered).accuracy).toBe('—')
   })
 
   it('已答 0 时正确率是 —（Review Focus 2 的同一条口径）', () => {
@@ -60,13 +73,13 @@ describe('templateCounts', () => {
 describe('templateAccuracy', () => {
   it('未出到的题型正确率为 null，不是 0', () => {
     // 0% 的意思是「出了但全错」，与「没出」是两件事（spec §4.5）
-    const rows = templateAccuracy([{ cardId: 'a', rating: 3, template: 'recognize', input: 'x' }])
+    const rows = templateAccuracy([{ cardId: 'a', rating: 3, template: 'recognize', input: 'x', correct: true }])
     expect(rows.find(r => r.template === 'recognize')?.accuracy).toBe(1)
     expect(rows.find(r => r.template === 'listen')?.accuracy).toBeNull()
   })
 
   it('出的题全错时正确率是 0，与「没出」区分得开', () => {
-    const rows = templateAccuracy([{ cardId: 'a', rating: 1, template: 'cloze', input: 'x' }])
+    const rows = templateAccuracy([{ cardId: 'a', rating: 1, template: 'cloze', input: 'x', correct: false }])
     expect(rows.find(r => r.template === 'cloze')?.accuracy).toBe(0)
   })
 })

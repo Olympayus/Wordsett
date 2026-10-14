@@ -10,9 +10,9 @@ export interface AnsweredEntry {
   template: Template
   /**
    * 用户当时的作答原文（选择题＝选中的选项文本；键入题＝键入内容；跳过＝''）。
-   * 回看已答题时要靠它重建结果区（spec §4.1）。对错**不再**由它现场派生——结算明细表
-   * 手上只有 AnsweredEntry[]、回看态也不重算，两处都拿不到 DTO；正误改由下面的
-   * `correct` 在提交时一并记账（v0.7.2）。
+   * 回看已答题时要靠它重建结果区（spec §4.1）。对错**不再**由它现场派生——正误改由下面的
+   * `correct` 在提交时一并记账（v0.7.2）：结算明细表虽也拿得到 DTO（它读的就是本 store 的
+   * queue），却重算不出「未判」这种结论，空串经 compareTyped 会被判成答错（详见 correct）。
    */
   input: string
   /**
@@ -30,8 +30,10 @@ export interface AnsweredEntry {
    * 客观判分结论（v0.7.2）。`true` / `false` = 提交时拿键入内容与正确答案比对的结论；
    * `null` = 跳过，或取不到判分目标（`typedTarget` 在 lemma 为空时返回 undefined）。
    *
-   * 为什么必须存下来：先前那句「对错可由 input + DTO 现场派生」只在答题页成立——
-   * 结算明细表手上只有 AnsweredEntry[]，回看态也不重算，两处都拿不到 DTO。
+   * 为什么必须存下来：结算明细表**拿得到** DTO（SummaryPanel 读的就是本 store 的 queue），
+   * 所以「答案」本可现场重算——真正重算不出的是「结论」：跳过时 input 是空串，而
+   * `compareTyped('', target)` 因 `a.length > 0` 短路返回 false（typed.ts），现场重算会把
+   * 一次跳过读成「答错」而不是「未判」。结论只能由提交那一刻的判分路径记账。
    * 存下来之后，正误与记忆程度才真的分开：rating 只管排期，correct 只管正误。
    */
   correct?: boolean | null

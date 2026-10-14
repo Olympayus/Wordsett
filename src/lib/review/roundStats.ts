@@ -10,27 +10,34 @@ import type { AnsweredEntry } from '../../stores/reviewSessionStore'
  * 四张图是复习首页四图的「本轮变体」：首页的「明日压力」（未来 7 天到期）与
  * 「近 14 天趋势」（14 天历史）都是全库量，本轮没有对应值，故换位成
  * 「本轮题型构成」与「本轮题型正确率」。四张图都不需要新增状态——
- * queue 给构型，answered 的 rating + template 给走势、分布与正确率。
+ * queue 给构型，answered 的 rating 给走势与分布、template 给分组，
+ * 正确率则取 answered 的 correct（客观结论，v0.7.2）。
  */
 
 export interface RoundSummary {
   /** 本轮队列长度＝分母。「已答 n」读不出本轮多大，队列长度是唯一的对照。 */
   total: number
   answeredCount: number
+  /** 有客观结论的条数（跳过与取不到判分目标的不计）——正确率的分母 */
+  judgedCount: number
   correctCount: number
-  /** 已答 0 时为 `—`（0/0 未定义，不是 0%） */
+  /** 无已判分条目时为 `—`（0/0 未定义，不是 0%） */
   accuracy: string
   skippedCount: number
 }
 
 export function roundSummary(queue: ReviewCardDTO[], answered: AnsweredEntry[]): RoundSummary {
-  const correctCount = answered.filter(a => a.rating >= 3).length
+  // 正误取客观结论 correct，不再拿 rating 充当（v0.7.2）：rating 只管排期，与答没答对是两回事。
+  // 跳过与「取不到判分目标」都落 correct === null，故不进分母——跳过按「答错」计正是本阶段要杀的 bug。
+  const judged = answered.filter(a => a.correct === true || a.correct === false)
+  const correctCount = judged.filter(a => a.correct === true).length
   return {
     // 分母是队列长度而非已答数：未作答的题仍属于本轮（v0.6.1 起如此，未作答计入总分母）
     total: queue.length,
     answeredCount: answered.length,
+    judgedCount: judged.length,
     correctCount,
-    accuracy: answered.length > 0 ? `${Math.round((correctCount / answered.length) * 100)}%` : '—',
+    accuracy: judged.length > 0 ? `${Math.round((correctCount / judged.length) * 100)}%` : '—',
     skippedCount: answered.filter(isSkipped).length,
   }
 }
@@ -83,12 +90,14 @@ export function templateCounts(queue: ReviewCardDTO[]): { template: Template; la
 export function templateAccuracy(answered: AnsweredEntry[]): { template: Template; label: string; count: number; accuracy: number | null }[] {
   return TEMPLATE_DIFFICULTY.map(t => {
     const rows = answered.filter(a => a.template === t)
+    // 分母是有客观结论的条数（v0.7.2）：跳过与「取不到判分目标」落 correct === null，不算「出了但错」。
+    const judged = rows.filter(a => a.correct === true || a.correct === false)
     return {
       template: t,
       label: TEMPLATE_LABEL[t],
       count: rows.length,
-      // 未出到的题型是 null（显示「—」），出的题全错才是 0（显示 0%）
-      accuracy: rows.length > 0 ? rows.filter(a => a.rating >= 3).length / rows.length : null,
+      // 未出到的题型是 null（显示「—」），出到的全判错才是 0（显示 0%）
+      accuracy: judged.length > 0 ? judged.filter(a => a.correct === true).length / judged.length : null,
     }
   })
 }

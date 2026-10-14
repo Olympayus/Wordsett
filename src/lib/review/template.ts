@@ -39,7 +39,7 @@ export interface TemplateLog {
 
 const RECENT_N = 10
 
-/** 该模板的近期正确率；无样本返回 null。正确率 = rating ≥ 3（Good/Easy）的占比。 */
+/** 该模板的近期记得率；无样本返回 null。记得率 = rating ≥ 3（Good/Easy）的占比。 */
 export function templateAccuracy(logs: TemplateLog[], template: Template): number | null {
   const recent = logs.filter(l => l.template === template).slice(-RECENT_N)
   if (recent.length === 0) return null
