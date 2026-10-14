@@ -103,7 +103,7 @@ export function leaveMessage(answered: number, remaining: number): {
 } {
   return {
     title: '结束本轮答题？',
-    message: `已答的 ${answered} 道题照常保存，但本轮不会生成小结，剩余 ${Math.max(0, remaining)} 题留到下次。`,
+    message: `已答的 ${answered} 道题照常保存，但本轮不会生成结算，剩余 ${Math.max(0, remaining)} 题留到下次。`,
     confirmLabel: '结束并离开',
   }
 }

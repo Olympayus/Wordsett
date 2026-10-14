@@ -205,7 +205,7 @@ export default function ReviewArena() {
   const handleEnd = async () => {
     const ok = await useUiStore.getState().confirm({
       title: '结束本轮回合？',
-      message: `已答的 ${answeredCount(answeredList)} 道题照常保存，但本轮不会生成小结，剩余 ${Math.max(0, queue.length - answeredCount(answeredList))} 题留到下次。`,
+      message: `已答的 ${answeredCount(answeredList)} 道题照常保存，但本轮不会生成结算，剩余 ${Math.max(0, queue.length - answeredCount(answeredList))} 题留到下次。`,
       confirmLabel: '结束并退出',
       danger: true,
     })
@@ -288,16 +288,17 @@ export default function ReviewArena() {
               {past ? (
                 // 回看态：只读回放。一般位置向前靠导航条右箭头；但整轮已答完又翻回最后一题时
                 // canGoForward 在队尾恒为 false（nav.test.ts 钉住「箭头不越界」），右箭头被灰掉，
-                // 而「结束回合」按设计不出小结——那轮小结就彻底不可达了。补一颗尾部专属的
-                // 「查看小结」：它调的正是 advance()，在队尾会把 phase 置成 'summary'。
+                // 而「结束回合」按设计不出结算——那轮结算就彻底不可达了。补一颗尾部专属的
+                // 「查看结算」：它调的正是 advance()，在队尾会把 phase 置成 'summary'。
                 // 按钮与「下一题」同形同位（下一题本就是这一态的正常控件），两态互斥。
+                // v0.7.2 起本页叫结算，两处按钮同名。
                 atTail ? (
                   // alignSelf 移到包裹的 <div> 上：SquareButton 是 inline-flex，
                   // 在本组件的 flex-col 里默认会被拉满宽（见「下一题」处的同款说明）。
                   // tone='surface'：外层这层 <div> 与 <div data-arena-region> 都不设底，
                   // 最近一个设了底的祖先是 ReviewModule 的 <main>（--color-surface 纯白）。
                   <div style={{ alignSelf: 'flex-start' }}>
-                    <SquareButton tone="surface" onClick={() => advance()}>查看小结</SquareButton>
+                    <SquareButton tone="surface" onClick={() => advance()}>查看结算</SquareButton>
                   </div>
                 ) : (
                   <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
@@ -306,7 +307,11 @@ export default function ReviewArena() {
                 )
               ) : rated ? (
                 <div style={{ alignSelf: 'flex-start' }}>
-                  <SquareButton tone="surface" onClick={() => advance()}>下一题</SquareButton>
+                  {/* 队尾不再叫「下一题」——它没有下一题了（v0.7.2，Draft 第 2 条）。
+                      行为不变，仍是点一下才走：自动跳转会让最后一题的复盘来不及看。 */}
+                  <SquareButton tone="surface" onClick={() => advance()}>
+                    {atTail ? '查看结算' : '下一题'}
+                  </SquareButton>
                 </div>
               ) : null}
             </ResultBlock>

@@ -40,7 +40,7 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
 
   return (
     <div className="flex flex-col gap-5 p-8" style={{ maxWidth: '760px' }}>
-      <h2 style={{ fontSize: '20px', fontWeight: 600 }}>本轮小结</h2>
+      <h2 style={{ fontSize: '20px', fontWeight: 600 }}>本轮结算</h2>
 
       <SectionTitle>统计</SectionTitle>
       <div style={{ display: 'flex', gap: 10 }}>
