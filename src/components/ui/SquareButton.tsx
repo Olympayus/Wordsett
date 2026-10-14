@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
+import { NAV_CONTROL_HEIGHT } from '../../lib/layout'
 
 // 方块按钮统一样式（v0.5.3 §4.1 第 16 条重做；配色在 v0.6.1 收尾后按用户选定换过一轮）。
 // 配色全部收进项目既有色板：默认态用暖中性底的深一阶，编者模式的生效态用品牌蓝的浅一阶；
 // hover 一律「再提亮一档」且不换色相，用 color-mix 现场算——与仓库既有做法一致。
 // 换色取值与依据见下方色常量处（含实测对比度）。
-// 几何按容器适配而非照搬参考文档的 50px/132px：设置页的开关行高约 30px、导航条内边距 6px，
+// 几何按容器适配而非照搬参考文档的 50px/132px：设置页的开关行高约 30px、导航条高 32px，
 // 50px 高的按钮会把这两处都撑变形。故只取文档的「圆角方形」观感（方正圆角 + 发丝边），
-// 高度与最小宽由 size 决定。字号同理：导航条里与 28×28 的箭头按钮同排，不能压过箭头。
+// 高度与最小宽由 size 决定。字号同理：导航条里与同排的箭头图标键等高，不能压过箭头。
 // 过渡白名单只剩 background-color（v0.7.2 spec §1.4：动效收敛成 90ms linear 一档，
 // 按压位移与缩放一并删除）。不动画 box-shadow / width / 边距，
 // box-shadow 仅用于非动画的静态内描边。
@@ -82,8 +83,9 @@ export const BUTTON_BASE: CSSProperties = {
   whiteSpace: 'nowrap',
 }
 
-/** 导航条内的紧凑尺寸：不撑高导航条、不与同排 28×28 的箭头按钮争视觉重量 */
-export const BUTTON_SIZE_NAV: CSSProperties = { minWidth: 0, padding: '4px 12px' }
+/** 导航条内的紧凑尺寸：高取 NAV_CONTROL_HEIGHT，与同排的箭头图标键逐像素等高（v0.7.2），
+    不撑高导航条；竖向内边距 0，由 flex 的 align-items:center 居中。 */
+export const BUTTON_SIZE_NAV: CSSProperties = { minWidth: 0, height: `${NAV_CONTROL_HEIGHT}px`, padding: '0 12px' }
 
 /** 文字行内的紧凑尺寸：跟在标签文字后面（如「本地数据存储位置 浏览」），不限最小宽。
     竖向内边距取 6px 而非 4px：该行不是 30px 的紧凑开关行（那是 DictRow），普通 div 容得下，
@@ -138,9 +140,9 @@ interface Props {
    * 所以只要父级不是纯白，就走 `canvas`（画布套压在任何较深／带色的底上都还读得出来，
    * 白底套压在非纯白底上则可能与容器糊在一起）。
    *
-   * 反例，别照着外层背景标：`ArenaNavBar` 整个浮在复习区右侧那块**纯白**内容区之上，
-   * 但它自身带 `background: var(--color-canvas)`（`ArenaNavBar.tsx:43`），
-   * 所以它里面的按钮是 `canvas` 而不是 `surface`——外面是白的，脚下是画布，脚下说了算。
+   * 反例，别照着外层背景标：判断看的是**按钮自己的直接父级**。某控件可能整块浮在一块
+   * 纯白内容区之上，但它自身带 `background: var(--color-canvas)`——外面是白的，脚下是
+   * 画布，脚下说了算，按钮就该是 `canvas` 而不是 `surface`。
    *
    * 缺省 `canvas`＝v0.6.1 的现状行为，调用点可逐个迁移。
    */

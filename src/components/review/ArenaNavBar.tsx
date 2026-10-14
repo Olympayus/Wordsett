@@ -58,9 +58,9 @@ export default function ArenaNavBar({ index, total, canBack, canForward, onBack,
       </button>
       <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginLeft: 4 }}>第 {index + 1} / {total} 题</span>
       <span style={{ flex: 1 }} />
-      {/* tone='canvas'（v0.6.2 条目 1）：按钮底色按「直接父级的底」选套。本条 v0.7.2 起底改为
-          内容面（surface），按钮 tone 按「右端动作簇原样搬」未随动（是否随之改 surface 见 Task 13 报告）。 */}
-      <SquareButton size="nav" tone="canvas" onClick={onEnd}>结束回合</SquareButton>
+      {/* tone='surface'（v0.7.2）：本条底已由 canvas 改为内容面（--color-surface），按 SquareButton
+          的规则（tone 随「直接父级的底」选套，脚下说了算），其内按钮取 surface。 */}
+      <SquareButton size="nav" tone="surface" onClick={onEnd}>结束回合</SquareButton>
     </div>
   )
 }
