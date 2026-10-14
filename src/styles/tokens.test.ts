@@ -34,6 +34,15 @@ describe('tokens.css', () => {
     expect(value('--radius-full')).toBe('9999px')
   })
 
+  it('记忆强度六阶：六个 token 名齐全，六值为互异 hex（色名互异 ≠ 色值互异）', () => {
+    // MASTERY_COLORS 收进 var(--m-mastery-N) 后，masteryScale.test.ts 里
+    // 「Set(MASTERY_COLORS).size === 6」只证明六个**变量名**不同，证不了六个**墨色**不同。
+    // 真正的唯一性守卫落在这里：直接读 tokens.css，六名齐全且六值互异。
+    const inks = Array.from({ length: 6 }, (_, n) => value(`--m-mastery-${n}`))
+    for (const [n, ink] of inks.entries()) expect(ink, `--m-mastery-${n}`).toMatch(/^#[0-9A-Fa-f]{6}$/)
+    expect(new Set(inks).size).toBe(6)
+  })
+
   it('token 名一个不少（Tailwind v4 同名叠写靠声明顺序，删名会静默回落）', () => {
     for (const n of [
       '--color-brand', '--color-brand-soft', '--color-brand-softer', '--color-accent',

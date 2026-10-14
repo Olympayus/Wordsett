@@ -58,6 +58,11 @@
   --color-leech: #A8554E;
   --color-scrim: rgba(28, 24, 20, 0.3);  /* 模态/抽屉覆盖层 */
 
+  /* 记忆强度六阶（暖灰 → 深蓝，明度间隔拉匀；档 0 刻意选中性暖色 = 无记录）。
+     唯一消费点是 masteryScale.ts 的 MASTERY_COLORS（改值不必翻组件）。 */
+  --m-mastery-0: #D8D2C4; --m-mastery-1: #C7D0DB; --m-mastery-2: #A7B9CB;
+  --m-mastery-3: #86A2C1; --m-mastery-4: #6789B0; --m-mastery-5: #4B6E9C;
+
   /* 字体（v0.7.2：三族随包，声明在 fonts.css） */
   --font-serif: 'Literata', 'Noto Serif SC', 'Songti SC', Georgia, serif;
   --font-sans: 'IBM Plex Sans', 'Noto Sans SC', 'Microsoft YaHei', 'PingFang SC', system-ui, sans-serif;
