@@ -10,7 +10,9 @@ export interface AnsweredEntry {
   template: Template
   /**
    * 用户当时的作答原文（选择题＝选中的选项文本；键入题＝键入内容；跳过＝''）。
-   * 回看已答题时要靠它重建结果区（spec §4.1）；对错不另存，可由 input + DTO 现场派生。
+   * 回看已答题时要靠它重建结果区（spec §4.1）。对错**不再**由它现场派生——结算明细表
+   * 手上只有 AnsweredEntry[]、回看态也不重算，两处都拿不到 DTO；正误改由下面的
+   * `correct` 在提交时一并记账（v0.7.2）。
    */
   input: string
   /**
@@ -24,6 +26,15 @@ export interface AnsweredEntry {
    * 可选字段：本 store 不持久化，不存在跨版本的旧数据，但让既有构造点不必全改。
    */
   skipped?: boolean
+  /**
+   * 客观判分结论（v0.7.2）。`true` / `false` = 提交时拿键入内容与正确答案比对的结论；
+   * `null` = 跳过，或取不到判分目标（`typedTarget` 在 lemma 为空时返回 undefined）。
+   *
+   * 为什么必须存下来：先前那句「对错可由 input + DTO 现场派生」只在答题页成立——
+   * 结算明细表手上只有 AnsweredEntry[]，回看态也不重算，两处都拿不到 DTO。
+   * 存下来之后，正误与记忆程度才真的分开：rating 只管排期，correct 只管正误。
+   */
+  correct?: boolean | null
 }
 
 export interface FreeScope {
@@ -55,7 +66,7 @@ interface ReviewSessionStore {
   setPhase: (p: SessionPhase) => void
   setFreeScope: (s: FreeScope | null) => void
   startSession: (queue: ReviewCardDTO[], scope?: FreeScope | null) => void
-  answerCurrent: (rating: number, input: string, skipped?: boolean) => void
+  answerCurrent: (rating: number, input: string, skipped?: boolean, correct?: boolean | null) => void
   advance: () => void
   /** 导航条跳题：只改题号并把 phase 拨回 'answering'（不重排 answered，只读导航不记账）。 */
   setIndex: (i: number) => void
@@ -83,11 +94,12 @@ export const useReviewSessionStore = create<ReviewSessionStore>((set, get) => ({
   startSession: (queue, scope = null) => set({ queue, index: 0, answered: [], phase: 'answering', startedAt: Date.now(), sessionStrategy: get().strategy, freeScope: scope }),
   // skipped 只由「跳过」键那条调用点传 true，其余评分路径（RatingBar / 键盘 1-3）走默认 false。
   // 落成显式字段而不从 input 反推，理由见 AnsweredEntry.skipped 的注释。
-  answerCurrent: (rating, input, skipped = false) => {
+  // correct 同理由调用方给出：判分目标取不到、或走跳过路径时传 null（不传即落 null，绝不退化成「错」）。
+  answerCurrent: (rating, input, skipped = false, correct = null) => {
     const { queue, index, answered } = get()
     const card = queue[index]
     if (!card) return
-    set({ answered: [...answered, { cardId: card.cardId, rating, template: card.template, input, skipped }], phase: 'rated' })
+    set({ answered: [...answered, { cardId: card.cardId, rating, template: card.template, input, skipped, correct }], phase: 'rated' })
   },
   advance: () => {
     const { index, queue } = get()

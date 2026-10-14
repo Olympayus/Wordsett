@@ -136,8 +136,9 @@ describe('会话记账与策略集合', () => {
     s().startSession([{ cardId: 'c1', wordId: 'w1', template: 'recognize' } as any])
     s().answerCurrent(1, '懒散的 · 草率的')
     expect(s().answered).toEqual([
-      // skipped 是显式标记的字段（v0.6.4），评分路径不传 → 落成 false 而不是缺省
-      { cardId: 'c1', rating: 1, template: 'recognize', input: '懒散的 · 草率的', skipped: false },
+      // skipped 是显式标记的字段（v0.6.4），评分路径不传 → 落成 false 而不是缺省；
+      // correct 同理（v0.7.2）：本条不传判分结论 → 落成 null 而不是 undefined
+      { cardId: 'c1', rating: 1, template: 'recognize', input: '懒散的 · 草率的', skipped: false, correct: null },
     ])
   })
 
@@ -159,5 +160,30 @@ describe('会话记账与策略集合', () => {
     // 中译英不输入直接提交后评「忘了」：input 同样是空串，但它不是跳过
     s().answerCurrent(1, '')
     expect(s().answered[0].skipped).toBe(false)
+  })
+})
+
+describe('answerCurrent 记账带上客观正误（v0.7.2）', () => {
+  const card = { cardId: 'c1', wordId: 'w1', template: 'cloze', prompt: {}, answer: {}, sched: {} } as unknown as ReviewCardDTO
+
+  it('判分结论原样落账', () => {
+    const s = useReviewSessionStore.getState()
+    s.startSession([card], null)
+    s.answerCurrent(2, 'celestial', false, true)   // 答对但只给了「模糊」
+    expect(useReviewSessionStore.getState().answered[0].correct).toBe(true)
+  })
+
+  it('跳过没有判分结论（Review Focus 2）：correct 为 null，不是 false', () => {
+    const s = useReviewSessionStore.getState()
+    s.startSession([card], null)
+    s.answerCurrent(1, '', true)
+    expect(useReviewSessionStore.getState().answered[0].correct).toBeNull()
+  })
+
+  it('取不到判分目标（Review Focus 1）：correct 为 null', () => {
+    const s = useReviewSessionStore.getState()
+    s.startSession([card], null)
+    s.answerCurrent(3, 'celestial', false, null)
+    expect(useReviewSessionStore.getState().answered[0].correct).toBeNull()
   })
 })

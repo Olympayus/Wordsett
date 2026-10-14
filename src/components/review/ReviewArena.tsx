@@ -9,7 +9,7 @@ import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useUiStore } from '../../stores/uiStore'
-import { rateCard, type CardContent, type RateCardResult } from '../../services/reviewService'
+import { rateCard, type CardContent, type RateCardResult, type ReviewCardDTO } from '../../services/reviewService'
 import { compareTyped } from '../../lib/review/typed'
 import { currentAnswered, canGoBack, canGoForward, answeredCount, revealedInputFor } from '../../lib/review/nav'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
@@ -35,6 +35,21 @@ function useNarrowResults(): boolean {
     return () => mq.removeEventListener('change', on)
   }, [query])
   return narrow
+}
+
+/**
+ * 提交时的客观判分。取不到目标返回 null —— 绝不退化成「错」（Review Focus 1）。
+ *
+ * 本地纯函数、只此一份判据：Task 8 把 autoGrades 扩到全部键入型之后，此处无需改动，
+ * 判据仍只有这一处。choice 分支直接与选项列表（[translation, ...distractors]）比对，
+ * 因为选择题的「正确选项」就是 content.translation，即 answer.translation。
+ */
+function judgeAnswer(dto: ReviewCardDTO, input: string): boolean | null {
+  const kind = inputKindFor(dto.template)
+  if (kind === 'choice') return input === String((dto.answer as Record<string, unknown>).translation ?? '')
+  if (!autoGrades(dto.template)) return null
+  const target = typedTarget(dto)
+  return target ? compareTyped(input, target) : null
 }
 
 /**
@@ -92,7 +107,10 @@ export default function ReviewArena() {
     const st = useReviewSessionStore.getState()
     const done = st.answered.find(a => a.cardId === dto?.cardId)
     setRevealed(Boolean(done))
-    setLastInput(done?.input ?? ''); setLastSkipped(done?.skipped ?? false); setCorrect(null); setSnapshot(null)
+    setLastInput(done?.input ?? ''); setLastSkipped(done?.skipped ?? false)
+    // 回看态从记账复原结论；换卡时置 null，不留上一题的结论（Review Focus 3）
+    setCorrect(done ? (done.correct ?? null) : null)
+    setSnapshot(null)
     setStartedAt(Date.now()); setRating(false); ratingRef.current = false
     setRateError(null)
     if (!dto) return
@@ -110,15 +128,7 @@ export default function ReviewArena() {
   const handleSubmit = (input: string) => {
     setLastInput(input)
     setRateError(null)
-    const kind = inputKindFor(dto.template)
-    if (kind === 'choice') {
-      setCorrect(input === String((dto.answer as any).translation ?? ''))
-    } else if (autoGrades(dto.template)) {
-      const target = typedTarget(dto)
-      setCorrect(target ? compareTyped(input, target) : null)
-    } else {
-      setCorrect(null)   // 中译英 / 英文释义题：键入仅为拼写辅助，不自动判分
-    }
+    setCorrect(judgeAnswer(dto, input))
     setRevealed(true)
   }
 
@@ -126,7 +136,9 @@ export default function ReviewArena() {
   // 「跳过」传 ''——那条路径刻意丢弃被放弃的作答，回看时不得把它当作用户的答案重放（spec §4.1）。
   // skipped 同样由调用方显式给出，且**只有**「跳过」键传 true（v0.6.4）：两条路径的 input 都是空串，
   // 局部 state 分不出「按了跳过」与「没输入就提交」，只有显式标记分得开。
-  const handleRate = async (r: number, input: string, skipped = false) => {
+  // judged 是 handleSubmit 那一刻算出的客观正误（v0.7.2）：评分路径传本次的 local `correct`，
+  // 跳过传 null。它与 rating 各管一头——rating 只管排期，judged 只管正误。
+  const handleRate = async (r: number, input: string, skipped = false, judged: boolean | null = null) => {
     // 同步置位、且成功 advance 前不解锁：键盘监听闭包里的 rating state 有滞后，连按两下
     // 会重复提交；「advance 之后、换卡 effect 之前」落下的按键会用旧卡 dto 重复评分。
     // rated 兜住另一条路：模块切走再切回时 phase 仍是 'rated'，这张卡不能再评一次。
@@ -159,7 +171,7 @@ export default function ReviewArena() {
     // 标记同时落到局部 state 与 store 的记账里：前者给本次的结果区作答行（此刻 store 那条
     // 还没进 answeredList，本组件读的是它），后者给小结明细表与之后的回看态。
     setLastSkipped(skipped)
-    answerCurrent(r, input, skipped)
+    answerCurrent(r, input, skipped, judged)
     // 刷新放在**落库成功之后**而不是 advance() 之后（v0.6.4 词级复习叠加层）：
     // 改 stability / lapses 的是上面那次 rateCard 写库，叠加载入哪一步都该在它之后取。
     // 三处 advance() 都不放——键盘那处只在 phase === 'rated'（即刚评过分）时进，
@@ -181,11 +193,13 @@ export default function ReviewArena() {
       if (i < 0) return
       e.preventDefault()
       if (useReviewSessionStore.getState().phase === 'rated') advance()
-      else void handleRate(i + 1, lastInput)
+      else void handleRate(i + 1, lastInput, false, correct)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [revealed, past, dto.cardId, lastInput])
+    // correct 也进依赖：闭包现在读它（Ruling 18b）。今天它总与 lastInput / dto.cardId 同步变，
+    // 但那是巧合不是保证——显式列出，免得将来某条路径只改 correct 时闭包读到旧值。
+  }, [revealed, past, dto.cardId, lastInput, correct])
 
   const handleEnd = async () => {
     const ok = await useUiStore.getState().confirm({
@@ -242,7 +256,7 @@ export default function ReviewArena() {
             // （那条记录要评分完才有）。跳过时 lastInput 为 ''，判据要的正是这个 '' 而非
             // undefined 的差别——取值规则见 revealedInputFor 的文档注释。
             revealedInput={revealedInputFor(revealed, lastInput, pastEntry?.input)}
-            onSkip={() => void handleRate(1, '', true)}
+            onSkip={() => void handleRate(1, '', true, null)}
             onSubmit={handleSubmit}
           />
 
@@ -265,7 +279,7 @@ export default function ReviewArena() {
               {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
               {!answeredNow && (
                 <RatingBar
-                  onRate={r => void handleRate(r, lastInput)}
+                  onRate={r => void handleRate(r, lastInput, false, correct)}
                   disabled={rating}
                   defaultRating={dto.sched.defaultRating}
                 />
