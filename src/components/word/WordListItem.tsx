@@ -187,7 +187,7 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
                   </span>
                 )}
                 {word.phonetic && (word.partOfSpeechTags?.length ?? 0) > 0 && (
-                  <span style={{ color: 'var(--color-text-tertiary)', fontSize: '12px', flexShrink: 0 }}>·</span>
+                  <span style={{ color: 'var(--color-text-tertiary)', fontSize: '12px', lineHeight: 1.3, flexShrink: 0 }}>·</span>
                 )}
                 {(word.partOfSpeechTags ?? []).map((p, i) => (
                   <span key={i} style={{
