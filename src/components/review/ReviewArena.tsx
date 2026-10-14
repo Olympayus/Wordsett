@@ -3,15 +3,13 @@ import PromptCard, { autoGrades, inputKindFor, typedTarget } from './PromptCard'
 import RatingBar from './RatingBar'
 import ResultBlock from './ResultBlock'
 import EntrySnapshot from './EntrySnapshot'
-import ArenaNavBar from './ArenaNavBar'
 import SquareButton from '../ui/SquareButton'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
-import { useUiStore } from '../../stores/uiStore'
 import { rateCard, type CardContent, type RateCardResult, type ReviewCardDTO } from '../../services/reviewService'
 import { compareTyped } from '../../lib/review/typed'
-import { currentAnswered, canGoBack, canGoForward, answeredCount, revealedInputFor } from '../../lib/review/nav'
+import { currentAnswered, revealedInputFor } from '../../lib/review/nav'
 import { correctAnswerText } from '../../lib/review/roundStats'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
 import { RESULT_BREAKPOINT, RESULT_CONTENT_WIDTH, NARROW_CONTENT_WIDTH, RESULT_HALF_WIDTH, resultGridColumns } from '../../lib/review/resultLayout'
@@ -59,7 +57,7 @@ function judgeAnswer(dto: ReviewCardDTO, input: string): boolean | null {
  */
 export default function ReviewArena() {
   const answeredList = useReviewSessionStore(s => s.answered)
-  const { queue, index, phase, answerCurrent, advance, reset, setIndex } = useReviewSessionStore()
+  const { queue, index, phase, answerCurrent, advance } = useReviewSessionStore()
   // 词级复习叠加层（连错 / stability）的重取入口，绑定在评分落库那一步（见 handleRate 末）
   const loadOverlay = useReviewOverlayStore(s => s.loadOverlay)
   const letterHighlight = useSettingsStore(s => s.review.letterHighlight)
@@ -176,7 +174,7 @@ export default function ReviewArena() {
     // 刷新放在**落库成功之后**而不是 advance() 之后（v0.6.4 词级复习叠加层）：
     // 改 stability / lapses 的是上面那次 rateCard 写库，叠加载入哪一步都该在它之后取。
     // 三处 advance() 都不放——键盘那处只在 phase === 'rated'（即刚评过分）时进，
-    // 查看小结那处只出现在回看态、评分是更早的轮次落的，两处都是重复取数。
+    // 查看结算那处只出现在回看态、评分是更早的轮次落的，两处都是重复取数。
     // 火而不管：下一题若已排在队尾，取数与渲染没有先后依赖，等它回来即可；
     // loadOverlay 内部吞掉失败（见 reviewOverlayStore），不会抛进 keydown 处理器。
     void loadOverlay()
@@ -202,45 +200,21 @@ export default function ReviewArena() {
     // 但那是巧合不是保证——显式列出，免得将来某条路径只改 correct 时闭包读到旧值。
   }, [revealed, past, dto.cardId, lastInput, correct])
 
-  const handleEnd = async () => {
-    const ok = await useUiStore.getState().confirm({
-      title: '结束本轮回合？',
-      message: `已答的 ${answeredCount(answeredList)} 道题照常保存，但本轮不会生成结算，剩余 ${Math.max(0, queue.length - answeredCount(answeredList))} 题留到下次。`,
-      confirmLabel: '结束并退出',
-      danger: true,
-    })
-    if (ok) reset()
-  }
-
   return (
     <div data-arena-region className="flex flex-col gap-4 p-8" style={{ maxWidth: narrow ? NARROW_CONTENT_WIDTH : RESULT_CONTENT_WIDTH }}>
-      <div>
-        <ArenaNavBar
-          index={index}
-          total={queue.length}
-          canBack={canGoBack(index)}
-          canForward={canGoForward(queue, answeredList, index)}
-          onBack={() => setIndex(index - 1)}
-          onForward={() => setIndex(index + 1)}
-          onEnd={() => void handleEnd()}
-        />
-        <div style={{ height: '3px', background: 'var(--color-border)', borderRadius: '2px' }}>
-          <div style={{ width: `${((index + 1) / queue.length) * 100}%`, height: '100%', background: 'var(--color-brand)', borderRadius: '2px' }} />
-        </div>
-      </div>
-
       {/*
         整个答题页两栏（v0.6.3 打磨）：左栏＝题面 + 作答 + 三键 + 下一题，
         右栏＝完整词条并排、从揭示那一刻起从顶端就开始。
-        先前两栏只做在结果区（ResultBlock），于是题面区——它占着从进度条到结果区之间的
+        先前两栏只做在结果区（ResultBlock），于是题面区——它占着从题面顶端到结果区之间的
         整段——右半边一直是空的，而完整词条被压在它下面，看上去就是「完整词条上方有大片空白」。
         网格提到这一层，空白就没有了；两栏宽度仍由 resultLayout 定（窄屏 → 单列、词条置底），
         故窄屏的退路原样保留。
         两栏的**摆位**在这里定、**出不出现在右栏**由下面那个 revealed 门控定——两者要分清：
         门控丢了就是泄题（见下面 EntrySnapshot 处的注释），摆位丢了只是留白。
-        导航条与进度条留在两栏**之外**、仍在整页顶端横跨：它是全局的队列位置，
-        分栏会让「第 n / N」缩到左半边。原先的 gap-6（24px）也一并不再作用于题面与结果之间
-        ——两者现在同处左栏、由左栏自己的 gap-6 隔开，24px 会在作答行与题面之间多留一道空档。
+        导航条与进度条**不在这里**：v0.7.2 起它们上移到 ReviewModule、共处一个通栏吸顶块
+        （队列位置是全局的，分栏会把「第 n / N」挤到左半边）。原先的 gap-6（24px）也一并
+        不再作用于题面与结果之间——两者现在同处左栏、由左栏自己的 gap-6 隔开，
+        24px 会在作答行与题面之间多留一道空档。
       */}
       <div style={{
         display: 'grid', gap: 22, alignItems: 'start',

@@ -3,19 +3,22 @@ import StrategyList, { type StrategyMeta } from './StrategyList'
 import OverviewPanel from './OverviewPanel'
 import FreeScopePanel from './FreeScopePanel'
 import ReviewArena from './ReviewArena'
+import ArenaNavBar from './ArenaNavBar'
 import SessionGuard from './SessionGuard'
 import SummaryPanel from './SummaryPanel'
 import ReviewConsole from './ReviewConsole'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useCategoryStore } from '../../stores/categoryStore'
+import { useUiStore } from '../../stores/uiStore'
 import { getStrategyCounts, getOverview, getQueue, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import type { ReviewStrategy } from '../../lib/review/types'
 import { isSessionLive } from '../../lib/review/sessionGuard'
+import { canGoBack, canGoForward, answeredCount } from '../../lib/review/nav'
 import { scopeLabel, correctCount, TEMPLATE_LABEL } from '../../lib/review/scopeLabel'
 
 export default function ReviewModule() {
-  const { strategy, sessionStrategy, phase, queue, answered, freeScope, index, setStrategy, startSession, reset } = useReviewSessionStore()
+  const { strategy, sessionStrategy, phase, queue, answered, freeScope, index, setStrategy, startSession, setIndex, reset } = useReviewSessionStore()
   const reviewSettings = useSettingsStore(s => s.review)
   const categories = useCategoryStore(s => s.categories)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
@@ -101,6 +104,19 @@ export default function ReviewModule() {
     startSession(q, scope)
   }
 
+  // 结束本轮（Ruling 26b）：随导航条一起从 ReviewArena 上移到这里——导航条吸顶时它的
+  // 宿主也得在这一层。所需的东西（useUiStore、queue、answered、reset）这里都有，
+  // 故 ReviewArena 里不再留副本。
+  const handleEnd = async () => {
+    const ok = await useUiStore.getState().confirm({
+      title: '结束本轮回合？',
+      message: `已答的 ${answeredCount(answered)} 道题照常保存，但本轮不会生成结算，剩余 ${Math.max(0, queue.length - answeredCount(answered))} 题留到下次。`,
+      confirmLabel: '结束并退出',
+      danger: true,
+    })
+    if (ok) reset()
+  }
+
   return (
     <div className="flex flex-1 overflow-hidden">
       <StrategyList
@@ -129,6 +145,24 @@ export default function ReviewModule() {
             startLabel="开始复习"
             canStart={(overview?.deliverable ?? 0) > 0}
           />
+        )}
+        {live && (
+          // 导航条与进度条共处一个吸顶块（v0.7.2，Ruling 26）：ArenaNavBar 自带的 sticky 已去掉，
+          // 这一层是唯一的吸顶层，块本身通栏（无左右内缩），进度条因此与导航条同宽。
+          <div style={{ position: 'sticky', top: 0, zIndex: 'var(--z-sticky)', background: 'var(--color-surface)' }}>
+            <ArenaNavBar
+              index={index}
+              total={queue.length}
+              canBack={canGoBack(index)}
+              canForward={canGoForward(queue, answered, index)}
+              onBack={() => setIndex(index - 1)}
+              onForward={() => setIndex(index + 1)}
+              onEnd={() => void handleEnd()}
+            />
+            <div style={{ height: '3px', background: 'var(--color-border)' }}>
+              <div style={{ width: `${((index + 1) / queue.length) * 100}%`, height: '100%', background: 'var(--color-brand)' }} />
+            </div>
+          </div>
         )}
         {live && <ReviewArena />}
         {summaryVisible && (

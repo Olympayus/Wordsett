@@ -10,6 +10,7 @@ import Tooltip from '../ui/Tooltip'
 import CategoryPickerPopover from '../ui/CategoryPickerPopover'
 import FamiliarityChoice from '../search/FamiliarityChoice'
 import type { InitialFamiliarityChoice } from '../../services/wordService'
+import { NAV_HEIGHT, NAV_CONTROL_HEIGHT } from '../../lib/layout'
 
 interface WorkbenchNavBarProps {
   /** 所在区域：工作台显示编者/删除，搜索返回页显示返回/合并添加 */
@@ -30,9 +31,10 @@ interface WorkbenchNavBarProps {
   inLibrary?: boolean
 }
 
-// 导航按钮（V8 .nav-btn）：28×28、无边框无底色，hover 才起底色
+// 导航按钮（V8 .nav-btn）：无边框无底色，hover 才起底色；高取 NAV_CONTROL_HEIGHT，
+// 与同排的方块按钮逐像素等高（v0.7.2），否则导航条右端看着是歪的
 const navBtn = (disabled = false): CSSProperties => ({
-  width: '28px', height: '28px', flexShrink: 0,
+  width: '28px', height: `${NAV_CONTROL_HEIGHT}px`, flexShrink: 0,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)',
   cursor: disabled ? 'default' : 'pointer',
@@ -79,13 +81,14 @@ export default function WorkbenchNavBar({
   return (
     <div
       style={{
-        // 吸顶（spec §6）+ 圆角描边浮条（V8 .ed-toolbar 的形态，底色取主题暖色而非纯白）
+        // 通栏细行（v0.7.2）：贴滚动容器上缘、无圆角、无左右内缩、下缘一道细线，底取内容面。
+        // 旧的「圆角描边浮条 + marginBottom:18」去掉——工作区 / 返回页 / 复习区三处同一形态。
         position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
-        display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap',
-        background: 'var(--color-canvas)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-lg)',
-        padding: '6px 8px', marginBottom: '18px',
+        minHeight: `${NAV_HEIGHT}px`, display: 'flex', alignItems: 'center', gap: '10px',
+        padding: '0 14px',
+        background: 'var(--color-surface)',
+        borderBottom: '1px solid var(--color-border)',
+        marginBottom: 0,
       }}
     >
       <button
@@ -119,9 +122,9 @@ export default function WorkbenchNavBar({
       {/* ⋯ 更多操作（普通模式可见）本轮不实现：⋯ 菜单内容与「删除此标签页」收进菜单是 v0.7.0 段二的独立项，
           本轮没有可放入 ⋯ 的条目；等段二落地时在本组件右侧补上即可。
           ＋ 新增标签页已移除：它与标签条右侧的 ＋ 重复（同一 TAB_GROUPS 选择器），标签条那处保留为唯一入口。 */}
-      {/* 右端簇自己也要能换行：外层 flexWrap:'wrap' 只保证这一簇在放不下时整体挪到第二行，
-          簇内若还是 nowrap（默认），窄窗口下它会先溢出而不是内部重排。justifyContent:'flex-end'
-          让换出来的第二行仍靠右对齐，不至于左边缘不齐。 */}
+      {/* 右端簇自带 flexWrap:'wrap'：窄窗口下这一簇被压到放不下时在簇内重排，而不是先溢出
+          （缺省的 nowrap 会溢出）。导航条高由 min-height 撑——簇长高时条跟着长高，故不写死
+          height。justifyContent:'flex-end' 让重排出来的行仍靠右对齐，不至于左边缘不齐。 */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {region === 'workbench' ? (
           <>

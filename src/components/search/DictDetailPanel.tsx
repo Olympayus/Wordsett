@@ -12,6 +12,7 @@ import { useWordStore } from '../../stores/wordStore'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING } from '../../lib/layout'
 import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
 import type { DictionaryField } from '../../types/dictionary'
@@ -152,7 +153,7 @@ export default function DictDetailPanel({ word }: Props) {
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--color-surface)' }}>
       <div style={{
-        maxWidth: '720px', margin: '0 auto', padding: '24px 16px 48px',
+        maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: ENTRY_COLUMN_PADDING,
         minHeight: '100%', display: 'flex', flexDirection: 'column',
       }}>
         {/* 导航条（v0.5.3 §3.4）：与工作台同款同位置；左箭头返回工作台、右端合并添加。

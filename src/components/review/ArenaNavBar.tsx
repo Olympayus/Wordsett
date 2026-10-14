@@ -1,10 +1,12 @@
 import type { CSSProperties } from 'react'
 import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
+import { NAV_HEIGHT, NAV_CONTROL_HEIGHT } from '../../lib/layout'
 
-// 导航按钮（与 word/WorkbenchNavBar.tsx 的 navBtn 同形）：28×28、无边框无底色，hover 才起底色
+// 导航按钮（与 word/WorkbenchNavBar.tsx 的 navBtn 同形）：无边框无底色，hover 才起底色；
+// 高取 NAV_CONTROL_HEIGHT，与同排的方块按钮逐像素等高（v0.7.2）
 const navBtn = (disabled: boolean): CSSProperties => ({
-  width: '28px', height: '28px', flexShrink: 0,
+  width: '28px', height: `${NAV_CONTROL_HEIGHT}px`, flexShrink: 0,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)',
   cursor: disabled ? 'default' : 'pointer',
@@ -39,10 +41,12 @@ export default function ArenaNavBar({ index, total, canBack, canForward, onBack,
   }
   return (
     <div style={{
-      position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
-      display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap',
-      background: 'var(--color-canvas)', border: '1px solid var(--color-border)',
-      borderRadius: 'var(--radius-lg)', padding: '6px 8px', marginBottom: '14px',
+      // 通栏细行（v0.7.2）：本身不再 sticky——它与下面的进度条一起被 ReviewModule 的
+      // 那个吸顶块包住（两个 sticky 层会互相打架）。无圆角、下缘一道细线，底取内容面。
+      minHeight: `${NAV_HEIGHT}px`, display: 'flex', alignItems: 'center', gap: '10px',
+      padding: '0 14px',
+      background: 'var(--color-surface)',
+      borderBottom: '1px solid var(--color-border)',
     }}>
       <button type="button" title="上一题" aria-label="上一题" disabled={!canBack}
         onClick={onBack} onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={navBtn(!canBack)}>
@@ -54,8 +58,8 @@ export default function ArenaNavBar({ index, total, canBack, canForward, onBack,
       </button>
       <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginLeft: 4 }}>第 {index + 1} / {total} 题</span>
       <span style={{ flex: 1 }} />
-      {/* tone='canvas'（v0.6.2 条目 1）：整条导航条自带 --color-canvas 底（本 div 的
-          background），故脚下说了算——外面那块纯白内容区不参与判断。外层 <main> 虽是 surface，跨过它取。 */}
+      {/* tone='canvas'（v0.6.2 条目 1）：按钮底色按「直接父级的底」选套。本条 v0.7.2 起底改为
+          内容面（surface），按钮 tone 按「右端动作簇原样搬」未随动（是否随之改 surface 见 Task 13 报告）。 */}
       <SquareButton size="nav" tone="canvas" onClick={onEnd}>结束回合</SquareButton>
     </div>
   )

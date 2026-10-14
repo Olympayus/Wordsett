@@ -32,6 +32,7 @@ import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { isLeech } from '../../lib/review/leech'
 import { useUiStore } from '../../stores/uiStore'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING } from '../../lib/layout'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
 // 三态与三态底色来自 lib（v0.5.2 修订）：音标 / 词根 chip 也按同一套来源三态上色，
@@ -1169,8 +1170,9 @@ export default function WordWorkbench() {
       )}
       {/* 内容列：保持居中（v0.5.2 修订②）——先前的居中留白 (main 宽 − 720)/2 被去掉过一次，
           但左对齐会让右侧空出一大片，观感更差，故恢复 margin:0 auto。
-          列内边距左右仍为 16（原 32）：同一居中盒子里正文因此左移 16px、且宽出 32px。 */}
-      <div style={{ maxWidth: '720px', margin: '0 auto', padding: '24px 16px 48px' }}>
+          v0.7.2：列宽与内边距改取 lib/layout 的共享常量（ENTRY_BAND_WIDTH / ENTRY_COLUMN_PADDING，
+          与返回页同一份），顶部留白由通栏导航条自己占，故内边距顶部从 0 起。 */}
+      <div style={{ maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: ENTRY_COLUMN_PADDING }}>
         {/* 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区 */}
         <WorkbenchNavBar
           region="workbench"
