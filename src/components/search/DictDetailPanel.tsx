@@ -24,7 +24,7 @@ interface Props {
 // 页签样式：凸起页签（圆角顶、白底、压住下面那道 2px 线），色值走 token（借 word/TabBar 的视觉）。
 function tabStyle(active: boolean): CSSProperties {
   return {
-    position: 'relative', padding: '7px 20px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
+    position: 'relative', padding: '7px 18px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
     borderRadius: '8px 8px 0 0', zIndex: 1, border: 'none', fontFamily: 'var(--font-sans)',
     background: active ? 'var(--color-surface)' : 'transparent',
     color: active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',

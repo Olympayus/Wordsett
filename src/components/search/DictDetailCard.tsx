@@ -99,8 +99,16 @@ export default function DictDetailCard({
   const [selected, setSelected] = useState<Set<string>>(new Set())
   useEffect(() => {
     const all = new Set<string>()
-    const walk = (nodes: FlatNode[]) => { for (const n of nodes) { all.add(n.key); walk(n.children) } }
-    walk(flat)
+    // 顶层容器由 SenseFlow 的 run-in 头承担，没有勾选框，故不种进 selected：种进去就永远删不掉，
+    // selected.size 再也到不了 0，「合并添加」的 disabled 判据随之失效、计数也带上一个下限。
+    // buildMergeInputs 的 addLineage 会在其子项被选中时把祖先补回来，故默认全选的输出不变。
+    const walk = (nodes: FlatNode[], topLevel: boolean) => {
+      for (const n of nodes) {
+        if (!(topLevel && n.children.length > 0)) all.add(n.key)
+        walk(n.children, false)
+      }
+    }
+    walk(flat, true)
     setSelected(all)
   }, [word_, flat])
 
@@ -147,7 +155,7 @@ export default function DictDetailCard({
     return (
       <span
         title={src === 'wordnet' ? '来自 WordNet' : '来自 ECDICT'}
-        style={{ fontSize: 11, color: 'var(--color-text-tertiary)', flexShrink: 0 }}
+        style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 11.5, color: 'var(--color-text-tertiary)', flexShrink: 0 }}
       >
         {src === 'wordnet' ? '·wn' : '·ec'}
       </span>

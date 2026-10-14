@@ -8,7 +8,7 @@ import CheckBox from '../ui/CheckBox'
 
 interface Props { meta: TitleMeta | null; onInputsChange: (inputs: MergeFieldInput[]) => void }
 
-// 头带字段行的标签列（v0.7.2）：与 EntryBand 内置音标行同款 62px 左列。
+// 头带字段行的标签列（v0.7.2）：62px 左列，让「音标」「词根」标签与头带正文对齐。
 const LABEL_COL: CSSProperties = {
   width: '62px', flex: 'none', fontSize: '11.5px', color: 'var(--color-text-tertiary)', paddingTop: '2px',
 }
@@ -18,7 +18,8 @@ const LABEL_COL: CSSProperties = {
  *
  * 不再是一条独立盒子——由 `DictDetailPanel` 交给 `EntryBand` 的 `rows`，与头带同幅。
  * 勾选框保留：它们是返回页唯一能**单独勾选合并**的两项（其余字段在正文流的行尾勾选），
- * 未勾选是中性描边。音标归本组件渲染（`EntryBand` 的 `phonetic` 不再传，避免音标出现两次）。
+ * 未勾选是中性描边。音标归本组件渲染——`EntryBand` 没有可勾选行的槽位（其 `phonetic` 槽已作废删除），
+ * 音标要想带勾选框只能由这里出。
  */
 export default function WordTitleExtras({ meta, onInputsChange }: Props) {
   const titleInfo = useSettingsStore(s => s.titleInfo)
