@@ -6,6 +6,13 @@
   --color-surface: #FFFFFF;         /* 阅读面（不变） */
   --color-surface-raised: #F3F1EA;  /* 凹陷 / 次级块（改语义） */
   --color-surface-hover: #F0F1EE;   /* 悬停（比内容面深一档，白面上也看得见） */
+  /* 凹陷面上的悬停（v0.7.2 评审）：三个凹陷档（chrome 93.4 / raised 95.1 / sunken 95.8）
+     全挤在 L* 93–96，共享的 --color-surface-hover（95.0）压上去只剩 0.1–1.6 L*、
+     hover 看不见。凹陷面上只能朝更亮走（--color-surface 方向）：取 surface 与 sunken 的
+     50/50 混合（#FAF9F6, L* 97.93）——离 raised 2.81、离 sunken 2.08、离 chrome 4.56、
+     离白面 2.07，处处 ≥ 2 L*（v0.6.1 定的可读门槛）。消费点：侧栏行 / 工具条、页签条、
+     返回页页签条、标题栏窗控、设置页子行、页级「＋ 添加」。别改回 --color-surface-hover。 */
+  --color-surface-hover-recessed: color-mix(in srgb, var(--color-surface) 50%, var(--color-surface-sunken));
 
   /* 文字 */
   --color-text-primary: #1C1814;

@@ -43,7 +43,7 @@ const iconBtn = (on = false): React.CSSProperties => ({
 // 否则按钮连底色都不变，看起来像坏的。三颗图标钮共用这一对。
 // hover 转主文字色（v0.7.2 §6 规则 2：蓝不做「可点」的通用提示，不再是 brand）。
 const hoverOn = (e: React.MouseEvent<HTMLButtonElement>) => {
-  e.currentTarget.style.background = 'var(--color-surface-hover)'
+  e.currentTarget.style.background = 'var(--color-surface-hover-recessed)'
   e.currentTarget.style.color = 'var(--color-text-primary)'
 }
 const hoverOff = (e: React.MouseEvent<HTMLButtonElement>) => {

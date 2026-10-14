@@ -21,8 +21,11 @@ export function dayTotal(d: DayRating): number {
 }
 
 /**
- * 当日记得率（v0.7.2 改名：原名正确率）＝good / 总评分数。与 templateAccuracy 的「rating ≥ 3 算对」同口径：
- * good 恰好收下 rating ≥ 3（4 折入 good，3 落 good），分母是全部评分数。
+ * 当日记得率（v0.7.2 改名：原名正确率）＝good / 总评分数，量的是**记忆程度**、不是客观正误。
+ * 读的是 `review_logs.rating`（该表没有客观结论列），与 `lib/review/template.ts` 的 templateAccuracy
+ * 同口径——那份也只读 rating：good 恰好收下 rating ≥ 3（4 折入 good，3 落 good），分母是全部评分数。
+ * **别与 `roundStats.templateAccuracy` 混**：同名不同物，那份读 `AnsweredEntry.correct`，是客观正误
+ * （v0.7.2 §0 项 3：正误与记忆程度刻意解耦）。
  * 空日返回 0（调用方只画有评分的日子，但保底口径写死在这里，免得分支各自发挥）。
  */
 export function dayAccuracy(d: DayRating): number {

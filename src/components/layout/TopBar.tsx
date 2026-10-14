@@ -143,7 +143,8 @@ export default function TopBar() {
         // 而工作台的吸顶导航条同为 --z-sticky（20）、且在 DOM 中更靠后，等值并列时后者胜出会盖住下拉。
         // 故顶栏取 --z-overlay（30）：高于页内吸顶条（20）与页内下拉（10），仍低于模态（40）与 FindBar。
         position: 'relative', zIndex: 'var(--z-overlay)',
-        background: 'var(--color-canvas)', borderBottom: '1px solid var(--color-border)',
+        // 标题栏取 --color-chrome（spec §1.1 的「标题栏 / 活动栏」档，全站最凹）。
+        background: 'var(--color-chrome)', borderBottom: '1px solid var(--color-border)',
       }}
     >
       {/* 左：Logo 32×32（规格 §3：圆角 radius-md），点击回词编辑视图。
@@ -262,13 +263,13 @@ export default function TopBar() {
 
         <button type="button" title="最小化" aria-label="最小化" onClick={() => void appWindow.minimize()}
           style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
           <Icon name="minimize" size={14} />
         </button>
         <button type="button" title={isMaximized ? '还原' : '最大化'} aria-label={isMaximized ? '还原' : '最大化'} onClick={toggleMaximize}
           style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
           <Icon name={isMaximized ? 'restore' : 'maximize'} size={14} />
         </button>

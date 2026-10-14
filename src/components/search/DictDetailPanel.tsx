@@ -37,7 +37,8 @@ function tabStyle(active: boolean): CSSProperties {
 // v0.7.2 §6 规则 2：转的是主文字色，不再是品牌蓝。
 const tabHoverOn = (active: boolean) => (e: React.MouseEvent<HTMLButtonElement>) => {
   if (active) return
-  e.currentTarget.style.background = 'var(--color-surface-hover)'
+  // 页签条的底是 --color-surface-sunken（:203），故 hover 走凹陷档，与工作台 TabBar 同值。
+  e.currentTarget.style.background = 'var(--color-surface-hover-recessed)'
   e.currentTarget.style.color = 'var(--color-text-primary)'
 }
 const tabHoverOff = (active: boolean) => (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -199,14 +200,19 @@ export default function DictDetailPanel({ word }: Props) {
           }
         />
 
-        {/* Tab 栏：词典 | 语义网络（凸起页签；语义网络徽章为 relatedWords 真实计数） */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: '4px 0 0', borderBottom: '2px solid var(--color-border-strong)', marginTop: 12, marginBottom: 16 }}>
+        {/* Tab 栏：词典 | 语义网络（凸起页签；语义网络徽章为 relatedWords 真实计数）。
+            底取 --color-surface-sunken，与工作台 TabBar 同一 .tabs 配方（设计稿两页同款）——
+            否则白页签落在白页上，凸起只剩那道 1px 描边在撑。 */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: '4px 0 0', background: 'var(--color-surface-sunken)', borderBottom: '2px solid var(--color-border-strong)', marginTop: 12, marginBottom: 16 }}>
           <button type="button" onClick={() => setTab('dict')} style={tabStyle(tab === 'dict')}
             onMouseEnter={tabHoverOn(tab === 'dict')} onMouseLeave={tabHoverOff(tab === 'dict')}>词典</button>
           <button type="button" onClick={() => setTab('network')} style={tabStyle(tab === 'network')}
             onMouseEnter={tabHoverOn(tab === 'network')} onMouseLeave={tabHoverOff(tab === 'network')}>
             语义网络
-            <span style={{ marginLeft: 4, padding: '1px 8px', borderRadius: 'var(--radius-full)', fontSize: 11, fontWeight: 'var(--weight-medium)', background: 'var(--color-surface-sunken)', color: 'var(--color-text-secondary)' }}>
+            {/* 计数胶囊：底原为 --color-surface-sunken，条面改 sunken 后与条面同色、非活动页签上
+                就看不见了。改 --color-chrome——比条面（sunken 95.8）深 2.47 L*、比活动页签的白面
+                深 6.63 L*，两种态都读得出来，且仍是「一个面」而非边框色。 */}
+            <span style={{ marginLeft: 4, padding: '1px 8px', borderRadius: 'var(--radius-full)', fontSize: 11, fontWeight: 'var(--weight-medium)', background: 'var(--color-chrome)', color: 'var(--color-text-secondary)' }}>
               {networkCount}
             </span>
           </button>

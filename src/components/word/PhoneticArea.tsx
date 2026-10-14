@@ -190,7 +190,10 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
       onMouseEnter={() => setRowHover(true)}
       onMouseLeave={() => { setRowHover(false); setMenuOpenId(null); setChipHover(null) }}
     >
-      <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.5px', color: 'var(--color-text-secondary)', flexShrink: 0, paddingTop: stacked ? 3 : 0 }}>
+      {/* 标签取设计稿 .frow .lb 的形式（62px 定宽列 / 11.5px / 常规字重 / 三级字色 / padding-top 2），
+          与返回页 WordTitleExtras 的 LABEL_COL、工作区的 bandRowLabel 同一列（评审 Minor M-1）。
+          非 stacked（音标）行整行居中，标签 paddingTop 归 0 才能与 chip 对齐，故按 stacked 分档。 */}
+      <span style={{ width: '62px', flexShrink: 0, fontSize: '11.5px', color: 'var(--color-text-tertiary)', paddingTop: stacked ? 2 : 0 }}>
         {label}
       </span>
 

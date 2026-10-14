@@ -16,12 +16,13 @@ interface TabBarProps {
 }
 
 // 页签条的底是 --color-surface-sunken（#F5F3ED, L* 95.84）。凹陷面上不能往更暗走——全站
-// 凹陷档全挤在 L* 95–96，共享的 --color-surface-hover（#F0F1EE, L* 95.0）压上去只有 0.84 L*、
-// hover 几乎看不见（v0.7.2 前这里用字面 #FAF9F6，约 4.5 L*）。只能往更亮一档、朝
-// --color-surface 走：取 surface 与 sunken 的 50/50 混合 #FAF9F6（L* 97.93），离条面
-// 2.08 L*、离白面 2.07 L*，恰在两者中点——看得见，又不至于白得像激活页签。别改回
-// --color-surface-hover。
-const TAB_HOVER_BG = 'color-mix(in srgb, var(--color-surface) 50%, var(--color-surface-sunken))'  // #FAF9F6
+// 凹陷档全挤在 L* 93–96，共享的 --color-surface-hover（#F0F1EE, L* 95.0）压上去只有 0.84 L*、
+// hover 几乎看不见（v0.7.2 前这里用字面 #FAF9F6，约 4.5 L*）。凹陷面上只能往更亮一档、朝
+// --color-surface 走——那就是 --color-surface-hover-recessed（surface 与 sunken 的 50/50 混合
+// #FAF9F6，L* 97.93），离条面 2.08 L*、离白面 2.07 L*，恰在两者中点——看得见，又不至于白得
+// 像激活页签。该值现由 tokens.css 统一出（--color-surface-hover-recessed，各处凹陷面共用），
+// 此处只引用。别改回 --color-surface-hover。
+const TAB_HOVER_BG = 'var(--color-surface-hover-recessed)'  // #FAF9F6
 
 export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, onDeleteTab, editorMode = false }: TabBarProps) {
   const [addOpen, setAddOpen] = useState(false)
@@ -79,7 +80,7 @@ export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, o
         <button
           type="button" title="添加标签页" aria-label="添加标签页"
           onClick={() => setAddOpen(v => !v)}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = TAB_HOVER_BG; e.currentTarget.style.color = 'var(--color-text-primary)' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}
           style={{
             width: 26, height: 26, borderRadius: 6, border: 'none', background: 'transparent',

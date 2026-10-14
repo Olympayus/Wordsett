@@ -47,7 +47,8 @@ const navBtn = (disabled = false): CSSProperties => ({
 
 // 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区，吸顶。
 // 箭头是浏览器式前进 / 后退，走用户访问轨迹，不是词表顺序。
-// 形态对齐 V8 原型 .ed-toolbar：圆角描边浮条（--color-surface 底 + 1px 描边），而非仅一条下边框。
+// 形态（v0.7.2）：通栏细行——贴滚动容器上缘、无圆角、无左右内缩，下缘一道细线，底取内容面；
+// 旧 V8 原型 .ed-toolbar 的「圆角描边浮条」已废（见下方 :84-94 的实现）。
 export default function WorkbenchNavBar({
   region, onDeleteWord, onBack, onMergeAdd, mergeCount = 0, mergeDisabled = false,
   familiarity, onFamiliarityChange, inLibrary = false, breadcrumb,

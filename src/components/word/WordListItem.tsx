@@ -81,7 +81,7 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
         // checked 进谓词：已勾选的行，悬停不得改写底色与编织线——勾选态是本任务新增的
         // 选中信号，优先级高于「当前词条」与 hover 反馈，否则一悬停勾选色就没了
         // （这些处理器直写 style，绕过了 React 的样式驱动，不写回去就得等下次渲染自愈）。
-        if (!selected && !checked) el.style.background = 'var(--color-surface-hover)'
+        if (!selected && !checked) el.style.background = 'var(--color-surface-hover-recessed)'
         if (!selected && !checked && lineRef.current) {
           lineRef.current.style.background = 'var(--color-text-secondary)'
           lineRef.current.style.opacity = '1'

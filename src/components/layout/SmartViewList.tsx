@@ -9,8 +9,8 @@ import Icon from '../icons'
  *  于是一行贴一行、第一行直接顶住上面的筛选框——选中项有自己的底色与阴影，贴在一起时
  *  它和相邻项、和筛选框之间就分不出层次了。现在：上 10px 把这一组与筛选框分开，
  *  项间 2px 让相邻两项的底色框各自独立成块（v0.7.2：选中项的投影已摘除——§1.1 起靠明度
- *  分层不靠投影，选中框是白底 --color-surface，压在侧栏 --color-canvas 上，实测约 2.4 L*，
- *  一点余量就够。侧栏用哪一档面仍在评审中，此处按现状 canvas 记）。 */
+ *  分层不靠投影，选中框是白底 --color-surface，压在侧栏 --color-surface-sunken 上，实测 4.16 L*，
+ *  一点余量就够。侧栏那一档面已由评审定为 sunken（spec §1.1「索引栏」），不再待定）。 */
 export default function SmartViewList({ views, active, counts, onSelect }: {
   views: SmartViewKey[]
   active: SmartViewKey
@@ -34,7 +34,7 @@ export default function SmartViewList({ views, active, counts, onSelect }: {
               background: on ? 'var(--color-surface)' : 'transparent',
               cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-sans)',
             }}
-            onMouseEnter={e => { if (!on) e.currentTarget.style.background = 'var(--color-surface-hover)' }}
+            onMouseEnter={e => { if (!on) e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
             onMouseLeave={e => { e.currentTarget.style.background = on ? 'var(--color-surface)' : 'transparent' }}
           >
             <Icon name={meta.icon} size={14} />

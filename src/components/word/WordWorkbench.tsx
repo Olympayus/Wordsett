@@ -893,9 +893,10 @@ export default function WordWorkbench() {
     </div>
   )
 
-  // 头带里的字段行（音标 / 词根 / 分类）：与返回页同一形态。标签样式对齐 PhoneticArea 自己的
-  // 标签（12px 加粗、次级字色），否则「分类」与相邻的「音标 / 词根」看着不是一列。
-  const bandRowLabel: CSSProperties = { fontSize: 12, fontWeight: 700, letterSpacing: '.5px', color: 'var(--color-text-secondary)', flexShrink: 0, paddingTop: 2 }
+  // 头带里的字段行（音标 / 词根 / 分类）：与返回页同一形态。标签取设计稿 .frow .lb 的形式——
+  // 62px 定宽列 / 11.5px / 常规字重 / 三级字色 / padding-top 2，与返回页 WordTitleExtras 的
+  // LABEL_COL 逐项一致（评审 Minor M-1：两页曾一为 12px/700/次级、一为 11.5px/三级，看着不是一列）。
+  const bandRowLabel: CSSProperties = { width: '62px', flexShrink: 0, fontSize: '11.5px', color: 'var(--color-text-tertiary)', paddingTop: 2 }
 
   return (
     <div
@@ -1058,7 +1059,9 @@ export default function WordWorkbench() {
         </DndContext>
 
         {/* 页级「＋ 添加」（v0.7.2 D7）：流末尾一个中性按钮，点开本标签页全部可加项 + 新建标签页 / 词根 / 音标。
-            与正文流同度量（ENTRY_MEASURE），不像头带那样铺满。 */}
+            与正文流同度量（ENTRY_MEASURE），不像头带那样铺满。
+            hover 走凹陷档：按钮底是 raised（95.1），共享的 --color-surface-hover（95.0）压上去只有
+            0.13 L*、看不出反馈（评审 Important 2）；--color-surface-hover-recessed 离 raised 2.81 L*。 */}
         <div style={{ position: 'relative', maxWidth: `${ENTRY_MEASURE}px`, marginTop: '20px' }}>
           <button
             type="button"
@@ -1070,7 +1073,7 @@ export default function WordWorkbench() {
               fontSize: 'var(--text-sm)', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)',
               transition: 'background-color var(--duration-fast) var(--ease-smooth)',
             }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'var(--color-surface-raised)' }}
           >
             <Icon name="plus" size={16} />

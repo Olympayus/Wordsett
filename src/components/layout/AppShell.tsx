@@ -65,7 +65,8 @@ export default function AppShell() {
             className="flex flex-col shrink-0"
             style={{
               width: sidebarWidth,
-              background: 'var(--color-canvas)',
+              // 索引栏取 --color-surface-sunken（spec §1.1「索引栏」档，tokens.css:4 的用途注释同此）。
+              background: 'var(--color-surface-sunken)',
               borderRight: '1px solid var(--color-border)',
               transition: 'width var(--duration-fast) var(--ease-smooth)',
               overflow: 'hidden',

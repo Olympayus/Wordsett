@@ -91,12 +91,18 @@ function HoverInfo({ content }: { content: ReactNode }) {
 }
 
 // 树形开关行：父级行名加粗，子条目装入分块外框；父关 → 后代置灰禁用（Model B，不改存储）
-function FieldRow({ node }: { node: FieldTreeNode }) {
+function FieldRow({ node, nested = false }: { node: FieldTreeNode; nested?: boolean }) {
   const displayFields = useSettingsStore(s => s.displayFields)
   const setDisplayField = useSettingsStore(s => s.setDisplayField)
   const ancestorOff = isAncestorOff(node.key, displayFields)
   const effective = !ancestorOff && displayFields[node.key]
   const isParent = !!node.children && node.children.length > 0
+
+  // hover 底按**直接父级**分档：顶层行在设置页白底上，走通用悬停；子行装在 raised 分块外框里
+  // （见下方 isParent 那支），共享的 --color-surface-hover（95.0）压上去只剩 0.13 L*、看不出反馈，
+  // 故走凹陷档（--color-surface-hover-recessed，离 raised 2.81 L*）。判据与 SquareButton 的
+  // tone 同源：父级不是纯白就不套白底那一档。
+  const hoverBg = nested ? 'var(--color-surface-hover-recessed)' : 'var(--color-surface-hover)'
 
   return (
     <div>
@@ -106,7 +112,7 @@ function FieldRow({ node }: { node: FieldTreeNode }) {
           borderRadius: 'var(--radius-md)',
           transition: 'background-color var(--duration-fast) var(--ease-smooth)',
         }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
+        onMouseEnter={e => { e.currentTarget.style.background = hoverBg }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
       >
         <span style={{
@@ -130,7 +136,7 @@ function FieldRow({ node }: { node: FieldTreeNode }) {
           background: 'var(--color-surface-raised)', padding: '4px 0',
           margin: '4px 0 6px',
         }}>
-          {node.children!.map(c => <FieldRow key={c.key} node={c} />)}
+          {node.children!.map(c => <FieldRow key={c.key} node={c} nested />)}
         </div>
       )}
     </div>

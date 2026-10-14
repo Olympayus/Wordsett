@@ -28,7 +28,8 @@ export default function ActivityRail() {
       aria-label="模块"
       style={{
         width: `${ACTIVITY_RAIL_WIDTH}px`, flexShrink: 0,
-        background: 'var(--color-surface)',
+        // 活动栏取 --color-chrome（spec §1.1 的「标题栏 / 活动栏」档）；与标题栏同档。
+        background: 'var(--color-chrome)',
         borderRight: '1px solid var(--color-border)',
         display: 'flex', flexDirection: 'column', alignItems: 'center',
         padding: '8px 0', gap: '4px',
