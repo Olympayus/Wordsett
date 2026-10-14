@@ -12,6 +12,7 @@ import { useUiStore } from '../../stores/uiStore'
 import { rateCard, type CardContent, type RateCardResult, type ReviewCardDTO } from '../../services/reviewService'
 import { compareTyped } from '../../lib/review/typed'
 import { currentAnswered, canGoBack, canGoForward, answeredCount, revealedInputFor } from '../../lib/review/nav'
+import { correctAnswerText } from '../../lib/review/roundStats'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
 import { RESULT_BREAKPOINT, RESULT_CONTENT_WIDTH, NARROW_CONTENT_WIDTH, RESULT_HALF_WIDTH, resultGridColumns } from '../../lib/review/resultLayout'
 import { getWordContent } from '../../db/review'
@@ -275,7 +276,7 @@ export default function ReviewArena() {
             // setLastSkipped 早已随换卡重置或更早已被该条覆盖，交给记账才是真的那次）；
             // 尚未记账 → 读本次评分的局部标记（刚评完那一帧，store 那条还不在 answeredList 里，
             // 而本组件读的正是 answeredList）。评分键与键盘不传第三个参数，两条都是 false。
-            <ResultBlock lastInput={lastInput} skipped={answeredNow ? pastEntry?.skipped : lastSkipped} correct={correct}>
+            <ResultBlock lastInput={lastInput} skipped={answeredNow ? pastEntry?.skipped : lastSkipped} correct={correct} answerText={correctAnswerText(dto)}>
               {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
               {!answeredNow && (
                 <RatingBar

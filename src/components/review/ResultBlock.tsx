@@ -21,8 +21,33 @@ import { answerDisplay, correctnessLabel } from '../../lib/review/roundStats'
  *
  * `dto` prop 随之删除（v0.6.4）：揭掉 `revealOnly` 那道门控后，本块再没有一处读它
  * （题面与词条快照都从 ReviewArena 走），留着就是一条永远为真的死 prop。
+ *
+ * v0.7.2 起本块是三栏，`correct` 来自记账里的客观结论而不是 rating。
  */
-export default function ResultBlock({ lastInput, skipped, correct, children }: {
+
+/**
+ * 对错色 token 化（v0.7.2）：旧代码硬编码 `#5a8a6a` / `#c0705a`，改为主题变量。
+ * `dim` 给未判定（`correct === null`）的「正误」栏用——跳过 / 回看未评时是「—」。
+ */
+const TONES = {
+  ok: { color: 'var(--color-success)', fontWeight: 600 },
+  no: { color: 'var(--color-danger)', fontWeight: 600 },
+  dim: { color: 'var(--color-text-tertiary)' },
+} as const
+
+/** 三栏共用的一格：标签 11px 在上、值 14px 在下，三栏因此共用一条标签基线。 */
+function Column({ label, tone, children }: { label: string; tone?: keyof typeof TONES; children: ReactNode }) {
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{label}</div>
+      <div style={{ fontSize: '14px', marginTop: '6px', lineHeight: 1.5, overflowWrap: 'anywhere', ...(tone ? TONES[tone] : {}) }}>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+export default function ResultBlock({ lastInput, skipped, correct, answerText, children }: {
   lastInput: string
   /**
    * 本次（或回看到的）那次作答是否走了「跳过」（v0.6.4）。由 ReviewArena 传入：
@@ -31,6 +56,8 @@ export default function ResultBlock({ lastInput, skipped, correct, children }: {
    */
   skipped?: boolean
   correct: boolean | null
+  /** 「正确答案」栏的文本，由调用方用 `correctAnswerText(dto)` 求出。 */
+  answerText: string
   /**
    * 排在「你的作答」之后的内容（三键 / 下一题 / 回看态那行）。
    * 评分状态与 onRate 仍在 ReviewArena，这里只接收渲染结果。
@@ -39,16 +66,12 @@ export default function ResultBlock({ lastInput, skipped, correct, children }: {
 }) {
   return (
     <section aria-label="答题复盘" className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1">
-        <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>你的作答</span>
-        <span style={{ fontSize: '14px' }}>
-          {answerDisplay({ input: lastInput, skipped })}
-          {correct !== null && (
-            <span style={{ marginLeft: '8px', color: correct ? '#5a8a6a' : '#c0705a', fontSize: '12px' }}>
-              {correctnessLabel(correct)}
-            </span>
-          )}
-        </span>
+      {/* 列定义必须写 minmax(0, 1fr)：`1fr` 的隐含 min-width:auto 会让长中文释义把格子顶宽，
+          左栏（上限 550px）随之横向溢出（Review Focus 4）。 */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
+        <Column label="你的作答">{answerDisplay({ input: lastInput, skipped })}</Column>
+        <Column label="正确答案">{answerText}</Column>
+        <Column label="正误" tone={correct === null ? 'dim' : correct ? 'ok' : 'no'}>{correctnessLabel(correct)}</Column>
       </div>
       {children}
     </section>
