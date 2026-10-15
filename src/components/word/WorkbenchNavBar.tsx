@@ -47,8 +47,13 @@ const navBtn = (disabled = false): CSSProperties => ({
 
 // 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区，吸顶。
 // 箭头是浏览器式前进 / 后退，走用户访问轨迹，不是词表顺序。
-// 形态（v0.7.2）：通栏细行——贴滚动容器上缘、无圆角、无左右内缩，下缘一道细线，底取内容面；
+// 形态（v0.7.2）：通栏细行——贴滚动容器上缘、无圆角、下缘一道细线，底取标题栏档。
 // 旧 V8 原型 .ed-toolbar 的「圆角描边浮条」已废（见下方 :84-94 的实现）。
+// 二轮两处修正：
+// ① **外层 wrapper 不可再垫水平内边距**——那道 borderBottom 画在本组件的盒内，wrapper
+//   垫多少、分割线左右就各短多少，「顶不到屏幕边缘」就是这么来的（修复前的成因）。
+//   故 WorkbenchNavBar 的左右内边距只留 14px（见下方 style 的 padding），wrapper 通栏不垫。
+// ② 底色取 **--color-chrome**（spec §1.1 的标题栏 / 活动栏档，用户指定）。
 export default function WorkbenchNavBar({
   region, onDeleteWord, onBack, onMergeAdd, mergeCount = 0, mergeDisabled = false,
   familiarity, onFamiliarityChange, inLibrary = false, breadcrumb,
@@ -70,10 +75,17 @@ export default function WorkbenchNavBar({
     if (target) void selectWord(target, { record: false })
   }
 
-  // V8 .nav-btn:hover：hover 起底色并转主色
+  // V8 .nav-btn:hover：hover 起底色并转主色。
+  // 底色取 **--color-surface-hover-recessed** 而非 --color-surface-hover（v0.7.2 二轮）：
+  // 导航条底色已由内容面改取 --color-chrome（#EEECE5, L* 93.375），而共享的
+  // --color-surface-hover（#F0F1EE, L* 94.996）压在 chrome 上只有 **1.62 L\***，
+  // 跨不过本仓 2 L* 的可读门槛——hover 等于看不见。--color-surface-hover-recessed
+  // （#FAF9F6, L* 97.925，离 chrome **4.55 L\***）正是 tokens.css 里为「凹陷面悬停」
+  // 定义的那一档，chrome 就是凹陷档之一（tokens.css 自己按 L* 93–96 归的组）。
+  // 这是**沿用既有 token**，没有新造色值（palette 归 Task 1、tokens.test.ts 钉着）。
   const hoverOn = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (e.currentTarget.disabled) return
-    e.currentTarget.style.background = 'var(--color-surface-hover)'
+    e.currentTarget.style.background = 'var(--color-surface-hover-recessed)'
     e.currentTarget.style.color = 'var(--color-text-primary)'
   }
   const hoverOff = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -84,12 +96,13 @@ export default function WorkbenchNavBar({
   return (
     <div
       style={{
-        // 通栏细行（v0.7.2）：贴滚动容器上缘、无圆角、无左右内缩、下缘一道细线，底取内容面。
-        // 旧的「圆角描边浮条 + marginBottom:18」去掉——工作区 / 返回页 / 复习区三处同一形态。
+        // 通栏细行（v0.7.2）：贴滚动容器上缘、无圆角、下缘一道细线，底取标题栏档。
+        // 那条 borderBottom 在本组件盒内，故**左右内边距归 wrapper 管、这里只管内容**：
+        // wrapper 通栏不垫（见文件头二轮 ①），这条线才顶得到屏幕左右边缘。
         position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
         minHeight: `${NAV_HEIGHT}px`, display: 'flex', alignItems: 'center', gap: '10px',
         padding: '0 14px',
-        background: 'var(--color-surface)',
+        background: 'var(--color-chrome)',
         borderBottom: '1px solid var(--color-border)',
         marginBottom: 0,
       }}
@@ -132,9 +145,12 @@ export default function WorkbenchNavBar({
       {/* 右端簇自带 flexWrap:'wrap'：窄窗口下这一簇被压到放不下时在簇内重排，而不是先溢出
           （缺省的 nowrap 会溢出）。导航条高由 min-height 撑——簇长高时条跟着长高，故不写死
           height。justifyContent:'flex-end' 让重排出来的行仍靠右对齐，不至于左边缘不齐。
-          簇与其内的锚点 div 都不设底色，按钮脚下就是本条的内容面底（见下方导航条容器的
-          background），故簇内 SquareButton 一律取 tone="surface"（规则：tone 随直接父级底
-          选套，透明父级不算、再往上看一层——「脚下说了算」）。 */}
+          簇与其内的锚点 div 都不设底色，按钮脚下就是本条自己的底（见下方导航条容器的
+          background），故簇内 SquareButton 一律取 tone="canvas"（规则：tone 随直接父级底
+          选套，透明父级不算、再往上看一层——「脚下说了算」）。v0.7.2 二轮：脚下由
+          --color-surface 改成 --color-chrome，两者都不是纯白，故 tone 由 "surface" 改
+          "canvas"——surface 套的 rest/hover（#E8E4DE → #F5F3ED）只在纯白底上拉得出阶差，
+          压在 chrome 上 rest 与底只有 0.13 L*、hover 也只有 2.47 L*，都糊。 */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {region === 'workbench' ? (
           <>
@@ -146,7 +162,7 @@ export default function WorkbenchNavBar({
                 而这里的状态由 aria-checked 播报、可见文字「编者」本身已够指名。 */}
             <SquareButton
               size="nav"
-              tone="surface"
+              tone="canvas"
               pressed={editorMode}
               role="switch"
               aria-checked={editorMode}
@@ -159,7 +175,7 @@ export default function WorkbenchNavBar({
 
             <button
               type="button" title="删除词条" aria-label="删除词条" onClick={onDeleteWord}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-danger)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)'; e.currentTarget.style.color = 'var(--color-danger)' }}
               onMouseLeave={hoverOff}
               style={navBtn()}
             >
@@ -194,7 +210,7 @@ export default function WorkbenchNavBar({
               <Tooltip content={mergeCount > 0 ? `把勾选的 ${mergeCount} 项合并添加进词条` : '先勾选要添加的词条'} width={260}>
                 <SquareButton
                   size="nav"
-                  tone="surface"
+                  tone="canvas"
                   disabled={mergeDisabled}
                   onClick={() => onMergeAdd?.()}
                 >
@@ -203,7 +219,7 @@ export default function WorkbenchNavBar({
               </Tooltip>
               <SquareButton
                 size="nav"
-                tone="surface"
+                tone="canvas"
                 aria-label="选择分类后添加"
                 disabled={mergeDisabled}
                 onClick={() => setPickerOpen(o => !o)}

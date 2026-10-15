@@ -14,7 +14,7 @@ import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
 import { countAllDefinitions } from '../../lib/dictPlan'
-import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_COLUMN_PADDING_X } from '../../lib/layout'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING } from '../../lib/layout'
 import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
 import type { DictionaryField } from '../../types/dictionary'
@@ -180,11 +180,14 @@ export default function DictDetailPanel({ word }: Props) {
           v0.7.2 §8.3：返回页分支加一条面包屑（词典 › 词），不再有别的浮动装饰。
           v0.7.2 修复 3「导航条应该贯穿整个右侧区域」：移出 900 内容列，横贯整个右侧区域——
           与工作区 / 复习区同一结构（导航条在内容列之外、sticky 贴在滚动区上缘）。
-          左右内边距取 ENTRY_COLUMN_PADDING_X：导航条自身另有 14px 内边距，两者相加即原先
-          「列内 24px + 导航条 14px」的落点，条通栏而内容不跳（与工作区同款同值）。 */}
+          v0.7.2 二轮：**wrapper 不再垫 ENTRY_COLUMN_PADDING_X**。先前垫的 24px 把导航条
+          自己的 borderBottom 一并内缩，分割线因此左右各短 24px、顶不到屏幕边缘（用户原话：
+          「分割线在左右两侧并没有顶到左边和右边，而是留空了一段」）。wrapper 通栏、NavBar
+          自身另持 14px 内边距（WorkbenchNavBar.tsx 的 `padding:'0 14px'`），条内内容宽度不变、不横跳；
+          结构与复习区 ReviewModule.tsx:152 一致（sticky 块无水平内边距）。 */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
-        padding: `0 ${ENTRY_COLUMN_PADDING_X}px`, background: 'var(--color-surface)',
+        background: 'var(--color-chrome)',
       }}>
         <WorkbenchNavBar
           region="dict"

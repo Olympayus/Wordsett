@@ -40,7 +40,7 @@ import { isLeech } from '../../lib/review/leech'
 import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
 import { displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
-import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_COLUMN_PADDING_X } from '../../lib/layout'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING } from '../../lib/layout'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
 /**
@@ -113,7 +113,11 @@ interface FieldCardProps extends FieldCardCtx {
   /** 该行的父节点（根级为 null）：行尾「＋」要加到**本行所在容器**，叶子行的容器即父节点。 */
   parentFv: FieldValue | null
   labelOverride?: string | null
-  /** 义号（FlowRow 的左槽）：工作区释义仍用 labelOverride 里的「(n)」，故此处默认不传。 */
+  /** 义号（FlowRow 的左槽）：本页**一律不传**（工作区释义仍用 labelOverride 里的「(n)」）。
+   *  v0.7.2 二轮起「不传」有了几何意义：FlowRow 的编号槽在 `no` 缺席时连 18px 宽度一并消失，
+   *  于是 run-in 头（groupHead，无编号槽、直接排 grip）与子行（FlowRow 行）落在同一条
+   *  21px 的左缘上——此前子行多吃 12(gap) + 18(占位槽) = 30px，就是「词性下的释义相对词形
+   *  有缩进」的成因。将来若某行真要义号，给它就是，整列会一致地往右让。 */
   no?: number | string
   /**
    * true = 作 SenseFlow 组的 run-in 头渲染（仅主标签页的根容器用）：只出可交互的头行
@@ -215,7 +219,10 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   const containerChildDefs = containerDef ? defs.filter(d => (ALLOWED_CHILD_KEYS[containerDef.key] ?? []).includes(d.key)) : []
   const containerLabel = containerDef ? containerDef.name : ''
 
-  // ③ hover 作用域：某行按钮可见 ⇔ hovered 节点是该行自身或其任一后代（即「当前 + 祖先链」）
+  // ③ hover 作用域（v0.7.2 二轮）：某行按钮可见 ⇔ hovered 节点是该行自身或其任一后代
+  //（即「当前行 + 其祖先链」）——用户原话「只显示鼠标范围内的词条以及其父词条」。
+  // **编者模式不再恒可见**：用户明确「工作区隐藏模式编者模式同理」，故两个模式同一判据，
+  // 两处 RowActions 调用点（groupHead 与 FlowRow 的两处 `<RowActions visible={showsButtons}`）一致。
   const containsId = (node: FieldValue, id: string | null): boolean => {
     if (!id) return false
     if (node.id === id) return true
@@ -317,7 +324,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
       <span style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
         <SourceMark state={rowState} />
         <RowActions
-          visible={editorMode || showsButtons}
+          visible={showsButtons}
           onAdd={() => onToggleAddMenu(fv)}
           menu={<RowMenu items={menuItems} />}
         />
@@ -463,7 +470,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               <>
                 <SourceMark state={rowState} />
                 <RowActions
-                  visible={editorMode || showsButtons}
+                  visible={showsButtons}
                   onAdd={() => onToggleAddMenu(fv)}
                   menu={<RowMenu items={menuItems} />}
                 />
@@ -948,10 +955,14 @@ export default function WordWorkbench() {
       )}
       {/* 词条导航条（v0.5.2 §6；v0.7.2 缺陷 2 改为通栏）：移出 900 内容列，横贯整个右侧区域。
           sticky 贴在滚动区上缘、常驻不动——与复习区导航条同结构（导航条在内容列之外）。
-          左右内边距取 ENTRY_COLUMN_PADDING_X 与下方内容列对齐：导航条自身另有 14px 内边距，
-          两者相加即原先「列内 24px + 导航条 14px」的落点，视觉不跳。 */}
+          v0.7.2 二轮：**wrapper 不再垫左右内边距**——先前垫的 ENTRY_COLUMN_PADDING_X(24px)
+          把导航条自己的 borderBottom 一起内缩，于是那条分割线左右各短 24px、顶不到屏幕
+          边缘（用户：「分割线在左右两侧并没有顶到左边和右边」）。wrapper 通栏、导航条自身
+          另持 14px 内边距（WorkbenchNavBar.tsx 的 `padding:'0 14px'`）撑内容位置，条的
+          内容因此仍居中不跳。
+          复习区正解在 ReviewModule.tsx:152（sticky 块无水平内边距，ArenaNavBar 的线通栏）。 */}
       <div style={{ position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
-                    padding: `0 ${ENTRY_COLUMN_PADDING_X}px`, background: 'var(--color-surface)' }}>
+                    background: 'var(--color-chrome)' }}>
         <WorkbenchNavBar region="workbench" onDeleteWord={handleDelete} />
       </div>
 

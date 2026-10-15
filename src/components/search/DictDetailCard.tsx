@@ -257,6 +257,15 @@ export default function DictDetailCard({
   // 组内行：FlowRow 一行 + 其子级（文档序递归）。义号在中/英释义间**连续**（1..N），
   // 容器行不编号；行内的子容器（例句 / 近义词辨析…）仍只随「全部收起/展开」整组折叠——
   // 单组折叠键（v0.7.2 修复 7）只挂在顶层分组的 run-in 头上，行尾槽留给来源标与勾选框。
+  //
+  // v0.7.2 二轮（缺陷 4）：子级块 `marginTop: -4px` —— 容器行 → 首个子级的间距收到设计稿的
+  // 紧值。设计稿里**例子块是嵌在释义行里的**（`.sense .tx > .ex`，showcase-v2:196 的
+  // `.ex{margin-top:4px}`），所以那一段只有 4px；本页则把子级渲染成容器行的**兄弟 FlowRow**，
+  // 于是间距 = 容器行底内边距 4 + 子级行顶内边距 4 = **8px**，正好是设计值的两倍。
+  // 用户原话「标题离下方的子标题间距过大……近义词与其中的词的间距」。
+  // 扣掉的 4px 正是被兄弟模型重复计算的那一层（FlowRow 的 11px 左缩进量与上下 4px 都照旧）。
+  // 只改**返回页**：工作区的同一处已在 ecd3b4f 收过一轮（额外 marginTop 8/4 → 0），用户此后
+  // 未再抱怨，故此处不动它（见报告「分歧」）。
   const renderRows = (nodes: FlatNode[], counter: { n: number }): ReactNode =>
     nodes.map(node => {
       const isContainer = node.children.length > 0
@@ -267,10 +276,16 @@ export default function DictDetailCard({
       const collapsed = isContainer && collapsedKeys.has(node.key)
       return (
         <Fragment key={node.key}>
-          <FlowRow no={no} state="original" end={endSlot(node, checkboxLabel)}>
+          {/* `no` 一律给值（无编号的行给 ''）：v0.7.2 二轮 FlowRow 改成「编号槽缺席即零宽」，
+              这里必须显式补一个空串，才能保住设计稿的空编号槽（showcase-v2:831 的
+              `<span class="no"></span>`）——返回页的例句 / 近义词行因此仍与带编号的释义行同一条
+              左缘，不会因为这次改动往里缩 18px。工作区不同：它的行全部无编号，缺的正是这个槽。 */}
+          <FlowRow no={no ?? ''} state="original" end={endSlot(node, checkboxLabel)}>
             {renderContent(node)}
           </FlowRow>
-          {isContainer && !collapsed && renderRows(node.children, counter)}
+          {isContainer && !collapsed && (
+            <div style={{ marginTop: '-4px' }}>{renderRows(node.children, counter)}</div>
+          )}
         </Fragment>
       )
     })

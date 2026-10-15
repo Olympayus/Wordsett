@@ -34,8 +34,15 @@ export function CollinsStars({ meta }: { meta: TitleMeta | null }) {
   )
 }
 
-// 标题右侧徽标/领域标签（v0.5.3 §3.3）：两行右对齐 —— 徽标行、领域行。
+// 标题右侧徽标/领域标签（v0.5.3 §3.3；v0.7.2 二轮改**单行**）。
 // 不勾选、不入库，独立于词典开关显示。
+//
+// 先前是 `flexDirection:'column'` 两行上下叠，每行各自右对齐——用户看到的是一个两行的
+// 块，而设计稿 `.hw-right` 是 `display:flex; align-items:center` 的**单行**
+// （showcase-v2:157），`.examtags` 也是 `display:inline-flex`（:167）。故改成单行。
+// 两类标签的区分不再靠换行，改靠**间距分档**：组内 4px、组间 10px——同一行里仍能读出
+// 「这两枚是一类、那两枚是另一类」，且任何一类的存在与否都不影响另一类的落点
+// （有空组就不渲染那个 span，flex 的 gap 只在实有子项之间生效）。
 export default function TitleChips({ meta }: { meta: TitleMeta | null }) {
   const titleInfo = useSettingsStore(s => s.titleInfo)
   if (!meta) return null
@@ -54,16 +61,17 @@ export default function TitleChips({ meta }: { meta: TitleMeta | null }) {
   if (badges.length === 0 && domains.length === 0) return null
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, width: '100%' }}>
+    <div style={{ display: 'flex', flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap',
+                  justifyContent: 'flex-end', gap: '10px' }}>
       {badges.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '4px' }}>
           {badges}
-        </div>
+        </span>
       )}
       {domains.length > 0 && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+        <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '4px' }}>
           {domains}
-        </div>
+        </span>
       )}
     </div>
   )

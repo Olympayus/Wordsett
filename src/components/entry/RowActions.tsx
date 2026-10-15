@@ -16,16 +16,26 @@ export const rowIconStyle: CSSProperties = {
  *
  * **必须常驻占位、只用 opacity 显隐**——这是 v0.5.2 修 hover 折行抖动时定下的做法：
  * 控件进出 DOM 会让该行可用宽度骤减、值文本重新折行、下方内容整体位移，鼠标在行间
- * 上下移动时来回弹。`visible` 由父级给：编者模式恒 true，普通模式由行的 hover 驱动。
+ * 上下移动时来回弹。`visible` 由父级给：**只有悬停行及其祖先链为 true**（编者模式不再
+ * 恒 true——v0.7.2 二轮用户要求「完全隐藏，不可见」，编者模式同理）。
  *
- * 显隐**不止变明暗**（v0.7.2 缺陷 4）：静止态同时把颜色压到 `--color-border-strong`
- * （0.3 透明度下几乎融进白底，读起来就是「藏起来」），悬停 / 编者态抬到
- * `--color-text-primary`（1 透明度下实心可辨）。两态因此拉出真正的落差，而布局纹丝不动。
+ * 隐藏态是**真的不可见、且不可交互**（v0.7.2 二轮）：`opacity: 0` 只是第一步——
+ * 透明控件仍在 Tab 序列与无障碍树里，Tab+Enter 会误触删除 / 加子词条，0 透明度下的
+ * 可聚焦本身就是键盘回归。故同时上 `visibility: hidden`（移出 Tab 序列与无障碍树、
+ * 且被子孙继承）与 `pointer-events: none`（吃掉指针）。**刻意不用 `display: none`、
+ * 也不卸载**：那会让簇离开布局、行的可用宽度骤减，正是 v0.5.2 修掉的那个抖动，
+ * `WordWorkbench.test.ts` 的源码形状守卫也钉着这一点。
+ *
+ * 颜色仍按显隐给两档（`visible` 时主色、隐藏时 `--color-border-strong`）：0 透明度下
+ * 它不影响观感，但 `rowIconStyle` 的 `color: inherit` 要靠它拿「静止态该是什么色」，
+ * 且 90ms 的 color 过渡让显形那一刻不跳。
  */
 export default function RowActions({ visible, onAdd, menu }: { visible: boolean; onAdd: () => void; menu: ReactNode }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', flex: 'none',
-                   opacity: visible ? 1 : 0.3,
+                   opacity: visible ? 1 : 0,
+                   visibility: visible ? 'visible' : 'hidden',
+                   pointerEvents: visible ? 'auto' : 'none',
                    color: visible ? 'var(--color-text-primary)' : 'var(--color-border-strong)',
                    transition: 'opacity var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)' }}>
       <button type="button" aria-label="加到本容器" onClick={onAdd} style={rowIconStyle}
