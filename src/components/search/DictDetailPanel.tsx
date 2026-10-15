@@ -204,39 +204,34 @@ export default function DictDetailPanel({ word }: Props) {
           「列内首行是吸顶导航条」服务的，留着反而会让列比滚动区高出导航条那 32px（多出一条
           无意义的滚动余量）。去掉后与工作区 WordWorkbench 的内容列逐字同形。 */}
       <div style={{ maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: ENTRY_COLUMN_PADDING }}>
-        {/* 词条头带（v0.7.2 §8.3 + 修复 2 / 6）。
-            修复 2「星级应在单词右侧、徽标应在右上角」：EntryBand 的词头行没有「词头之后」与
-            「行右端任意节点」这两个槽位——savedMark 落在词头**之前**，strength 又自带一枚
-            「记忆强度」标签（返回页不量记忆强度，挂上去会印出一个假标签）。故词头行整行由本页
-            经 rows 的第一行自绘：headword 传空串、speak 关掉，头带只出它那道下缘线，
-            词头 / 星级 / 喇叭 / 徽标按设计稿 .hw-row 的次序（词 → 星级 → 喇叭 → 右端徽标簇，
-            showcase-v2:796-799）排在同一行里。空词头行高为 0，故这一行仍落在头带 14px 上内边距
-            之后、音标行之前——与改前的垂直节奏逐像素相同。
+        {/* 词条头带（v0.7.2 §8.3 + 修复 1 / 2 / 6）。
+            修复 1「星级应在单词右侧、徽标应在右上角」：EntryBand 原有槽位要么落在词头**之前**
+            （savedMark），要么自带一句说明文字（strength 印「记忆强度」、leechCount 印「顽固词 · …」）
+            ——返回页两者都不量，挂上去会印出假标签。v0.7.2 起 EntryBand 补上 `headwordEnd` 槽位
+            （词头之后、与词头同基线的纯节点），星级与喇叭经它落位，词头排版回到单一出处，
+            不再由本页自绘一份。右端徽标簇是该节点里 `marginLeft:'auto'` 起手的子节点——
+            与 `strength` 实现右对齐的是同一机制。
+            次序照设计稿 .hw-row（showcase-v2:796-799）：词 → 星级 → 喇叭 → 右端徽标簇。
+            **喇叭刻意不放回 `speak` prop**：那个 prop 是紧贴词头之后的单个节点，星级只得排在它
+            后面，读成「词 → 喇叭 → 星级」，与设计稿相反。星级在词头与喇叭之间，故整段由本节点出。
+            修复 6「标题与 tab 之间去掉分割线」：头带经 `rule={false}` 不再出自己那道 1px 线，
+            此后上下两块只剩页签条自己那道 2px 线——正合用户「直接用 tab 作分割线」。
             音标 / 词根由 WordTitleExtras 交出（可单独勾选合并，勾选框保留）。 */}
-        <div style={{ position: 'relative' }}>
-          <EntryBand
-            headword=""
-            speak={false}
-            rows={
-              <>
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
-                  {/* 词头的排版与 EntryBand 的 headword span 逐字相同（本页自绘这一行的代价） */}
-                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '31px', fontWeight: 600, lineHeight: 1.15, letterSpacing: '-.01em', whiteSpace: 'nowrap' }}>{word}</span>
-                  <CollinsStars meta={meta} />
-                  <SpeakButton text={word} size={16} />
-                  <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                    <TitleChips meta={meta} />
-                  </span>
-                </div>
-                <WordTitleExtras key={word} meta={meta} onInputsChange={setStripInputs} />
-              </>
-            }
-          />
-          {/* 修复 6「标题与 tab 之间去掉分割线，直接用 tab 作分割线」：压掉头带自己的 1px 下缘线。
-              那条线是 EntryBand 的内联样式（本页不能改它），故用一条与页面同色的 1px 覆盖条压掉；
-              它不参与布局、不吃点击。此后上下两块只剩页签条自己那道 2px 下缘线。 */}
-          <span aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, background: 'var(--color-surface)', pointerEvents: 'none' }} />
-        </div>
+        <EntryBand
+          headword={word}
+          speak={false}
+          rule={false}
+          headwordEnd={
+            <>
+              <CollinsStars meta={meta} />
+              <SpeakButton text={word} size={16} />
+              <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <TitleChips meta={meta} />
+              </span>
+            </>
+          }
+          rows={<WordTitleExtras key={word} meta={meta} onInputsChange={setStripInputs} />}
+        />
 
         {/* Tab 栏：词典 | 语义网络（凸起页签；语义网络徽章为 relatedWords 真实计数）。
             条面底 = --color-surface-sunken：**刻意偏离设计稿**——设计稿 .tabs 用 --paper（showcase-v2:172），

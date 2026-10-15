@@ -40,7 +40,7 @@ import { isLeech } from '../../lib/review/leech'
 import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
 import { displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
-import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_COLUMN_PADDING_X, ENTRY_MEASURE } from '../../lib/layout'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_COLUMN_PADDING_X } from '../../lib/layout'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
 /**
@@ -1076,7 +1076,9 @@ export default function WordWorkbench() {
           editorMode={editorMode}
         />
 
-        {/* 字段列表：一条正文流（SenseFlow）。组内行由 FieldCard 产出 FlowRow。 */}
+        {/* 字段列表：一条正文流（SenseFlow）。组内行由 FieldCard 产出 FlowRow。
+            v0.7.2 修复 3：显式给 measure = ENTRY_BAND_WIDTH，与返回页（DictDetailCard）同值同理由
+            ——正文右缘与头带 / 页签条齐平，两页共用一个正文度量（不再一页 660 一页 900）。 */}
         <DndContext
           collisionDetection={pointerWithin}
           onDragStart={handleDragStart}
@@ -1086,7 +1088,7 @@ export default function WordWorkbench() {
         >
           <div style={{ marginTop: '8px' }}>
             {flowGroups.length > 0
-              ? <SenseFlow groups={flowGroups} />
+              ? <SenseFlow groups={flowGroups} measure={ENTRY_BAND_WIDTH} />
               : (
                 <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: 'var(--color-text-tertiary)' }}>
                   该词条暂无内容，可通过下方「＋ 添加」添加词性/短语等标签页
@@ -1096,10 +1098,13 @@ export default function WordWorkbench() {
         </DndContext>
 
         {/* 页级「＋ 添加」（v0.7.2 D7）：流末尾一个中性按钮，点开本标签页全部可加项 + 新建标签页 / 词根 / 音标。
-            与正文流同度量（ENTRY_MEASURE），不像头带那样铺满。
+            与正文流同度量（ENTRY_BAND_WIDTH），不像头带那样铺满。
+            v0.7.2 修复 3：度量由 ENTRY_MEASURE（660）改成 ENTRY_BAND_WIDTH（900）——正文流的
+            SenseFlow 与返回页同一判据，右缘与头带 / 页签条齐平。660 那一档是旧设计意图
+            （「宽窗不放大正文」），已由 controller 裁定为返回页在与，两页不再各持一个度量。
             hover 走凹陷档：按钮底是 raised（95.1），共享的 --color-surface-hover（95.0）压上去只有
             0.13 L*、看不出反馈（评审 Important 2）；--color-surface-hover-recessed 离 raised 2.81 L*。 */}
-        <div style={{ position: 'relative', maxWidth: `${ENTRY_MEASURE}px`, marginTop: '20px' }}>
+        <div style={{ position: 'relative', maxWidth: `${ENTRY_BAND_WIDTH}px`, marginTop: '20px' }}>
           <button
             type="button"
             onClick={() => setAddMenu(prev => prev?.target === 'page' ? null : { target: 'page' })}
