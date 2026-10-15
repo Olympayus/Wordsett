@@ -13,13 +13,13 @@ import { getDefinitions } from '../../services/fieldService'
 import { sortTreeByTemplate, ALLOWED_CHILD_KEYS } from '../../lib/fieldOrder'
 import { visibleTabs, defaultTab, missingTabs, groupRootsByTab, addableLeafKeys, isGroupedTab, TAB_GROUPS, type TabKey } from '../../lib/tabs'
 import { hasFieldChanges } from '../../lib/fieldChanges'
-import { shouldFlattenChildren } from '../../lib/dictPlan'
 import { insertBefore, dropY, reorderSiblingIds } from '../../lib/dragReorder'
 import { selectWordRootItems } from '../../lib/phonetic'
 import { fieldState, type FieldState } from '../../lib/fieldState'
 import { Button } from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
-import StrengthChip from '../ui/StrengthChip'
+import Tooltip from '../ui/Tooltip'
+import WordMasteryTooltip from '../ui/WordMasteryTooltip'
 import ContextMenu, { type MenuItem } from '../ui/ContextMenu'
 import Icon from '../icons'
 import CategoryCapsule from './CategoryCapsule'
@@ -37,8 +37,10 @@ import { useCategoryStore } from '../../stores/categoryStore'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { isLeech } from '../../lib/review/leech'
+import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
+import { displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
-import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_MEASURE } from '../../lib/layout'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_COLUMN_PADDING_X, ENTRY_MEASURE } from '../../lib/layout'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
 /**
@@ -154,7 +156,7 @@ function RowMenu({ items }: { items: MenuItem[] }) {
         onClick={e => setPos({ x: e.clientX, y: e.clientY })}
         style={rowIconStyle}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit' }}
       >
         <Icon name="more" size={16} />
       </button>
@@ -190,6 +192,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   const isEditing = editingId === fv.id
   const isLevel1 = depth === 0
   const isPhonetic = def.key === 'phonetic'
+  // 例句叶子（v0.7.2 缺陷 3）：只认 `example` 这一个键（容器 `example_sentence` 不在此列），
+  // 走返回页那套「衬线斜体 + 行首 – 」的排版。
+  const isExample = def.key === 'example'
   const state = fieldState(fv)
   // 来源三态取色（v0.7.2）：普通模式 / 词性窗格一律中性；只有编者模式下的非词性行才现形。
   const rowState = rowSourceState(editorMode, isPosPane, fv)
@@ -253,8 +258,8 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     { key: 'delete', label: '删除', danger: true, onSelect: () => onDelete(fv) },
   ]
 
-  // ②a：叶子容器（子项均为终端项）不渲染树状分支，子项平铺。词性窗格永不平铺。
-  const hasTerminalChildren = shouldFlattenChildren(isPosPane, hasChildren, fv.children ?? [], isGroupPane)
+  // ②a：子项渲染（v0.7.2 缺陷 5/6 后不再分「终端 / 非终端」两档间距，也不再逐层缩进——
+  // 两档都收成 marginTop:0，由 FlowRow 的悬挂缩进统一表达层级）。
   const childCounters = { zh: 0, en: 0 }
   const renderedChildren = hasChildren
     ? fv.children!.map(child => (
@@ -407,7 +412,13 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               title={editorMode ? '点击编辑' : '双击编辑'}
               style={{ cursor: 'pointer' }}
             >
-              {fv.value}
+              {isExample ? (
+                // 例句（v0.7.2 缺陷 3）：与搜索返回页同一处理（DictDetailCard 的 `example` 分支）——
+                // 衬线斜体 14px/1.65 次级色，行首一枚 `–` 短破折号作分条标识（showcase-v2:197-198）。
+                <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: 1.65, color: 'var(--color-text-secondary)' }}>
+                  <span style={{ color: 'var(--color-border-strong)', marginRight: '8px' }}>–</span>{fv.value}
+                </span>
+              ) : fv.value}
             </span>
           )}
         </span>
@@ -477,17 +488,15 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
         )}
       </div>
 
-      {/* 子行：run-in 头形态下子行由组装配另作义项行，此处不出。 */}
+      {/* 子行：run-in 头形态下子行由组装配另作义项行，此处不出。
+          v0.7.2 缺陷 5：删去原先按 depth 加的缩进盒（marginLeft / paddingLeft / borderLeft）——
+          设计稿（showcase-v2:184 的 .sense）全篇只有一层 11px 缩进、由 FlowRow 自己给，
+          逐层再加会让子行偏离那条统一线。
+          缺陷 6：子行与父行的间距由 8px / 4px 收到 0——设计稿里容器头与首个子项只隔
+          .ex 的 4px（showcase-v2:196），而 FlowRow 自带的 4+4px 上下内边距已提供余量，
+          原先那份额外 marginTop 正是「标题离子标题过远」的来源。 */}
       {!asGroupHead && hasChildren && (
-        <div style={hasTerminalChildren
-          ? { marginTop: '4px' }
-          : {
-              // 缩进一次即封顶（v0.5.2 修订）：只有第 0 层的子级缩进并画引导竖线，第 2 层起不再累加。
-              marginLeft: depth <= 0 ? '6px' : '0',
-              paddingLeft: depth <= 0 ? '8px' : '0',
-              borderLeft: depth <= 0 ? '1px solid var(--color-border)' : 'none',
-              marginTop: '8px',
-            }}>
+        <div style={{ marginTop: 0 }}>
           {renderedChildren}
         </div>
       )}
@@ -899,6 +908,25 @@ export default function WordWorkbench() {
   // 各行 gap 同为 10px（设计稿 .frow 的 gap），与返回页 WordTitleExtras 一致（评审：改前 8px）。
   const bandRowLabel: CSSProperties = { width: '62px', flexShrink: 0, fontSize: '11.5px', color: 'var(--color-text-tertiary)', paddingTop: 2 }
 
+  // 记忆强度（v0.7.2 缺陷 1）：头带（EntryBand）自带一枚「记忆强度」标签，故这里只给 5 格方块 +
+  // 悬停明细——不再传带标签的 StrengthChip，否则「记忆强度」会印两遍。方块与浮层复用同一套共享件
+  // （masteryBlocks / MASTERY_COLORS / displayTier / WordMasteryTooltip），与 StrengthChip 同源；
+  // 本页只用「方块」这一半，带标签的整簇 StrengthChip 因此不再被引用。
+  const masteryTier = displayTier({ stability: overlay?.weakestStability ?? null, familiarity: overlay?.familiarity ?? 1 })
+  const mastery = masteryBlocks(masteryTier)
+  const strengthNode = (
+    <Tooltip content={<WordMasteryTooltip wordId={selectedWord.id} weakestStability={overlay?.weakestStability ?? null} familiarity={overlay?.familiarity ?? 1} />}>
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2.5, flexShrink: 0 }}>
+        {Array.from({ length: mastery.total }, (_, i) => (
+          <i key={i} style={{
+            width: 7, height: 9, borderRadius: 2, display: 'inline-block',
+            background: i < mastery.filled ? MASTERY_COLORS[masteryTier] : MASTERY_COLORS[0],
+          }} />
+        ))}
+      </span>
+    </Tooltip>
+  )
+
   return (
     <div
       onMouseLeave={() => setHoveredId(null)}
@@ -918,10 +946,17 @@ export default function WordWorkbench() {
           onClick={() => setAddMenu(null)}
         />
       )}
+      {/* 词条导航条（v0.5.2 §6；v0.7.2 缺陷 2 改为通栏）：移出 900 内容列，横贯整个右侧区域。
+          sticky 贴在滚动区上缘、常驻不动——与复习区导航条同结构（导航条在内容列之外）。
+          左右内边距取 ENTRY_COLUMN_PADDING_X 与下方内容列对齐：导航条自身另有 14px 内边距，
+          两者相加即原先「列内 24px + 导航条 14px」的落点，视觉不跳。 */}
+      <div style={{ position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
+                    padding: `0 ${ENTRY_COLUMN_PADDING_X}px`, background: 'var(--color-surface)' }}>
+        <WorkbenchNavBar region="workbench" onDeleteWord={handleDelete} />
+      </div>
+
       {/* 内容列：保持居中；列宽与内边距取 lib/layout 的共享常量（ENTRY_BAND_WIDTH / ENTRY_COLUMN_PADDING） */}
       <div style={{ maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: ENTRY_COLUMN_PADDING }}>
-        {/* 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区 */}
-        <WorkbenchNavBar region="workbench" onDeleteWord={handleDelete} />
 
         {/* 词条头带（v0.7.2）：词头 + 喇叭 + 顽固词 + 记忆强度；音标 / 词根 / 分类走 rows。
             leechCount 必须按 isLeech(maxLapses, threshold) 门控——overlay.maxLapses 对非顽固词是 0，
@@ -929,7 +964,7 @@ export default function WordWorkbench() {
         <EntryBand
           headword={selectedWord.lemma}
           leechCount={overlay && isLeech(overlay.maxLapses, leechThreshold) ? overlay.maxLapses : undefined}
-          strength={<StrengthChip wordId={selectedWord.id} stability={overlay?.weakestStability ?? null} familiarity={overlay?.familiarity ?? 1} />}
+          strength={strengthNode}
           savedMark={saved ? (
             // 保存确认条（v0.7.2 恢复；Task 2 Ruling 12 把「保存脉冲条」的动画换成了同一元素上的
             // background-color 过渡，故留下的是**确认**）：4×24 品牌色竖条，500ms 后由上面的 effect 收起。

@@ -5,8 +5,11 @@
  * 抄了两份；导航条与控件的 26/22 也是散落的数字。收在这里之后，改一处就是改两页。
  */
 
+/** 内容列的左右内边距（px）。导航条通栏后（v0.7.2）自己也取这一份，才能与下方内容列左右对齐。 */
+export const ENTRY_COLUMN_PADDING_X = 24
+
 /** 内容列的内边距。顶部留白现在由通栏导航条自己占（32px），故这里从 0 起。 */
-export const ENTRY_COLUMN_PADDING = '0 24px 40px'
+export const ENTRY_COLUMN_PADDING = `0 ${ENTRY_COLUMN_PADDING_X}px 40px`
 
 /** 词条头带（含页签条）铺满的宽度；正文度量停在 ENTRY_MEASURE。 */
 export const ENTRY_BAND_WIDTH = 900
