@@ -1,4 +1,5 @@
 import type { InitialFamiliarityChoice } from '../../services/wordService'
+import { NAV_CONTROL_HEIGHT } from '../../lib/layout'
 
 /**
  * 初始熟悉度三段单选（spec 4.6；出题依据 02 §5.8 / 03 §2.10）。
@@ -33,7 +34,13 @@ export default function FamiliarityChoice({ value, onChange, disabled }: {
             disabled={disabled}
             onClick={() => onChange(o.value)}
             style={{
-              padding: '4px 13px', borderRadius: 'var(--radius-full)', cursor: disabled ? 'default' : 'pointer',
+              // 尺寸（v0.7.2 修复 1「初始熟悉度选择按钮过大」）：三键与导航条右端其余控件同高
+              // （NAV_CONTROL_HEIGHT 22px），不再撑满整条 32px。改前只有内边距、行高随 body 的 1.7 走，
+              // 实高 ≈31px——比旁边的「合并添加 · N 项」高近 10px，故用户觉得「过大」。
+              // 水平内边距与行高取设计稿 .seg span（showcase-v2:83：padding:3px 12px / line-height:1.5）；
+              // 行高必须显式给，否则继承 1.7 会把 22px 的内容框顶穿到内边距里。
+              height: `${NAV_CONTROL_HEIGHT}px`, display: 'inline-flex', alignItems: 'center',
+              padding: '3px 12px', lineHeight: 1.5, borderRadius: 'var(--radius-full)', cursor: disabled ? 'default' : 'pointer',
               fontFamily: 'var(--font-sans)', fontSize: '12.5px',
               border: `1px solid ${active ? 'var(--color-brand)' : 'var(--color-border)'}`,
               background: active ? 'var(--color-brand-soft)' : 'var(--color-surface)',

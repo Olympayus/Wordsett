@@ -6,12 +6,14 @@ import type { MergeFieldInput } from '../../services/wordService'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { isFieldVisible } from '../../lib/fieldTree'
 import type { DisplayFieldKey } from '../../stores/settingsStore'
-import { flattenTree, buildMergeInputs, toggleSubtreeSelection, shouldNumberField, countZhEn, countAllDefinitions } from '../../lib/dictPlan'
+import { flattenTree, buildMergeInputs, toggleSubtreeSelection, shouldNumberField, countZhEn } from '../../lib/dictPlan'
 import type { FlatNode } from '../../lib/dictPlan'
 import CheckBox from '../ui/CheckBox'
 import SenseFlow from '../entry/SenseFlow'
 import type { SenseGroup } from '../entry/SenseFlow'
 import FlowRow from '../entry/FlowRow'
+import Icon from '../icons'
+import { ENTRY_BAND_WIDTH } from '../../lib/layout'
 
 interface Props {
   word: string
@@ -22,6 +24,20 @@ interface Props {
 // 受控句柄：面板合并按钮经 ref 调用 buildInputs 取当前勾选构建的 merge 输入
 export interface DictDetailCardHandle {
   buildInputs: () => MergeFieldInput[] | null
+  /**
+   * 「全部收起 / 全部展开」的唯一实现（v0.7.2 修复 8）。该按钮已移进面板的页签条右端
+   * （它属于页签条，不属于正文流），而折叠态住在卡片里（collapsedKeys / containerKeys 都由
+   * 字段树推出），故面板经此句柄回调——**不留第二份折叠逻辑**，两处入口共用同一实现。
+   */
+  toggleAll: () => void
+}
+
+/** 折叠态上报（v0.7.2 修复 8）：面板据此决定页签条右端那枚按钮是否出现、以及它显示哪个文案。 */
+export interface CollapseState {
+  /** 有可折叠的容器（词性组 / 分组）——没有就不渲染那枚按钮。 */
+  hasContainers: boolean
+  /** 当前所有容器都处于折叠态（文案切「全部展开」）。 */
+  allCollapsed: boolean
 }
 
 // 字段类型 → 展示标签（词性节点由 SenseFlow 的 run-in 头承担，故此处不映射）。
@@ -47,9 +63,11 @@ function rowLabel(node: FlatNode): string {
 
 export default function DictDetailCard({
   word: word_, fields,
-  onSelectionChange, ref,
+  onSelectionChange, onCollapseStateChange, ref,
 }: Props & {
   onSelectionChange?: (count: number) => void
+  /** 折叠态变化上报面板（页签条右端的「全部收起 / 全部展开」按钮）。 */
+  onCollapseStateChange?: (state: CollapseState) => void
   ref?: React.Ref<DictDetailCardHandle>
 }) {
   const displayFields = useSettingsStore(s => s.displayFields)
@@ -125,15 +143,32 @@ export default function DictDetailCard({
     else setCollapsedKeys(new Set(containerKeys))
   }
 
-  // 受控句柄：面板合并按钮经 ref 取当前勾选构建的 merge 输入（无勾选返回 null）
+  // 单组折叠（v0.7.2 修复 7）：每个 run-in 头右端那枚折叠键的目标。与 toggleAll 共用
+  // 同一个 collapsedKeys——两个入口不会各记一份状态，全部收起后逐组展开也不会打架。
+  const toggleGroup = (key: string) => {
+    setCollapsedKeys(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key); else next.add(key)
+      return next
+    })
+  }
+
+  // 受控句柄：面板合并按钮经 ref 取当前勾选构建的 merge 输入（无勾选返回 null）；
+  // 页签条右端的「全部收起」经同一句柄调 toggleAll（见 DictDetailCardHandle 注释）。
   useImperativeHandle(ref, () => ({
     buildInputs: () => selected.size === 0 ? null : buildMergeInputs(visible, selected),
-  }), [visible, selected])
+    toggleAll,
+  }), [visible, selected, allCollapsed, containerKeys])
 
   // 勾选数变化上报面板（面板合并按钮 disabled 态）
   useEffect(() => {
     onSelectionChange?.(selected.size)
   }, [selected, onSelectionChange])
+
+  // 折叠态上报面板（页签条右端按钮的显隐与文案）
+  useEffect(() => {
+    onCollapseStateChange?.({ hasContainers: containerKeys.size > 0, allCollapsed })
+  }, [containerKeys, allCollapsed, onCollapseStateChange])
 
   const toggle = (key: string) => {
     setSelected(prev => {
@@ -220,7 +255,8 @@ export default function DictDetailCard({
   }
 
   // 组内行：FlowRow 一行 + 其子级（文档序递归）。义号在中/英释义间**连续**（1..N），
-  // 容器行不编号；折叠态由「全部收起/展开」驱动（SenseFlow 的 run-in 头没有单组折叠控件）。
+  // 容器行不编号；行内的子容器（例句 / 近义词辨析…）仍只随「全部收起/展开」整组折叠——
+  // 单组折叠键（v0.7.2 修复 7）只挂在顶层分组的 run-in 头上，行尾槽留给来源标与勾选框。
   const renderRows = (nodes: FlatNode[], counter: { n: number }): ReactNode =>
     nodes.map(node => {
       const isContainer = node.children.length > 0
@@ -239,44 +275,61 @@ export default function DictDetailCard({
       )
     })
 
+  // 单组折叠键（v0.7.2 修复 7「每个小标题对应的收起下拉按钮补上」）：与工作区 SenseGroup.head
+  // 同一条路——SenseFlow 的标准 run-in 头没有单组折叠控件，故这里自绘头（head 槽位整块取代
+  // pos/counts/横线那一行），只在右端多一枚该组自己的折叠键，字体与横线一律照抄标准头。
+  const groupFold = (key: string, collapsed: boolean) => (
+    <button
+      type="button"
+      title={collapsed ? '展开本组' : '收起本组'}
+      aria-label={collapsed ? '展开本组' : '收起本组'}
+      aria-expanded={!collapsed}
+      onClick={() => toggleGroup(key)}
+      onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)' }}
+      onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+      style={{
+        alignSelf: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        width: 22, height: 22, padding: 0, flexShrink: 0,
+        border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
+        cursor: 'pointer', color: 'var(--color-text-tertiary)',
+      }}
+    >
+      <Icon name={collapsed ? 'chevron-right' : 'chevron'} size={13} />
+    </button>
+  )
+
   // 正文流分组（SenseFlow）：每个顶层容器（词性组 / 补充 / 词形变化…）一个 run-in 头。
   // 词性组右侧计数沿用 countZhEn（中 N · 英 M），其余容器显示子项数。
+  // v0.7.2 修复 7：头改由本页自绘（保住标准形：衬线斜体词性 + 11px 计数 + 拉到右缘的长横线），
+  // 右端补上该组的折叠键；折叠仍走同一份 collapsedKeys，与「全部收起」不打架。
   const groups: SenseGroup[] = flat.map(node => {
     const isPos = node.field.key === 'part_of_speech'
     const z = countZhEn(node)
-    const collapsed = node.children.length > 0 && collapsedKeys.has(node.key)
+    const hasChildren = node.children.length > 0
+    const collapsed = hasChildren && collapsedKeys.has(node.key)
     return {
-      pos: isPos ? node.field.value : (rowLabel(node) || node.field.value),
-      counts: isPos ? `中 ${z.cn} · 英 ${z.en}` : (node.children.length > 0 ? String(node.children.length) : undefined),
-      items: collapsed ? null : renderRows(node.children.length > 0 ? node.children : [node], { n: 0 }),
+      head: (
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+          <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '16px', fontWeight: 600 }}>
+            {isPos ? node.field.value : (rowLabel(node) || node.field.value)}
+          </span>
+          {isPos
+            ? <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{`中 ${z.cn} · 英 ${z.en}`}</span>
+            : hasChildren && <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{node.children.length}</span>}
+          <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />
+          {hasChildren && groupFold(node.key, collapsed)}
+        </div>
+      ),
+      items: collapsed ? null : renderRows(hasChildren ? node.children : [node], { n: 0 }),
     }
   })
 
-  const totalDefs = countAllDefinitions(fields)
-
   return (
-    <>
-      {/* 正文流上方一行细动作（spec §8.3）：条目计数 + 全部展开/收起，右对齐。
-          那张大卡已去掉（v0.7.2），卡片头降为这一行。 */}
-      {(totalDefs.cn + totalDefs.en > 0 || containerKeys.size > 0) && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px', padding: '2px 0 6px' }}>
-          {totalDefs.cn + totalDefs.en > 0 && (
-            <span style={{ fontSize: 11, color: 'var(--color-text-secondary)', background: 'var(--color-surface-sunken)', padding: '1px 8px', borderRadius: 'var(--radius-full)' }}>
-              共 <b style={{ fontFamily: 'var(--font-sans)', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: 'var(--color-text-primary)' }}>{totalDefs.cn + totalDefs.en}</b> 条释义
-            </span>
-          )}
-          {containerKeys.size > 0 && (
-            <button
-              type="button"
-              className="text-xs font-medium"
-              style={{ color: 'var(--color-text-secondary)', padding: '4px 8px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: 'transparent', border: '1px solid transparent', fontFamily: 'var(--font-sans)' }}
-              onClick={toggleAll}
-            >{allCollapsed ? '全部展开' : '全部收起'}</button>
-          )}
-        </div>
-      )}
-
-      <SenseFlow groups={groups} />
-    </>
+    // 正文度量改取 ENTRY_BAND_WIDTH（v0.7.2 修复 5）：正文与头带 / 页签条同宽，右缘齐平——
+    // 用户要求「下方的内容和其他内容一并延长，整体都是同样的左右大小」。列的内容宽
+    // = ENTRY_BAND_WIDTH − 2×ENTRY_COLUMN_PADDING_X（900 − 48 = 852）本就小于这个上限，
+    // 故它实际等于列的内容宽（正文不再停在 ENTRY_MEASURE 660）。
+    // 「共 N 条释义」与「全部收起」已移进面板的页签条（修复 4 / 8），正文流上方那一行细动作取消。
+    <SenseFlow groups={groups} measure={ENTRY_BAND_WIDTH} />
   )
 }

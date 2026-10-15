@@ -1,18 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import DictDetailCard, { type DictDetailCardHandle } from './DictDetailCard'
+import DictDetailCard, { type DictDetailCardHandle, type CollapseState } from './DictDetailCard'
 import WordTitleExtras from './WordTitleExtras'
 import SemanticNetwork from './SemanticNetwork'
 import TitleChips, { CollinsStars } from './TitleChips'
 import WorkbenchNavBar from '../word/WorkbenchNavBar'
 import EntryBand from '../entry/EntryBand'
+import SpeakButton from '../ui/SpeakButton'
 import { lookupTitleMeta, lookupWord } from '../../services/searchService'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
-import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING } from '../../lib/layout'
+import { countAllDefinitions } from '../../lib/dictPlan'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_COLUMN_PADDING_X } from '../../lib/layout'
 import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
 import type { DictionaryField } from '../../types/dictionary'
@@ -80,6 +82,15 @@ export default function DictDetailPanel({ word }: Props) {
   // 卡片勾选数上报（导航条「添加 · N 项」的计数与 disabled 判据）。单卡后不再按源索引。
   const [selectionCount, setSelectionCount] = useState(0)
   const handleSelectionChange = useCallback((count: number) => setSelectionCount(count), [])
+  // 折叠态上报（v0.7.2 修复 8）：页签条右端那枚「全部收起 / 全部展开」按它显隐与换文案。
+  // 折叠态本身住在卡片里（collapsedKeys 由字段树推出），这里只留一个镜像，按钮经 ref 回调卡片。
+  const [collapseState, setCollapseState] = useState<CollapseState>({ hasContainers: false, allCollapsed: false })
+  const handleCollapseStateChange = useCallback((s: CollapseState) => setCollapseState(s), [])
+
+  // 「共 N 条释义」（v0.7.2 修复 4）：计数已移进页签条的「词典」页签里，故改在面板这层算。
+  // 口径与卡片原先逐字相同——countAllDefinitions 走合流后的字段树，不随 displayFields 过滤。
+  const totalDefs = countAllDefinitions(fields)
+  const definitionCount = totalDefs.cn + totalDefs.en
 
   // Controller 裁定：仅标题信息区勾选（无卡片勾选）时合并按钮仍需可见
   const anySelected = selectionCount > 0 || stripInputs.length > 0
@@ -139,6 +150,7 @@ export default function DictDetailPanel({ word }: Props) {
     setMergeError(false)
     setFields([])
     setSelectionCount(0)
+    setCollapseState({ hasContainers: false, allCollapsed: false })
     setNetworkCount(0)
     setMeta(null)
     setStripInputs([])
@@ -163,13 +175,17 @@ export default function DictDetailPanel({ word }: Props) {
 
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--color-surface)' }}>
+      {/* 导航条（v0.5.3 §3.4）：与工作台同款同位置；左箭头返回工作台、右端合并添加。
+          v0.6.5 §4.5 起初始熟悉度三键也收进右端（原先是页面底部的收录区），状态仍归本面板。
+          v0.7.2 §8.3：返回页分支加一条面包屑（词典 › 词），不再有别的浮动装饰。
+          v0.7.2 修复 3「导航条应该贯穿整个右侧区域」：移出 900 内容列，横贯整个右侧区域——
+          与工作区 / 复习区同一结构（导航条在内容列之外、sticky 贴在滚动区上缘）。
+          左右内边距取 ENTRY_COLUMN_PADDING_X：导航条自身另有 14px 内边距，两者相加即原先
+          「列内 24px + 导航条 14px」的落点，条通栏而内容不跳（与工作区同款同值）。 */}
       <div style={{
-        maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: ENTRY_COLUMN_PADDING,
-        minHeight: '100%', display: 'flex', flexDirection: 'column',
+        position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
+        padding: `0 ${ENTRY_COLUMN_PADDING_X}px`, background: 'var(--color-surface)',
       }}>
-        {/* 导航条（v0.5.3 §3.4）：与工作台同款同位置；左箭头返回工作台、右端合并添加。
-            v0.6.5 §4.5 起初始熟悉度三键也收进右端（原先是页面底部的收录区），状态仍归本面板。
-            v0.7.2 §8.3：返回页分支加一条面包屑（词典 › 词），不再有别的浮动装饰。 */}
         <WorkbenchNavBar
           region="dict"
           onBack={showWorkbench}
@@ -181,33 +197,65 @@ export default function DictDetailPanel({ word }: Props) {
           inLibrary={inLibrary}
           breadcrumb={<>词典 › <b style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>{word}</b></>}
         />
+      </div>
 
-        {/* 词条头带（v0.7.2 §8.3）：单词 / 喇叭由 EntryBand 出；星级与徽标 / 领域标签并进头带
-            （EntryBand 没有这两项的槽位，故走 rows 的第一行）；音标 / 词根由 WordTitleExtras 交出
-            （可单独勾选合并，勾选框保留）。返回页不看顽固词与记忆强度，两个都不传。 */}
-        <EntryBand
-          headword={word}
-          rows={
-            <>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginTop: '7px' }}>
-                <CollinsStars meta={meta} />
-                <div style={{ flex: 1, minWidth: 0, display: 'flex', justifyContent: 'flex-end' }}>
-                  <TitleChips meta={meta} />
+      {/* 内容列：保持居中；列宽与内边距取 lib/layout 的共享常量（ENTRY_BAND_WIDTH / ENTRY_COLUMN_PADDING）。
+          v0.7.2 修复 3：导航条移出后本列不再需要 minHeight:'100%' / display:flex——那是为
+          「列内首行是吸顶导航条」服务的，留着反而会让列比滚动区高出导航条那 32px（多出一条
+          无意义的滚动余量）。去掉后与工作区 WordWorkbench 的内容列逐字同形。 */}
+      <div style={{ maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: ENTRY_COLUMN_PADDING }}>
+        {/* 词条头带（v0.7.2 §8.3 + 修复 2 / 6）。
+            修复 2「星级应在单词右侧、徽标应在右上角」：EntryBand 的词头行没有「词头之后」与
+            「行右端任意节点」这两个槽位——savedMark 落在词头**之前**，strength 又自带一枚
+            「记忆强度」标签（返回页不量记忆强度，挂上去会印出一个假标签）。故词头行整行由本页
+            经 rows 的第一行自绘：headword 传空串、speak 关掉，头带只出它那道下缘线，
+            词头 / 星级 / 喇叭 / 徽标按设计稿 .hw-row 的次序（词 → 星级 → 喇叭 → 右端徽标簇，
+            showcase-v2:796-799）排在同一行里。空词头行高为 0，故这一行仍落在头带 14px 上内边距
+            之后、音标行之前——与改前的垂直节奏逐像素相同。
+            音标 / 词根由 WordTitleExtras 交出（可单独勾选合并，勾选框保留）。 */}
+        <div style={{ position: 'relative' }}>
+          <EntryBand
+            headword=""
+            speak={false}
+            rows={
+              <>
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+                  {/* 词头的排版与 EntryBand 的 headword span 逐字相同（本页自绘这一行的代价） */}
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '31px', fontWeight: 600, lineHeight: 1.15, letterSpacing: '-.01em', whiteSpace: 'nowrap' }}>{word}</span>
+                  <CollinsStars meta={meta} />
+                  <SpeakButton text={word} size={16} />
+                  <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <TitleChips meta={meta} />
+                  </span>
                 </div>
-              </div>
-              <WordTitleExtras key={word} meta={meta} onInputsChange={setStripInputs} />
-            </>
-          }
-        />
+                <WordTitleExtras key={word} meta={meta} onInputsChange={setStripInputs} />
+              </>
+            }
+          />
+          {/* 修复 6「标题与 tab 之间去掉分割线，直接用 tab 作分割线」：压掉头带自己的 1px 下缘线。
+              那条线是 EntryBand 的内联样式（本页不能改它），故用一条与页面同色的 1px 覆盖条压掉；
+              它不参与布局、不吃点击。此后上下两块只剩页签条自己那道 2px 下缘线。 */}
+          <span aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: 1, background: 'var(--color-surface)', pointerEvents: 'none' }} />
+        </div>
 
         {/* Tab 栏：词典 | 语义网络（凸起页签；语义网络徽章为 relatedWords 真实计数）。
             条面底 = --color-surface-sunken：**刻意偏离设计稿**——设计稿 .tabs 用 --paper（showcase-v2:172），
             而 --paper = #F9F8F5 正是我们的 --color-canvas；两页（此处与工作台 TabBar）在代码里都走 sunken。
             分支基线时 sunken 是更暗的一档（#EFECE5），条面确实凹陷，v0.7.2 的新档位只是压缩了这一步、
-            未撤销意图——勿改回 canvas，否则白页签落白页、hover 的凹陷值（tabHoverOn）也失去依据。 */}
+            未撤销意图——勿改回 canvas，否则白页签落白页、hover 的凹陷值（tabHoverOn）也失去依据。
+            v0.7.2 修复 4 / 8：「共 N 条释义」计数移进「词典」页签内（页签右端、在页签的框里），
+            「全部收起 / 全部展开」移到页签条最右端——与设计稿 .tabs 的 `.sp` + `.act`
+            （showcase-v2:818-821：词典 / 语义网络 / 弹簧 / 全部收起）同序。 */}
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: '4px 0 0', background: 'var(--color-surface-sunken)', borderBottom: '2px solid var(--color-border-strong)', marginTop: 12, marginBottom: 16 }}>
           <button type="button" onClick={() => setTab('dict')} style={tabStyle(tab === 'dict')}
-            onMouseEnter={tabHoverOn(tab === 'dict')} onMouseLeave={tabHoverOff(tab === 'dict')}>词典</button>
+            onMouseEnter={tabHoverOn(tab === 'dict')} onMouseLeave={tabHoverOff(tab === 'dict')}>
+            词典
+            {/* 计数按设计稿 .tab .cnt（showcase-v2:175）：11px 纯文本 / 三级字色 / 左距 5px，
+                与「语义网络」页签上的那个同款，两个页签读起来一致。 */}
+            {definitionCount > 0 && (
+              <span style={{ marginLeft: 5, fontSize: 11, color: 'var(--color-text-tertiary)' }}>{definitionCount}</span>
+            )}
+          </button>
           <button type="button" onClick={() => setTab('network')} style={tabStyle(tab === 'network')}
             onMouseEnter={tabHoverOn(tab === 'network')} onMouseLeave={tabHoverOff(tab === 'network')}>
             语义网络
@@ -218,6 +266,21 @@ export default function DictDetailPanel({ word }: Props) {
               {networkCount}
             </span>
           </button>
+          {/* 弹簧（设计稿 .tabs .sp）把右端动作推到条的最右 */}
+          <span style={{ flex: 1 }} />
+          {collapseState.hasContainers && (
+            <button
+              type="button"
+              onClick={() => cardRef.current?.toggleAll()}
+              onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)' }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+              style={{
+                // 设计稿 .tabs .act（showcase-v2:177）：11.5px / 三级字色 / padding:0 8px 6px
+                fontSize: 11.5, fontFamily: 'var(--font-sans)', color: 'var(--color-text-tertiary)',
+                padding: '0 8px 6px', border: 'none', background: 'transparent', cursor: 'pointer',
+              }}
+            >{collapseState.allCollapsed ? '全部展开' : '全部收起'}</button>
+          )}
         </div>
 
         {/* 双 Tab 常驻挂载，display 切换隐藏而非卸载，保证卡片勾选跨 Tab 切换保留（Task 4 裁定） */}
@@ -241,6 +304,7 @@ export default function DictDetailPanel({ word }: Props) {
                 word={word}
                 fields={fields}
                 onSelectionChange={handleSelectionChange}
+                onCollapseStateChange={handleCollapseStateChange}
               />
 
               {mergeError && (
