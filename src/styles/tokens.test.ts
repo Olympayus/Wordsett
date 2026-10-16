@@ -55,3 +55,48 @@ describe('tokens.css', () => {
     ]) expect(value(n), n).toBeTruthy()
   })
 })
+
+// 深色块要单独取：value() 取的是整个文件里的第一个匹配，深色块在文件末尾，
+// 所以必须先把块切出来再取值。
+const darkBlock = css.match(/\[data-theme='dark'\]\s*\{([\s\S]*?)\n\}/)?.[1] ?? ''
+const darkValue = (name: string) => darkBlock.match(new RegExp(`${name}:\\s*([^;]+);`))?.[1].trim()
+
+describe('tokens.css 的深色块（v0.7.3）', () => {
+  it('块存在', () => {
+    expect(darkBlock.length).toBeGreaterThan(200)
+  })
+
+  it('五档面在深色下逐值钉死（浅色那份一个都没动）', () => {
+    expect(darkValue('--color-chrome')).toBe('#191919')
+    expect(darkValue('--color-surface-sunken')).toBe('#1E1E1E')
+    expect(darkValue('--color-canvas')).toBe('#232323')
+    expect(darkValue('--color-surface')).toBe('#2A2A2A')
+    expect(darkValue('--color-surface-raised')).toBe('#202020')
+    expect(darkValue('--color-surface-hover')).toBe('#272727')
+  })
+
+  it('深色墨：一级降下来、三级反向提上去', () => {
+    expect(darkValue('--color-text-primary')).toBe('#D6D6D6')
+    expect(darkValue('--color-text-secondary')).toBe('#A4A4A4')
+    expect(darkValue('--color-text-tertiary')).toBe('#8E8E8E')
+  })
+
+  it('深色语义色四个都校准过（不得等于浅色值）', () => {
+    expect(darkValue('--color-brand')).toBe('#7FA5DA')
+    expect(darkValue('--color-accent')).toBe('#D99667')
+    expect(darkValue('--color-danger')).toBe('#D9736E')
+    expect(darkValue('--color-leech')).toBe('#D97A70')
+    expect(darkValue('--color-brand')).not.toBe(value('--color-brand'))
+  })
+
+  it('深色记忆强度六阶齐全且六值互异', () => {
+    const inks = Array.from({ length: 6 }, (_, n) => darkValue(`--m-mastery-${n}`))
+    for (const [n, ink] of inks.entries()) expect(ink, `dark --m-mastery-${n}`).toMatch(/^#[0-9A-Fa-f]{6}$/)
+    expect(new Set(inks).size).toBe(6)
+  })
+
+  it('发丝边 token 两个主题下都在', () => {
+    expect(value('--color-hairline')).toBe('rgba(0, 0, 0, 0.16)')
+    expect(darkValue('--color-hairline')).toBe('rgba(255, 255, 255, 0.14)')
+  })
+})

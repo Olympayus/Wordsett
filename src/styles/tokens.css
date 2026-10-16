@@ -37,6 +37,9 @@
   /* 边框 */
   --color-border: #E8E4DE;
   --color-border-strong: #D9D4CE;
+  /* 中性发丝边（v0.7.3）：按钮 / 对话框 / 错误页那几处 `rgba(0,0,0,.16)` 描边收口。
+     深色下黑描边会整片消失，故它必须随主题走。 */
+  --color-hairline: rgba(0, 0, 0, 0.16);
 
   /* 字段状态色（编者模式三态） */
   --color-weave-original: #D9D4CE;
@@ -150,3 +153,79 @@
 
 /* 统一页内查找命中高亮（spec §4b，FindBar.tsx 的 CSS Custom Highlight API） */
 ::highlight(wordsett-find) { background-color: rgba(240, 200, 60, .45); color: inherit; }
+
+/* 深色主题（v0.7.3）：只重映射颜色——字号 / 字重 / 间距 / 圆角 / 动效 / 层级一律不动。
+   选择器用数据属性而非 .dark class：`<html data-theme="light|dark">` 由 App 按 settingsStore.theme 写，
+   「跟随系统」在 JS 里解析成这两个具体值之一（不会写 'system' 进来，那样两个块都不命中）。
+   色值不是把浅色压暗得来的：五档面按同一套 ΔL* 节奏重新取值、文字一级降下来、
+   强调色与数据色按深底重新校准明度（色相不变），逐值的对比度见规格 §1.3。 */
+[data-theme='dark'] {
+  /* 面：档间 ΔL* 2.5 / 2.4 / 3.3（与浅色同节奏，只是整体提亮、最黑那档不再贴纯黑） */
+  --color-chrome: #191919;
+  --color-surface-sunken: #1E1E1E;
+  --color-canvas: #232323;
+  --color-surface: #2A2A2A;
+  --color-surface-raised: #202020;
+  --color-surface-hover: #272727;
+  /* 凹陷面上的悬停**不覆盖**：--color-surface-hover-recessed 是 color-mix(surface 50%, sunken)，
+     相对式，深色下自动得到 ≈#242424（落在 sunken 与 surface 之间），语义与浅色一致 */
+
+  /* 墨：一级从 #ECECEC 那种对撞降下来；三级**反向**提上去——它本来就贴着 4.5:1 的红线 */
+  --color-text-primary: #D6D6D6;
+  --color-text-secondary: #A4A4A4;
+  --color-text-tertiary: #8E8E8E;
+
+  --color-brand: #7FA5DA;
+  --color-brand-soft: #2C3035;
+  --color-brand-softer: #262728;
+  --color-accent: #D99667;
+  --color-accent-soft: #3E342D;
+  --color-pos: #93A7C9;
+  --color-pos-soft: #2A2C2E;
+
+  --color-border: #303030;
+  --color-border-strong: #3E3E3E;
+  --color-hairline: rgba(255, 255, 255, 0.14);
+
+  --color-weave-original: #575757;
+  --color-weave-edited: #7FA5DA;
+  --color-weave-personal: #D99667;
+  --color-field-edited-badge: #9A9A9A;
+  --color-field-personal-badge: #D99667;
+
+  /* 分类 8 色板：色相不变、明度提一档（深底上全部 ≥4.53:1） */
+  --color-cat-1: #9A938A;
+  --color-cat-2: #86B39D;
+  --color-cat-3: #7FA5DA;
+  --color-cat-4: #B58AB5;
+  --color-cat-5: #D99667;
+  --color-cat-6: #D9736E;
+  --color-cat-7: #82A8BB;
+  --color-cat-8: #B79A78;
+
+  --color-success: #86B39D;
+  --color-warning: #D99667;
+  --color-danger: #D9736E;
+  --color-leech: #D97A70;
+  --color-scrim: rgba(0, 0, 0, 0.55);
+
+  /* 记忆强度六阶：浅色是「暖灰 → 深蓝」（越强越深），深色反向——越强越亮 */
+  --m-mastery-0: #3A3A38;
+  --m-mastery-1: #50606E;
+  --m-mastery-2: #6B8296;
+  --m-mastery-3: #85A3BE;
+  --m-mastery-4: #9FBFDF;
+  --m-mastery-5: #AFCDF2;
+
+  /* 堆叠条三阶（SummaryPanel 的读数色阶） */
+  --m-bar-1: #4E6B88;
+  --m-bar-2: #6E8CA8;
+  --m-bar-3: #96B0C6;
+
+  /* 浮层阴影：深底上 10% 的黑几乎不可见，提到 50% */
+  --shadow-overlay: 0 8px 24px rgba(0, 0, 0, 0.50);
+}
+
+/* 页内查找命中高亮：深色下同样亮度的黄底会把浅字压得更难读，故降到 30%。
+   若实测读不清，退到 rgba(127, 165, 218, .35)——那时它是「状态」不是「数据」。 */
+[data-theme='dark'] ::highlight(wordsett-find) { background-color: rgba(240, 200, 60, .30); }
