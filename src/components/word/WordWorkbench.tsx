@@ -916,8 +916,9 @@ export default function WordWorkbench() {
   // 各行 gap 同为 10px（设计稿 .frow 的 gap），与返回页 WordTitleExtras 一致（评审：改前 8px）。
   // （分类行 v0.7.3 起挪进头带行右端 rightCluster，不再是字段行。）
 
-  // 记忆强度（v0.7.2 缺陷 1）：头带（EntryBand）自带一枚「记忆强度」标签，故这里只给 5 格方块 +
-  // 悬停明细——不再传带标签的 StrengthChip，否则「记忆强度」会印两遍。方块与浮层复用同一套共享件
+  // 记忆强度（v0.7.2 缺陷 1；v0.7.3 标签改由本页印）：「记忆强度」那枚标签现在由本文件下方的
+  // `bottomRight` 写出（头带自身不印标签），故这里只给 5 格方块 + 悬停明细——**不要**改传带标签的
+  // StrengthChip，否则「记忆强度」会印两遍。方块与浮层复用同一套共享件
   // （masteryBlocks / MASTERY_COLORS / displayTier / WordMasteryTooltip），与 StrengthChip 同源；
   // 本页只用「方块」这一半，带标签的整簇 StrengthChip 因此不再被引用。
   const masteryTier = displayTier({ stability: overlay?.weakestStability ?? null, familiarity: overlay?.familiarity ?? 1 })

@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import SpeakButton from '../ui/SpeakButton'
 
 /**
- * 词条头带（v0.7.3）：四段骨架——头带行（词头 + 右上角簇）、字段行、右下角簇。
+ * 词条头带（v0.7.3）：三段骨架——头带行（词头 + 右上角簇）、字段行、右下角簇。
  *
  * v0.7.2 时右上角一簇是**顽固词标记 + 记忆强度**；v0.7.3 把它们挪到**最后一行右端**
  * （`bottomRight`），因为两者都带说明文字（「顽固词 · 连错 4 次」「记忆强度」），
@@ -27,12 +27,13 @@ export default function EntryBand({ headword, speak = true, savedMark, headwordE
    */
   headwordEnd?: ReactNode
   /**
-   * 头带下方那道 1px 分割线。默认 `true`（工作区要靠它分开头带与正文）。
-   * 传 `false` 时头带不出线——用于「下方另有更合适的分割线」的页面，
-   * 例返回页：页签条自带 2px 下缘线，用户要求「直接用 tab 作分割线」。
+   * 头带下方那道 1px 分割线。默认 `true`，但 **v0.7.3 起两个调用点都传 `false`**，
+   * 无一处再用默认值：工作区与返回页的分割都由页签条自己那道 2px 下缘线承担
+   * （返回页是用户要求「直接用 tab 作分割线」；工作区在 v0.7.3 跟进同一口径）。
+   * 传 `false` 时头带不出线——用于「下方另有更合适的分割线」的页面。
    */
   rule?: boolean
-  /** 音标 / 词根 / 分类等字段行 */
+  /** 音标 / 词根等字段行（分类 v0.7.3 起不再是字段行，已挪进 `rightCluster`） */
   rows?: ReactNode
   /**
    * 头带行**右端**的整簇（v0.7.3）：工作区放分类胶囊、返回页放考试 / 领域徽标。
@@ -42,6 +43,12 @@ export default function EntryBand({ headword, speak = true, savedMark, headwordE
   /**
    * 头带**最后一行右端**的整簇（v0.7.3）：顽固词 + 记忆强度。
    * 放最后一行右端而不是头字行右端——它们带说明文字，与分类 / 徽标挤在同一行会互相推位置。
+   *
+   * **标签由调用方印，且只许印一遍**：头带自身**不**印任何标签（v0.7.2 那两个自带标签的
+   * `leechCount` / `strength` 槽位已废），故「记忆强度」这四个字由本簇的调用方写出
+   * （见 `WordWorkbench.tsx` 的 `bottomRight`），而**传进来的只能是方块那一半**
+   * （该页的 `strengthNode`）。**不要传整枚 `StrengthChip`**——它也带自己的「记忆强度」标签，
+   * 两者会相邻印出两遍（v0.7.2 缺陷 1，即该组件如今在本仓没有调用点的由来）。
    */
   bottomRight?: ReactNode
 }) {
