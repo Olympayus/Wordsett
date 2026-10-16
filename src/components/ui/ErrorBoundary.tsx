@@ -73,7 +73,7 @@ export default class ErrorBoundary extends Component<Props, State> {
                   padding: '8px 20px',
                   borderRadius: '6px',
                   // v0.7.2 §6 规则 2：主按钮改中性配方（浅暖灰底 + 1px 深描边），不再是品牌蓝实底。
-                  border: '1px solid rgba(0,0,0,.16)',
+                  border: '1px solid var(--color-hairline)',
                   background: 'var(--color-border)',
                   color: 'var(--color-text-primary)',
                   fontSize: '14px',

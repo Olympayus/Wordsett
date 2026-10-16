@@ -13,7 +13,7 @@ export function Button({ variant = 'primary', className = '', ...props }: Props)
       style={{
         background: 'var(--color-border)',
         color: 'var(--color-text-primary)',
-        border: primary ? '1px solid rgba(0,0,0,.16)' : 'none',
+        border: primary ? '1px solid var(--color-hairline)' : 'none',
         transition: `background-color var(--duration-fast) var(--ease-smooth)`,
         cursor: 'pointer',
         fontFamily: 'var(--font-sans)',

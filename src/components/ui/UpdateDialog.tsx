@@ -3,7 +3,7 @@ import Icon from '../icons'
 
 const btnPrimary = {
   // v0.7.2 §6 规则 2：主按钮不再是品牌蓝实底，改中性配方（浅暖灰底 + 1px 深描边）。
-  padding: '6px 14px', borderRadius: 6, border: '1px solid rgba(0,0,0,.16)', background: 'var(--color-border)',
+  padding: '6px 14px', borderRadius: 6, border: '1px solid var(--color-hairline)', background: 'var(--color-border)',
   color: 'var(--color-text-primary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-sans)',
 }
 const btnSecondary = {

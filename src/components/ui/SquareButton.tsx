@@ -62,7 +62,7 @@ export const BUTTON_BASE: CSSProperties = {
   // height，多行标签时按钮仍能随内容长高。
   padding: '8px 12px',
   borderRadius: BUTTON_RADIUS,
-  border: '1px solid rgba(0,0,0,.16)',
+  border: '1px solid var(--color-hairline)',
   // 默认态用主题暖中性底而非强调橙（v0.6.1 §2.1）：暖橙在本仓库有既定语义——个人录入字段
   // （--color-weave-personal）与分类胶囊第 5 色。通用按钮占满默认态会冲淡那层语义。
   // 底色取值见上方 NEUTRAL_REST_CANVAS（暖中性阶梯的深一阶，比画布明显深，按钮立得住）。
