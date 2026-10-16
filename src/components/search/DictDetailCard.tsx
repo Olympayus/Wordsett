@@ -293,7 +293,11 @@ export default function DictDetailCard({
           </FlowRow>
           {isContainer && !collapsed && (
             leafFlow
-              ? <LeafFlow items={node.children.map(c => renderContent(c))} />
+              // 与下面未分流的兄弟分支同用 `marginTop: -4px`：LeafFlow 自身带 `padding: 4px 0`，
+              // 与容器行底的 4px 相加会翻倍成 8px，故同样要扣掉被兄弟模型重复计算的那一层——
+              // 两条分支的容器→子项间距才一致（brief 验收项 4「返回页同一组字段行为一致」）。
+              // 不改 LeafFlow 自身的内边距：它与工作区共用，那里的 4px 顶内边距是与 FlowRow 对齐所需。
+              ? <div style={{ marginTop: '-4px' }}><LeafFlow items={node.children.map(c => renderContent(c))} /></div>
               : <div style={{ marginTop: '-4px' }}>{renderRows(node.children, counter)}</div>
           )}
         </Fragment>
