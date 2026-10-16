@@ -36,7 +36,7 @@ function hexToRgb(hex: string): string {
 }
 
 export default function WordListItem({ word, categories, selected, collapsed, mode, onClick, onContextMenu, selectionMode, checked }: Props) {
-  const collapsedDots = categories.slice(0, 3)   // 收起态色圈限 3 个：匹配 COLLAPSED_CHROME_ALPHABET 的 3 色圈宽度（27px）
+  const collapsedDots = categories.slice(0, 3)   // 收起态色圈限 3 个：匹配 COLLAPSED_CHROME_ALPHABET 的 3 色圈宽度（3×6 + 2×2 gap = 20px）
   const lineRef = useRef<HTMLDivElement>(null)
   // 顽固词徽标数据（v0.6.4；出题依据 03 §3.2）。词表是虚拟滚动的，只按本行 wordId 查表，
   // 不发 IPC——与 categoryStore 的 wordCategoryMap 同一做法。
@@ -56,8 +56,8 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
   const containerStyle: CSSProperties = {
     display: 'flex',
     alignItems: collapsed ? 'center' : 'flex-start',
-    gap: '10px',
-    padding: collapsed ? (mode === 'alphabet' ? '6px 10px' : '6px 8px') : SIDEBAR_ROW_PADDING,
+    gap: collapsed ? '6px' : '10px',
+    padding: collapsed ? '6px 6px' : SIDEBAR_ROW_PADDING,
     borderRadius: 'var(--radius-md)',
     cursor: 'pointer',
     position: 'relative',
@@ -136,9 +136,9 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
             {word.lemma}
           </div>
           {mode === 'alphabet' && collapsedDots.length > 0 && (
-            <div style={{ display: 'flex', gap: '3px', flexShrink: 0, alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: '2px', flexShrink: 0, alignItems: 'center' }}>
               {collapsedDots.map(c => (
-                <span key={c.id} style={{ width: '7px', height: '7px', borderRadius: '50%', background: c.color }} />
+                <span key={c.id} style={{ width: '6px', height: '6px', borderRadius: '50%', background: c.color }} />
               ))}
             </div>
           )}

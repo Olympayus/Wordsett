@@ -73,14 +73,22 @@ export function groupByCategory(
 }
 
 // 收起态单词两侧的固定 chrome（镜像布局全链：WordList 滚动容器 padding + WordListItem 收起态样式）：
-// 字母模式：容器 padding 16 + 项 padding 20 + 编织线 3 + gap 20 + 色圈(≤3) 27 = 86px
-// 分类模式：容器 padding 16 + 项 padding 16 + 编织线 3 + gap 10 = 45px（居中单词名，无色圈）
-export const COLLAPSED_CHROME_ALPHABET = 86
-export const COLLAPSED_CHROME_CATEGORY = 45
+// 字母模式（v0.7.3：86 → 66，单词可用宽 120−86=34px 提到 132−66=66px）：
+//   容器 padding 16（8×2）+ 项 padding 12（6×2）+ 编织线 3 + 行内 gap 6 + 色圈(≤3) 20 = 57 → 向上取 66
+//   注：色圈与文字之间只有 WordListItem 行内那一个 gap: 6px，色圈簇自己另有簇内 gap 2px（已含在
+//   「色圈(≤3) 20」里：3×6 + 2×2 = 20），此处不重复计数。57 向上取到 66，让出 9px 余量。
+// 分类模式（v0.7.3：45 → 31）：容器 padding 16 + 项 padding 12（6×2）+ 编织线 3 = 31
+//   （居中单词名，无色圈、无色圈簇距）——31 就是实算值，不取整。
+export const COLLAPSED_CHROME_ALPHABET = 66
+export const COLLAPSED_CHROME_CATEGORY = 31
 
-// D1：收起宽度 = clamp(最长单词渲染宽度 + 实际 chrome, 120px, 240px)
+/** 收起态最小宽（v0.7.3：120 → 132）。S2 档：在「收留白」之上再给 12px，让长词不截断。
+ *  上界 240 不动。 */
+export const COLLAPSED_MIN_WIDTH = 132
+
+// D1：收起宽度 = clamp(最长单词渲染宽度 + 实际 chrome, COLLAPSED_MIN_WIDTH, 240px)
 export function fitCollapsedWidth(maxWordWidthPx: number, chromePx: number): number {
-  return Math.min(240, Math.max(120, maxWordWidthPx + chromePx))
+  return Math.min(240, Math.max(COLLAPSED_MIN_WIDTH, maxWordWidthPx + chromePx))
 }
 
 // 解析收起态单词名的实际渲染字体（computed font），canvas measureText 必须与 DOM 渲染用同一字体，

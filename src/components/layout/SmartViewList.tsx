@@ -29,15 +29,15 @@ export default function SmartViewList({ views, active, counts, onSelect }: {
             aria-current={on ? 'true' : undefined}
             onClick={() => onSelect(on ? 'all' : key)}
             style={{
-              display: 'flex', alignItems: 'center', gap: '7px', width: '100%',
-              padding: '6px 8px', border: 'none', borderRadius: 'var(--radius-md)',
+              display: 'flex', alignItems: 'center', gap: '5px', width: '100%',
+              padding: '6px 6px', border: 'none', borderRadius: 'var(--radius-md)',
               background: on ? 'var(--color-surface)' : 'transparent',
               cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-sans)',
             }}
             onMouseEnter={e => { if (!on) e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
             onMouseLeave={e => { e.currentTarget.style.background = on ? 'var(--color-surface)' : 'transparent' }}
           >
-            <Icon name={meta.icon} size={14} />
+            <Icon name={meta.icon} size={13} />
             <span style={{
               flex: 1, minWidth: 0, fontSize: 'var(--text-sm)',
               fontWeight: on ? 'var(--weight-semibold)' : 'var(--weight-regular)',

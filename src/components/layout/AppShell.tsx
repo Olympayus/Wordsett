@@ -28,7 +28,7 @@ export default function AppShell() {
   const activeModule = useViewStore(s => s.activeModule)
   const { assignWordId, editorTarget, closeModals, openEditor } = useUiStore()
 
-  // D1：收起宽度 = clamp(最长单词渲染宽度 + 实际 chrome, 120px, 240px)，加词/删词重算，过渡走统一动效档
+  // D1：收起宽度 = clamp(最长单词渲染宽度 + 实际 chrome, COLLAPSED_MIN_WIDTH(132px), 240px)，加词/删词重算，过渡走统一动效档
   const sidebarWidth = useMemo(() => {
     if (!collapsed) return SIDEBAR_EXPANDED_WIDTH
     const chrome = mode === 'alphabet' ? COLLAPSED_CHROME_ALPHABET : COLLAPSED_CHROME_CATEGORY

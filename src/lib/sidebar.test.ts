@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest'
 import {
   groupByLetter, groupByCategory, fitCollapsedWidth,
   SIDEBAR_ROW_HEIGHT, SIDEBAR_ROW_HEIGHT_COLLAPSED,
+  COLLAPSED_CHROME_ALPHABET, COLLAPSED_CHROME_CATEGORY, COLLAPSED_MIN_WIDTH,
 } from './sidebar'
 import type { WordWithPreview } from '../types/word'
 import type { Category } from '../types/category'
@@ -40,10 +41,24 @@ describe('sidebar 分组', () => {
 })
 
 describe('sidebar 收起宽度（D1）', () => {
-  it('fitCollapsedWidth clamp 到 120-240', () => {
-    expect(fitCollapsedWidth(0, 40)).toBe(120)
-    expect(fitCollapsedWidth(90, 40)).toBe(130)
+  it('fitCollapsedWidth clamp 到 COLLAPSED_MIN_WIDTH-240', () => {
+    expect(fitCollapsedWidth(0, 40)).toBe(COLLAPSED_MIN_WIDTH)
+    expect(fitCollapsedWidth(90, 40)).toBe(COLLAPSED_MIN_WIDTH)
     expect(fitCollapsedWidth(300, 40)).toBe(240)
+  })
+
+  it('收起态 chrome 常量（v0.7.3：字母 86→66、分类 45→31）', () => {
+    expect(COLLAPSED_CHROME_ALPHABET).toBe(66)
+    expect(COLLAPSED_CHROME_CATEGORY).toBe(31)
+  })
+
+  it('fitCollapsedWidth 的两端（下界 132 / 上界 240），且下界就是收起态最小宽', () => {
+    expect(fitCollapsedWidth(0, COLLAPSED_CHROME_ALPHABET)).toBe(COLLAPSED_MIN_WIDTH)
+    expect(fitCollapsedWidth(10_000, COLLAPSED_CHROME_ALPHABET)).toBe(240)
+  })
+
+  it('单词可用宽 = 最小宽 − chrome：字母模式 66px（原 34px）', () => {
+    expect(COLLAPSED_MIN_WIDTH - COLLAPSED_CHROME_ALPHABET).toBe(66)
   })
 })
 
