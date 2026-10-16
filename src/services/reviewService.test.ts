@@ -405,6 +405,71 @@ describe('reviewService.getQueue 的卡级闸门（概览不再复述这个数�
   })
 })
 
+describe('reviewService 的每词顺延（v0.7.3：内容闸门前移）', () => {
+  beforeEach(() => {
+    registerAllWordsMock.mockReset()
+    getCandidatesMock.mockReset()
+    getWordContentMock.mockReset()
+    registerAllWordsMock.mockResolvedValue(undefined)
+    getAbsentWordsMock.mockResolvedValue({ ok: true, data: [] })
+  })
+
+  it('被选中的卡出不了题时，顺延到该词下一张可出题的卡', async () => {
+    // w1 的两张卡：cloze（例句取不到，过不了闸门）与 recall（无内容依赖，恒可出）。
+    // 队列只给了 cloze 那一张（onePerWord 的结果），顺延后本轮仍然出 1 题，题型是 recall。
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [
+      candidate({ cardId: 'c1', wordId: 'w1', template: 'cloze' }),
+      candidate({ cardId: 'c2', wordId: 'w1', template: 'recall' }),
+    ] })
+    getWordContentMock.mockImplementation(async (wordId: string) =>
+      wordId === 'w1' ? { ...content, example: '' } : content)
+    const { queue } = await getQueue('today', REVIEW_DEFAULTS)
+    expect(queue.map(c => c.cardId)).toEqual(['c2'])
+    expect(queue.map(c => c.template)).toEqual(['recall'])
+  })
+
+  it('该词一张卡都出不了题时，整词缺席，不重复出题', async () => {
+    // 两张卡各撞一道闸门：cloze 看例句、recognize 看干扰项，两张都过不了 → 整词缺席。
+    // 简报这里第二张卡写的是 `'cloze2' as never`；但 cardPresentable 对未知题型走
+    // `return true` 的兜底（见 lib/review/template.ts），那张卡反而会过关、断言与实现
+    // 自相矛盾。故改成一张真实存在、确实过不了闸门的题型，钉住的仍是同一件事。
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [
+      candidate({ cardId: 'c1', wordId: 'w1', template: 'cloze' }),
+      candidate({ cardId: 'c2', wordId: 'w1', template: 'recognize' }),
+    ] })
+    getWordContentMock.mockResolvedValue({ ...content, example: '', distractors: [] })
+    const { queue } = await getQueue('today', REVIEW_DEFAULTS)
+    expect(queue).toEqual([])
+  })
+
+  it('顺延不会让同一个词在一轮里出两张（used 跨轮组装生效）', async () => {
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [
+      candidate({ cardId: 'c1', wordId: 'w1', template: 'cloze' }),
+      candidate({ cardId: 'c2', wordId: 'w1', template: 'recall' }),
+    ] })
+    getWordContentMock.mockResolvedValue(content)   // 两张都过闸门
+    const { queue } = await getQueue('today', REVIEW_DEFAULTS)
+    expect(queue).toHaveLength(1)
+    expect(queue[0].cardId).toBe('c1')
+  })
+
+  it('getOverview 的 newCount 与 getQueue 同口径（顺延后仍算这一个新词）', async () => {
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [
+      candidate({ cardId: 'c1', wordId: 'w1', template: 'cloze', stability: null }),
+      candidate({ cardId: 'c2', wordId: 'w1', template: 'recall', stability: null }),
+    ] })
+    getWordContentMock.mockImplementation(async (wordId: string) =>
+      wordId === 'w1' ? { ...content, example: '' } : content)
+    getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 0, todayWordIds: [], weak: 0 } })
+    getStatsMock.mockResolvedValue({
+      ok: true, data: { masteryBuckets: [0, 0, 0, 0, 0, 0], dueByDay: Array(8).fill(0), recentRatings: [] },
+    })
+    const o = await getOverview(REVIEW_DEFAULTS)
+    expect(o.newCount).toBe(1)
+    expect(o.deliverable).toBe(1)
+  })
+})
+
 describe('reviewService 薄弱词列表', () => {
   beforeEach(() => {
     getWeakWordsWithCountsMock.mockReset()

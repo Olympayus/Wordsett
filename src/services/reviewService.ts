@@ -273,13 +273,9 @@ export async function getQueue(
   // 全库随机：buildQueue 的 R_now 排序会覆盖乱序，故在最后重新打乱
   const ordered = freeScope?.kind === 'random' ? shuffle([...result.queue]) : result.queue
 
-  const queue: ReviewCardDTO[] = []
-  for (const c of ordered) {
-    const content = await loadContent(c.wordId)
-    if (!content) continue
-    if (!cardPresentable(c.template, content)) continue
-    queue.push(assembleCardDTO(c, c.template, content))
-  }
+  const servable = await pickServable(ordered, candidates, contentMemo())
+  const queue: ReviewCardDTO[] = servable.map(
+    ({ candidate, content }) => assembleCardDTO(candidate, candidate.template, content))
 
   const absent = await getAbsent()
   return { queue, absent, result: { ...result, queue: ordered } }
@@ -424,32 +420,56 @@ export async function getStats() {
   return r.ok ? r.data : { masteryBuckets: [0, 0, 0, 0, 0, 0], dueByDay: Array(8).fill(0), recentRatings: [] }
 }
 
+/** 词级内容缓存：同一词在一次组卷里最多取一次内容（一次 getWordContent 是 2 条查询）。 */
+function contentMemo() {
+  const cache = new Map<string, Promise<CardContent | null>>()
+  return (wordId: string) => {
+    let p = cache.get(wordId)
+    if (!p) { p = loadContent(wordId); cache.set(wordId, p) }
+    return p
+  }
+}
+
+interface ServableCard { candidate: QueueCandidate; content: CardContent }
+
 /**
- * 本轮真正出得了题的卡：卡级闸门逐张判，剔除本轮出不了的（新词数就不会虚高）。
+ * 逐卡过闸门并**按词顺延**（v0.7.3）：队列里那一张出不了题时，改出该词下一张能出题的卡。
  *
- * 用途（v0.6.3 打磨后收窄到一处）：只服务 `getOverview().newCount`——「本轮会引入几个新词」。
- * 此前它还算「今日待复习总数」，那个数现在走掩码层的 `getStrategyCounts().today`（见 getOverview）。
+ * 为什么必须顺延：`onePerWord` 已经为每个词选定了唯一的那张卡，若那张过不了 `cardPresentable`
+ * （cloze 要求例句里出现该词本身、recognize 要求干扰项 ≥3），**整个词**就从本轮消失了——
+ * 哪怕它还有 recall / english_def / listen 可用。真实数据上「额度 10 却只引入 1 个新词」
+ * 有 3 个词正是这样被剔掉的。
  *
- * 为什么这里仍要过闸门：新词数若把「内容层面出不了题」的新卡也算进去，控制台会印
- * 「新词: 3」而本轮只引入 2 个。
- *
- * 刻意**逐张**读内容、**不**再为「题型不是 recognize / cloze」的卡短路：内容取不到
- * （`loadContent` 返回 null）本身就该把那张卡剔出本轮，旧版的短路会把这种卡无条件留下——
- * 而 getQueue 的组装循环一直就是「取不到就 continue」。两处现在同一口径，**别**把短路优化回来。
+ * 顺延的候选来自 `pool`（未过闸门的完整候选池），按池内既有顺序取；`used` 跨整轮组装保留，
+ * 保证同一个词不会因为顺延而在同一轮出两张。内容取不到（词不存在）时整词放弃——
+ * 换题型的卡也解决不了「这个词没有内容」。
  */
-async function deliverable(candidates: QueueCandidate[]): Promise<QueueCandidate[]> {
-  const out: QueueCandidate[] = []
-  for (const c of candidates) {
-    const content = await loadContent(c.wordId)
+async function pickServable(
+  ordered: QueueCandidate[],
+  pool: QueueCandidate[],
+  contentOf: (wordId: string) => Promise<CardContent | null>,
+): Promise<ServableCard[]> {
+  const byWord = new Map<string, QueueCandidate[]>()
+  for (const c of pool) {
+    const list = byWord.get(c.wordId)
+    if (list) list.push(c); else byWord.set(c.wordId, [c])
+  }
+  const used = new Set<string>()
+  const out: ServableCard[] = []
+  for (const c of ordered) {
+    const content = await contentOf(c.wordId)
     if (!content) continue
-    if (!cardPresentable(c.template, content)) continue
-    out.push(c)
+    const tried = [c, ...(byWord.get(c.wordId) ?? [])]
+    const pick = tried.find(t => !used.has(t.cardId) && cardPresentable(t.template, content))
+    if (!pick) continue
+    used.add(pick.cardId)
+    out.push({ candidate: pick, content })
   }
   return out
 }
 
 /**
- * 今日队列：候选 → buildQueue → 卡级闸门（v0.6.3 打磨后只剩一个用途：取本轮新词数）。
+ * 今日队列：候选 → buildQueue → 卡级闸门 + 每词顺延（v0.6.3 打磨后只剩一个用途：取本轮新词数）。
  *
  * 此前它同时是「今日待复习总数」的来源，控制台与标题栏 chip 都读它——那个数因此会被
  * 当日额度（queueLimit）截断，与「今天到底积压了多少」不是一回事，见 getOverview。
@@ -464,7 +484,10 @@ async function todayQueue(params: ReviewParams, now: number): Promise<QueueCandi
   const candRes = await reviewDb.getCandidates(now, undefined, { allowListen: isListenEnabled() })
   const candidates = candRes.ok ? candRes.data : []
   const result = buildQueue(candidates, { now, newCardQuota: params.newCardQuota, queueLimit: params.queueLimit })
-  return deliverable(result.queue)
+  // 与 getQueue 走**同一条**顺延路径：newCount 与 deliverable 必须同口径，
+  // 否则控制台会印「新词: 3」而本轮只出得了 1 个（v0.6.3 起反复踩过的那个坑）。
+  const servable = await pickServable(result.queue, candidates, contentMemo())
+  return servable.map(s => s.candidate)
 }
 
 export async function getOverview(params: ReviewParams) {
@@ -487,10 +510,10 @@ export async function getOverview(params: ReviewParams) {
   const { today } = await getStrategyCounts(params)
   return {
     total: today,
-    // 新词数仍是本轮队列里的实际新卡数（额度、队列上限、卡级闸门都算数）：它答的是
+    // 新词数仍是本轮队列里的实际新卡数（额度、队列上限、卡级闸门 + 每词顺延都算数）：它答的是
     // 「本轮会引入几个新词」，与上面那个到期积压是两个量，故不从 total 派生。
     newCount: queue.filter(c => c.stability === null).length,
-    // 「本轮实际能出几道题」＝ todayQueue 过了额度/上限与卡级闸门之后的长度。
+    // 「本轮实际能出几道题」＝ todayQueue 过了额度/上限与卡级闸门 + 每词顺延之后的长度。
     // 这是**空态与「开始复习」按钮唯一该看的数**：total 是到期积压，而新卡没有 due_at、
     // 走不到 getStrategyCounts 的到期集里——拿 total 判空会把「今天只有新词可学」
     // 整页变成空态，连按钮一起藏掉（OverviewPanel 是提前 return）。
