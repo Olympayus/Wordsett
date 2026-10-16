@@ -42,19 +42,22 @@ export default function SettingsPage() {
   }, [])
   const sections = SECTIONS.filter(s => s.key !== 'platform' || platformSupported)
 
-  // v0.5.3 §4.1（第 10 条）：左栏文字改黑色衬线体。两种状态文字都取近黑
-  // （--color-text-primary，#1C1814）；选中态改由「暖品牌底 + 2px 品牌色左边条 + 加粗」承载，
-  // 颜色与底色一起提示，避免文字再靠蓝/灰二色区分。
+  // v0.7.3 §6.2：选中态统一到智能视图那套——**阅读面圆角块 + 1px 描边 + 字重 600**，
+  // 文字恒为主色。这一条推翻了 v0.5.3 的「暖品牌底 + 2px 品牌色左边条」决定：
+  // 三处左侧栏（智能视图 / 设置页 / 复习页）本该长一样，而当时三处是三种实现。
+  // 也符合「蓝色收窄」规则——选中由「面 + 描边 + 字重」三件事表达，不需要再叠一层蓝。
+  // 描边在未选中态用 transparent 保位：不给的话选中时整列宽度会动 2px、文字左右跳。
   const navStyle = (isActive: boolean): React.CSSProperties => ({
     width: '100%', display: 'block', textAlign: 'left', cursor: 'pointer',
-    padding: '10px 20px', fontSize: 'var(--text-sm)',
+    padding: '8px 10px',
+    fontSize: 'var(--text-sm)',
     color: 'var(--color-text-primary)',
-    background: isActive ? 'var(--color-brand-soft)' : 'transparent',
-    fontWeight: isActive ? 'var(--weight-bold)' : 'var(--weight-regular)',
+    background: isActive ? 'var(--color-surface)' : 'transparent',
+    fontWeight: isActive ? 'var(--weight-semibold)' : 'var(--weight-regular)',
     fontFamily: 'var(--font-serif)',
-    border: 'none',
-    borderLeft: `2px solid ${isActive ? 'var(--color-brand)' : 'transparent'}`,
-    transition: 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
+    border: `1px solid ${isActive ? 'var(--color-border-strong)' : 'transparent'}`,
+    borderRadius: 'var(--radius-md)',
+    transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
   })
 
   return (
@@ -64,7 +67,7 @@ export default function SettingsPage() {
         aria-label="设置分区"
         style={{
           width: '160px', flexShrink: 0, background: 'var(--color-canvas)',
-          borderRight: '1px solid var(--color-border)', padding: '16px 0',
+          borderRight: '1px solid var(--color-border)', padding: '16px 8px',
         }}
       >
         {sections.map(s => (

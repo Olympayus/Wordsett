@@ -30,7 +30,8 @@ export default function SmartViewList({ views, active, counts, onSelect }: {
             onClick={() => onSelect(on ? 'all' : key)}
             style={{
               display: 'flex', alignItems: 'center', gap: '5px', width: '100%',
-              padding: '6px 6px', border: 'none', borderRadius: 'var(--radius-md)',
+              padding: '6px 6px', borderRadius: 'var(--radius-md)',
+              border: `1px solid ${on ? 'var(--color-border-strong)' : 'transparent'}`,
               background: on ? 'var(--color-surface)' : 'transparent',
               cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-sans)',
             }}

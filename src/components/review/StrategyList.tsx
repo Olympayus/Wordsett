@@ -29,13 +29,15 @@ export default function StrategyList({ strategies, active, onSelect, header, foo
             onClick={() => onSelect(s.key)}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
-              textAlign: 'left', border: 'none', cursor: 'pointer', borderRadius: 'var(--radius-lg)',
+              textAlign: 'left', cursor: 'pointer',
+              borderRadius: 'var(--radius-md)',
               padding: '8px 10px',
-              background: on ? 'var(--color-brand-soft)' : 'transparent',
-              color: on ? 'var(--color-brand)' : 'var(--color-text-primary)',
+              background: on ? 'var(--color-surface)' : 'transparent',
+              border: `1px solid ${on ? 'var(--color-border-strong)' : 'transparent'}`,
+              color: 'var(--color-text-primary)',
             }}
           >
-            <span style={{ fontSize: '13px', fontWeight: 500, fontFamily: 'var(--font-serif)' }}>{s.label}</span>
+            <span style={{ fontSize: '13px', fontWeight: on ? 'var(--weight-semibold)' : 'var(--weight-regular)', fontFamily: 'var(--font-serif)' }}>{s.label}</span>
           </button>
         )
       })}
