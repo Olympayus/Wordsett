@@ -13,6 +13,8 @@ export type TitleInfoKey =
   | 'showCollinsStars'
   | 'showDomainCategory' | 'showDomainRegion' | 'showDomainUsage'
 
+export type ThemeMode = 'system' | 'light' | 'dark'
+
 export interface ReviewSettings {
   retention: number
   leechThreshold: number
@@ -30,11 +32,14 @@ export interface SettingsStore {
   review: ReviewSettings
   /** 侧栏四个智能视图逐项开关（v0.6.5 §4.4）。`all` 恒为 true，见 setSmartView。 */
   smartViews: Record<SmartViewKey, boolean>
+  /** 外观（v0.7.3）：跟随系统 / 浅色 / 深色。 */
+  theme: ThemeMode
   setDisplayField: (key: DisplayFieldKey, on: boolean) => void
   setSidebarMode: (mode: SidebarMode) => void
   setTitleInfo: (key: TitleInfoKey, on: boolean) => void
   setReview: <K extends keyof ReviewSettings>(key: K, value: ReviewSettings[K]) => void
   setSmartView: (key: SmartViewKey, on: boolean) => void
+  setTheme: (mode: ThemeMode) => void
 }
 
 // 默认（规格 §7）：词典返回词条全开（含词源相关词）、字母模式
@@ -58,6 +63,9 @@ export const DEFAULT_REVIEW: ReviewSettings = {
 export const DEFAULT_SMART_VIEWS: Record<SmartViewKey, boolean> = {
   all: true, due: true, weekNew: true, leech: true,
 }
+
+// 默认跟随系统（规格 D1）：装了深色系统的用户第一次打开就得到深色，不必自己去设置里找。
+export const DEFAULT_THEME: ThemeMode = 'system'
 
 /**
  * 存档迁移。抽成具名导出是为了可测，但**直接调用它验不出接线**：一个导出了却从没被
@@ -91,6 +99,10 @@ export function migrateSettings(persisted: unknown): SettingsStore {
     // 所以下面这行把默认铺在存档之上、给缺键兜底，是**唯一**一处补齐缺键的地方；
     // 而它只有在 version 不相等、migrate 真的被调用时才会执行。少那次升版 = 这行形同虚设。
     smartViews: { ...DEFAULT_SMART_VIEWS, ...state.smartViews },
+    // v0.7.3 加 theme 时把 version 从 9 升到 10，理由与 v0.6.5 加 smartViews 那次相同：
+    // 缺键本身会被 zustand 的 merge 兜住（存档没有这个键就不会覆盖默认），
+    // 但残缺的旧存档一旦带上 `theme: undefined`，就只有 migrate 能把它抹平。
+    theme: state.theme ?? DEFAULT_THEME,
   } as SettingsStore
 }
 
@@ -102,10 +114,12 @@ export const useSettingsStore = create<SettingsStore>()(
       titleInfo: DEFAULT_TITLE_INFO,
       review: DEFAULT_REVIEW,
       smartViews: DEFAULT_SMART_VIEWS,
+      theme: DEFAULT_THEME,
       setDisplayField: (key, on) => set(s => ({ displayFields: { ...s.displayFields, [key]: on } })),
       setSidebarMode: (mode) => set({ sidebarMode: mode }),
       setTitleInfo: (key, on) => set(s => ({ titleInfo: { ...s.titleInfo, [key]: on } })),
       setReview: (key, value) => set(s => ({ review: { ...s.review, [key]: value } })),
+      setTheme: (mode) => set({ theme: mode }),
       // 「完整词库」是视图未激活时的落点，强制为 true（§4.4「完整词库锁定不可关」）：
       // 关掉它就没有任何视图能表示「没有过滤」，WordList 的 activeView 回退会指向它。
       setSmartView: (key, on) => set(s => ({
@@ -122,7 +136,8 @@ export const useSettingsStore = create<SettingsStore>()(
       // 合并进来时缺键保留旧值，用户关掉的视图会静默重新打开（细节见 migrateSettings 里的注释）。
       // v0.7.1：删 dictionaries → 9。理由与上两次相反：这次不是「缺键要兜底」而是「多键要删除」，
       // 而 zustand 的 merge 只会覆盖键、从不删键，所以必须靠 migrate 显式剔除。
-      version: 9,
+      // v0.7.3：加 theme → 10。
+      version: 10,
       storage: createJSONStorage(() => localStorage),
       migrate: migrateSettings,
       onRehydrateStorage: () => (_, error) => {
@@ -134,6 +149,7 @@ export const useSettingsStore = create<SettingsStore>()(
             titleInfo: DEFAULT_TITLE_INFO,
             review: DEFAULT_REVIEW,
             smartViews: DEFAULT_SMART_VIEWS,
+            theme: DEFAULT_THEME,
           })
         }
       },
@@ -143,6 +159,7 @@ export const useSettingsStore = create<SettingsStore>()(
         titleInfo: s.titleInfo,
         review: s.review,
         smartViews: s.smartViews,
+        theme: s.theme,
       }),
     }
   )

@@ -44,7 +44,7 @@ describe('settingsStore（规格 §7）', () => {
     expect(parsed.state.sidebarMode).toBe('category')
     expect(parsed.state.displayFields.phonetic).toBe(false)
     expect(Object.keys(parsed.state).sort()).toEqual(
-      ['displayFields', 'review', 'sidebarMode', 'smartViews', 'titleInfo']
+      ['displayFields', 'review', 'sidebarMode', 'smartViews', 'theme', 'titleInfo']
     )
   })
 
@@ -196,10 +196,10 @@ describe('smartViews 存档迁移（v0.6.5）', () => {
     expect(migrated.smartViews).toEqual({ all: true, due: false, weekNew: true, leech: true })
   })
 
-  it('persist 的 version 是 9 —— 旧存档（7）据此触发 migrate，迁移后写盘升到 9', async () => {
+  it('persist 的 version 是 10 —— 旧存档（7）据此触发 migrate，迁移后写盘升到 10', async () => {
     // 本文件里直接调 migrate 的用例**完全绕过** version，因此没有任何东西钉住这个数字：
     // 把它回退成 7 全仓依然绿，v7 存档从此不再走 migrate。这条把两件事合在一起验：
-    // migrate 之后存档里那个字面量就是 9（改本处 version 会红），且 9 也**写回了** localStorage
+    // migrate 之后存档里那个字面量就是 10（改本处 version 会红），且 10 也**写回了** localStorage
     //（不写回则版本号每次启动都要重算一遍）。两种断言共享同一次播种与 rehydrate，
     // 刻意不拆成两条——拆开就是同一个测试写两遍，虚增一条覆盖。
     // 自行播种（不依赖前面的用例是否写过 localStorage），单独跑也得绿。
@@ -209,7 +209,7 @@ describe('smartViews 存档迁移（v0.6.5）', () => {
     }))
     expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(7)
     await useSettingsStore.persist.rehydrate()
-    expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(9)
+    expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(10)
   })
 
   it('真实 rehydrate 一份 version 7 且无 smartViews 的旧存档 → 四个视图全开', async () => {
@@ -241,6 +241,33 @@ describe('smartViews 存档迁移（v0.6.5）', () => {
     }))
     await useSettingsStore.persist.rehydrate()
     expect(useSettingsStore.getState().smartViews).toEqual({ all: true, due: false, weekNew: true, leech: true })
+  })
+})
+
+describe('theme（v0.7.3）', () => {
+  it('默认跟随系统', () => {
+    expect(useSettingsStore.getState().theme).toBe('system')
+  })
+
+  it('setTheme 写入三档之一', () => {
+    useSettingsStore.getState().setTheme('dark')
+    expect(useSettingsStore.getState().theme).toBe('dark')
+    useSettingsStore.getState().setTheme('system')
+  })
+
+  it('migrate 给缺键兜底、保留存档里的值', () => {
+    expect(migrateSettings({}).theme).toBe('system')
+    expect(migrateSettings({ theme: 'dark' }).theme).toBe('dark')
+  })
+
+  it('version 升到 10——不升版 migrate 根本不会被调用', () => {
+    expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(10)
+  })
+
+  it('theme 进 partialize 白名单（漏了就不持久化）', () => {
+    const parsed = JSON.parse(localStorage.getItem('wordsett-settings')!)
+    expect(Object.keys(parsed.state).sort()).toEqual(
+      ['displayFields', 'review', 'sidebarMode', 'smartViews', 'theme', 'titleInfo'])
   })
 })
 
