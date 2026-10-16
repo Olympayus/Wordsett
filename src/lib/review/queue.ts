@@ -69,21 +69,21 @@ export function buildQueue(candidates: QueueCandidate[], params: QueueParams): Q
   const freshSorted = onePerWord(
     candidates.filter(isNew).sort((a, b) => a.initialFamiliarity - b.initialFamiliarity))
 
-  // 额度按**词**算：freshSorted 已按词去重，所以「取前 M 条」就是「取前 M 个词」。
+  // 让位过滤**先于**额度切片（v0.7.3）：先把「池里有到期卡的词」整体剔掉，再按额度取前 M 个。
+  // 旧顺序（先切 M 条、再剔让位）会让被让位的新词**占着名额不放**——池子里明明还有几十个可用的
+  // 新词，额度却被几个无效词吃掉、且不回补。真实数据上这个顺序差异是「本轮 1 个新词」与
+  // 「本轮 10 个新词」的差别。
+  //
+  // 判据仍是**整池**（dueSorted 而不是 dueTake）：dueTake 的长度依赖 freshTake，反过来用会绕成
+  // 循环依赖。整池判据的代价保留——一个词只要池里有任何一张到期卡，它的本轮新卡就让位，哪怕那张
+  // 到期卡本轮根本没排上；不再回补，只推到下一轮。
+  const dueWordIds = new Set(dueSorted.map(c => c.wordId))
+  const freshAvailable = freshSorted.filter(c => !dueWordIds.has(c.wordId))
+
+  // 额度按**词**算：freshAvailable 已按词去重，所以「取前 M 条」就是「取前 M 个词」。
   // 这个 min 不是冗余：L 压的是新卡取数，dueRoom 只截到期取数，撤掉它 newCardQuota > L 时新卡能把队列顶穿 L。
   const freshRoom = queueLimit === 0 ? newCardQuota : Math.min(newCardQuota, queueLimit)
-  const freshTakeRaw = newCardQuota === 0 ? [] : freshSorted.slice(0, freshRoom)
-
-  // 判据用 dueSorted 而不是 dueTake：dueTake 的长度依赖 freshTake，反过来用会绕成循环。
-  //
-  // 代价要说明白：判据是**整池**而非取数，所以一个词只要池里有任何一张到期卡，它的本轮新卡就让位
-  // ——哪怕那张到期卡本轮根本没排上（dueTake 装不下它）。于是本轮新卡数 ≤ M，且**可能明显小于 M**：
-  // 最坏情况是 M 个新词都另有到期卡 → newCount = 0。这是刻意的保守取舍：
-  //   - 只少给、不会超发，且只是推迟到下一轮，词不会被漏掉；
-  //   - 随到期池排空而自我修正（评过的卡 due_at 推后，整池判据不再命中该词）；
-  //   - 改用 dueTake 判定只能多挤出几张新卡，却要把上面那处循环依赖请回来。
-  const dueWordIds = new Set(dueSorted.map(c => c.wordId))
-  const freshTake = freshTakeRaw.filter(c => !dueWordIds.has(c.wordId))
+  const freshTake = newCardQuota === 0 ? [] : freshAvailable.slice(0, freshRoom)
 
   const dueRoom = queueLimit === 0 ? Infinity : Math.max(0, queueLimit - freshTake.length)
   const dueTake = dueSorted.slice(0, dueRoom)

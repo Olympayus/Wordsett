@@ -178,7 +178,7 @@ describe('新词额度按词算', () => {
     expect(forW1[0].cardId).toBe('due')
   })
 
-  it('额度 3 但其中一个新词另有到期卡 → 本轮只出 2 张新卡（M − K）', () => {
+  it('额度 3、一个词让位、后面没有别的新词可补 → 本轮只出 2 张新卡', () => {
     const r = buildQueue([
       cand({ cardId: 'due1', wordId: 'w1' }),
       cand({ cardId: 'n1', wordId: 'w1', stability: null, dueAt: 0, lastReviewAt: null }),
@@ -222,5 +222,21 @@ describe('新词额度按词算', () => {
     const many = Array.from({ length: 40 }, (_, i) => cand({ cardId: `c${i}`, wordId: `w${i}` }))
     const r = buildQueue(many, params)
     expect(r.queue).toHaveLength(30)
+  })
+
+  it('让位过滤先于额度切片：让位掉的词不占名额，名额由后面的新词补上', () => {
+    // 1 个到期词（w1）+ 4 个新词（w1 有到期卡，w2/w3/w4 干净），额度 3。
+    // 旧行为：先切前 3 个新词（w1/w2/w3）再剔除让位的 w1 → newCount = 2。
+    // 新行为：先剔掉 w1，再切前 3 个 → w2/w3/w4，newCount = 3。
+    const r = buildQueue([
+      cand({ cardId: 'due1', wordId: 'w1' }),
+      cand({ cardId: 'n1', wordId: 'w1', stability: null, dueAt: 0, lastReviewAt: null }),
+      cand({ cardId: 'n2', wordId: 'w2', stability: null, dueAt: 0, lastReviewAt: null }),
+      cand({ cardId: 'n3', wordId: 'w3', stability: null, dueAt: 0, lastReviewAt: null }),
+      cand({ cardId: 'n4', wordId: 'w4', stability: null, dueAt: 0, lastReviewAt: null }),
+    ], { ...params, newCardQuota: 3 })
+    expect(r.queue.filter(c => c.stability === null).map(c => c.wordId)).toEqual(['w2', 'w3', 'w4'])
+    expect(r.newCount).toBe(3)
+    expect(r.dueCount).toBe(1)
   })
 })
