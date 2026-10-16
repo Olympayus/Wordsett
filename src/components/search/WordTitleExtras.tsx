@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import type { MergeFieldInput } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
 import { buildTitleMetaInputs, type TitleStripSelection } from '../../lib/titleStrip'
+import { ENTRY_PHONETIC_GAP, ENTRY_ROW_GAP } from '../../lib/layout'
 import { useSettingsStore } from '../../stores/settingsStore'
 import CheckBox from '../ui/CheckBox'
 
@@ -46,7 +47,7 @@ export default function WordTitleExtras({ meta, onInputsChange }: Props) {
   return (
     <>
       {phonetic !== null && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '7px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: `${ENTRY_PHONETIC_GAP}px` }}>
           <span style={LABEL_COL}>音标</span>
           <span style={{ fontFamily: 'var(--font-phonetic)', fontSize: '15px' }}>/{phonetic}/</span>
           <span style={{ display: 'inline-flex' }}>
@@ -56,7 +57,7 @@ export default function WordTitleExtras({ meta, onInputsChange }: Props) {
       )}
 
       {showWordRoot && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: '7px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: `${ENTRY_ROW_GAP}px` }}>
           <span style={LABEL_COL}>词根</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {meta.wordRoots.map((r, i) => (

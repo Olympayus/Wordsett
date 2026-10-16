@@ -207,13 +207,15 @@ export default function DictDetailPanel({ word }: Props) {
           「列内首行是吸顶导航条」服务的，留着反而会让列比滚动区高出导航条那 32px（多出一条
           无意义的滚动余量）。去掉后与工作区 WordWorkbench 的内容列逐字同形。 */}
       <div style={{ maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: ENTRY_COLUMN_PADDING }}>
-        {/* 词条头带（v0.7.2 §8.3 + 修复 1 / 2 / 6）。
+        {/* 词条头带（v0.7.2 §8.3 + 修复 1 / 2 / 6；v0.7.3 徽标改走 rightCluster）。
             修复 1「星级应在单词右侧、徽标应在右上角」：EntryBand 原有槽位要么落在词头**之前**
-            （savedMark），要么自带一句说明文字（strength 印「记忆强度」、leechCount 印「顽固词 · …」）
-            ——返回页两者都不量，挂上去会印出假标签。v0.7.2 起 EntryBand 补上 `headwordEnd` 槽位
-            （词头之后、与词头同基线的纯节点），星级与喇叭经它落位，词头排版回到单一出处，
-            不再由本页自绘一份。右端徽标簇是该节点里 `marginLeft:'auto'` 起手的子节点——
-            与 `strength` 实现右对齐的是同一机制。
+            （savedMark），要么自带一句说明文字（v0.7.2 的 strength / leechCount），返回页两者都不量，
+            挂上去会印出假标签。v0.7.2 起 EntryBand 补上 `headwordEnd` 槽位（词头之后、与词头同基线的
+            纯节点），星级与喇叭经它落位，词头排版回到单一出处，不再由本页自绘一份。
+            **v0.7.3：徽标改走 `rightCluster`**（头带行的直接子节点，自带 `marginLeft:'auto'`）——
+            先前塞在 `headwordEnd` 里由簇自己写 `marginLeft:'auto'` 的那套机制作废：`headwordEnd`
+            作为 flex 项会收缩到内容宽度，那个 auto 边距在它自己的盒子里没有余量可分，等于没生效，
+            徽标因此贴在星级后面（用户看到的「严重靠左」）。
             次序照设计稿 .hw-row（showcase-v2:796-799）：词 → 星级 → 喇叭 → 右端徽标簇。
             **喇叭刻意不放回 `speak` prop**：那个 prop 是紧贴词头之后的单个节点，星级只得排在它
             后面，读成「词 → 喇叭 → 星级」，与设计稿相反。星级在词头与喇叭之间，故整段由本节点出。
@@ -228,11 +230,9 @@ export default function DictDetailPanel({ word }: Props) {
             <>
               <CollinsStars meta={meta} />
               <SpeakButton text={word} size={16} />
-              <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <TitleChips meta={meta} />
-              </span>
             </>
           }
+          rightCluster={<TitleChips meta={meta} />}
           rows={<WordTitleExtras key={word} meta={meta} onInputsChange={setStripInputs} />}
         />
 

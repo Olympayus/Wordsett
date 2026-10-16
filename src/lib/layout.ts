@@ -38,3 +38,9 @@ export const NAV_HEIGHT = 32
 
 /** 导航条里控件的高度（按钮、图标键逐像素等高，右端才不会看着歪） */
 export const NAV_CONTROL_HEIGHT = 22
+
+/** 头带里字段行之间的行距（音标 → 词根 → …）。两页共用，先前是散在五处的裸 7px。 */
+export const ENTRY_ROW_GAP = 7
+
+/** 词头行 → 音标行的行距（v0.7.3 由 7 提到 14）：用户要求「音标离标题更远、离页签条更近」。 */
+export const ENTRY_PHONETIC_GAP = 14

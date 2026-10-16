@@ -20,6 +20,7 @@ import { Button } from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
 import Tooltip from '../ui/Tooltip'
 import WordMasteryTooltip from '../ui/WordMasteryTooltip'
+import LeechBadge from '../ui/LeechBadge'
 import ContextMenu, { type MenuItem } from '../ui/ContextMenu'
 import Icon from '../icons'
 import CategoryCapsule from './CategoryCapsule'
@@ -36,11 +37,11 @@ import AddMenu, { menuItemStyle, menuItemHover, type AddItem } from '../entry/Ad
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
-import { isLeech } from '../../lib/review/leech'
+import { isLeech, leechTooltip } from '../../lib/review/leech'
 import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
 import { displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
-import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING } from '../../lib/layout'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_PHONETIC_GAP, ENTRY_ROW_GAP } from '../../lib/layout'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
 /**
@@ -909,11 +910,11 @@ export default function WordWorkbench() {
     </div>
   )
 
-  // 头带里的字段行（音标 / 词根 / 分类）：与返回页同一形态。标签取设计稿 .frow .lb 的形式——
+  // 头带里的字段行（音标 / 词根）：与返回页同一形态。标签取设计稿 .frow .lb 的形式——
   // 62px 定宽列 / 11.5px / 常规字重 / 三级字色 / padding-top 2，与返回页 WordTitleExtras 的
   // LABEL_COL 逐项一致（评审 Minor M-1：两页曾一为 12px/700/次级、一为 11.5px/三级，看着不是一列）。
   // 各行 gap 同为 10px（设计稿 .frow 的 gap），与返回页 WordTitleExtras 一致（评审：改前 8px）。
-  const bandRowLabel: CSSProperties = { width: '62px', flexShrink: 0, fontSize: '11.5px', color: 'var(--color-text-tertiary)', paddingTop: 2 }
+  // （分类行 v0.7.3 起挪进头带行右端 rightCluster，不再是字段行。）
 
   // 记忆强度（v0.7.2 缺陷 1）：头带（EntryBand）自带一枚「记忆强度」标签，故这里只给 5 格方块 +
   // 悬停明细——不再传带标签的 StrengthChip，否则「记忆强度」会印两遍。方块与浮层复用同一套共享件
@@ -933,6 +934,11 @@ export default function WordWorkbench() {
       </span>
     </Tooltip>
   )
+
+  // 顽固词门控（v0.7.2 起；v0.7.3 从头带 prop 内联改为组件体内的常量，喂 `bottomRight`）：
+  // `overlay.maxLapses` 对非顽固词是 0，直接传会把全库每个词都标成「连错 0 次」；门控属页面
+  // （它才拿得到设置）。`> 0` **不可**代用——阈值可配且 `isLeech` 在阈值为 0（「关掉」）时返回 false。
+  const leechCount = overlay && isLeech(overlay.maxLapses, leechThreshold) ? overlay.maxLapses : undefined
 
   return (
     <div
@@ -969,13 +975,13 @@ export default function WordWorkbench() {
       {/* 内容列：保持居中；列宽与内边距取 lib/layout 的共享常量（ENTRY_BAND_WIDTH / ENTRY_COLUMN_PADDING） */}
       <div style={{ maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: ENTRY_COLUMN_PADDING }}>
 
-        {/* 词条头带（v0.7.2）：词头 + 喇叭 + 顽固词 + 记忆强度；音标 / 词根 / 分类走 rows。
-            leechCount 必须按 isLeech(maxLapses, threshold) 门控——overlay.maxLapses 对非顽固词是 0，
-            直接传会把全库每个词都标成「连错 0 次」；门控属页面（它才拿得到设置）。 */}
+        {/* 词条头带（v0.7.3）：词头 + 喇叭一行，分类胶囊走头带行右端 rightCluster；
+            音标 / 词根走 rows；顽固词 + 记忆强度走最后一行右端 bottomRight（两者都带说明文字，
+            与分类挤同一行会互相推位置）。leechCount 按 isLeech(maxLapses, threshold) 门控
+            ——见组件体内那个常量。 */}
         <EntryBand
           headword={selectedWord.lemma}
-          leechCount={overlay && isLeech(overlay.maxLapses, leechThreshold) ? overlay.maxLapses : undefined}
-          strength={strengthNode}
+          rule={false}
           savedMark={saved ? (
             // 保存确认条（v0.7.2 恢复；Task 2 Ruling 12 把「保存脉冲条」的动画换成了同一元素上的
             // background-color 过渡，故留下的是**确认**）：4×24 品牌色竖条，500ms 后由上面的 effect 收起。
@@ -987,9 +993,56 @@ export default function WordWorkbench() {
               }}
             />
           ) : undefined}
+          rightCluster={
+            <>
+              {shownCapsules.map(cat => (
+                <CategoryCapsule key={cat.id} category={cat} onClick={() => openEditor(cat, selectedWord.id)} />
+              ))}
+              {showMoreCapsules && (
+                <button
+                  type="button"
+                  title={capsuleExpanded ? '收起分类' : '展开更多分类'}
+                  aria-label={capsuleExpanded ? '收起分类' : '展开更多分类'}
+                  onClick={() => setCapsuleExpanded(v => !v)}
+                  style={{
+                    height: '24px', padding: '0 10px', borderRadius: 'var(--radius-full)',
+                    border: '1px dashed var(--color-border-strong)', background: 'transparent',
+                    fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)',
+                    cursor: 'pointer', fontFamily: 'var(--font-sans)',
+                    transition: 'color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.borderColor = 'var(--color-text-primary)' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
+                >
+                  {capsuleExpanded ? '收起' : `+${extraCapsules.length}`}
+                </button>
+              )}
+              {showMoreCapsules && capsuleExpanded && extraCapsules.map(cat => (
+                <CategoryCapsule key={cat.id} category={cat} onClick={() => openEditor(cat, selectedWord.id)} />
+              ))}
+              {/* 「+」虚线圆钮：新建/选择分类（规格 §5.1） */}
+              <button
+                type="button"
+                title="添加分类"
+                aria-label="添加分类"
+                onClick={() => { openAssign(selectedWord.id); setCapsuleExpanded(false) }}
+                style={{
+                  width: '24px', height: '24px', border: '1px dashed var(--color-border-strong)',
+                  borderRadius: 'var(--radius-full)', background: 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                  color: 'var(--color-text-tertiary)',
+                  transition: 'color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.borderColor = 'var(--color-text-primary)' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
+              >
+                <Icon name="plus" size={16} />
+              </button>
+            </>
+          }
           rows={
             <>
-              <div style={{ marginTop: '7px' }}>
+              <div style={{ marginTop: `${ENTRY_PHONETIC_GAP}px` }}>
                 <PhoneticArea
                   values={phoneticValues.filter(fv => fv.id === editingId || fv.value.trim())}
                   editorMode={editorMode}
@@ -1004,7 +1057,7 @@ export default function WordWorkbench() {
                   label="音标"
                 />
               </div>
-              <div style={{ marginTop: '7px' }}>
+              <div style={{ marginTop: `${ENTRY_ROW_GAP}px` }}>
                 <PhoneticArea
                   values={selectWordRootItems(wordRootValues, editingId, editorMode)}
                   editorMode={editorMode}
@@ -1022,56 +1075,17 @@ export default function WordWorkbench() {
                   stacked
                 />
               </div>
-              {/* 分类行（规格 §5.1）：分类胶囊 + 「+」新建/选择分类。行距 gap 取 10px（设计稿 .frow 的 gap，
-                  showcase-v2:158/594；与返回页 WordTitleExtras 及上面两条 PhoneticArea 行同值）。 */}
-              <div style={{ marginTop: '7px', display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-                <span style={bandRowLabel}>分类</span>
-                <span style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
-                  {shownCapsules.map(cat => (
-                    <CategoryCapsule key={cat.id} category={cat} onClick={() => openEditor(cat, selectedWord.id)} />
-                  ))}
-                  {showMoreCapsules && (
-                    <button
-                      type="button"
-                      title={capsuleExpanded ? '收起分类' : '展开更多分类'}
-                      aria-label={capsuleExpanded ? '收起分类' : '展开更多分类'}
-                      onClick={() => setCapsuleExpanded(v => !v)}
-                      style={{
-                        height: '24px', padding: '0 10px', borderRadius: 'var(--radius-full)',
-                        border: '1px dashed var(--color-border-strong)', background: 'transparent',
-                        fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)',
-                        cursor: 'pointer', fontFamily: 'var(--font-sans)',
-                        transition: 'color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.borderColor = 'var(--color-text-primary)' }}
-                      onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
-                    >
-                      {capsuleExpanded ? '收起' : `+${extraCapsules.length}`}
-                    </button>
-                  )}
-                  {showMoreCapsules && capsuleExpanded && extraCapsules.map(cat => (
-                    <CategoryCapsule key={cat.id} category={cat} onClick={() => openEditor(cat, selectedWord.id)} />
-                  ))}
-                  {/* 「+」虚线圆钮：新建/选择分类（规格 §5.1） */}
-                  <button
-                    type="button"
-                    title="添加分类"
-                    aria-label="添加分类"
-                    onClick={() => { openAssign(selectedWord.id); setCapsuleExpanded(false) }}
-                    style={{
-                      width: '24px', height: '24px', border: '1px dashed var(--color-border-strong)',
-                      borderRadius: 'var(--radius-full)', background: 'transparent',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                      color: 'var(--color-text-tertiary)',
-                      transition: 'color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.borderColor = 'var(--color-text-primary)' }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
-                  >
-                    <Icon name="plus" size={16} />
-                  </button>
-                </span>
-              </div>
+            </>
+          }
+          bottomRight={
+            <>
+              {leechCount !== undefined && (
+                <>
+                  <span aria-hidden="true"><LeechBadge count={leechCount} compact /></span>
+                  <span>顽固词 · {leechTooltip(leechCount)}</span>
+                </>
+              )}
+              {strengthNode && <><span>记忆强度</span>{strengthNode}</>}
             </>
           }
         />
