@@ -260,7 +260,15 @@ describe('theme（v0.7.3）', () => {
     expect(migrateSettings({ theme: 'dark' }).theme).toBe('dark')
   })
 
-  it('version 升到 10——不升版 migrate 根本不会被调用', () => {
+  it('version 升到 10——不升版 migrate 根本不会被调用', async () => {
+    // 自行播种（不依赖前面的用例是否写过 localStorage），单独跑也得绿——与上面那条
+    // 「persist 的 version 是 10」同一约定：不播种时 getItem 返回 null，断言会崩在
+    // JSON.parse(null).version 上而不是干净地红。
+    localStorage.setItem('wordsett-settings', JSON.stringify({
+      state: { sidebarMode: 'alphabet' },
+      version: 7,
+    }))
+    await useSettingsStore.persist.rehydrate()
     expect(JSON.parse(localStorage.getItem('wordsett-settings')!).version).toBe(10)
   })
 
