@@ -79,7 +79,7 @@ export default function ReviewConsole({ overview, weakCount, session }: {
       {/* 三行分别是三个不同的量（v0.7.3）：到期积压按**卡**、可出题数按**本轮**、新词按**词**。
           旧版把「19 张待复习」与「新词 1」并排印在同一列，量纲不同却读起来像同一件事的分子分母，
           必然被读成「19 张里只给 1 个新词」。把它们写成三句话，因果就摆在明面上。 */}
-      <div style={{ fontSize: '16px', fontWeight: 600 }}>
+      <div style={{ fontSize: '16px', fontWeight: 600 }} title="到期积压不受「新词额度」与「队列上限」影响">
         待复习 <span className="stat-num">{overview?.total ?? 0}</span>{' '}
         <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--color-text-secondary)' }}>
           张 · 覆盖 <span className="stat-num">{overview?.dueWordCount ?? 0}</span> 个词
