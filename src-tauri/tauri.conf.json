@@ -17,7 +17,8 @@
         "height": 720,
         "resizable": true,
         "fullscreen": false,
-        "decorations": false
+        "decorations": false,
+        "backgroundColor": "#F9F8F5"
       }
     ],
     "security": {

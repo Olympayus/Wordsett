@@ -5,6 +5,17 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Wordsett</title>
+    <script>
+      // 首屏主题兜底（v0.7.3）：模块脚本加载完成前先按已持久化的设置把 data-theme 打上，
+      // 否则深色用户会先看到一帧浅色。任何异常都不能挡住 React 挂载，故整段 try/catch。
+      try {
+        var raw = localStorage.getItem('wordsett-settings')
+        var mode = raw ? JSON.parse(raw).state.theme : 'system'
+        if (mode !== 'light' && mode !== 'dark') mode = 'system'
+        var dark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+        document.documentElement.dataset.theme = dark ? 'dark' : 'light'
+      } catch (e) {}
+    </script>
   </head>
   <body>
     <div id="root"></div>
