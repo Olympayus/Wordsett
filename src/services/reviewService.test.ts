@@ -317,7 +317,9 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
         candidate({ cardId: `c${i}`, wordId: `w${i}`, template: 'recall' })),
     })
     getStrategyCountsMock.mockResolvedValue({ ok: true, data: { today: 7, todayWordIds: [], weak: 0 } })
-    expect((await getOverview(REVIEW_DEFAULTS)).total).toBe(7)
+    const o = await getOverview(REVIEW_DEFAULTS)
+    expect(o.total).toBe(7)
+    expect(o.dueWordCount).toBe(0)
   })
 
   it('卡级内容闸门不再作用于 total：例句取不到的词照样算在到期积压里', async () => {
@@ -366,6 +368,20 @@ describe('reviewService.getOverview 的待复习数走掩码层到期集（v0.6.
     // 空态与「开始复习」按钮看的是本轮能出几题，不是到期积压：这张新卡确实出得了题，
     // 所以 deliverable 必须是 1——它正是「17 个新词却提示暂无可复习的内容」那条 bug 的回归。
     expect(o.deliverable).toBe(1)
+  })
+
+  it('dueWordCount 是到期卡摊平后的词数（与 total 不同量纲，同一个数在控制台上要一起印）', async () => {
+    getCandidatesMock.mockResolvedValue({
+      ok: true, data: Array.from({ length: 5 }, (_, i) =>
+        candidate({ cardId: `c${i}`, wordId: `w${i % 2}`, template: 'recall' })),
+    })
+    getWordContentMock.mockResolvedValue(content)
+    getStrategyCountsMock.mockResolvedValue({
+      ok: true, data: { today: 5, todayWordIds: ['w0', 'w1'], weak: 0 },
+    })
+    const o = await getOverview(REVIEW_DEFAULTS)
+    expect(o.total).toBe(5)
+    expect(o.dueWordCount).toBe(2)
   })
 })
 
@@ -467,6 +483,8 @@ describe('reviewService 的每词顺延（v0.7.3：内容闸门前移）', () =>
     const o = await getOverview(REVIEW_DEFAULTS)
     expect(o.newCount).toBe(1)
     expect(o.deliverable).toBe(1)
+    // 到期集是空的（today: 0），所以摊平后的词数也是 0——与 total 同源同口径。
+    expect(o.dueWordCount).toBe(0)
   })
 })
 

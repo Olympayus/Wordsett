@@ -70,7 +70,7 @@ export default function ReviewModule() {
       } catch {
         if (!alive || id !== reqIdRef.current) return
         setCounts({ today: 0, weak: 0 })
-        setOverview({ total: 0, newCount: 0, deliverable: 0, stats: { masteryBuckets: [0, 0, 0, 0, 0, 0], dueByDay: [], recentRatings: [] } })
+        setOverview({ total: 0, newCount: 0, deliverable: 0, dueWordCount: 0, stats: { masteryBuckets: [0, 0, 0, 0, 0, 0], dueByDay: [], recentRatings: [] } })
       }
     }
     run()

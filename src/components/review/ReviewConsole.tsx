@@ -27,7 +27,7 @@ export interface ConsoleSession {
 }
 
 export default function ReviewConsole({ overview, weakCount, session }: {
-  overview: { total: number; newCount: number } | null
+  overview: { total: number; newCount: number; deliverable: number; dueWordCount: number } | null
   weakCount: number
   session: ConsoleSession | null
 }) {
@@ -76,14 +76,23 @@ export default function ReviewConsole({ overview, weakCount, session }: {
         fontFamily: 'var(--font-serif)', fontSize: '15px', fontWeight: 700,
         color: 'var(--color-warm-deep)', lineHeight: 1.25,
       }}>今日</div>
-      {/* 「n 张待复习」上提到与「今日」同一行，填补它让出的左上角 */}
+      {/* 三行分别是三个不同的量（v0.7.3）：到期积压按**卡**、可出题数按**本轮**、新词按**词**。
+          旧版把「19 张待复习」与「新词 1」并排印在同一列，量纲不同却读起来像同一件事的分子分母，
+          必然被读成「19 张里只给 1 个新词」。把它们写成三句话，因果就摆在明面上。 */}
       <div style={{ fontSize: '16px', fontWeight: 600 }}>
-        <span className="stat-num">{overview?.total ?? 0}</span>{' '}
-        <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--color-text-secondary)' }}>张待复习</span>
+        待复习 <span className="stat-num">{overview?.total ?? 0}</span>{' '}
+        <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--color-text-secondary)' }}>
+          张 · 覆盖 <span className="stat-num">{overview?.dueWordCount ?? 0}</span> 个词
+        </span>
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: '5px', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-        <span>新词: <span className="stat-num">{overview?.newCount ?? 0}</span></span>
-        <span>薄弱词: <span className="stat-num">{weakCount}</span></span>
+        <span>
+          本轮可出 <span className="stat-num">{overview?.deliverable ?? 0}</span> 道
+        </span>
+        <span title="受设置的「新词额度」与「到期让位」共同影响">
+          其中新词 <span className="stat-num">{overview?.newCount ?? 0}</span> 个
+        </span>
+        <span>薄弱词 <span className="stat-num">{weakCount}</span></span>
       </div>
     </div>
   )
