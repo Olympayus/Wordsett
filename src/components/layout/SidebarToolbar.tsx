@@ -1,4 +1,6 @@
+import { useRef } from 'react'
 import Icon from '../icons'
+import ClearButton from '../ui/ClearButton'
 
 /** 第一行里各控件的显隐规则。抽成纯函数是为了可测——node 环境测不到 DOM。 */
 export function toolbarSlots({ selectMode }: { collapsed: boolean; selectMode: boolean }): {
@@ -67,6 +69,7 @@ export default function SidebarToolbar({
   selectMode, onToggleSelectMode, selectedCount, onSelectAll, onClearAll, onExitSelect,
 }: Props) {
   const slots = toolbarSlots({ collapsed, selectMode })
+  const inputRef = useRef<HTMLInputElement>(null)
   return (
     <div className="shrink-0" style={{ padding: '10px 10px 0' }}>
       {/* 第一行：控件。角色分工固定——左侧是「模式类」，右端是「窗口类」。
@@ -133,6 +136,7 @@ export default function SidebarToolbar({
         >
           <Icon name="search" size={15} />
           <input
+            ref={inputRef}
             type="text"
             placeholder="筛选词库..."
             value={filter}
@@ -143,6 +147,10 @@ export default function SidebarToolbar({
               flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent',
               fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
             }}
+          />
+          <ClearButton
+            visible={filter.length > 0}
+            onClick={() => { onFilterChange(''); inputRef.current?.focus() }}
           />
         </div>
       )}

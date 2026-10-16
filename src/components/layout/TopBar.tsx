@@ -11,6 +11,7 @@ import { SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
 import { ACTIVITY_RAIL_WIDTH } from './ActivityRail'
 import DueBadge from './DueBadge'
 import Icon from '../icons'
+import ClearButton from '../ui/ClearButton'
 
 // 搜索框几何：可用宽度两侧各扣「活动栏 + 展开侧栏 + 边距」，保证搜索框与建议下拉都不侵入侧栏。
 const SEARCH_EDGE_MARGIN = 12
@@ -51,6 +52,7 @@ export default function TopBar() {
   // 建议下拉点外关闭：用 document 级 pointerdown 监听（既有 useClickOutside 模式）。
   // 之前用全屏遮罩 onClick，但遮罩位于 data-tauri-drag-region 顶栏内，mousedown 被窗口拖拽吞掉、click 不触发，导致点空白不关闭。
   const searchRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const closeSuggestions = useCallback(() => setShowSuggestions(false), [])
   useClickOutside(searchRef, closeSuggestions, showSuggestions)
 
@@ -203,6 +205,7 @@ export default function TopBar() {
               <Icon name="search" size={16} />
             </span>
             <input
+              ref={inputRef}
               value={query}
               onChange={e => { setQuery(e.target.value); setSelectedIndex(-1) }}
               onCompositionStart={() => setIsComposing(true)}
@@ -216,6 +219,10 @@ export default function TopBar() {
                 fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
                 fontFamily: 'var(--font-sans)',
               }}
+            />
+            <ClearButton
+              visible={query.trim().length > 0}
+              onClick={() => { setQuery(''); inputRef.current?.focus() }}
             />
           </div>
 
