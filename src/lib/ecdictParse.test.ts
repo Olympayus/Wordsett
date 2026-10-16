@@ -124,4 +124,46 @@ describe('buildEcdictFields', () => {
     const pos = fields.find(f => f.key === 'part_of_speech')
     expect(pos?.children?.map(c => c.value)).toEqual(['罩（风帽, 帆布罩'])
   })
+  it('屈折注释行不再被词性正则吃掉首字母（shaved：shave的过去式和过去分词）', () => {
+    const fields = buildEcdictFields({
+      word: 'shaved',
+      translation: 'shave的过去式和过去分词',
+      definition: null,
+      phonetic: null, exchange: null,
+    })
+    // 不得出现任何词性父：整行既不是词性行，也不该被切出 'have的…'
+    expect(fields.filter(f => f.key === 'part_of_speech')).toHaveLength(0)
+    const supp = fields.find(f => f.key === 'supplementary')
+    expect(supp?.children?.map(c => c.value)).toEqual(['shave的过去式和过去分词'])
+  })
+  it('suf. / pref. 是正规词性标签，不再被切出 "uf. …"', () => {
+    const fields = buildEcdictFields({
+      word: '-ability',
+      translation: 'suf. [用于构成名词]表示“能力”',
+      definition: null, phonetic: null, exchange: null,
+    })
+    const pos = fields.filter(f => f.key === 'part_of_speech')
+    expect(pos).toHaveLength(1)
+    expect(pos[0].value).toBe('suf.')
+    expect(pos[0].children!.map(c => c.value)).toEqual(['[用于构成名词]表示“能力”'])
+    expect(fields.find(f => f.key === 'supplementary')).toBeUndefined()
+  })
+  it('wordnet 的 s 卫星码仍归 adj.（词性码后跟空白）', () => {
+    const fields = buildEcdictFields({
+      word: 'shaven',
+      translation: null,
+      definition: 's having the beard or hair cut off close to the skin',
+      phonetic: null, exchange: null,
+    })
+    expect(fields.filter(f => f.key === 'part_of_speech').map(p => p.value)).toEqual(['adj.'])
+  })
+  it('无点词性码（v / n 后跟空格）仍命中', () => {
+    const fields = buildEcdictFields({
+      word: 'shave',
+      translation: null,
+      definition: 'v remove body hair with a razor\\nn a score in baseball',
+      phonetic: null, exchange: null,
+    })
+    expect(fields.filter(f => f.key === 'part_of_speech').map(p => p.value)).toEqual(['v.', 'n.'])
+  })
 })

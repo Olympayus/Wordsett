@@ -3,10 +3,12 @@ import type { DictionaryField } from '../types/dictionary'
 // 词性显示归一化：ecdict 翻译行（中文释义）用带点码（n.），释义行（英文释义）用无点码（n/s/v），
 // 同一词性两种写法并存会拆成两个词性父。统一为带点规范形式（与 wordnet POS_DISPLAY 的
 // n. / v. / adj. / adv. 一致），使中英释义并入同一词性（搜索页与工作台均合并展示）。
+// suf / pref 是 ecdict 的词缀码，归一为带点标签，与 n. / v. 同族。
 const POS_DISPLAY: Record<string, string> = {
   n: 'n.', v: 'v.', a: 'adj.', adj: 'adj.', s: 'adj.', adv: 'adv.',
   vt: 'vt.', vi: 'vi.', aux: 'aux.', prep: 'prep.', conj: 'conj.',
   pron: 'pron.', abbr: 'abbr.', num: 'num.', art: 'art.', int: 'int.', ad: 'ad.',
+  suf: 'suf.', pref: 'pref.',
 }
 const normalizePos = (raw: string): string => {
   const code = raw.toLowerCase().replace(/\.$/, '')   // 去尾点后查规范码
@@ -14,9 +16,12 @@ const normalizePos = (raw: string): string => {
 }
 
 // 词性前缀（ecdict 行首，含点号，保留原样标签）。
-// 注意：交替必须「最长前缀优先」——否则 'vi. 跑' 会先匹配 'v'，label 错成 'v'、释义错成 'i. 跑'。
-// 含 's'（wordnet 形容词卫星码）：definition 列大量 's ...' 英文释义此前误入 supplementary，现归 adj.（translation 列无 's ' 行，无误匹配风险）。
-const POS_RE = /^(vt|vi|adj|adv|aux|prep|conj|pron|abbr|num|art|int|ad|n|v|a|s)\.?/i
+// **词性码之后必须是句点 / 空白 / 行尾**（v0.7.3）：原先不要求分隔符，于是
+// `shave的过去式和过去分词` 里的首字母 s 被当成词性码吃掉，剩下 `have的过去式和过去分词`
+// 被标成 adj. 释义（shaved 那条 bug）；`suf.` / `pref.` 词缀词条则被切成 `s` + `uf. …`。
+// 加上这个零宽断言后两类都不再命中，普通单词（suffer / prefix 这类）也切不出假词性。
+// 交替顺序仍是「最长前缀优先」——否则 'vi. 跑' 会先匹配 'v'；同理 suf / pref 必须在 s 前。
+const POS_RE = /^(vt|vi|adj|adv|aux|prep|conj|pron|abbr|num|art|int|ad|suf|pref|n|v|a|s)\.?(?=\s|$)/i
 
 // 只按顶层逗号拆（忽略 全角（） 与 半角() 内的逗号）
 function splitTopLevelCommas(text: string): string[] {
