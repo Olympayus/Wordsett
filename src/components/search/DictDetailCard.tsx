@@ -12,6 +12,8 @@ import CheckBox from '../ui/CheckBox'
 import SenseFlow from '../entry/SenseFlow'
 import type { SenseGroup } from '../entry/SenseFlow'
 import FlowRow from '../entry/FlowRow'
+import LeafFlow from '../entry/LeafFlow'
+import { isLeafFlow } from '../../lib/leafFlow'
 import Icon from '../icons'
 import { ENTRY_BAND_WIDTH } from '../../lib/layout'
 
@@ -274,6 +276,12 @@ export default function DictDetailCard({
       const label = rowLabel(node)
       const checkboxLabel = isDefinition && no !== undefined ? `${label}(${no})` : (label || node.field.value || node.field.key)
       const collapsed = isContainer && collapsedKeys.has(node.key)
+      // v0.7.3 §5.4：容器下的子项若全是短叶子（近义词 / 词源相关词 / 词形变化…），
+      // 不再逐个递归成一行一条，改由 LeafFlow 排成流式多列。判据只看子项形状（不看 key）。
+      // 每项原样交给 renderContent，保住 `标签: 值` 的拆写；容器自身的行与 collapsed 守卫不变。
+      const leafFlow = isContainer && isLeafFlow(
+        node.children.map(c => ({ value: c.field.value, childCount: c.children.length })),
+      )
       return (
         <Fragment key={node.key}>
           {/* `no` 一律给值（无编号的行给 ''）：v0.7.2 二轮 FlowRow 改成「编号槽缺席即零宽」，
@@ -284,7 +292,9 @@ export default function DictDetailCard({
             {renderContent(node)}
           </FlowRow>
           {isContainer && !collapsed && (
-            <div style={{ marginTop: '-4px' }}>{renderRows(node.children, counter)}</div>
+            leafFlow
+              ? <LeafFlow items={node.children.map(c => renderContent(c))} />
+              : <div style={{ marginTop: '-4px' }}>{renderRows(node.children, counter)}</div>
           )}
         </Fragment>
       )

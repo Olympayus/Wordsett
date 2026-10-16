@@ -31,6 +31,8 @@ import EntryBand from '../entry/EntryBand'
 import SenseFlow from '../entry/SenseFlow'
 import type { SenseGroup } from '../entry/SenseFlow'
 import FlowRow from '../entry/FlowRow'
+import LeafFlow from '../entry/LeafFlow'
+import { isLeafFlow } from '../../lib/leafFlow'
 import RowActions, { rowIconStyle } from '../entry/RowActions'
 import SourceMark from '../entry/SourceMark'
 import AddMenu, { menuItemStyle, menuItemHover, type AddItem } from '../entry/AddMenu'
@@ -268,8 +270,16 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
 
   // ②a：子项渲染（v0.7.2 缺陷 5/6 后不再分「终端 / 非终端」两档间距，也不再逐层缩进——
   // 两档都收成 marginTop:0，由 FlowRow 的悬挂缩进统一表达层级）。
+  //
+  // v0.7.3 §5.4：若全部子项都是短叶子（近义词 / 词源相关词 / 派生词 / 补充 / 词形变化），
+  // 逐个 FieldCard 的「一行一条」改成 LeafFlow 的流式多列。判据只看子项形状（不看 key），
+  // 故用户自建的同类字段一样命中。容器自身的行**原样不动**，只换子项的渲染方式。
   const childCounters = { zh: 0, en: 0 }
-  const renderedChildren = hasChildren
+  const childItems = hasChildren
+    ? (fv.children ?? []).map(ch => ({ value: ch.value, childCount: (ch.children ?? []).length }))
+    : []
+  const leafFlow = isLeafFlow(childItems)
+  const renderedChildren = hasChildren && !leafFlow
     ? fv.children!.map(child => (
         <FieldCard
           key={child.id} fv={child} depth={depth + 1} parentFv={fv}
@@ -505,6 +515,8 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           原先那份额外 marginTop 正是「标题离子标题过远」的来源。 */}
       {!asGroupHead && hasChildren && (
         <div style={{ marginTop: 0 }}>
+          {/* v0.7.3 §5.4：短叶子容器改走流式多列（LeafFlow），否则仍逐个 FieldCard。 */}
+          {leafFlow && <LeafFlow items={(fv.children ?? []).map(ch => ch.value)} state={rowState} />}
           {renderedChildren}
         </div>
       )}
