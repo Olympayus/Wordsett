@@ -74,9 +74,9 @@ export function groupByCategory(
 
 // 收起态单词两侧的固定 chrome（镜像布局全链：WordList 滚动容器 padding + WordListItem 收起态样式）：
 // 字母模式（v0.7.3：86 → 66，单词可用宽 120−86=34px 提到 132−66=66px）：
-//   容器 padding 16（8×2）+ 项 padding 12（6×2）+ 编织线 3 + 行内 gap 6 + 色圈(≤3) 20 = 57 → 向上取 66
+//   容器 padding 16（8×2）+ 项 padding 12（6×2）+ 编织线 3 + 行内 gap 6 + 色圈(≤3) 22 = 59 → 向上取 66
 //   注：色圈与文字之间只有 WordListItem 行内那一个 gap: 6px，色圈簇自己另有簇内 gap 2px（已含在
-//   「色圈(≤3) 20」里：3×6 + 2×2 = 20），此处不重复计数。57 向上取到 66，让出 9px 余量。
+//   「色圈(≤3) 22」里：3×6 + 2×2 = 22），此处不重复计数。59 向上取到 66，让出 7px 余量。
 // 分类模式（v0.7.3：45 → 31）：容器 padding 16 + 项 padding 12（6×2）+ 编织线 3 = 31
 //   （居中单词名，无色圈、无色圈簇距）——31 就是实算值，不取整。
 export const COLLAPSED_CHROME_ALPHABET = 66
