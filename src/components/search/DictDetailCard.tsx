@@ -324,13 +324,13 @@ export default function DictDetailCard({
     const collapsed = hasChildren && collapsedKeys.has(node.key)
     return {
       head: (
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', paddingLeft: '11px' }}>
           <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '16px', fontWeight: 600 }}>
             {isPos ? node.field.value : (rowLabel(node) || node.field.value)}
           </span>
           {isPos
-            ? <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{`中 ${z.cn} · 英 ${z.en}`}</span>
-            : hasChildren && <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{node.children.length}</span>}
+            ? <span className="stat-num" style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{`中 ${z.cn} · 英 ${z.en}`}</span>
+            : hasChildren && <span className="stat-num" style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{node.children.length}</span>}
           <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />
           {hasChildren && groupFold(node.key, collapsed)}
         </div>

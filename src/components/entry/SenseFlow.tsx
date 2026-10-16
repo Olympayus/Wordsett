@@ -38,7 +38,7 @@ export default function SenseFlow({ groups, measure = ENTRY_MEASURE }: { groups:
           {g.head !== undefined ? (
             <div style={{ marginTop: i === 0 ? '12px' : '16px' }}>{g.head}</div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginTop: i === 0 ? '12px' : '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', paddingLeft: '11px', marginTop: i === 0 ? '12px' : '16px' }}>
               <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '16px', fontWeight: 600 }}>{g.pos}</span>
               {g.counts && <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{g.counts}</span>}
               <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />

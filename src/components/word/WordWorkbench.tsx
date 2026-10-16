@@ -319,7 +319,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
         <span style={headLabelStyle}>{def.name}</span>
       )}
       {!isEditing && headCounts !== undefined && (
-        <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{headCounts}</span>
+        <span className="stat-num" style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{headCounts}</span>
       )}
       <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />
       <span style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
