@@ -28,15 +28,18 @@ import type { FieldState } from '../../lib/fieldState'
  *
  * **选中框（v0.7.3 §7.3，`focused`）**：该行正在编辑或被拖动时出 1px 品牌蓝描边 + 极轻品牌底色，
  * 且**只在这一行**。蓝在这里是「正在编辑」的**状态**，符合蓝色收窄规则第 1 条（不做按钮底、
- * 不做「可点」提示、不做内容数据标记）。用 border 而不是 outline：outline 不进布局（故无需负外边距
- * 抵消），却会画在 padding **外侧**——紧贴着上一行的 4px 内边距与左缘那根绝对定位的 SourceBar，
- * 框在行与行之间挤成一团；border 占的是本行的 padding 盒，框与文字之间天然隔着内边距。
- * 描边一进布局就会把内容推歪（上/左各 +1px），故用负外边距整体抵消：
- * 内容相对父容器内缘的偏移 = margin + border + padding，
- * 不选中 `0 + 0 + 11 = 11` / `0 + 0 + 0 = 0` / `0 + 0 + 4 = 4`，
- * 选中 `-6 + 1 + 16 = 11` / `6 + 1 − 6 = 1` / `-1 + 1 + 4 = 4`——四边逐值相等，故进出编辑态
- * 该行文字不位移、下方内容不跳（v0.5.2 修过同一类抖动）。注意底边距只有 0（`4px 0`），
- * 抵消底边只能靠 `padding-bottom` 自身少 1px，`margin-bottom` 一动就会改与下一行的间距。
+ * 不做「可点」提示、不做内容数据标记）。
+ *
+ * 描边用 **`inset 0 0 0 1px` 的内阴影**，而不是 border + 负外边距（控制器裁决 P11）。内阴影画在
+ * border 盒**内侧**、完全不参与布局：padding 盒、margin 盒、文字内缘、行尾槽全都不动，两态之间
+ * 不需要任何算术。border 之所以不行，是因为它进布局、把 padding 盒整体推歪——左缘那根绝对定位的
+ * `SourceBar` 正是锚在**本行的 padding 盒**上的（`left: 0`，见 SourceMark.tsx），一旦 padding 盒
+ * 左移（负外边距 −6 + 描边 1 = −5px），那根条会跟着跳 5px，而它与文字的间距也从 11px 涨到 16px；
+ * 文字本身靠 padding 重排仍可对齐，但一个**看得见的行内元素**位移了，仍违反「进出编辑态不得有位移」。
+ * outline 同样出局：它画在 padding **外侧**，紧贴上一行的 4px 内边距与那根 SourceBar，行与行之间会
+ * 挤成一团；且本态还需要底色填充，outline 给不了。内阴影则描边与底色一并给足，是三者中唯一
+ * 「既在行内、又不进布局」的做法。故两态的 padding 逐字相同（`4px 0 4px 11px`），`focused` 只加
+ * 三样不参与布局的东西：内阴影描边、圆角、底色。
  */
 export default function FlowRow({ no, children, end, state = 'none', focused = false }: {
   no?: number | string
@@ -50,8 +53,8 @@ export default function FlowRow({ no, children, end, state = 'none', focused = f
     <div style={{
       display: 'flex', gap: '12px', padding: '4px 0 4px 11px', position: 'relative',
       ...(focused
-        ? { border: '1px solid var(--color-brand)', borderRadius: 'var(--radius-md)',
-            background: 'var(--color-brand-soft)', margin: '-1px -6px', padding: '4px 5px 4px 16px' }
+        ? { boxShadow: 'inset 0 0 0 1px var(--color-brand)', borderRadius: 'var(--radius-md)',
+            background: 'var(--color-brand-soft)' }
         : null),
     }}>
       <SourceBar state={state} />
