@@ -287,6 +287,7 @@ export default function DictDetailCard({
       // 每项原样交给 renderContent，保住 `标签: 值` 的拆写；容器自身的行与 collapsed 守卫不变。
       const leafFlow = isContainer && isLeafFlow(
         node.children.map(c => ({ value: c.field.value, childCount: c.children.length })),
+        node.field.key,
       )
       return (
         <Fragment key={node.key}>

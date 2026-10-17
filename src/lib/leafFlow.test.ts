@@ -31,4 +31,11 @@ describe('isLeafFlow（v0.7.3 §5.4：哪些容器该走一行多条）', () => 
   it('空值不参与门槛判定，但也不因此放行带子节点的情况', () => {
     expect(isLeafFlow([leaf('dine'), leaf('')])).toBe(true)
   })
+
+  it('例句容器恒 false —— 短例句不再被并排成 · 形式（§1.4）', () => {
+    expect(isLeafFlow([leaf('Clear the table.'), leaf('The fog cleared.')], 'example_sentence')).toBe(false)
+  })
+  it('列举容器单条也成列 —— 「即使只有一个词」（§1.4）', () => {
+    expect(isLeafFlow([leaf('obvious')], 'synonyms')).toBe(true)
+  })
 })
