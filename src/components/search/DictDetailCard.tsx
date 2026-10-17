@@ -268,6 +268,12 @@ export default function DictDetailCard({
   // 扣掉的 4px 正是被兄弟模型重复计算的那一层（FlowRow 的 11px 左缩进量与上下 4px 都照旧）。
   // 只改**返回页**：工作区的同一处已在 ecd3b4f 收过一轮（额外 marginTop 8/4 → 0），用户此后
   // 未再抱怨，故此处不动它（见报告「分歧」）。
+  //
+  // 来源：本页**永远不出色条**（`state="none"`）——返回页没有编者模式，来源态（v0.7.3 的四态）
+  // 是编者视角的信息，在这里只会给每一行平白画一条中性条。来源的提示因此只在行尾那枚
+  // `·ec` / `·wn` 文字标上（`sourceMark`，见上），不走左缘色条。四态落地前这里给的是
+  // `'original'`（当时 original 不出条，等效）；v0.7.3 original 改出中性条后必须显式给
+  // `'none'`，否则返回页每一行都会冒出条来。
   const renderRows = (nodes: FlatNode[], counter: { n: number }): ReactNode =>
     nodes.map(node => {
       const isContainer = node.children.length > 0
@@ -288,7 +294,7 @@ export default function DictDetailCard({
               这里必须显式补一个空串，才能保住设计稿的空编号槽（showcase-v2:831 的
               `<span class="no"></span>`）——返回页的例句 / 近义词行因此仍与带编号的释义行同一条
               左缘，不会因为这次改动往里缩 18px。工作区不同：它的行全部无编号，缺的正是这个槽。 */}
-          <FlowRow no={no ?? ''} state="original" end={endSlot(node, checkboxLabel)}>
+          <FlowRow no={no ?? ''} state="none" end={endSlot(node, checkboxLabel)}>
             {renderContent(node)}
           </FlowRow>
           {isContainer && !collapsed && (

@@ -22,8 +22,11 @@ import type { FieldState } from '../../lib/fieldState'
  *
  * 返回页（`DictDetailCard.tsx`）因此显式给 `no ?? ''`：那一页的设计稿**要**空编号槽
  * （showcase-v2:831 的 `<span class="no"></span>`），例句 / 近义词行靠它与释义行对齐。
+ *
+ * `state` 默认 `'none'`（v0.7.3，原为 `'original'`）：调用方都会显式传，默认值取 `'none'`
+ * 是为了「忘了传」时**不出条**，而不是给每一行画一条灰线。
  */
-export default function FlowRow({ no, children, end, state = 'original' }: {
+export default function FlowRow({ no, children, end, state = 'none' }: {
   no?: number | string
   children: ReactNode
   end?: ReactNode

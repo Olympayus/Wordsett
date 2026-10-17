@@ -42,7 +42,9 @@
   --color-hairline: rgba(0, 0, 0, 0.16);
 
   /* 字段状态色（编者模式三态） */
-  --color-weave-original: #D9D4CE;
+  /* v0.7.3：原始值这一态现在也要出条，旧值 #D9D4CE 压在内容面 #F9F8F5 上只有 1.39:1，
+     等于看不见。改到 1.94:1——「看得见但退让」。该 token 此前零消费点，改值不影响任何现有画面。 */
+  --color-weave-original: #BAB4AA;
   --color-weave-edited: #4A6FA5;
   --color-weave-personal: #C17A4E;
   --color-field-edited-badge: #7A7368;

@@ -19,7 +19,7 @@ import type { FieldState } from '../../lib/fieldState'
  * 返回页传 `renderContent(c)`（保住 `标签: 值` 的拆写）。这样两页的文本渲染逐字不变，
  * 也不必再写第二份拆分实现。
  */
-export default function LeafFlow({ items, state = 'original' }: { items: ReactNode[]; state?: FieldState }) {
+export default function LeafFlow({ items, state = 'none' }: { items: ReactNode[]; state?: FieldState }) {
   return (
     <div style={{ position: 'relative', padding: '4px 0 4px 11px' }}>
       <SourceBar state={state} />

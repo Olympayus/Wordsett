@@ -34,7 +34,6 @@ import FlowRow from '../entry/FlowRow'
 import LeafFlow from '../entry/LeafFlow'
 import { isLeafFlow } from '../../lib/leafFlow'
 import RowActions, { rowIconStyle } from '../entry/RowActions'
-import SourceMark from '../entry/SourceMark'
 import AddMenu, { menuItemStyle, menuItemHover, type AddItem } from '../entry/AddMenu'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
@@ -47,15 +46,18 @@ import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_PHONETIC_GAP, ENTRY_ROW_G
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
 /**
- * 一行的来源三态取色（v0.7.2，取代 v0.6.5 的 `fieldPaneLeftBar`）。
+ * 一行的来源态取色（v0.7.3：四态，取代 v0.7.2 的三态）。
  *
- * 普通模式一律中性：来源三态是**编者视角**的信息，普通模式下并排显示会让同一个词条里的
- * 各行颜色不一致，读起来像两种东西。编者模式才按来源三态现形——与 `SourceMark` / `SourceBar` 同判据。
- * 词性窗格（`isPosPane`）永远中性：它是词性→释义树的结构节点，不参与来源三态
+ * 普通模式一律 `'none'`（不出条）：来源态是**编者视角**的信息，普通模式下并排显示会让同一个
+ * 词条里的各行颜色不一致，读起来像两种东西。编者模式才按来源现形——与 `SourceBar` 同判据。
+ * 词性窗格（`isPosPane`）永远 `'none'`：它是词性→释义树的结构节点，不参与来源态
  * （旧 `fieldPaneLeftBar` 的这条不变量原样保留）。
+ *
+ * v0.7.3 起「有没有条」由 `'none'` 承担，不再由 `'original'` 兼任：旧版返 `'original'`
+ * 是因为 original 不出条；现在 original 要出默认色的条，两者必须分开。
  */
 export function rowSourceState(editorMode: boolean, isPosPane: boolean, fv: FieldValue): FieldState {
-  if (!editorMode || isPosPane) return 'original'
+  if (!editorMode || isPosPane) return 'none'
   return fieldState(fv)
 }
 
@@ -148,9 +150,10 @@ function childLabelOverride(
 }
 
 /**
- * 行尾「⋯」菜单（v0.7.2）：两枚 22px 方钮里的第二枚。`RowActions` 只出 `＋` 与一个 `menu` 槽，
+ * 行尾「⋯」菜单（v0.7.2）：两枚 22px 方钮里的第二枚。`RowActions` 出两套形态——编者模式
+ * （`mode="edit"`）是 `＋` 与垃圾桶、不出 `menu`；普通模式（`mode="view"`）只出这一个 `menu` 槽，
  * 故这里自带 `⋯` 触发器，点开走现成的 `ContextMenu`（fixed 落位，点外 / Esc 自关）。
- * 条目与编者 / 普通两模式同一套：编辑 / 添加同级 / 删除（先前编者模式单露红桶）。
+ * v0.7.3：普通模式的**所有**动作并进这一份菜单——编辑 / 添加子项 / 添加同级 / 删除。
  */
 function RowMenu({ items }: { items: MenuItem[] }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
@@ -173,7 +176,8 @@ function RowMenu({ items }: { items: MenuItem[] }) {
 }
 
 // 单个字段行（v0.7.2 改用原语外壳）：grip 拖拽（仅 grip 激活拖拽）+ 同级插入指示线 + 行尾操作簇。
-// 旧代码里「卡片容器 + 左条 + 三态徽章 + 角落控件」的四层圆角嵌套，换成 FlowRow + SourceMark + RowActions。
+// 旧代码里「卡片容器 + 左条 + 三态徽章 + 角落控件」的四层圆角嵌套，换成 FlowRow + SourceBar + RowActions。
+// v0.7.3：行尾那枚 6px 方点（SourceMark）整个退场，来源只剩左缘那根条（SourceBar，由 FlowRow / LeafFlow 渲染）。
 function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false, ...ctx }: FieldCardProps) {
   const {
     defs, editorMode, editingId, editValue, insertIndicator, addMenu,
@@ -258,12 +262,14 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     </span>
   )
 
-  // 行尾菜单条目：编辑 / 添加同级 / 删除。普通与编者同一套（先前编者模式单露红桶）。
+  // 行尾菜单条目（v0.7.3）：普通模式的**所有**动作都并进这里——编辑 / 添加子项 / 添加同级 / 删除。
+  // 「添加子项」即编者模式那枚独立 `＋` 在普通模式下的落点（加到本行所在容器）。
   // 容器（非词性 / 非辨析组）无值格可编辑，不出「编辑」。
   const menuItems: MenuItem[] = [
     ...((!isContainer || isPosPane || isGroupPane)
       ? [{ key: 'edit', label: '编辑', onSelect: () => onStartEdit(fv) }]
       : []),
+    { key: 'addChild', label: '添加子项', onSelect: () => onToggleAddMenu(fv) },
     { key: 'sibling', label: '添加同级', onSelect: () => onAddSibling(fv) },
     { key: 'delete', label: '删除', danger: true, onSelect: () => onDelete(fv) },
   ]
@@ -333,10 +339,11 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
       )}
       <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />
       <span style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-        <SourceMark state={rowState} />
         <RowActions
           visible={showsButtons}
+          mode={editorMode ? 'edit' : 'view'}
           onAdd={() => onToggleAddMenu(fv)}
+          onDelete={() => onDelete(fv)}
           menu={<RowMenu items={menuItems} />}
         />
       </span>
@@ -478,14 +485,13 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
             no={no}
             state={rowState}
             end={
-              <>
-                <SourceMark state={rowState} />
-                <RowActions
-                  visible={showsButtons}
-                  onAdd={() => onToggleAddMenu(fv)}
-                  menu={<RowMenu items={menuItems} />}
-                />
-              </>
+              <RowActions
+                visible={showsButtons}
+                mode={editorMode ? 'edit' : 'view'}
+                onAdd={() => onToggleAddMenu(fv)}
+                onDelete={() => onDelete(fv)}
+                menu={<RowMenu items={menuItems} />}
+              />
             }
           >
             <span style={{ display: 'flex', alignItems: 'baseline', gap: '4px', flex: 1, minWidth: 0 }}>

@@ -7,14 +7,16 @@ import type { FieldValue } from '../../types/field'
 const fvOf = (source: 'ecdict' | 'wordnet' | 'user', edited = false) =>
   ({ source, edited } as unknown as FieldValue)
 
-// v0.7.2 起 fieldPaneLeftBar 已被 SourceMark / SourceBar 取代，但它钉住的不变量原样保留：
-//   来源三态只在编者模式现形；词性窗格永远中性；original 无色。
+// v0.7.2 起 fieldPaneLeftBar 已被 SourceBar 取代，但它钉住的不变量原样保留：
+//   来源态只在编者模式现形；词性窗格永远不出条。
+// v0.7.3：四态——「有没有条」不再由 original 兼任（original 现在**有**一条中性色条），
+//   普通模式与词性窗格改返回 'none'（不出条）。
 // 取色判据抽成 rowSourceState 纯函数（与两个原语同判据），故这里照旧直接断言它。
-describe('rowSourceState（v0.7.2 §8.2：来源三态只在编者模式现形，词性窗格永远中性）', () => {
-  it('普通模式：一律 original——编者视角的信息不在普通模式现形', () => {
-    expect(rowSourceState(false, false, fvOf('user'))).toBe('original')
-    expect(rowSourceState(false, false, fvOf('ecdict', true))).toBe('original')
-    expect(rowSourceState(false, true, fvOf('user'))).toBe('original')
+describe('rowSourceState（v0.7.3：四态；编者模式下原始值也出条）', () => {
+  it('普通模式：一律 none——不出条，不再是 original（original 现在是「有一条中性色条」）', () => {
+    expect(rowSourceState(false, false, fvOf('user'))).toBe('none')
+    expect(rowSourceState(false, false, fvOf('ecdict', true))).toBe('none')
+    expect(rowSourceState(false, true, fvOf('user'))).toBe('none')
   })
 
   it('编者模式：个人新增字段现形为 personal', () => {
@@ -25,13 +27,13 @@ describe('rowSourceState（v0.7.2 §8.2：来源三态只在编者模式现形�
     expect(rowSourceState(true, false, fvOf('ecdict', true))).toBe('edited')
   })
 
-  it('编者模式：未改动的词典字段仍是 original（无色）', () => {
+  it('编者模式：未改动的词典字段是 original——它现在**有**一条中性色条', () => {
     expect(rowSourceState(true, false, fvOf('ecdict'))).toBe('original')
   })
 
-  it('词性窗格在任何模式下都是 original——它不参与来源三态', () => {
-    expect(rowSourceState(true, true, fvOf('user'))).toBe('original')
-    expect(rowSourceState(true, true, fvOf('ecdict', true))).toBe('original')
+  it('词性窗格任何模式下都是 none——它不参与来源三态', () => {
+    expect(rowSourceState(true, true, fvOf('user'))).toBe('none')
+    expect(rowSourceState(true, true, fvOf('ecdict', true))).toBe('none')
   })
 })
 
@@ -56,11 +58,16 @@ describe('工作区改用原语（源码级守卫）', () => {
     expect(src).not.toMatch(/fieldPaneLeftBar\s*\(/)
   })
 
-  it('字段行走 FlowRow + SourceMark，且两处来源态都接同一个 rowState（接线去掉即失败）', () => {
-    // 不是「<FlowRow 出现过」这种存在性断言：钉的是接线本身——FlowRow 收到 no + rowState，
-    // SourceMark 也收到同一个 rowState（来源条与来源标同源）。改坏任一接线，这两条即失败。
+  it('字段行走 FlowRow，来源态经 state 传给左条（方点已退场）', () => {
+    // 不是「<FlowRow 出现过」这种存在性断言：钉的是接线本身——FlowRow 收到 no + rowState。
     expect(src).toMatch(/<FlowRow\s+no=\{no\}\s+state=\{rowState\}/)
-    expect(src).toMatch(/<SourceMark state=\{rowState\} \/>/)
+    // v0.7.3：行尾那枚 6px 方点整个退场，SourceMark 不再有调用点
+    expect(src).not.toMatch(/<SourceMark/)
+  })
+
+  it('RowActions 按 editorMode 分流两套形态', () => {
+    expect(src).toMatch(/<RowActions\s+visible=/)
+    expect(src).toMatch(/mode=\{editorMode \? 'edit' : 'view'\}/)
   })
 
   it('leechCount 按 isLeech(overlay.maxLapses, leechThreshold) 门控，不直接传 maxLapses', () => {
