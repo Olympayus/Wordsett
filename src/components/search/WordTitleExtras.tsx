@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import type { MergeFieldInput } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
 import { buildTitleMetaInputs, type TitleStripSelection } from '../../lib/titleStrip'
-import { ENTRY_PHONETIC_GAP, ENTRY_ROW_GAP } from '../../lib/layout'
+import { ENTRY_BAND_FOOT_GAP, ENTRY_PHONETIC_GAP } from '../../lib/layout'
 import { useSettingsStore } from '../../stores/settingsStore'
 import CheckBox from '../ui/CheckBox'
 
@@ -57,7 +57,11 @@ export default function WordTitleExtras({ meta, onInputsChange }: Props) {
       )}
 
       {showWordRoot && (
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: `${ENTRY_ROW_GAP}px` }}>
+        // 词根行的上间距取 ENTRY_BAND_FOOT_GAP（16）而不是 ENTRY_ROW_GAP（7）：v0.7.3 尾段起
+        // 工作区的词根行挪进 EntryBand 的 footLeft、与末行右簇并成一行，那行的上间距由头带的
+        // ENTRY_BAND_FOOT_GAP 给。本页不传 bottomRight，末行合并对它不可见，但两页的
+        // 「音标 → 词根」距离必须一致，故这里取同一个值（差 9px 会看出两页不是同一套版式）。
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginTop: `${ENTRY_BAND_FOOT_GAP}px` }}>
           <span style={LABEL_COL}>词根</span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             {meta.wordRoots.map((r, i) => (

@@ -43,7 +43,7 @@ import { isLeech, leechTooltip } from '../../lib/review/leech'
 import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
 import { displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
-import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_PHONETIC_GAP, ENTRY_ROW_GAP } from '../../lib/layout'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_PHONETIC_GAP } from '../../lib/layout'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
 /**
@@ -1004,9 +1004,8 @@ export default function WordWorkbench() {
       <div style={{ maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: ENTRY_COLUMN_PADDING }}>
 
         {/* 词条头带（v0.7.3）：词头 + 喇叭一行，分类胶囊走头带行右端 rightCluster；
-            音标 / 词根走 rows；顽固词 + 记忆强度走最后一行右端 bottomRight（两者都带说明文字，
-            与分类挤同一行会互相推位置）。leechCount 按 isLeech(maxLapses, threshold) 门控
-            ——见组件体内那个常量。 */}
+            音标走 rows（末行），词根走 footLeft——与最后一行右端 bottomRight（顽固词 + 记忆强度）
+            并成一行。leechCount 按 isLeech(maxLapses, threshold) 门控——见组件体内那个常量。 */}
         <EntryBand
           headword={selectedWord.lemma}
           rule={false}
@@ -1069,41 +1068,46 @@ export default function WordWorkbench() {
             </>
           }
           rows={
-            <>
-              <div style={{ marginTop: `${ENTRY_PHONETIC_GAP}px` }}>
-                <PhoneticArea
-                  values={phoneticValues.filter(fv => fv.id === editingId || fv.value.trim())}
-                  editorMode={editorMode}
-                  editingId={editingId}
-                  editValue={editValue}
-                  onEditValueChange={setEditValue}
-                  onStartEdit={handleStartEdit}
-                  onSave={handleSave}
-                  onCancelEdit={() => setEditingId(null)}
-                  onAdd={() => handleAddField(defs.find(d => d.key === 'phonetic')!)}
-                  onDelete={handleDeleteField}
-                  label="音标"
-                />
-              </div>
-              <div style={{ marginTop: `${ENTRY_ROW_GAP}px` }}>
-                <PhoneticArea
-                  values={selectWordRootItems(wordRootValues, editingId, editorMode)}
-                  editorMode={editorMode}
-                  editingId={editingId}
-                  editValue={editValue}
-                  onEditValueChange={setEditValue}
-                  onStartEdit={handleStartEdit}
-                  onSave={handleSave}
-                  onCancelEdit={() => setEditingId(null)}
-                  onAdd={handleAddWordRoot}
-                  onDelete={handleDeleteField}
-                  label="词根"
-                  addLabel="+ 添加词根"
-                  plain
-                  stacked
-                />
-              </div>
-            </>
+            // 只有音标行留在 `rows`（v0.7.3 尾段）：词根行挪进 `footLeft`，与末行右端的
+            // 顽固词 · 记忆强度并成一行。词根的上间距因此归 `ENTRY_BAND_FOOT_GAP`（见下）。
+            <div style={{ marginTop: `${ENTRY_PHONETIC_GAP}px` }}>
+              <PhoneticArea
+                values={phoneticValues.filter(fv => fv.id === editingId || fv.value.trim())}
+                editorMode={editorMode}
+                editingId={editingId}
+                editValue={editValue}
+                onEditValueChange={setEditValue}
+                onStartEdit={handleStartEdit}
+                onSave={handleSave}
+                onCancelEdit={() => setEditingId(null)}
+                onAdd={() => handleAddField(defs.find(d => d.key === 'phonetic')!)}
+                onDelete={handleDeleteField}
+                label="音标"
+              />
+            </div>
+          }
+          // 末行左端（v0.7.3 尾段）：词根行。**不持自己的 marginTop**——它与 `bottomRight`
+          // 并成一行，那行的上间距由头带的 ENTRY_BAND_FOOT_GAP 统一给；这里再写一个
+          // ENTRY_ROW_GAP 会与头带那份叠成 23px。
+          // 注：`PhoneticArea` 的根 div 是 `display:flex` 且**不设 width**，作为 flex 项按
+          // `flex: 0 1 auto` 收缩到内容宽度——词根文本长到放不下时会折行，不会把右簇挤出此行。
+          footLeft={
+            <PhoneticArea
+              values={selectWordRootItems(wordRootValues, editingId, editorMode)}
+              editorMode={editorMode}
+              editingId={editingId}
+              editValue={editValue}
+              onEditValueChange={setEditValue}
+              onStartEdit={handleStartEdit}
+              onSave={handleSave}
+              onCancelEdit={() => setEditingId(null)}
+              onAdd={handleAddWordRoot}
+              onDelete={handleDeleteField}
+              label="词根"
+              addLabel="+ 添加词根"
+              plain
+              stacked
+            />
           }
           bottomRight={
             <>
