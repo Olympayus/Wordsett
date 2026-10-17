@@ -9,16 +9,16 @@ import CategorySettings from './CategorySettings'
 import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings'
 import PlatformSettings from './PlatformSettings'
+import AppearanceSettings from './AppearanceSettings'
+import SectionHeading from './SectionHeading'
 
-type SectionKey = 'search' | 'review' | 'voice' | 'tray' | 'sidebar' | 'category' | 'data' | 'platform' | 'about'
+type SectionKey = 'general' | 'search' | 'review' | 'voice' | 'category' | 'platform' | 'about'
 const SECTIONS: { key: SectionKey; label: string }[] = [
+  { key: 'general', label: '通用' },
   { key: 'search', label: '搜索设置' },
   { key: 'review', label: '复习' },
   { key: 'voice', label: '语音' },
-  { key: 'tray', label: '托盘与窗口' },
-  { key: 'sidebar', label: '侧边栏显示' },
   { key: 'category', label: '分类管理' },
-  { key: 'data', label: '数据' },
   { key: 'platform', label: '平台权限' },
   { key: 'about', label: '关于' },
 ]
@@ -32,7 +32,7 @@ const SETTINGS_CONTENT_WIDTH = 720
 // useFocusTrap 焦点陷阱、Esc capture 拦截（原为阻止按键泄漏给词典页，页面形态下不存在）、
 // 关闭按钮与焦点回归 #settings-trigger、480px 定宽、role="dialog"/aria-modal。
 export default function SettingsPage() {
-  const [active, setActive] = useState<SectionKey>('search')
+  const [active, setActive] = useState<SectionKey>('general')
 
   // 「平台权限」分区只在 macOS 存在。**导航项本身也要按平台过滤**——否则 Windows 上
   // 会留下一个点进去一片空白的导航项，与 03 §2.5「Windows 无此分区」相冲突。
@@ -89,15 +89,29 @@ export default function SettingsPage() {
           </div>
         </div>
         <div style={{ maxWidth: SETTINGS_CONTENT_WIDTH, padding: '24px' }}>
+          {active === 'general' && (
+            <>
+              <SectionHeading>外观</SectionHeading>
+              <AppearanceSettings />
+              <div style={{ marginTop: '24px' }}><SectionHeading>侧边栏显示</SectionHeading></div>
+              <SidebarSettings />
+              <div style={{ marginTop: '24px' }}><SectionHeading>托盘与窗口</SectionHeading></div>
+              <TrayWindowSettings />
+            </>
+          )}
           {active === 'search' && <SearchSettings />}
           {active === 'review' && <ReviewSettings />}
           {active === 'voice' && <VoiceSettings />}
-          {active === 'tray' && <TrayWindowSettings />}
-          {active === 'sidebar' && <SidebarSettings />}
           {active === 'category' && <CategorySettings />}
-          {active === 'data' && <DataSettings />}
           {active === 'platform' && <PlatformSettings />}
-          {active === 'about' && <AboutSettings />}
+          {active === 'about' && (
+            <>
+              <SectionHeading>数据</SectionHeading>
+              <DataSettings />
+              <div style={{ marginTop: '24px' }}><SectionHeading>版本与更新</SectionHeading></div>
+              <AboutSettings />
+            </>
+          )}
         </div>
       </div>
     </div>
