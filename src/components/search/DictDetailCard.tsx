@@ -242,6 +242,8 @@ export default function DictDetailCard({
       case 'plain':
         // 词形变化 / 近义词辨析项（「标签: 值」）；容器行（例句 / 近义词 / 词形变化…）显示标题；
         // 其余叶子（含中文释义：leafForm 对它是 'plain'）显示值——与改判据前逐字一致。
+        // 下面这条只问「值该套哪副渲染壳」（`标签: 值` 拆写），不问叶子形状——形状判据仍是上面的
+        // leafForm；此处的裸 key 比较即守卫 allow-list 里点名豁免的那一条。
         if (node.field.key === 'exchange_item' || node.field.key === 'synonym_discrimination_item') {
           const colonIdx = node.field.value.indexOf(':')
           if (colonIdx > 0) {

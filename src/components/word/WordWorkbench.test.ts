@@ -83,16 +83,51 @@ describe('工作区改用原语（源码级守卫）', () => {
 
 // 「这个字段长什么样」的判断只允许有一个出处（lib/fieldKind.ts）：
 // 两页都问 leafForm，不得再各写一遍裸 key 判断。
+//
+// 扫描口径：不逐条枚举（枚举必然漏掉没写进名单的键），而是**正面钉住 leafForm 的调用点**
+// + **反面清点两页全部 `key ===/' !==` 比较**，凡命中者必须逐条出现在下方 allow-list 里并注明
+// 理由。allow-list 之外的任何裸 key 比较（含 switch 回归成 node.field.key、含藏在 filter /
+// sourceMark / rowLabel 之类的分支里）都会让本守卫失败——这正是它该抓的。
+//
+// 例外白名单（逐条对应行号；这些比较问的是「显示设置映射 / 标签文字 / 窗格身份 / 增删可行性 /
+// 布局分流」，不问「渲染成什么形状」，故不在 leafForm 的辖区内）：
+//   WordWorkbench.tsx:142-147 childLabelOverride——按父/子键决定**标签文字**（「中文释义(n)」），渲染壳仍归 leafForm
+//   WordWorkbench.tsx:200-209 isPosPane / isGroupPane / isPhonetic——**窗格身份**，非渲染形状
+//   WordWorkbench.tsx:219-220 zhCount / enCount——数中/英条数给窗格头的计数
+//   WordWorkbench.tsx:650 handleSave 的空标签校验——**数据校验**，不是渲染分支
+//   WordWorkbench.tsx:683-766 容器路由（CONTAINER_FIELD_KEYS / ALLOWED_CHILD_KEYS 加减行菜单）——**增删可行性**，不是渲染
+//   WordWorkbench.tsx:843-847 根级拆分（音标 / 词根 / 内容）——**布局分流**，不是渲染
+//   WordWorkbench.tsx:697/706/710/753/766/933/1083 —— 容器键 / 键名等值判定（见上两类理由）
+//   DictDetailCard.tsx:64 rowLabel——组小标题文本
+//   DictDetailCard.tsx:83-84 keyAllowed——displayFields 可见性映射（只查「显不显示」，不问「长什么样」）
+//   DictDetailCard.tsx:94-97 filter——可见性过滤与空容器丢弃
+//   DictDetailCard.tsx:192 sourceMark——哪几枚行尾来源标
+//   DictDetailCard.tsx:245 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
+//   DictDetailCard.tsx:343 isPos——run-in 头形态
+const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
+  ['WordWorkbench.tsx', [142, 143, 144, 147, 200, 201, 209, 219, 220, 650, 697, 706, 710, 753, 766, 843, 844, 847, 933, 1083], '标签文字 / 窗格身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['DictDetailCard.tsx', [64, 83, 84, 94, 97, 192, 247, 345], '标签文本 / 可见性映射与过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
+]
+
+// 取出文件里全部「某字段键 ===/' !== '某键字面量'」的行（命中 .key 直比与 childKey(…) 等值两类）
+const keyComparisons = (s: string): { line: number; text: string }[] =>
+  s.split('\n').flatMap((text, i) => (/\w+\.key\s*(?:!==|===)\s*'[a-z_]+'|childKey\([^)]*\)\s*(?:!==|===)\s*'[a-z_]+'/.test(text) ? [{ line: i + 1, text }] : []))
+
 describe('两页共用 leafForm（v0.7.3 尾段 §1.3）', () => {
-  it('两个页面都问 leafForm，不再各写一遍 key 判断（v0.7.3 尾段 §1.3）', () => {
-    const src = readFileSync(new URL('./WordWorkbench.tsx', import.meta.url), 'utf8')
-    const dict = readFileSync(new URL('../search/DictDetailCard.tsx', import.meta.url), 'utf8')
-    const switchBody = (s: string) => s.match(/switch \(leafForm\([\s\S]*?\n  \}/)?.[0] ?? ''
-    expect(src).toMatch(/leafForm\(def\.key\)/)
-    expect(dict).toMatch(/leafForm\(node\.field\.key\)/)
-    expect(src).not.toMatch(/def\.key === 'example'/)
-    // 只钉 switch 分支表：`example: 'example'` 这类**显示设置映射**（displayFields 的 keyAllowed）
-    // 仍然合法，它不决定渲染形状
-    expect(switchBody(dict)).not.toMatch(/case 'example'/)
+  it('两个页面都问 leafForm，不得再各写一遍 key 判断（v0.7.3 尾段 §1.3）', () => {
+    const files: [string, string][] = [
+      ['WordWorkbench.tsx', readFileSync(new URL('./WordWorkbench.tsx', import.meta.url), 'utf8')],
+      ['DictDetailCard.tsx', readFileSync(new URL('../search/DictDetailCard.tsx', import.meta.url), 'utf8')],
+    ]
+    for (const [name, source] of files) {
+      expect(source, `${name} 必须经 leafForm 问形状`).toMatch(/leafForm\((?:def|node\.field|node)\.key\)/)
+      const hits = keyComparisons(source)
+      const covered = new Set(LEAF_FORM_GUARD_ALLOWLIST.filter(([n]) => n === name).flatMap(([, ls]) => ls))
+      const uncovered = hits.filter(h => !covered.has(h.line))
+      expect(
+        uncovered.map(h => `${name}:${h.line} ${h.text.trim()}`),
+        `${name} 存在 allow-list 之外的裸 key 判断（「哪个键长什么样」只能问 leafForm）`,
+      ).toEqual([])
+    }
   })
 })
