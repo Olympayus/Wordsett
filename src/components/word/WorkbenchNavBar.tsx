@@ -196,35 +196,33 @@ export default function WorkbenchNavBar({
                 <FamiliarityChoice value={familiarity ?? 1} onChange={v => onFamiliarityChange?.(v)} disabled={!onFamiliarityChange} />
               </>
             )}
-            {/* 添加动作拆成两颗（v0.6.5 §4.6）：主按钮的行为与改前逐字相同（不传 categoryId，
-                合并后落进默认分类）；「＋」做同一件事，只在选中分类时成功后多归入该分类——
-                词已在库时这条路径依然有意义（v0.6.5 唯一的新能力）。
-                两者共用 onMergeAdd 这一个入口，反馈不会分叉。
-                v0.6.5 修订：这里原有一个 minWidth: 220 的空壳，用来给 absolute 定位的下拉
-                撑出宽度；下拉改成 fixed 落位后宽度不再由祖先决定，空壳去掉——它同时正是
-                「＋ 看着没右对齐」的成因（按钮靠左排、右边留了 190px 空档）。
-                容器现在紧贴两颗按钮，故它同时是浮层的锚点元素。 */}
+            {/* 已选读数（v0.7.3 §8.2）：从按钮文案里拆出来单独放，**常驻占位**——
+                不占位的话勾选第一项时两颗按钮会左右跳。 */}
+            <span style={{
+              fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap',
+              visibility: mergeCount > 0 ? 'visible' : 'hidden',
+            }}>
+              已选 <span className="stat-num">{mergeCount}</span> 项
+            </span>
             <div ref={anchorRef} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-              {/* 悬浮说明走 Tooltip 包裹而非 title 属性——accname 2.2 里 title 早于 name-from-content，
-                  一挂就把可及名钉成常量「合并添加」，「· N 项」永远不被读出（Icon 是 aria-hidden，不参与命名）。 */}
-              <Tooltip content={mergeCount > 0 ? `把勾选的 ${mergeCount} 项合并添加进词条` : '先勾选要添加的词条'} width={260}>
-                <SquareButton
-                  size="nav"
-                  tone="canvas"
-                  disabled={mergeDisabled}
-                  onClick={() => onMergeAdd?.()}
-                >
-                  合并添加{mergeCount > 0 ? <> · <span className="stat-num">{mergeCount}</span> 项</> : ''}
+              {/* 「＋」＝原「合并添加 · N 项」：行为逐字不变（不传 categoryId，合并后落默认分类）。
+                  Tooltip 包裹而非 title 的理由照旧（accname 2.2）。 */}
+              <Tooltip content={mergeCount > 0 ? `把已选的 ${mergeCount} 项添加进词条` : '先勾选要添加的词条'} width={260}>
+                <SquareButton size="nav" tone="canvas" aria-label="添加已选词条"
+                  disabled={mergeDisabled} onClick={() => onMergeAdd?.()}>
+                  <Icon name="plus" size={12} />
                 </SquareButton>
               </Tooltip>
+              {/* 「添加至…」＝原「＋（选择分类后添加）」：仍开 CategoryPickerPopover，
+                  只是把「这是个要选目的地的动作」写进文案。 */}
               <SquareButton
                 size="nav"
                 tone="canvas"
-                aria-label="选择分类后添加"
+                aria-label="添加至指定分类"
                 disabled={mergeDisabled}
                 onClick={() => setPickerOpen(o => !o)}
               >
-                <Icon name="plus" size={12} />
+                添加至…
               </SquareButton>
               {/* 不传 placement：默认 'bottom'（向下）对页面顶部的导航条是对的。
                   onPick 里先关浮层再执行添加，浮层不会悬在已经跳走的页面残影上。
