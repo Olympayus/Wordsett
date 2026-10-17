@@ -287,7 +287,8 @@ export default function DictDetailCard({
       const collapsed = isContainer && collapsedKeys.has(node.key)
       // v0.7.3 §5.4：容器下的子项若全是短叶子（近义词 / 词源相关词 / 词形变化…），
       // 不再逐个递归成一行一条，改由 LeafFlow 排成流式多列。判据只看子项形状（不看 key）。
-      // 每项原样交给 renderContent，保住 `标签: 值` 的拆写；容器自身的行与 collapsed 守卫不变。
+      // 每项包成 `{ content: renderContent(c) }`，保住 `标签: 值` 的拆写；**不传 `end`**——
+      // 返回页没有编者模式，单位行尾槽在这里无处可挂，DOM 因此与本轮之前逐字相同。
       const leafFlow = isContainer && isLeafFlow(
         node.children.map(c => ({ value: c.field.value, childCount: c.children.length })),
         node.field.key,
@@ -307,7 +308,7 @@ export default function DictDetailCard({
               // 与容器行底的 4px 相加会翻倍成 8px，故同样要扣掉被兄弟模型重复计算的那一层——
               // 两条分支的容器→子项间距才一致（brief 验收项 4「返回页同一组字段行为一致」）。
               // 不改 LeafFlow 自身的内边距：它与工作区共用，那里的 4px 顶内边距是与 FlowRow 对齐所需。
-              ? <div style={{ marginTop: '-4px' }}><LeafFlow items={node.children.map(c => renderContent(c))} /></div>
+              ? <div style={{ marginTop: '-4px' }}><LeafFlow items={node.children.map(c => ({ content: renderContent(c) }))} /></div>
               : <div style={{ marginTop: '-4px' }}>{renderRows(node.children, counter)}</div>
           )}
         </Fragment>

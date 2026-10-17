@@ -35,12 +35,19 @@ export const rowIconStyle: CSSProperties = {
  * 颜色仍按显隐给两档（`visible` 时主色、隐藏时 `--color-border-strong`）：0 透明度下
  * 它不影响观感，但 `rowIconStyle` 的 `color: inherit` 要靠它拿「静止态该是什么色」，
  * 且 90ms 的 color 过渡让显形那一刻不跳。
+ *
+ * v0.7.3 尾段 §3.4：`onAdd` 改可选——**不传即不渲染那枚 `＋`**。其余一律不动。
+ * 不传 `onAdd` 的形态**只服务单位自己的行尾槽**：那是 `mode='view'` 的一枚 `⋯`，本来就不出 `＋`，
+ * 故此处的条件渲染对它是死代码；而带 `＋` 的那条（`'edit'`）两个既有调用点都照旧传着 `onAdd`，
+ * 一行未改。行尾簇的不变量（常驻占位、只用 opacity 显隐、绝不条件渲染）管的是**整簇**的进出，
+ * 与簇内某枚图标的可选性是两回事。
  */
 export default function RowActions({ visible, mode, onAdd, onDelete, menu }: {
   visible: boolean
   /** 'view' = 普通模式（只有 ⋯）；'edit' = 编者模式（＋ 与垃圾桶，没有 ⋯）。 */
   mode: 'view' | 'edit'
-  onAdd: () => void
+  /** 可选：不传即不渲染 ＋（编者模式那枚「加到本容器」）。 */
+  onAdd?: () => void
   onDelete: () => void
   menu: ReactNode
 }) {
@@ -53,9 +60,11 @@ export default function RowActions({ visible, mode, onAdd, onDelete, menu }: {
                    transition: 'opacity var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)' }}>
       {mode === 'edit' ? (
         <>
-          <button type="button" aria-label="加到本容器" onClick={onAdd} style={rowIconStyle}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit' }}>＋</button>
+          {onAdd && (
+            <button type="button" aria-label="加到本容器" onClick={onAdd} style={rowIconStyle}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit' }}>＋</button>
+          )}
           <button type="button" aria-label="删除本行" onClick={onDelete} style={rowIconStyle}
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-danger)' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit' }}>

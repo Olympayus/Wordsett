@@ -278,6 +278,17 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     { key: 'delete', label: '删除', danger: true, onSelect: () => onDelete(fv) },
   ]
 
+  // v0.7.3 尾段 §3.4（D17）：**单位自己的**行尾槽——近义词 / 词源相关词 / 词形变化这些短叶子
+  // 容器里的每个单位，悬停时行尾出一枚 `⋯`（普通模式）或一枚 `✕`（编者模式）。
+  // 与 `menuItems` 的分工：容器行那枚 `⋯` 管的是「这一行」（编辑 / 添加子项 / 添加同级 / 删除），
+  // 单位这枚只管「这一个单位」，故**只有「编辑」「删除」两条**（D17 已确认）——
+  // 单位上既不设 `＋`（往容器里加一项的入口是**容器行**的 `＋`，与行菜单的「添加子项」同一个），
+  // 也不出「添加同级」（同一条理由：同级就是同一个容器里的下一个单位）。
+  const unitMenuItems = (unit: FieldValue): MenuItem[] => [
+    { key: 'edit', label: '编辑', onSelect: () => onStartEdit(unit) },
+    { key: 'delete', label: '删除', danger: true, onSelect: () => onDelete(unit) },
+  ]
+
   // ②a：子项渲染（v0.7.2 缺陷 5/6 后不再分「终端 / 非终端」两档间距，也不再逐层缩进——
   // 两档都收成 marginTop:0，由 FlowRow 的悬挂缩进统一表达层级）。
   //
@@ -530,8 +541,32 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           原先那份额外 marginTop 正是「标题离子标题过远」的来源。 */}
       {!asGroupHead && hasChildren && (
         <div style={{ marginTop: 0 }}>
-          {/* v0.7.3 §5.4：短叶子容器改走流式多列（LeafFlow），否则仍逐个 FieldCard。 */}
-          {leafFlow && <LeafFlow items={(fv.children ?? []).map(ch => ch.value)} state={rowState} />}
+          {/* v0.7.3 §5.4：短叶子容器改走流式多列（LeafFlow），否则仍逐个 FieldCard。
+              v0.7.3 尾段 §3.4：每个单位自带一枚**绝对定位**的行尾槽（LeafFlow 的 `end`）——
+              绝对定位是硬要求：它一进排版流，悬停那一刻该单位会变宽、后继的词重新折行
+              （与 v0.5.2 修过的行尾簇抖动同一个坑）。22px 正好等于栏距（gap: '6px 22px'），
+              且按钮本身也是 22px（NAV_CONTROL_HEIGHT），一格一枚正好合上。
+              编者模式**不传 onAdd**（D17）：单位上不设 ＋，往容器里加一项的入口是「近义词」容器行的 ＋。
+              指针交互：`onMouseLeave` 交还**本行**的 id 而不是 `null`——指针从行的空白移到单位上时
+              行自己的 `onMouseEnter` 不会重发，置 `null` 会让整行的 ⋯ 在指针仍在行内时消失。 */}
+          {leafFlow && (
+            <LeafFlow
+              state={rowState}
+              items={(fv.children ?? []).map(ch => ({
+                content: ch.value,
+                end: hoveredId === ch.id ? (
+                  <span onMouseEnter={() => onHover(ch.id)} onMouseLeave={() => onHover(fv.id)}>
+                    <RowActions
+                      visible
+                      mode={editorMode ? 'edit' : 'view'}
+                      onDelete={() => onDelete(ch)}
+                      menu={<RowMenu items={unitMenuItems(ch)} />}
+                    />
+                  </span>
+                ) : undefined,
+              }))}
+            />
+          )}
           {renderedChildren}
         </div>
       )}
