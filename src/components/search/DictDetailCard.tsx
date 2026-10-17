@@ -13,6 +13,7 @@ import SenseFlow from '../entry/SenseFlow'
 import type { SenseGroup } from '../entry/SenseFlow'
 import FlowRow from '../entry/FlowRow'
 import LeafFlow from '../entry/LeafFlow'
+import { leafForm } from '../../lib/fieldKind'
 import { isLeafFlow } from '../../lib/leafFlow'
 import Icon from '../icons'
 import { ENTRY_BAND_WIDTH } from '../../lib/layout'
@@ -221,37 +222,37 @@ export default function DictDetailCard({
 
   // 一行的正文内容（spec §8.2）：中英释义、例句（衬线斜体 + 短破折号）、
   // 词形变化 / 近义词辨析项（「标签: 值」），容器行显示其标题。
+  // 叶子走哪套排版由 lib/fieldKind 的 leafForm 唯一判定（与工作区同一函数），
+  // 不再各写一遍 key 判断；表内键回落 'plain'（普通正文）。
   const renderContent = (node: FlatNode): ReactNode => {
-    switch (node.field.key) {
-      case 'chinese_definition':
-        return node.field.value
-      case 'english_definition':
+    const form = leafForm(node.field.key)
+    switch (form) {
+      case 'english-def':
         return (
-          <span style={{ fontFamily: 'var(--font-serif)', fontSize: '14.5px', lineHeight: 1.65, color: 'var(--color-text-secondary)' }}>
+          <span style={{ fontFamily: 'var(--font-serif)', fontSize: '15px', lineHeight: 1.7, color: 'var(--ink-1)' }}>
             {node.field.value}
           </span>
         )
       case 'example':
         return (
-          <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: 1.65, color: 'var(--color-text-secondary)' }}>
-            <span style={{ color: 'var(--color-border-strong)', marginRight: '8px' }}>–</span>{node.field.value}
+          <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: 1.65, color: 'var(--ink-2)' }}>
+            <span style={{ color: 'var(--ink-3)', marginRight: '8px' }}>–</span>{node.field.value}
           </span>
         )
-      case 'exchange_item':
-      case 'synonym_discrimination_item': {
-        const colonIdx = node.field.value.indexOf(':')
-        if (colonIdx > 0) {
-          return (
-            <>
-              <span style={{ color: 'var(--color-text-secondary)' }}>{node.field.value.substring(0, colonIdx)}:</span>{' '}
-              <span style={{ fontFamily: 'var(--font-serif)' }}>{node.field.value.substring(colonIdx + 1).trim()}</span>
-            </>
-          )
+      case 'plain':
+        // 词形变化 / 近义词辨析项（「标签: 值」）；容器行（例句 / 近义词 / 词形变化…）显示标题；
+        // 其余叶子（含中文释义：leafForm 对它是 'plain'）显示值——与改判据前逐字一致。
+        if (node.field.key === 'exchange_item' || node.field.key === 'synonym_discrimination_item') {
+          const colonIdx = node.field.value.indexOf(':')
+          if (colonIdx > 0) {
+            return (
+              <>
+                <span style={{ color: 'var(--color-text-secondary)' }}>{node.field.value.substring(0, colonIdx)}:</span>{' '}
+                <span style={{ fontFamily: 'var(--font-serif)' }}>{node.field.value.substring(colonIdx + 1).trim()}</span>
+              </>
+            )
+          }
         }
-        return node.field.value
-      }
-      default:
-        // 容器行（例句 / 近义词 / 词形变化…）：显示标题；叶子：显示值
         return node.children.length > 0 ? rowLabel(node) : node.field.value
     }
   }

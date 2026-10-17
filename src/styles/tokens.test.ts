@@ -52,7 +52,17 @@ describe('tokens.css', () => {
       '--text-xs', '--text-sm', '--text-base', '--text-lg', '--space-4',
       '--shadow-soft', '--shadow-raised', '--shadow-overlay',
       '--z-sticky', '--z-overlay',
+      '--ink-1', '--ink-2', '--ink-3',
     ]) expect(value(n), n).toBeTruthy()
+  })
+
+  it('墨阶是相对别名，深色块不得给它们写第二份值（v0.7.3 尾段 §1.6）', () => {
+    expect(value('--ink-1')).toBe('var(--color-text-primary)')
+    expect(value('--ink-2')).toBe('var(--color-text-secondary)')
+    expect(value('--ink-3')).toBe('var(--color-text-tertiary)')
+    expect(darkValue('--ink-1')).toBeUndefined()
+    expect(darkValue('--ink-2')).toBeUndefined()
+    expect(darkValue('--ink-3')).toBeUndefined()
   })
 })
 

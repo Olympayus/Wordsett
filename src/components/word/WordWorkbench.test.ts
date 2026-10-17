@@ -80,3 +80,19 @@ describe('工作区改用原语（源码级守卫）', () => {
     expect(src).not.toMatch(/addChildControl/)
   })
 })
+
+// 「这个字段长什么样」的判断只允许有一个出处（lib/fieldKind.ts）：
+// 两页都问 leafForm，不得再各写一遍裸 key 判断。
+describe('两页共用 leafForm（v0.7.3 尾段 §1.3）', () => {
+  it('两个页面都问 leafForm，不再各写一遍 key 判断（v0.7.3 尾段 §1.3）', () => {
+    const src = readFileSync(new URL('./WordWorkbench.tsx', import.meta.url), 'utf8')
+    const dict = readFileSync(new URL('../search/DictDetailCard.tsx', import.meta.url), 'utf8')
+    const switchBody = (s: string) => s.match(/switch \(leafForm\([\s\S]*?\n  \}/)?.[0] ?? ''
+    expect(src).toMatch(/leafForm\(def\.key\)/)
+    expect(dict).toMatch(/leafForm\(node\.field\.key\)/)
+    expect(src).not.toMatch(/def\.key === 'example'/)
+    // 只钉 switch 分支表：`example: 'example'` 这类**显示设置映射**（displayFields 的 keyAllowed）
+    // 仍然合法，它不决定渲染形状
+    expect(switchBody(dict)).not.toMatch(/case 'example'/)
+  })
+})

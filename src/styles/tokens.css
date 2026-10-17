@@ -19,6 +19,13 @@
   --color-text-secondary: #57514A;
   --color-text-tertiary: #767064;
 
+  /* 词条正文的墨阶（v0.7.3 尾段 §1.3）。与界面灰（--color-text-*）分开走一层名字：
+     界面灰管导航 / 设置 / 按钮，墨阶管词条内容——日后想让例句再淡一档时，改这里不会牵动设置页。
+     三个值就是既有三级文字色（深色那套已逐值校准过），故深色块**不给它们写第二份值**。 */
+  --ink-1: var(--color-text-primary);
+  --ink-2: var(--color-text-secondary);
+  --ink-3: var(--color-text-tertiary);
+
   /* 品牌与强调 */
   --color-brand: #4A6FA5;
   --color-brand-soft: #E8EEF6;

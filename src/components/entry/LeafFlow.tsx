@@ -25,8 +25,8 @@ export default function LeafFlow({ items, state = 'none' }: { items: ReactNode[]
       <SourceBar state={state} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 22px' }}>
         {items.map((it, i) => (
-          <span key={i} style={{ fontSize: '15px', lineHeight: 1.75, color: 'var(--color-text-primary)' }}>
-            <span style={{ color: 'var(--color-text-tertiary)', marginRight: '5px' }} aria-hidden>·</span>
+          <span key={i} style={{ fontSize: '15px', lineHeight: 1.75, color: 'var(--ink-2)' }}>
+            <span style={{ color: 'var(--ink-3)', marginRight: '5px' }} aria-hidden>·</span>
             {it}
           </span>
         ))}

@@ -33,7 +33,7 @@ import type { SenseGroup } from '../entry/SenseFlow'
 import FlowRow from '../entry/FlowRow'
 import LeafFlow from '../entry/LeafFlow'
 import { isLeafFlow } from '../../lib/leafFlow'
-import { ITEM_FIELD_KEYS } from '../../lib/fieldKind'
+import { ITEM_FIELD_KEYS, leafForm } from '../../lib/fieldKind'
 import RowActions, { rowIconStyle } from '../entry/RowActions'
 import AddMenu, { menuItemStyle, menuItemHover, type AddItem } from '../entry/AddMenu'
 import { useCategoryStore } from '../../stores/categoryStore'
@@ -207,9 +207,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   const isFocused = isEditing || isDragging
   const isLevel1 = depth === 0
   const isPhonetic = def.key === 'phonetic'
-  // 例句叶子（v0.7.2 缺陷 3）：只认 `example` 这一个键（容器 `example_sentence` 不在此列），
-  // 走返回页那套「衬线斜体 + 行首 – 」的排版。
-  const isExample = def.key === 'example'
+  // 叶子走哪套排版由 lib/fieldKind 的 leafForm 唯一判定（与返回页同一函数）；
+  // 表内键回落 'plain'（普通正文）。
+  const form = leafForm(def.key)
   const state = fieldState(fv)
   // 来源三态取色（v0.7.2）：普通模式 / 词性窗格一律中性；只有编者模式下的非词性行才现形。
   const rowState = rowSourceState(editorMode, isPosPane, fv)
@@ -441,12 +441,16 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               title={editorMode ? '点击编辑' : '双击编辑'}
               style={{ cursor: 'pointer' }}
             >
-              {isExample ? (
+              {form === 'example' ? (
                 // 例句（v0.7.2 缺陷 3）：与搜索返回页同一处理（DictDetailCard 的 `example` 分支）——
                 // 衬线斜体 14px/1.65 次级色，行首一枚 `–` 短破折号作分条标识（showcase-v2:197-198）。
-                <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: 1.65, color: 'var(--color-text-secondary)' }}>
-                  <span style={{ color: 'var(--color-border-strong)', marginRight: '8px' }}>–</span>{fv.value}
+                <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: 1.65, color: 'var(--ink-2)' }}>
+                  <span style={{ color: 'var(--ink-3)', marginRight: '8px' }}>–</span>{fv.value}
                 </span>
+              ) : form === 'english-def' ? (
+                // v0.7.3 尾段 §1.3：英文释义在工作区本来没有分支，于是它在这里是无衬线正文色、
+                // 在返回页是衬线次级色——同一个字段两页两样，草案第 6 条要修的就是它。
+                <span style={{ fontFamily: 'var(--font-serif)', fontSize: '15px', lineHeight: 1.7, color: 'var(--ink-1)' }}>{fv.value}</span>
               ) : fv.value}
             </span>
           )}
