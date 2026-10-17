@@ -201,6 +201,11 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   const isPosPane = def.key === 'part_of_speech'
   const isGroupPane = def.key === 'synonym_discrimination_group'
   const isEditing = editingId === fv.id
+  // 选中框（v0.7.3 §7.3）的**唯一**来源：本行正在编辑或正在被拖动。拖动中的行 id 只存在于
+  // DndContext 的事件里、文件里没有对应 state（控制器裁决 P3），故用 useDraggable 自带的
+  // `isDragging` 就地判定——`focused = isEditing || isDragging`，不新增组件 state、不接 DndContext。
+  // 只在**这一行**亮（父行不亮），蓝＝「正在编辑」的状态，符合蓝色收窄规则第 1 条。
+  const isFocused = isEditing || isDragging
   const isLevel1 = depth === 0
   const isPhonetic = def.key === 'phonetic'
   // 例句叶子（v0.7.2 缺陷 3）：只认 `example` 这一个键（容器 `example_sentence` 不在此列），
@@ -484,6 +489,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           <FlowRow
             no={no}
             state={rowState}
+            focused={isFocused}
             end={
               <RowActions
                 visible={showsButtons}

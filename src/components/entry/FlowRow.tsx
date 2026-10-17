@@ -25,15 +25,35 @@ import type { FieldState } from '../../lib/fieldState'
  *
  * `state` 默认 `'none'`（v0.7.3，原为 `'original'`）：调用方都会显式传，默认值取 `'none'`
  * 是为了「忘了传」时**不出条**，而不是给每一行画一条灰线。
+ *
+ * **选中框（v0.7.3 §7.3，`focused`）**：该行正在编辑或被拖动时出 1px 品牌蓝描边 + 极轻品牌底色，
+ * 且**只在这一行**。蓝在这里是「正在编辑」的**状态**，符合蓝色收窄规则第 1 条（不做按钮底、
+ * 不做「可点」提示、不做内容数据标记）。用 border 而不是 outline：outline 不进布局（故无需负外边距
+ * 抵消），却会画在 padding **外侧**——紧贴着上一行的 4px 内边距与左缘那根绝对定位的 SourceBar，
+ * 框在行与行之间挤成一团；border 占的是本行的 padding 盒，框与文字之间天然隔着内边距。
+ * 描边一进布局就会把内容推歪（上/左各 +1px），故用负外边距整体抵消：
+ * 内容相对父容器内缘的偏移 = margin + border + padding，
+ * 不选中 `0 + 0 + 11 = 11` / `0 + 0 + 0 = 0` / `0 + 0 + 4 = 4`，
+ * 选中 `-6 + 1 + 16 = 11` / `6 + 1 − 6 = 1` / `-1 + 1 + 4 = 4`——四边逐值相等，故进出编辑态
+ * 该行文字不位移、下方内容不跳（v0.5.2 修过同一类抖动）。注意底边距只有 0（`4px 0`），
+ * 抵消底边只能靠 `padding-bottom` 自身少 1px，`margin-bottom` 一动就会改与下一行的间距。
  */
-export default function FlowRow({ no, children, end, state = 'none' }: {
+export default function FlowRow({ no, children, end, state = 'none', focused = false }: {
   no?: number | string
   children: ReactNode
   end?: ReactNode
   state?: FieldState
+  /** 该行正在编辑或被拖动（v0.7.3 §7.3）：出选中框，**只在这一行**。 */
+  focused?: boolean
 }) {
   return (
-    <div style={{ display: 'flex', gap: '12px', padding: '4px 0 4px 11px', position: 'relative' }}>
+    <div style={{
+      display: 'flex', gap: '12px', padding: '4px 0 4px 11px', position: 'relative',
+      ...(focused
+        ? { border: '1px solid var(--color-brand)', borderRadius: 'var(--radius-md)',
+            background: 'var(--color-brand-soft)', margin: '-1px -6px', padding: '4px 5px 4px 16px' }
+        : null),
+    }}>
       <SourceBar state={state} />
       {no !== undefined && (
         <span style={{ width: '18px', flex: 'none', fontSize: '12.5px', textAlign: 'right',
