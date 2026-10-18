@@ -109,4 +109,9 @@ describe('tokens.css 的深色块（v0.7.3）', () => {
     expect(value('--color-hairline')).toBe('rgba(0, 0, 0, 0.16)')
     expect(darkValue('--color-hairline')).toBe('rgba(255, 255, 255, 0.14)')
   })
+
+  it('color-scheme 两个主题块各写一次（v0.7.3 尾段 §6）', () => {
+    expect(css).toMatch(/:root\s*\{[^}]*color-scheme:\s*light/)
+    expect(darkValue('color-scheme')).toBe('dark')
+  })
 })
