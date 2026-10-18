@@ -287,14 +287,11 @@ export default function DictDetailCard({
       const checkboxLabel = isDefinition && no !== undefined ? `${label}(${no})` : (label || node.field.value || node.field.key)
       const collapsed = isContainer && collapsedKeys.has(node.key)
       // v0.7.3 §5.4：容器下的子项若全是短叶子（近义词 / 词源相关词 / 词形变化…），
-      // 不再逐个递归成一行一条，改由 LeafFlow 排成流式多列。判据先看容器 key（经 childKind
-      // 定档），再看子项形状（全部是叶子且每条 ≤ 40 字符）。
+      // 不再逐个递归成一行一条，改由 LeafFlow 排成流式多列。v0.7.4 起判据只认容器 key
+      //（在不在 LEAF_FLOW_CONTAINER_KEYS 里），子项形状与长度一律不参与。
       // 每项包成 `{ content: renderContent(c) }`，保住 `标签: 值` 的拆写；**不传 `end`**——
       // 返回页没有编者模式，单位行尾槽在这里无处可挂，DOM 因此与本轮之前逐字相同。
-      const leafFlow = isContainer && isLeafFlow(
-        node.children.map(c => ({ value: c.field.value, childCount: c.children.length })),
-        node.field.key,
-      )
+      const leafFlow = isContainer && isLeafFlow(node.field.key)
       return (
         <Fragment key={node.key}>
           {/* `no` 一律给值（无编号的行给 ''）：v0.7.2 二轮 FlowRow 改成「编号槽缺席即零宽」，

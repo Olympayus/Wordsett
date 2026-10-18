@@ -329,14 +329,11 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   // 两档都收成 marginTop:0，由 FlowRow 的悬挂缩进统一表达层级）。
   //
   // v0.7.3 §5.4：若全部子项都是短叶子（近义词 / 词源相关词 / 派生词 / 补充 / 词形变化），
-  // 逐个 FieldCard 的「一行一条」改成 LeafFlow 的流式多列。判据先看容器 key（经 childKind
-  // 定档：例句容器恒 false、列举容器单条也成列、其余走形状门槛），再看子项形状
-  //（全部是叶子且每条 ≤ 40 字符）。容器自身的行**原样不动**，只换子项的渲染方式。
+  // 逐个 FieldCard 的「一行一条」改成 LeafFlow 的流式多列。v0.7.4 起判据只认容器 key
+  //（在不在 LEAF_FLOW_CONTAINER_KEYS 里），子项形状与长度一律不参与。容器自身的行**原样不动**，
+  // 只换子项的渲染方式。
   const childCounters = { zh: 0, en: 0 }
-  const childItems = hasChildren
-    ? (fv.children ?? []).map(ch => ({ value: ch.value, childCount: (ch.children ?? []).length }))
-    : []
-  const leafFlow = isLeafFlow(childItems, def.key)
+  const leafFlow = isLeafFlow(def.key)
   const renderedChildren = hasChildren && !leafFlow
     ? fv.children!.map(child => (
         <FieldCard

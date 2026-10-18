@@ -19,6 +19,10 @@ const CONTAINER_KIND: Record<string, FieldKind> = {
 
 export const childKind = (containerKey: string): FieldKind => CONTAINER_KIND[containerKey] ?? 'plain'
 
+/** 进「一行多条」的容器（v0.7.4 决定一）：名字是 white-list，判据只查它。 */
+export const LEAF_FLOW_CONTAINER_KEYS: readonly string[] =
+  Object.keys(CONTAINER_KIND).filter(k => CONTAINER_KIND[k] === 'list')
+
 export type LeafForm = 'example' | 'english-def' | 'plain'
 
 export const leafForm = (key: string): LeafForm =>

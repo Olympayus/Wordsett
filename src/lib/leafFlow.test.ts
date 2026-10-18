@@ -1,41 +1,24 @@
 import { describe, it, expect } from 'vitest'
-import { isLeafFlow, LEAF_FLOW_MAX_CHARS } from './leafFlow'
+import { isLeafFlow } from './leafFlow'
+import { LEAF_FLOW_CONTAINER_KEYS } from './fieldKind'
 
-const leaf = (value: string) => ({ value, childCount: 0 })
-const box = (value: string, childCount: number) => ({ value, childCount })
-
-describe('isLeafFlow（v0.7.3 §5.4：哪些容器该走一行多条）', () => {
-  it('两条以上的短叶子 → 走多列', () => {
-    expect(isLeafFlow([leaf('dine'), leaf('gorge'), leaf('have')])).toBe(true)
+describe('isLeafFlow（v0.7.4：判据只认容器 key）', () => {
+  it('六个列举容器都进多列，单条也进', () => {
+    for (const k of LEAF_FLOW_CONTAINER_KEYS) expect(isLeafFlow(k), k).toBe(true)
   })
 
-  it('只有一条 → 不走（一条多列没有意义，还多一层包裹）', () => {
-    expect(isLeafFlow([leaf('dine')])).toBe(false)
-    expect(isLeafFlow([])).toBe(false)
+  it('例句容器恒逐行', () => {
+    expect(isLeafFlow('example_sentence')).toBe(false)
   })
 
-  it('带子节点的不走——它不是叶子容器', () => {
-    expect(isLeafFlow([box('近义词', 3), leaf('dine')])).toBe(false)
+  it('表外一律逐行：辨析组、词性、用户自建字段', () => {
+    expect(isLeafFlow('synonym_discrimination_group')).toBe(false)
+    expect(isLeafFlow('part_of_speech')).toBe(false)
+    expect(isLeafFlow(undefined)).toBe(false)
+    expect(isLeafFlow('my_custom_field')).toBe(false)
   })
 
-  it(`单值超过 ${LEAF_FLOW_MAX_CHARS} 字符的不走——整句例句也是「多条短叶子」，会被误并`, () => {
-    const long = 'x'.repeat(LEAF_FLOW_MAX_CHARS + 1)
-    expect(isLeafFlow([leaf('dine'), leaf(long)])).toBe(false)
-  })
-
-  it('刚好等于门槛的走（边界含等于）', () => {
-    const atLimit = 'x'.repeat(LEAF_FLOW_MAX_CHARS)
-    expect(isLeafFlow([leaf('dine'), leaf(atLimit)])).toBe(true)
-  })
-
-  it('空值不参与门槛判定，但也不因此放行带子节点的情况', () => {
-    expect(isLeafFlow([leaf('dine'), leaf('')])).toBe(true)
-  })
-
-  it('例句容器恒 false —— 短例句不再被并排成 · 形式（§1.4）', () => {
-    expect(isLeafFlow([leaf('Clear the table.'), leaf('The fog cleared.')], 'example_sentence')).toBe(false)
-  })
-  it('列举容器单条也成列 —— 「即使只有一个词」（§1.4）', () => {
-    expect(isLeafFlow([leaf('obvious')], 'synonyms')).toBe(true)
+  it('判据不读内容：名字里带 example 的字段不因「像例句」而被排除', () => {
+    expect(LEAF_FLOW_CONTAINER_KEYS).not.toContain('example_sentence')
   })
 })
