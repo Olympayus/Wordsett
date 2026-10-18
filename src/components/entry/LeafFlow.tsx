@@ -1,13 +1,19 @@
 import type { ReactNode } from 'react'
 import { ROW_LINE_HEIGHT, ROW_PADDING_Y } from '../../lib/layout'
 import { SourceBar } from './SourceMark'
+import { DotMark } from './Mark'
 import type { FieldState } from '../../lib/fieldState'
 
 /**
  * 短条目字段的一行多条（v0.7.3 §5.4）。
  *
  * 与 `FlowRow` 是兄弟：`FlowRow` 输出「一行一条」的义项行，本组件把同一容器下的兄弟叶子
- * 排成流式多列。每条前一枚「·」（三级色），与例句前的「–」是同一套语言。
+ * 排成流式多列。每条前一枚「·」，与例句前的「–」是同一套语言——v0.7.4 起两枚都是**画**出来的
+ * （`Mark.tsx`），不再是字体字形（字形的墨只有两三像素，来源色涂上去看不出差别）。
+ *
+ * `markColor` 是**数据**不是行为（v0.7.4 决定九）：本组件两页共用，颜色由调用页给——
+ * 工作区在编者模式下按单位的来源态给、普通模式给三级色，返回页恒给三级色。LeafFlow 自己
+ * 不读任何编辑器状态，保持哑组件。
  *
  * 用 flex-wrap 而不是固定列数：词长差异极大（`dine` 与 `clear: 清除（拉丁 clarus 明亮）`
  * 差三倍），固定列数会让短词后半列全空、长词被省略号截断；流式排法让长条目自己占满一行。
@@ -35,7 +41,7 @@ import type { FieldState } from '../../lib/fieldState'
  * 因为行的 `onMouseEnter` 在指针从行空白移到单位上时不会重发。
  */
 export default function LeafFlow({ items, state = 'none', first = true, last = true }: {
-  items: { content: ReactNode; end?: ReactNode; onEnter?: () => void; onLeave?: () => void }[]
+  items: { content: ReactNode; end?: ReactNode; onEnter?: () => void; onLeave?: () => void; markColor: string }[]
   state?: FieldState
   /** 整块是否是其所属段的**首块**（v0.7.4 决定八）：多单位块按一行参与分段。 */
   first?: boolean
@@ -49,7 +55,7 @@ export default function LeafFlow({ items, state = 'none', first = true, last = t
         {items.map((it, i) => (
           <span key={i} onMouseEnter={it.onEnter} onMouseLeave={it.onLeave}
             style={{ position: 'relative', minWidth: 0, fontSize: '15px', lineHeight: ROW_LINE_HEIGHT, color: 'var(--ink-2)' }}>
-            <span style={{ color: 'var(--ink-3)', marginRight: '5px' }} aria-hidden>·</span>
+            <span style={{ marginRight: '6px' }}><DotMark color={it.markColor} /></span>
             {it.content}
             {it.end && (
               <span style={{ position: 'absolute', left: '100%', top: 0, height: '100%',

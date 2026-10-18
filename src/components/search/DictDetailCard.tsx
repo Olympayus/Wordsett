@@ -13,6 +13,7 @@ import SenseFlow from '../entry/SenseFlow'
 import type { SenseGroup } from '../entry/SenseFlow'
 import FlowRow from '../entry/FlowRow'
 import LeafFlow from '../entry/LeafFlow'
+import { DashMark } from '../entry/Mark'
 import { leafForm, rowTitle } from '../../lib/fieldKind'
 import { isLeafFlow } from '../../lib/leafFlow'
 import Icon from '../icons'
@@ -237,7 +238,9 @@ export default function DictDetailCard({
       case 'example':
         return (
           <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: 1.65, color: 'var(--ink-2)' }}>
-            <span style={{ color: 'var(--ink-3)', marginRight: '8px' }}>–</span>{node.field.value}
+            {/* v0.7.4 决定九：`–` 改**画**（与工作区同一枚 DashMark）。本页没有编者模式，
+                来源态是编者视角的信息，故颜色恒为三级色——与左缘色条恒 `state="none"` 同理。 */}
+            <span style={{ marginRight: '8px' }}><DashMark color="var(--ink-3)" /></span>{node.field.value}
           </span>
         )
       case 'plain':
@@ -307,7 +310,7 @@ export default function DictDetailCard({
               // 与容器行底的 4px 相加会翻倍成 8px，故同样要扣掉被兄弟模型重复计算的那一层——
               // 两条分支的容器→子项间距才一致（brief 验收项 4「返回页同一组字段行为一致」）。
               // 不改 LeafFlow 自身的内边距：它与工作区共用，那里的 4px 顶内边距是与 FlowRow 对齐所需。
-              ? <div style={{ marginTop: '-4px' }}><LeafFlow items={node.children.map(c => ({ content: renderContent(c) }))} /></div>
+              ? <div style={{ marginTop: '-4px' }}><LeafFlow items={node.children.map(c => ({ content: renderContent(c), markColor: 'var(--ink-3)' }))} /></div>
               : <div style={{ marginTop: '-4px' }}>{renderRows(node.children, counter)}</div>
           )}
         </Fragment>

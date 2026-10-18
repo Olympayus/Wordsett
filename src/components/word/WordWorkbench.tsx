@@ -32,6 +32,7 @@ import SenseFlow from '../entry/SenseFlow'
 import type { SenseGroup } from '../entry/SenseFlow'
 import FlowRow from '../entry/FlowRow'
 import LeafFlow from '../entry/LeafFlow'
+import { DashMark } from '../entry/Mark'
 import EditableValue from '../entry/EditableValue'
 import { isLeafFlow } from '../../lib/leafFlow'
 import { leafForm, rowTitle } from '../../lib/fieldKind'
@@ -66,6 +67,22 @@ export function rowSourceState(editorMode: boolean, isPosPane: boolean, fv: Fiel
 // 左端 gutter 宽度（v0.5.2 修订）：手柄宽 10px，不额外留余量。
 // 宽度写死的意义是「手柄显隐不改变文字区宽度」→ 零重排。
 const GUTTER_WIDTH = 10
+
+/**
+ * 分条标记（`·` / `–`）的取色表（v0.7.4 决定九）：三态各一个来源色 token，**不新增色值**。
+ *
+ * 标记是**画**出来的（`Mark.tsx`），故它们能取实心来源色——字体字形只有两三像素墨，
+ * 涂色看不出差别（用户原话「横杠和小点分不清」）。决定九的强度表在这里取**全强度**：
+ * 45% 稀释只针对左缘那根竖条（`SourceBar`），6px 的小圆点上 45% 会糊成一片灰。
+ *
+ * 表只有一份（模块级）：单位的小点与例句的横杠同源，两处不必各写一遍。
+ * **取色门控在调用处**——普通模式一律 `'var(--ink-3)'`，否则阅读视图会长出一片彩点。
+ */
+const MARK_COLOR: Record<Exclude<FieldState, 'none'>, string> = {
+  original: 'var(--color-weave-original)',
+  edited: 'var(--color-weave-edited)',
+  personal: 'var(--color-weave-personal)',
+}
 
 // 字段标签列宽度（v0.5.2 修订）：各层统一，不再分「第 0 层 100px / 更深层 80px 起」两档——
 // 两档既让深层多丢宽度，又让「例句」这类二字标签空掉大半列。
@@ -532,9 +549,11 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
             >
               {form === 'example' ? (
                 // 例句（v0.7.2 缺陷 3）：与搜索返回页同一处理（DictDetailCard 的 `example` 分支）——
-                // 衬线斜体 14px/1.65 次级色，行首一枚 `–` 短破折号作分条标识（showcase-v2:197-198）。
+                // 衬线斜体 14px/1.65 次级色，行首一枚 `–` 作分条标识（showcase-v2:197-198）。
+                // v0.7.4 决定九：`–` 改**画**（DashMark），颜色取该行的来源态——普通模式
+                // （`rowState === 'none'`）恒三级色，编者模式才是该行的来源色。
                 <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: 1.65, color: 'var(--ink-2)' }}>
-                  <span style={{ color: 'var(--ink-3)', marginRight: '8px' }}>–</span>{fv.value}
+                  <span style={{ marginRight: '8px' }}><DashMark color={rowState === 'none' ? 'var(--ink-3)' : MARK_COLOR[rowState]} /></span>{fv.value}
                 </span>
               ) : form === 'english-def' ? (
                 // v0.7.3 尾段 §1.3：英文释义在工作区本来没有分支，于是它在这里是无衬线正文色、
@@ -641,6 +660,11 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               last={barLast}
               items={(fv.children ?? []).map(ch => ({
                 content: renderUnitContent(ch),
+                // 小点的颜色（v0.7.4 决定九）：编者模式下取**该单位自己的**来源态——
+                // `unitState` 已处理「容器是用户建的 → 整棵子树都算 personal」的继承优先，
+                // 故用户自己添加的容器里的词全是用户色。普通模式一律三级色：否则阅读视图
+                // 会冒出一片彩点，来源态是编者视角的信息（与 `rowSourceState` 同一门控）。
+                markColor: editorMode ? MARK_COLOR[unitState(ch, childInheritedUser)] : 'var(--ink-3)',
                 onEnter: () => onHover(ch.id),
                 onLeave: () => onHover(fv.id),
                 end: hoveredId === ch.id ? (
