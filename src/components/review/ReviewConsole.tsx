@@ -1,4 +1,5 @@
 import { accuracyText } from '../../lib/review/scopeLabel'
+import { consoleLines } from '../../lib/reviewConsoleLines'
 
 /**
  * 左栏顶部小控制台（v0.6.1 §3.1，v0.6.2 §4.1 扩容，v0.6.3 条目 1、2 重排）。
@@ -15,7 +16,8 @@ import { accuracyText } from '../../lib/review/scopeLabel'
  * v0.6.3：两态所有数字一律套 .stat-num（统计数字的唯一格式，src/index.css）。
  * 空闲态「今日」移到右上角，让出的左上角由「n 张待复习」上提填补，整个控制台因此矮一行。
  *
- * 本组件是纯渲染：文案与格式没有可抽的判定规则，故无单测，由肉眼验收覆盖。
+ * v0.7.3 尾段 §5：空闲态改四行（待复习 / 覆盖 / 本轮可出 / 新词·薄弱词），文案与数字
+ * 全部收进纯函数 consoleLines（src/lib/reviewConsoleLines.ts，带单测），本组件只做分段渲染。
  */
 export interface ConsoleSession {
   total: number
@@ -67,6 +69,19 @@ export default function ReviewConsole({ overview, weakCount, session }: {
     )
   }
 
+  // 四行是四个不同的量（v0.7.3 尾段 §5）：到期积压按**卡**、覆盖按**词**、可出按**本轮题数**、
+  // 新词与薄弱词是两个同源的词数。一行一个量，量纲不同并排会被读成分母分子。
+  // 文案与数字全在纯函数 consoleLines 里（带单测），本组件只负责分段套 .stat-num。
+  // 四行都无条件渲染——薄弱词为 0 时那一句照样在（行尾操作簇同款不变量）。
+  const lines = consoleLines(
+    {
+      total: overview?.total ?? 0,
+      dueWordCount: overview?.dueWordCount ?? 0,
+      deliverable: overview?.deliverable ?? 0,
+      newCount: overview?.newCount ?? 0,
+    },
+    weakCount,
+  )
   return (
     <div style={{ position: 'relative', border: '1px solid var(--color-border)', background: 'var(--color-surface-raised)', borderRadius: 'var(--radius-lg)', padding: '9px 10px', marginBottom: '8px' }}>
       {/* 「今日」右上角：衬线 + 最深的暖棕 + 加粗放大（v0.6.3 条目 1）。
@@ -76,23 +91,19 @@ export default function ReviewConsole({ overview, weakCount, session }: {
         fontFamily: 'var(--font-serif)', fontSize: '15px', fontWeight: 700,
         color: 'var(--color-warm-deep)', lineHeight: 1.25,
       }}>今日</div>
-      {/* 三行分别是三个不同的量（v0.7.3）：到期积压按**卡**、可出题数按**本轮**、新词按**词**。
-          旧版把「19 张待复习」与「新词 1」并排印在同一列，量纲不同却读起来像同一件事的分子分母，
-          必然被读成「19 张里只给 1 个新词」。把它们写成三句话，因果就摆在明面上。 */}
-      <div style={{ fontSize: '16px', fontWeight: 600 }} title="到期积压不受「新词额度」与「队列上限」影响">
-        待复习 <span className="stat-num">{overview?.total ?? 0}</span>{' '}
-        <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--color-text-secondary)' }}>
-          张 · 覆盖 <span className="stat-num">{overview?.dueWordCount ?? 0}</span> 个词
-        </span>
+      <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--ink-1)' }} title="到期积压不受「新词额度」与「队列上限」影响">
+        {lines[0].map((seg, i) => seg.kind === 'num'
+          ? <span key={i} className="stat-num">{seg.text}</span>
+          : <span key={i}>{seg.text}</span>)}
       </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: '5px', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-        <span>
-          本轮可出 <span className="stat-num">{overview?.deliverable ?? 0}</span> 道
-        </span>
-        <span title="受设置的「新词额度」与「到期让位」共同影响">
-          其中新词 <span className="stat-num">{overview?.newCount ?? 0}</span> 个
-        </span>
-        <span>薄弱词 <span className="stat-num">{weakCount}</span></span>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: '5px', fontSize: '11px', color: 'var(--ink-2)' }}>
+        {lines.slice(1).map((line, li) => (
+          <span key={li}>
+            {line.map((seg, i) => seg.kind === 'num'
+              ? <span key={i} className="stat-num">{seg.text}</span>
+              : <span key={i}>{seg.text}</span>)}
+          </span>
+        ))}
       </div>
     </div>
   )
