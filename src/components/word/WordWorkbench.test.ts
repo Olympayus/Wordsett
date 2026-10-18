@@ -104,20 +104,19 @@ describe('工作区改用原语（源码级守卫）', () => {
 //   WordWorkbench.tsx:219-220 zhCount / enCount——数中/英条数给窗格头的计数
 // 行号是**当前 HEAD 的行号**：任何上方插入都会让本守卫失败，需连同 allow-list 一起改
 //（v0.7.3 尾段 §3.4 给 FieldCard 加 `unitMenuItems` 时就整体下移了 9 行）。
-//   WordWorkbench.tsx:732 空标签校验——**数据校验**，不是渲染分支
-//   WordWorkbench.tsx:741/745/788/801/1118 容器路由（CONTAINER_FIELD_KEYS / ALLOWED_CHILD_KEYS
+//   WordWorkbench.tsx:733 空标签校验——**数据校验**，不是渲染分支
+//   WordWorkbench.tsx:742/746/789/802/1125 容器路由（CONTAINER_FIELD_KEYS / ALLOWED_CHILD_KEYS
 //     与 word_root / word_root_item / synonym_discrimination_group / part_of_speech / phonetic
 //     等键的判定）——**增删可行性**（能不能加、加在哪、加完要不要进编辑态），不是渲染
-//   WordWorkbench.tsx:968 页级菜单「音标」——按 key 找定义再添加，**布局分流**
-//   DictDetailCard.tsx:64 rowLabel——组小标题文本
+//   WordWorkbench.tsx:975 页级菜单「音标」——按 key 找定义再添加，**布局分流**
 //   DictDetailCard.tsx:83-84 keyAllowed——displayFields 可见性映射（只查「显不显示」，不问「长什么样」）
-//   DictDetailCard.tsx:94-97 filter——可见性过滤与空容器丢弃
-//   DictDetailCard.tsx:192 sourceMark——哪几枚行尾来源标
+//   DictDetailCard.tsx:94-97 filter——可见性过滤与空容器丢弃（95 的 phonetic 同理，只问显不显示）
+//   DictDetailCard.tsx:193 sourceMark——哪几枚行尾来源标
 //   DictDetailCard.tsx:247 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
 //   DictDetailCard.tsx:346 isPos——run-in 头形态
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [142, 143, 144, 147, 200, 201, 209, 219, 220, 732, 741, 745, 788, 801, 968, 1118], '标签文字 / 窗格身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
-  ['DictDetailCard.tsx', [64, 83, 84, 94, 97, 192, 247, 346], '标签文本 / 可见性映射与过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
+  ['WordWorkbench.tsx', [142, 143, 144, 147, 201, 202, 210, 220, 221, 733, 742, 746, 789, 802, 975, 1125], '标签文字 / 窗格身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['DictDetailCard.tsx', [83, 84, 94, 95, 97, 193, 248, 347], '可见性映射与过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 
 // 取出文件里全部「某字段键 ===/' !== '某键字面量'」的行（命中 .key 直比与 childKey(…) 等值两类）

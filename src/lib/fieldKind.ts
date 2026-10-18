@@ -26,3 +26,12 @@ export const leafForm = (key: string): LeafForm =>
 
 // 项类型字段（#4）：标签列不渲染字段名，值占满整行。
 export const ITEM_FIELD_KEYS: readonly string[] = ['exchange_item', 'supplementary_item', 'phrase_item', 'derivatives_item', 'synonym_item', 'example', 'word_root_item', 'synonym_discrimination_item']
+
+/** 一行该显示什么标题（v0.7.3 尾段 §10）。
+ *  返回页早就有这个判断（`DictDetailCard` 的 `rowLabel`），工作区漏了——平铺标签页那条分支
+ *  压根没传 `labelOverride`，于是辨析组回落到字段名，印出「近义词辨析组」。收成一处，两页共用。 */
+export function rowTitle(key: string, value: string, name: string): string {
+  if (key === 'synonym_discrimination_group') return value
+  if (ITEM_FIELD_KEYS.includes(key)) return ''
+  return name
+}

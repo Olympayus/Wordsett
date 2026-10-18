@@ -33,7 +33,7 @@ import type { SenseGroup } from '../entry/SenseFlow'
 import FlowRow from '../entry/FlowRow'
 import LeafFlow from '../entry/LeafFlow'
 import { isLeafFlow } from '../../lib/leafFlow'
-import { ITEM_FIELD_KEYS, leafForm } from '../../lib/fieldKind'
+import { leafForm, rowTitle } from '../../lib/fieldKind'
 import RowActions, { rowIconStyle } from '../entry/RowActions'
 import AddMenu, { menuItemStyle, menuItemHover, type AddItem } from '../entry/AddMenu'
 import { useCategoryStore } from '../../stores/categoryStore'
@@ -195,8 +195,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
 
   const hasChildren = !!(fv.children && fv.children.length > 0)
   const isContainer = CONTAINER_FIELD_KEYS.includes(def.key)
-  // 标签列文本（#4）：项类型字段不渲染字段名，值占满整行；词性子级用 override
-  const labelText = labelOverride ?? (ITEM_FIELD_KEYS.includes(def.key) ? '' : def.name)
+  // 标签列文本（#4）：项类型字段不渲染字段名，值占满整行；词性子级用 override（先行，优先于它）。
+  // 「这一行该印什么」的唯一出处是 lib/fieldKind 的 rowTitle——辨析组印组描述，不印字段名。
+  const labelText = labelOverride ?? rowTitle(def.key, fv.value, def.name)
   const isPosPane = def.key === 'part_of_speech'
   const isGroupPane = def.key === 'synonym_discrimination_group'
   const isEditing = editingId === fv.id
@@ -928,7 +929,13 @@ export default function WordWorkbench() {
   const flowGroups: SenseGroup[] = isFlatTab
     ? (flatRows.length > 0
         ? [{ pos: tabLabel, items: flatRows.map(({ fv, parentFv, depth }) => (
-            <FieldCard key={fv.id} fv={fv} depth={depth} parentFv={parentFv} {...cardCtx} />
+            // 平铺分支也要回答「这一行该印什么」：辨析组取组描述、项类型留空——与分组分支同一函数，
+            // 否则组行回落 def.name，印出字段名「近义词辨析组」。
+            <FieldCard
+              key={fv.id} fv={fv} depth={depth} parentFv={parentFv}
+              labelOverride={rowTitle(keyOfFv(fv), fv.value, defs.find(d => d.id === fv.fieldId)?.name ?? '')}
+              {...cardCtx}
+            />
           )) }]
         : [])
     : sortedTabValues.map(root => {

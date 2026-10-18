@@ -13,7 +13,7 @@ import SenseFlow from '../entry/SenseFlow'
 import type { SenseGroup } from '../entry/SenseFlow'
 import FlowRow from '../entry/FlowRow'
 import LeafFlow from '../entry/LeafFlow'
-import { leafForm } from '../../lib/fieldKind'
+import { leafForm, rowTitle } from '../../lib/fieldKind'
 import { isLeafFlow } from '../../lib/leafFlow'
 import Icon from '../icons'
 import { ENTRY_BAND_WIDTH } from '../../lib/layout'
@@ -60,8 +60,9 @@ function fieldLabel(key: string): string {
 }
 
 // 一行的标题：近义词辨析组的标题就是组描述（spec：注释小字改小标题），其余走字段标签。
+// 「这一行该印什么」问 lib/fieldKind 的 rowTitle——与工作区同一出处，两页不得各写一遍。
 function rowLabel(node: FlatNode): string {
-  return node.field.key === 'synonym_discrimination_group' ? node.field.value : fieldLabel(node.field.key)
+  return rowTitle(node.field.key, node.field.value, fieldLabel(node.field.key))
 }
 
 export default function DictDetailCard({
