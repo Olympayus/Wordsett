@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import {
+  ENTRY_BAND_FOOT_GAP,
   ENTRY_BAND_WIDTH,
   ENTRY_MEASURE,
+  ENTRY_PHONETIC_GAP,
   NAV_CONTROL_HEIGHT,
   NAV_HEIGHT,
   ROW_LINE_HEIGHT,
@@ -53,7 +55,7 @@ describe('正文行原语都引用这两个常量', () => {
   })
 })
 
-// 「音标 → 词根」的距离 v0.7.3 尾段起在两页都是 ENTRY_BAND_FOOT_GAP（16）：工作区的词根行进
+// 「音标 → 词根」的距离 v0.7.3 尾段起在两页都是 ENTRY_BAND_FOOT_GAP（8）：工作区的词根行进
 // EntryBand 的 footLeft（与末行右簇并成一行，那行的上间距由头带给），返回页不传 bottomRight、
 // 末行合并对它不可见，故由 WordTitleExtras 自己给同一个值。两处**各写一份**迟早会漂（差 9px 就会
 // 看出两页不是同一套版式），故按本仓既有做法（WordWorkbench.test.ts 的源码形状守卫、
@@ -73,5 +75,9 @@ describe('两页的头带末行间距都取 ENTRY_BAND_FOOT_GAP（v0.7.3 尾段�
       expect(src, `${name} 必须 import ENTRY_BAND_FOOT_GAP`).toMatch(/import\s*\{[^}]*ENTRY_BAND_FOOT_GAP[^}]*\}\s*from\s*'[^']*layout'/)
       expect(src, `${name} 必须用 ENTRY_BAND_FOOT_GAP 给词根行上间距`).toMatch(/marginTop:\s*`\$\{ENTRY_BAND_FOOT_GAP\}px`/)
     }
+  })
+
+  it('音标 → 词根 = 24 + 8 = 32px（v0.7.4 决定七 7.4）', () => {
+    expect(ENTRY_PHONETIC_GAP + ENTRY_BAND_FOOT_GAP).toBe(32)
   })
 })
