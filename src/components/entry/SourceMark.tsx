@@ -1,4 +1,6 @@
 import type { FieldState } from '../../lib/fieldState'
+import { barExtent } from '../../lib/fieldBar'
+import { ROW_PADDING_Y } from '../../lib/layout'
 
 /**
  * 义项左缘那根圆头竖条（v0.7.3 起是**唯一**的来源标记）。
@@ -13,14 +15,41 @@ import type { FieldState } from '../../lib/fieldState'
  *
  * 左侧留白由 `FlowRow` / `LeafFlow` 自己的左内边距撑住，不靠这根条占位——绝对定位的元素
  * 本就不占位。
+ *
+ * **分段延伸（v0.7.4 决定八）**：条不再逐行各画一小截（那样相邻行看着就是虚线），
+ * 而是同段内相接、段与段之间断开。几何交给纯函数 `barExtent(first, last, ROW_PADDING_Y)`：
+ * 段中间的行走满自己上下各 `ROW_PADDING_Y` 的内边距（负值 = 伸进相邻行的 padding 盒，
+ * 条绝对定位、不进排版流，故不影响布局），段首行不向上伸、段末行不向下伸，
+ * 于是两段之间自然空出 `2 × ROW_PADDING_Y` 的断点。默认 `first = last = true`（独立成段）
+ * 时上下各内缩 `ROW_PADDING_Y`，与改前的 `top/bottom: 4px` 只差 1px，观感不变——
+ * 未接线 `first` / `last` 的调用点因此行为照旧。
+ *
+ * **`personal` / `edited` 为什么是 45% 混色（Ruling R16，这是一处刻意的例外，别当违规改回去）**：
+ * v0.7.2 定下「蓝不做内容数据标记」——蓝只表示状态。可 v0.7.4 起 `personal`（用户创建）
+ * 的色相就是蓝，与「正在编辑」的状态蓝同族，实心的蓝条会被读成状态而非来源。
+ * 故按决定九的强度表，**竖向段**在 `edited` 与 `personal` 两支都取 **45% 混色**——
+ * 把**载体**颜色稀释成淡蓝，与状态蓝拉开；而 Task 11 那枚 6px 小方标仍是实心，
+ * 因为 45% 在那么小的面积上会糊掉。这条例外只针对竖向段的载体色，不是对
+ * 「蓝不做内容数据标记」的推翻。
  */
-export function SourceBar({ state }: { state: FieldState }) {
+export function SourceBar({ state, first = true, last = true }: {
+  state: FieldState
+  /** 本行是否是所属段的**首行**：是则条不从本行上方向外延伸（默认 true = 独立成段）。 */
+  first?: boolean
+  /** 本行是否是所属段的**末行**。 */
+  last?: boolean
+}) {
   if (state === 'none') return null
+  const { top, bottom } = barExtent(first, last, ROW_PADDING_Y)
   const background =
-    state === 'personal' ? 'var(--color-accent)'
+    state === 'personal' ? 'color-mix(in srgb, var(--color-weave-personal) 45%, transparent)'
     : state === 'edited' ? 'color-mix(in srgb, var(--color-weave-edited) 45%, transparent)'
     : 'var(--color-weave-original)'
   return (
-    <span aria-hidden style={{ position: 'absolute', left: 0, top: '4px', bottom: '4px', width: '3px', borderRadius: 'var(--radius-full)', background }} />
+    <span aria-hidden style={{
+      position: 'absolute', left: 0,
+      top: `${top}px`, bottom: `${bottom}px`,
+      width: '3px', borderRadius: 'var(--radius-full)', background,
+    }} />
   )
 }
