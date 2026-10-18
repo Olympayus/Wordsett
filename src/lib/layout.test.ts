@@ -5,6 +5,8 @@ import {
   ENTRY_MEASURE,
   NAV_CONTROL_HEIGHT,
   NAV_HEIGHT,
+  ROW_LINE_HEIGHT,
+  ROW_PADDING_Y,
   TAB_STRIP_PADDING,
   TAB_ITEM_PADDING_X,
   TAB_ITEM_PADDING_X_EDITOR,
@@ -31,6 +33,23 @@ describe('词条页共享版式常量（v0.7.2）', () => {
     expect(TAB_STRIP_PADDING).toBe('4px 24px 0')
     expect(TAB_ITEM_PADDING_X).toBe('7px 14px')
     expect(TAB_ITEM_PADDING_X_EDITOR).toBe('7px 26px 7px 14px')
+  })
+})
+
+describe('正文行密度（v0.7.4 决定七 7.4：收一档）', () => {
+  it('行高 1.6、行上下内边距 3px，两页共用', () => {
+    expect(ROW_LINE_HEIGHT).toBe(1.6)
+    expect(ROW_PADDING_Y).toBe(3)
+  })
+})
+
+describe('正文行原语都引用这两个常量', () => {
+  it('FlowRow 与 LeafFlow', () => {
+    for (const f of ['../components/entry/FlowRow.tsx', '../components/entry/LeafFlow.tsx'] as const) {
+      const src = readFileSync(new URL(f, import.meta.url), 'utf8')
+      expect(src, f).toMatch(/import\s*\{[^}]*ROW_LINE_HEIGHT[^}]*\}\s*from\s*'[^']*layout'/)
+      expect(src, f).toMatch(/lineHeight:\s*ROW_LINE_HEIGHT/)
+    }
   })
 })
 

@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { ROW_LINE_HEIGHT, ROW_PADDING_Y } from '../../lib/layout'
 import { SourceBar } from './SourceMark'
 import type { FieldState } from '../../lib/fieldState'
 
@@ -38,12 +39,12 @@ export default function LeafFlow({ items, state = 'none' }: {
   state?: FieldState
 }) {
   return (
-    <div style={{ position: 'relative', padding: '4px 0 4px 11px' }}>
+    <div style={{ position: 'relative', padding: `${ROW_PADDING_Y}px 0 ${ROW_PADDING_Y}px 11px` }}>
       <SourceBar state={state} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 22px' }}>
         {items.map((it, i) => (
           <span key={i} onMouseEnter={it.onEnter} onMouseLeave={it.onLeave}
-            style={{ position: 'relative', minWidth: 0, fontSize: '15px', lineHeight: 1.75, color: 'var(--ink-2)' }}>
+            style={{ position: 'relative', minWidth: 0, fontSize: '15px', lineHeight: ROW_LINE_HEIGHT, color: 'var(--ink-2)' }}>
             <span style={{ color: 'var(--ink-3)', marginRight: '5px' }} aria-hidden>·</span>
             {it.content}
             {it.end && (

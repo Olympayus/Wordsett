@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { ROW_LINE_HEIGHT, ROW_PADDING_Y } from '../../lib/layout'
 import { SourceBar } from './SourceMark'
 import type { FieldState } from '../../lib/fieldState'
 
@@ -51,7 +52,7 @@ export default function FlowRow({ no, children, end, state = 'none', focused = f
 }) {
   return (
     <div style={{
-      display: 'flex', gap: '12px', padding: '4px 0 4px 11px', position: 'relative',
+      display: 'flex', gap: '12px', padding: `${ROW_PADDING_Y}px 0 ${ROW_PADDING_Y}px 11px`, position: 'relative',
       ...(focused
         ? { boxShadow: 'inset 0 0 0 1px var(--color-brand)', borderRadius: 'var(--radius-md)',
             background: 'var(--color-brand-soft)' }
@@ -64,7 +65,7 @@ export default function FlowRow({ no, children, end, state = 'none', focused = f
           {no}
         </span>
       )}
-      <span style={{ flex: 1, minWidth: 0, fontSize: '15px', lineHeight: 1.75 }}>
+      <span style={{ flex: 1, minWidth: 0, fontSize: '15px', lineHeight: ROW_LINE_HEIGHT }}>
         <span style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
           <span style={{ flex: 1, minWidth: 0 }}>{children}</span>
           {end && <span style={{ marginLeft: 'auto', flex: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>{end}</span>}

@@ -57,6 +57,13 @@ export const ENTRY_PHONETIC_GAP = 24
  * 会让词根（13px 正文）读起来像脱离了音标、归属到右簇那一边。 */
 export const ENTRY_BAND_FOOT_GAP = 16
 
+/** 正文行的行高与上下内边距（v0.7.4 决定七 7.4，用户选「收一档」）。
+ *  先前是 FlowRow / LeafFlow 里各自的裸字面量（1.75 / 4px）。收进本文件后，
+ *  「普通与编者模式共用同一组值」这条不变量才守得住——两态一旦各写一份，
+ *  切模式就会改变密度，那是本版要根除的跳动之一。 */
+export const ROW_LINE_HEIGHT = 1.6
+export const ROW_PADDING_Y = 3
+
 /** 页签条（条面）的内边距（v0.7.3 尾段 §4.1）——**D18 的落点**。
  *
  * 左右 24px 与内容列左缘（`ENTRY_COLUMN_PADDING_X` 的 24px）是同一条线，故条面本身仍与正文左缘齐平。
