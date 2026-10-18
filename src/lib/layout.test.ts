@@ -49,8 +49,9 @@ describe('正文行原语都引用这两个常量', () => {
   it('FlowRow 与 LeafFlow', () => {
     for (const f of ['../components/entry/FlowRow.tsx', '../components/entry/LeafFlow.tsx'] as const) {
       const src = readFileSync(new URL(f, import.meta.url), 'utf8')
-      expect(src, f).toMatch(/import\s*\{[^}]*ROW_LINE_HEIGHT[^}]*\}\s*from\s*'[^']*layout'/)
+      expect(src, f).toMatch(/import\s*\{[^}]*ROW_LINE_HEIGHT[^}]*ROW_PADDING_Y[^}]*\}\s*from\s*'[^']*layout'/)
       expect(src, f).toMatch(/lineHeight:\s*ROW_LINE_HEIGHT/)
+      expect(src, f).toMatch(/padding:\s*`\$\{ROW_PADDING_Y\}px 0 \$\{ROW_PADDING_Y\}px 11px`/)
     }
   })
 })

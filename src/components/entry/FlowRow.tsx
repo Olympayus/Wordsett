@@ -37,9 +37,9 @@ import type { FieldState } from '../../lib/fieldState'
  * `SourceBar` 正是锚在**本行的 padding 盒**上的（`left: 0`，见 SourceMark.tsx），一旦 padding 盒
  * 左移（负外边距 −6 + 描边 1 = −5px），那根条会跟着跳 5px，而它与文字的间距也从 11px 涨到 16px；
  * 文字本身靠 padding 重排仍可对齐，但一个**看得见的行内元素**位移了，仍违反「进出编辑态不得有位移」。
- * outline 同样出局：它画在 padding **外侧**，紧贴上一行的 4px 内边距与那根 SourceBar，行与行之间会
+ * outline 同样出局：它画在 padding **外侧**，紧贴上一行的 3px 内边距与那根 SourceBar，行与行之间会
  * 挤成一团；且本态还需要底色填充，outline 给不了。内阴影则描边与底色一并给足，是三者中唯一
- * 「既在行内、又不进布局」的做法。故两态的 padding 逐字相同（`4px 0 4px 11px`），`focused` 只加
+ * 「既在行内、又不进布局」的做法。故两态的 padding 逐字相同（`3px 0 3px 11px`），`focused` 只加
  * 三样不参与布局的东西：内阴影描边、圆角、底色。
  */
 export default function FlowRow({ no, children, end, state = 'none', focused = false }: {
