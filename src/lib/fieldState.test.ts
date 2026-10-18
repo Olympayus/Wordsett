@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { fieldState, FIELD_STATE_BG } from './fieldState'
+import { fieldState, FIELD_STATE_BG, unitState, containerState } from './fieldState'
 import type { FieldValue } from '../types/field'
 
 // 只喂 fieldState 用到的两个字段，其余用断言式转换补足
@@ -37,5 +37,43 @@ describe('FIELD_STATE_BG 四态底色（v0.7.3：加 none）', () => {
   it('三个可见态底色互不相同（否则三态不可区分）', () => {
     const values = ['original', 'edited', 'personal'].map(k => FIELD_STATE_BG[k as 'original' | 'edited' | 'personal'])
     expect(new Set(values).size).toBe(values.length)
+  })
+})
+
+const node = (p: Partial<FieldValue>): FieldValue => ({
+  id: 'x', wordId: 'w', fieldId: 'f', value: 'v', source: 'ecdict', edited: false,
+  originalValue: null, displayOrder: 0, parentId: null, createdAt: 0, updatedAt: 0, ...p,
+})
+const withKids = (p: Partial<FieldValue>, kids: Partial<FieldValue>[]) =>
+  node({ ...p, children: kids.map(node) })
+
+describe('来源状态（v0.7.4 决定九）', () => {
+  it('单位：词典未改 → 默认；改过 → 被编辑；自己加的 → 用户创建', () => {
+    expect(unitState(node({}), false)).toBe('original')
+    expect(unitState(node({ edited: true }), false)).toBe('edited')
+    expect(unitState(node({ source: 'user' }), false)).toBe('personal')
+  })
+
+  it('单位：在用户建的容器里，一律用户创建（继承优先于节点自身）', () => {
+    expect(unitState(node({ edited: true }), true)).toBe('personal')
+    expect(unitState(node({ source: 'ecdict' }), true)).toBe('personal')
+  })
+
+  it('容器：自己建的 → 用户创建', () => {
+    expect(containerState(withKids({ source: 'user' }, [{}]), false)).toBe('personal')
+  })
+
+  it('容器：词典自带、子树里有人动过 → 被编辑', () => {
+    expect(containerState(withKids({}, [{}, { edited: true }]), false)).toBe('edited')
+    expect(containerState(withKids({}, [{}, { source: 'user' }]), false)).toBe('edited')
+    expect(containerState(withKids({}, [{}, withKids({}, [{ edited: true }])]), false)).toBe('edited')
+  })
+
+  it('容器：词典自带且子树干净 → 默认', () => {
+    expect(containerState(withKids({}, [{}, {}]), false)).toBe('original')
+  })
+
+  it('容器：在用户建的容器里 → 一律用户创建', () => {
+    expect(containerState(withKids({}, [{ edited: true }]), true)).toBe('personal')
   })
 })

@@ -23,3 +23,19 @@ export const FIELD_STATE_BG: Record<FieldState, string> = {
   edited: 'var(--color-brand-softer)',
   personal: 'var(--color-accent-soft)',
 }
+
+/** 单位（叶子行）的来源态（v0.7.4 决定九）。
+ *  `inUserContainer` = 它挂在用户自己建的容器下——那时整棵子树都是「用户创建」色，
+ *  **继承优先于节点自身**（用户原话：用户添加的容器，里面添加的词的小点都是用户添加色）。 */
+export const unitState = (fv: FieldValue, inUserContainer: boolean): Exclude<FieldState, 'none'> =>
+  inUserContainer ? 'personal' : fieldState(fv)
+
+/** 容器行的来源态（v0.7.4 决定九）：容器自己建的 → personal；词典自带但子树里
+ *  有被改过 / 用户添加的节点 → edited；子树干净 → original。
+ *  「子树里有人动过」这一层是新的——`fieldState` 只看节点自己，看不出它。 */
+export function containerState(fv: FieldValue, inUserContainer: boolean): Exclude<FieldState, 'none'> {
+  if (inUserContainer || fv.source === 'user') return 'personal'
+  const dirty = (n: FieldValue): boolean =>
+    n.edited || n.source === 'user' || (n.children ?? []).some(dirty)
+  return (fv.children ?? []).some(dirty) ? 'edited' : 'original'
+}
