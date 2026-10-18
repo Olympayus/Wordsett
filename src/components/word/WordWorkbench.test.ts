@@ -97,6 +97,25 @@ describe('工作区改用原语（源码级守卫）', () => {
     expect(leaf).toMatch(/onMouseLeave=\{it\.onLeave\}/)
     expect(src).toMatch(/onEnter: \(\) => onHover\(ch\.id\)/)
   })
+
+  it('流式单位复用行内编辑模板：双击（普通）/ 单击（编者）进编辑，编辑中就地上输入框', () => {
+    // 单位在 d4b1bf9（短条目改流式多列）之后不再走 FieldCard，行内编辑那套整条丢了：
+    // 既没有双击 / 单击触发器，也没有编辑态的输入框——⋯ 菜单里的「编辑」设了 editingId
+    // 之后无处渲染，同样点不出东西。这里钉住「单位复用了同一个模板」这件事。
+    expect(src).toMatch(/<EditableValue/)
+    expect(src).toMatch(/editingId === ch\.id/)
+    // 编辑中的单位必须自带 `data-field-edit`：点外关闭按这个属性放行，
+    // 而单位编辑时容器那张 FieldCard 的 `editingId === fv.id` 为假、不会带它。
+    const unitEdit = src.indexOf('editingId === ch.id')
+    expect(unitEdit, '工作区要有单位的编辑态').toBeGreaterThan(-1)
+    expect(src.slice(unitEdit, unitEdit + 500), '编辑中的单位要让点外关闭认得出').toMatch(/data-field-edit/)
+    // LeafFlow 保持哑组件：它两页共用，点击行为必须由调用方给（返回页不可编辑）。
+    const leaf = readFileSync(new URL('../entry/LeafFlow.tsx', import.meta.url), 'utf8')
+    expect(leaf).not.toMatch(/onClick|onDoubleClick/)
+    // 返回页不参与编辑：它的 LeafFlow 只给 content。
+    const dict = readFileSync(new URL('../search/DictDetailCard.tsx', import.meta.url), 'utf8')
+    expect(dict).not.toMatch(/<EditableValue|onDoubleClick/)
+  })
 })
 
 // 「这个字段长什么样」的判断只允许有一个出处（lib/fieldKind.ts）：
@@ -110,22 +129,23 @@ describe('工作区改用原语（源码级守卫）', () => {
 // 例外白名单（逐条对应行号；这些比较问的是「显示设置映射 / 标签文字 / 窗格身份 / 增删可行性 /
 // 布局分流」，不问「渲染成什么形状」，故不在 leafForm 的辖区内）：
 //   WordWorkbench.tsx:142-147 childLabelOverride——按父/子键决定**标签文字**（「中文释义(n)」），渲染壳仍归 leafForm
-//   WordWorkbench.tsx:201,202,210 isPosPane / isGroupPane / isPhonetic——**窗格身份**，非渲染形状
-//   WordWorkbench.tsx:220,221 zhCount / enCount——数中/英条数给窗格头的计数
+//   WordWorkbench.tsx:202,203,211 isPosPane / isGroupPane / isPhonetic——**窗格身份**，非渲染形状
+//   WordWorkbench.tsx:221,222 zhCount / enCount——数中/英条数给窗格头的计数
 // 行号是**当前 HEAD 的行号**：任何上方插入都会让本守卫失败，需连同 allow-list 一起改
-//（v0.7.3 尾段 §3.4 给 FieldCard 加 `unitMenuItems` 时就整体下移了 9 行）。
-//   WordWorkbench.tsx:737 空标签校验——**数据校验**，不是渲染分支
-//   WordWorkbench.tsx:746/750/793/806/1129 容器路由（CONTAINER_FIELD_KEYS / ALLOWED_CHILD_KEYS
+//（v0.7.3 尾段 §3.4 给 FieldCard 加 `unitMenuItems` 时就整体下移了 9 行；
+//  修补单位行内编辑时插入 `renderUnitContent` 又让下面那组下移 35 行）。
+//   WordWorkbench.tsx:772 空标签校验——**数据校验**，不是渲染分支
+//   WordWorkbench.tsx:781/785/828/841/1164 容器路由（CONTAINER_FIELD_KEYS / ALLOWED_CHILD_KEYS
 //     与 word_root / word_root_item / synonym_discrimination_group / part_of_speech / phonetic
 //     等键的判定）——**增删可行性**（能不能加、加在哪、加完要不要进编辑态），不是渲染
-//   WordWorkbench.tsx:979 页级菜单「音标」——按 key 找定义再添加，**布局分流**
+//   WordWorkbench.tsx:1014 页级菜单「音标」——按 key 找定义再添加，**布局分流**
 //   DictDetailCard.tsx:83-84 keyAllowed——displayFields 可见性映射（只查「显不显示」，不问「长什么样」）
 //   DictDetailCard.tsx:94-97 filter——可见性过滤与空容器丢弃（95 的 phonetic 同理，只问显不显示）
 //   DictDetailCard.tsx:193 sourceMark——哪几枚行尾来源标
 //   DictDetailCard.tsx:248 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
 //   DictDetailCard.tsx:348 isPos——run-in 头形态
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [142, 143, 144, 147, 201, 202, 210, 220, 221, 737, 746, 750, 793, 806, 979, 1129], '标签文字 / 窗格身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['WordWorkbench.tsx', [142, 143, 144, 147, 202, 203, 211, 221, 222, 772, 781, 785, 828, 841, 1014, 1164], '标签文字 / 窗格身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
   ['DictDetailCard.tsx', [83, 84, 94, 95, 97, 193, 248, 348], '可见性映射与过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 

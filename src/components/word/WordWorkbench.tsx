@@ -32,6 +32,7 @@ import SenseFlow from '../entry/SenseFlow'
 import type { SenseGroup } from '../entry/SenseFlow'
 import FlowRow from '../entry/FlowRow'
 import LeafFlow from '../entry/LeafFlow'
+import EditableValue from '../entry/EditableValue'
 import { isLeafFlow } from '../../lib/leafFlow'
 import { leafForm, rowTitle } from '../../lib/fieldKind'
 import RowActions, { rowIconStyle } from '../entry/RowActions'
@@ -289,6 +290,40 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     { key: 'edit', label: '编辑', onSelect: () => onStartEdit(unit) },
     { key: 'delete', label: '删除', danger: true, onSelect: () => onDelete(unit) },
   ]
+
+  // 流式单位（近义词等）的就地与编辑态（v0.7.3 修补）：单位在短条目改流式多列（d4b1bf9）
+  // 之后不再走 FieldCard，行内正文那一套整条丢了——既没有双击（普通模式）/ 单击（编者模式）
+  // 的编辑触发器，也没有编辑态的输入框，于是 ⋯ 菜单里的「编辑」设了 editingId 也无处渲染。
+  // 这里把行内正文的模板原样接回来：触发器用 EditableValue，编辑中就地长输入框 + 保存 / 取消。
+  // 输入框取固定宽度而不是行内正文的 `w-full`：单位是 flex-wrap 的项、宽度由内容决定，
+  // `w-full` 会缩到文字宽。单位恒为单行的项字段（`*_item`，fieldType 'text'），故不出 textarea
+  // （例句容器不进 LeafFlow，见 lib/leafFlow）。
+  // `data-field-edit` 不可省：点外关闭的判据是「指针落在 `[data-field-edit]` 里就不管」，
+  // 而那个属性挂在**被编辑的那张 FieldCard** 上——编辑单位时它是容器的子项，容器自己的
+  // `editingId === fv.id` 为假、拿不到这个属性，于是用户一按进输入框（此刻还没有改动）
+  // 就被判成「点在编辑行外」，编辑态当场关掉。故编辑中的单位自己带上它。
+  const renderUnitContent = (ch: FieldValue) => {
+    if (editingId === ch.id) {
+      return (
+        <span data-field-edit="true" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <input
+            className="px-3 py-1.5 rounded text-sm"
+            style={{ border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)', width: 160 }}
+            value={editValue}
+            onChange={e => onEditValueChange(e.target.value)}
+            autoFocus
+          />
+          <Button onClick={onSave}>保存</Button>
+          <Button variant="secondary" onClick={onCancelEdit}>取消</Button>
+        </span>
+      )
+    }
+    return (
+      <EditableValue editorMode={editorMode} onStartEdit={() => onStartEdit(ch)}>
+        {ch.value}
+      </EditableValue>
+    )
+  }
 
   // ②a：子项渲染（v0.7.2 缺陷 5/6 后不再分「终端 / 非终端」两档间距，也不再逐层缩进——
   // 两档都收成 marginTop:0，由 FlowRow 的悬挂缩进统一表达层级）。
@@ -558,7 +593,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
             <LeafFlow
               state={rowState}
               items={(fv.children ?? []).map(ch => ({
-                content: ch.value,
+                content: renderUnitContent(ch),
                 onEnter: () => onHover(ch.id),
                 onLeave: () => onHover(fv.id),
                 end: hoveredId === ch.id ? (
