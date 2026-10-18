@@ -128,28 +128,30 @@ describe('工作区改用原语（源码级守卫）', () => {
 //
 // 例外白名单（逐条对应行号；这些比较问的是「显示设置映射 / 标签文字 / 窗格身份 / 增删可行性 /
 // 布局分流」，不问「渲染成什么形状」，故不在 leafForm 的辖区内）：
-//   WordWorkbench.tsx:160-165 childLabelOverride——按父/子键决定**标签文字**（「中文释义(n)」），渲染壳仍归 leafForm
-//   WordWorkbench.tsx:236,237,245 isPosPane / isGroupPane / isPhonetic——**窗格身份**，非渲染形状
-//   WordWorkbench.tsx:252 isDefinition——**段身份**（这条行是不是分段的根），判的是「色条怎么分段」而非渲染形状
-//   WordWorkbench.tsx:271,272 zhCount / enCount——数中/英条数给窗格头的计数
+//   WordWorkbench.tsx:180-185 childLabelOverride——按父/子键决定**标签文字**（「中文释义(n)」），渲染壳仍归 leafForm
+//   WordWorkbench.tsx:239,240,248 isPosPane / isGroupPane / isPhonetic——**窗格身份**，非渲染形状
+//   WordWorkbench.tsx:255 isDefinition——**段身份**（这条行是不是分段的根），判的是「色条怎么分段」而非渲染形状
+//   WordWorkbench.tsx:274,275 zhCount / enCount——数中/英条数给窗格头的计数
 // 行号是**当前 HEAD 的行号**：任何上方插入都会让本守卫失败，需连同 allow-list 一起改
 //（v0.7.3 尾段 §3.4 给 FieldCard 加 `unitMenuItems` 时就整体下移了 9 行；
 //  修补单位行内编辑时插入 `renderUnitContent` 又让下面那组下移 35 行；
 //  v0.7.4 Task 1 删掉 `childItems` 三行，这一组再下移 3 行；
 //  v0.7.4 Task 10 给 FieldCard 补色条分段入参，整组再下移 17 行；
-//  v0.7.4 Task 11 在 FieldCard 上方加模块级 `MARK_COLOR` 取色表（16 行），整组再下移 17 行）。
-//   WordWorkbench.tsx:772 空标签校验——**数据校验**，不是渲染分支
-//   WordWorkbench.tsx:843/852/856/899/912/1255 容器路由（CONTAINER_FIELD_KEYS / ALLOWED_CHILD_KEYS
+//  v0.7.4 Task 11 在 FieldCard 上方加模块级 `MARK_COLOR` 取色表（16 行），整组再下移 17 行；
+//  v0.7.4 Task 12 给单位加 id 与 drag 手势（LeafFlow 调用 +10 行）、新增 activeDragId state（+3 行），
+//  下方整组再下移；handleDragStart / End / Cancel 的改动在其后，只影响更下面的那几条）。
+//   WordWorkbench.tsx:811 空标签校验——**数据校验**，不是渲染分支
+//   WordWorkbench.tsx:858/867/871/914/927/1275 容器路由（CONTAINER_FIELD_KEYS / ALLOWED_CHILD_KEYS
 //     与 word_root / word_root_item / synonym_discrimination_group / part_of_speech / phonetic
 //     等键的判定）——**增删可行性**（能不能加、加在哪、加完要不要进编辑态），不是渲染
-//   WordWorkbench.tsx:1104 页级菜单「音标」——按 key 找定义再添加，**布局分流**
+//   WordWorkbench.tsx:1124 页级菜单「音标」——按 key 找定义再添加，**布局分流**
 //   DictDetailCard.tsx:86-87 keyAllowed——displayFields 可见性映射（只查「显不显示」，不问「长什么样」）
 //   DictDetailCard.tsx:96-99 filter——可见性过滤与空容器丢弃（96 的 phonetic 同理，只问显不显示）
 //   DictDetailCard.tsx:194 sourceMark——哪几枚行尾来源标
 //   DictDetailCard.tsx:251 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
 //   DictDetailCard.tsx:348 isPos——run-in 头形态
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [160, 161, 162, 165, 236, 237, 245, 252, 271, 272, 795, 843, 852, 856, 899, 912, 1104, 1255], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['WordWorkbench.tsx', [239, 240, 248, 255, 274, 275, 858, 867, 871, 914, 927, 1124, 1275], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
   ['DictDetailCard.tsx', [86, 87, 96, 97, 99, 194, 251, 348], '可见性映射与过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 

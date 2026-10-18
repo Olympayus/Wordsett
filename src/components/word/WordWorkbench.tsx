@@ -4,6 +4,7 @@ import {
   pointerWithin,
   useDraggable,
   useDroppable,
+  type DragStartEvent,
   type DragOverEvent,
   type DragEndEvent,
 } from '@dnd-kit/core'
@@ -116,6 +117,8 @@ interface FieldCardCtx {
   editingId: string | null
   editValue: string
   insertIndicator: InsertIndicator | null
+  /** 正在被拖动的单位 id（v0.7.4 任务 12）：LeafFlow 的单位选中框据此判定。 */
+  activeDragId: string | null
   addMenu: AddMenuState
   onStartEdit: (fv: FieldValue) => void
   onEditValueChange: (value: string) => void
@@ -214,7 +217,7 @@ function RowMenu({ items }: { items: MenuItem[] }) {
 // v0.7.3：行尾那枚 6px 方点（SourceMark）整个退场，来源只剩左缘那根条（SourceBar，由 FlowRow / LeafFlow 渲染）。
 function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false, barState, barFirst = true, barLast = true, inheritedUser = false, ...ctx }: FieldCardProps) {
   const {
-    defs, editorMode, editingId, editValue, insertIndicator, addMenu,
+    defs, editorMode, editingId, editValue, insertIndicator, activeDragId, addMenu,
     onStartEdit, onEditValueChange, onSave, onCancelEdit, onDelete, onAddSibling,
     onToggleAddMenu, onPickAdd, hoveredId, onHover,
   } = ctx
@@ -658,7 +661,16 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               // 块前若还有容器行（first=false）则条向上接进那一行。
               first={barFirst}
               last={barLast}
+              // 单位手势（v0.7.4 任务 12）：注册 id 沿 FieldCard 同一约定（`id` / `drop-${id}`），
+              // 故 lib/dragReorder 与两个 handler 一行不改——落点判定只看 id。选中框取被拖单位
+              // （activeDragId）、手柄取悬停单位（hoveredId）、落点线取 insertIndicator。
+              drag={{
+                isDragging: id => activeDragId === id,
+                hoveredId,
+                indicator: insertIndicator,
+              }}
               items={(fv.children ?? []).map(ch => ({
+                id: ch.id,
                 content: renderUnitContent(ch),
                 // 小点的颜色（v0.7.4 决定九）：编者模式下取**该单位自己的**来源态——
                 // `unitState` 已处理「容器是用户建的 → 整棵子树都算 personal」的继承优先，
@@ -697,6 +709,9 @@ export default function WordWorkbench() {
   const [saved, setSaved] = useState(false)
   const [fadeIn, setFadeIn] = useState(true)
   const [insertIndicator, setInsertIndicator] = useState<InsertIndicator | null>(null)
+  // 正在被拖动的单位 id（v0.7.4 任务 12）：LeafFlow 的 `drag.isDragging` 由它派生——选中框只画在
+  // 被拖的那一枚上。不从 dnd-kit 的 `useDraggable().isDragging` 取：LeafFlow 是哑组件，拖拽态经 props 进。
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [capsuleExpanded, setCapsuleExpanded] = useState(false)
   // 标签页记忆：用户停留的页；切换单词后若该页已不可见则经 effectiveTab 兜底回退到 defaultTab
   const [activeTab, setActiveTab] = useState<TabKey | null>(null)
@@ -930,8 +945,10 @@ export default function WordWorkbench() {
   }
 
   // 拖拽重排（规格 §5.5）：仅同级；拖动中行缩放+阴影，目标处 2px 品牌色插入线
-  const handleDragStart = () => {
+  const handleDragStart = (event: DragStartEvent) => {
     setInsertIndicator(null)
+    // 记下被拖单位（v0.7.4 任务 12）：LeafFlow 据此给该单位画选中框。
+    setActiveDragId(String(event.active.id))
   }
 
   // 拖动行的中线：键盘拖动时没有指针，用它作落点兜底
@@ -960,10 +977,12 @@ export default function WordWorkbench() {
 
   const handleDragCancel = () => {
     setInsertIndicator(null)
+    setActiveDragId(null)
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
     setInsertIndicator(null)
+    setActiveDragId(null)
     const { active, over } = event
     if (!over) return
     const targetId = String(over.id).replace(/^drop-/, '')
@@ -1014,6 +1033,7 @@ export default function WordWorkbench() {
     editingId,
     editValue,
     insertIndicator,
+    activeDragId,
     addMenu,
     onStartEdit: handleStartEdit,
     onEditValueChange: setEditValue,
