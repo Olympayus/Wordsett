@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import type { FieldValue } from '../../types/field'
 import { formatPhonetic } from '../../lib/phonetic'
 import { fieldState, FIELD_STATE_BG } from '../../lib/fieldState'
+import { FIELD_LABEL_STYLE, BAND_LABEL_COLUMN, BAND_LABEL_GAP } from '../../lib/labelStyle'
 import Icon from '../icons'
 
 interface PhoneticAreaProps {
@@ -178,18 +179,16 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
       style={{
         display: 'flex',
         alignItems: stacked ? 'flex-start' : 'center',
-        gap: 10,
+        gap: BAND_LABEL_GAP,
         flexWrap: stacked ? 'nowrap' : 'wrap',
       }}
       onMouseEnter={() => setRowHover(true)}
       onMouseLeave={() => { setRowHover(false); setMenuOpenId(null); setChipHover(null) }}
     >
-      {/* 标签取设计稿 .frow .lb 的形式（62px 定宽列 / 11.5px / 常规字重 / 三级字色 / padding-top 2），
-          与返回页 WordTitleExtras 的 LABEL_COL、工作区的 bandRowLabel 同一列（评审 Minor M-1）。
-          非 stacked（音标）行整行居中，标签 paddingTop 归 0 才能与 chip 对齐，故按 stacked 分档。
-          行距 gap 取 10px（设计稿 .frow 的 gap，showcase-v2:158；返回页 WordTitleExtras 同值），
-          使两页头带字段行一致（评审：改前 8px，值列比返回页早 2px 起步）。 */}
-      <span style={{ width: '62px', flexShrink: 0, fontSize: '11.5px', color: 'var(--color-text-tertiary)', paddingTop: stacked ? 2 : 0 }}>
+      {/* 标签取「中文释义(n)」那一套字形（FIELD_LABEL_STYLE：粗体 / 一档小字 / 次级墨 / 字距 0.5px），
+          与返回页 WordTitleExtras 共用 labelStyle.ts 的列宽 44px 与行距 8px（v0.7.4 决定七 7.3）。
+          非 stacked（音标）行整行居中，标签 paddingTop 归 0 才能与 chip 对齐，故按 stacked 分档。 */}
+      <span style={{ ...FIELD_LABEL_STYLE, width: `${BAND_LABEL_COLUMN}px`, flexShrink: 0, paddingTop: stacked ? 2 : 0 }}>
         {label}
       </span>
 
