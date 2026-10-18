@@ -35,12 +35,6 @@ const iconBtn: CSSProperties = {
   border: 'none', background: 'transparent', borderRadius: 3, color: 'var(--color-text-tertiary)',
   cursor: 'pointer', padding: 0,
 }
-const addChip: CSSProperties = {
-  display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--color-text-tertiary)',
-  fontSize: 13, cursor: 'pointer', border: '1px dashed var(--color-border-strong)',
-  borderRadius: 9999, padding: '1px 8px', background: 'transparent',
-  fontFamily: 'var(--font-sans)',
-}
 
 export default function PhoneticArea(props: PhoneticAreaProps) {
   const {
@@ -51,8 +45,8 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
   const [chipHover, setChipHover] = useState<string | null>(null)
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
 
-  // 普通模式无内容 → 隐藏整区
-  if (!editorMode && values.length === 0) return null
+  // 无值时也渲染标签与行外壳（v0.7.4：普通模式原先 return null，编者模式下同一行会突然
+  // 长出来、把下方内容整体推下去；两态同高是本组件的前提）。值区为空。
 
   // 常驻占位 + opacity/visibility 显隐：避免 hover 出入 DOM 引起行重排/页面跳动。
   // visibility 与 WordWorkbench 的 reveal 一致（v0.5.2 修订）：chip 内的编辑/删除是真正的
@@ -163,12 +157,12 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
   }
 
   // 添加控件（v0.5.2 修订）：两种模式都改为 hover 现形（原先编者模式常显，只有普通模式是 hover）。
-  // 普通模式只给一个「+」图标按钮降噪，编者模式保留带语义标签的虚线 pill。
+  // v0.7.4 决定七 7.2：两模式同一枚 18px「＋」。编者模式那枚带字虚线 pill 与普通模式
+  // 的加号形状不同、宽度差一倍，「打开编者模式整体压缩」（草稿第 9 条）里有它一份。
   const addTitle = addLabel.replace(/^\+\s*/, '')
-  const addControl = editorMode ? (
-    <span style={{ ...addChip, ...reveal(rowHover) }} onClick={onAdd}>{addLabel}</span>
-  ) : (
-    <button type="button" title={addTitle} aria-label={addTitle} onClick={onAdd} style={{ ...iconBtn, ...reveal(rowHover) }}>
+  const addControl = (
+    <button type="button" title={addTitle} aria-label={addTitle} onClick={onAdd}
+      style={{ ...iconBtn, ...reveal(rowHover) }}>
       <Icon name="plus" size={12} />
     </button>
   )

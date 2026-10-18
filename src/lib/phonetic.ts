@@ -10,7 +10,7 @@ export function formatPhonetic(value: string): string {
 /**
  * 词根项选择（v0.5.2 §1）：把各 word_root 容器下的子项按容器顺序打平成一个列表。
  * 原实现在 WordWorkbench 内联为 flatMap + filter，抽出来便于单测与复用。
- * 保留规则：正在编辑的项、有值的项、或编者模式下全部项。
+ * 保留规则：正在编辑的项、有值的项、或编者模式下的容器整体（空容器编者模式下仍渲染行外壳）。
  */
 export function selectWordRootItems(
   containers: FieldValue[],
@@ -20,5 +20,5 @@ export function selectWordRootItems(
   return containers
     .filter(fv => fv.id === editingId || (fv.children?.length ?? 0) > 0 || editorMode)
     .flatMap(fv => fv.children ?? [])
-    .filter(item => item.id === editingId || item.value.trim() !== '' || editorMode)
+    .filter(item => item.id === editingId || item.value.trim() !== '')
 }

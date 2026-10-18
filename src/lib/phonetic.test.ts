@@ -24,11 +24,11 @@ describe('formatPhonetic 音标斜杠', () => {
     expect(out.map(v => v.id)).toEqual(['i1', 'i3'])
   })
 
-  it('selectWordRootItems：编者模式下空项也保留；正在编辑的空项保留', () => {
+  it('selectWordRootItems：空值项两态都不出现；正在编辑的空项保留', () => {
     const containers = [
       { id: 'c1', value: '', children: [{ id: 'i1', value: '' }, { id: 'i2', value: ' ' }] },
     ] as unknown as FieldValue[]
-    expect(selectWordRootItems(containers, null, true).map(v => v.id)).toEqual(['i1', 'i2'])
+    expect(selectWordRootItems(containers, null, true)).toEqual([])
     expect(selectWordRootItems(containers, 'i1', false).map(v => v.id)).toEqual(['i1'])
     expect(selectWordRootItems(containers, null, false)).toEqual([])
   })
