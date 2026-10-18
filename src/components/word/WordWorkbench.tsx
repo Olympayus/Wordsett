@@ -230,10 +230,12 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   // 表内键回落 'plain'（普通正文）。
   const form = leafForm(def.key)
   const state = fieldState(fv)
-  // 最近的可着色容器的聚合态（v0.7.4 决定九）：**有子级的行自己算**——释义不在
-  // CONTAINER_FIELD_KEYS 里，但它是分段的根，不自己聚合就没人给整段定色。
-  // 叶子行用父级给的 `barState`（父级即它最近的容器）；两者都缺席时退回自己的单位态。
-  const myBarState = hasChildren ? containerState(fv, inheritedUser) : undefined
+  // 释义（中/英）是**分段的根**：它永远自己聚合，不取父级（词性根容器）的颜色——否则一条
+  // 没有子级的干净释义会被同词性里**别的**释义的改动染成 edited，兄弟的任何脏都不该漏进来。
+  const isDefinition = def.key === 'chinese_definition' || def.key === 'english_definition'
+  // 最近的可着色容器的聚合态（v0.7.4 决定九）：释义（段根）与**有子级的行**都自己算；
+  // 只有真正的叶子行才用父级给的 `barState`（父级即它最近的容器），两者都缺席时退回自己的单位态。
+  const myBarState = hasChildren || isDefinition ? containerState(fv, inheritedUser) : undefined
   const selfBarState = myBarState ?? barState ?? unitState(fv, inheritedUser)
   // 来源色只在编者模式现形（与 rowSourceState 同一门控），词性窗格永不出条。
   // 走的是「这一行的色条该用什么态」而不是「这个节点自己是什么态」——决定九要求
