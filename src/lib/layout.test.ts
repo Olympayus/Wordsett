@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest'
-import { ENTRY_BAND_WIDTH, ENTRY_MEASURE, NAV_CONTROL_HEIGHT, NAV_HEIGHT } from './layout'
+import { readFileSync } from 'node:fs'
+import {
+  ENTRY_BAND_WIDTH,
+  ENTRY_MEASURE,
+  NAV_CONTROL_HEIGHT,
+  NAV_HEIGHT,
+  TAB_STRIP_PADDING,
+  TAB_ITEM_PADDING_X,
+  TAB_ITEM_PADDING_X_EDITOR,
+} from './layout'
 
 describe('词条页共享版式常量（v0.7.2）', () => {
   // 断言照旧严格（数值与符号都不松），改的只是它的**读法**：v0.7.2 修复 3 起两页的正文度量都取
@@ -13,5 +22,37 @@ describe('词条页共享版式常量（v0.7.2）', () => {
   it('导航条与控件高度成对（控件必须比条矮，否则条会撑着变高）', () => {
     expect(NAV_CONTROL_HEIGHT).toBeLessThan(NAV_HEIGHT)
     expect(NAV_HEIGHT).toBe(32)
+  })
+
+  // 页签条与页签的内边距先前是两页各自的裸字面量（工作区 '4px 24px 0' + '7px 20px' /
+  // '7px 26px 7px 20px'，返回页 '4px 0 0' + '7px 18px'），条面左缘与页签文字左缘都对不齐。
+  // 收进本文件后两页共用一份：条 24px 对齐内容列左缘，首个页签自身 14px，两页的页签文字都落在 38px。
+  it('页签条与页签的内边距只有一份出处（v0.7.3 尾段 §4.1）', () => {
+    expect(TAB_STRIP_PADDING).toBe('4px 24px 0')
+    expect(TAB_ITEM_PADDING_X).toBe('7px 14px')
+    expect(TAB_ITEM_PADDING_X_EDITOR).toBe('7px 26px 7px 14px')
+  })
+})
+
+// 「音标 → 词根」的距离 v0.7.3 尾段起在两页都是 ENTRY_BAND_FOOT_GAP（16）：工作区的词根行进
+// EntryBand 的 footLeft（与末行右簇并成一行，那行的上间距由头带给），返回页不传 bottomRight、
+// 末行合并对它不可见，故由 WordTitleExtras 自己给同一个值。两处**各写一份**迟早会漂（差 9px 就会
+// 看出两页不是同一套版式），故按本仓既有做法（WordWorkbench.test.ts 的源码形状守卫、
+// sidebar.test.ts 读 WordList.tsx 的常量引用）把「两页都引用这个常量」钉在源码形状上。
+//
+// 放在本文件而不是 WordWorkbench.test.ts：那条不变量的**值**住在 layout.ts，且它管的是「头带末行
+// 的间距只有一个出处」——与本文件其余断言同属「版式常量只有一份出处」这一类；WordWorkbench.test.ts
+// 的源码守卫管的是工作区**自己**的渲染形状（行尾簇 / leafForm / AddMenu），跨页共享常量的引用归这里。
+describe('两页的头带末行间距都取 ENTRY_BAND_FOOT_GAP（v0.7.3 尾段）', () => {
+  it('EntryBand（工作区词根行）与 WordTitleExtras（返回页词根行）都引用 ENTRY_BAND_FOOT_GAP', () => {
+    const band = readFileSync(new URL('../components/entry/EntryBand.tsx', import.meta.url), 'utf8')
+    const extras = readFileSync(new URL('../components/search/WordTitleExtras.tsx', import.meta.url), 'utf8')
+    // 正面：两个文件都必须**引用**这个常量（import 与 marginTop 两处都在）。
+    // 只查「注释里出现过」是不够的——实测过：把 import 与模板串都摘掉、只留注释时，
+    // 一条宽松的 toContain 是绿的；这里两处都查，那种回归才过不去。
+    for (const [name, src] of [['EntryBand', band], ['WordTitleExtras', extras]] as const) {
+      expect(src, `${name} 必须 import ENTRY_BAND_FOOT_GAP`).toMatch(/import\s*\{[^}]*ENTRY_BAND_FOOT_GAP[^}]*\}\s*from\s*'[^']*layout'/)
+      expect(src, `${name} 必须用 ENTRY_BAND_FOOT_GAP 给词根行上间距`).toMatch(/marginTop:\s*`\$\{ENTRY_BAND_FOOT_GAP\}px`/)
+    }
   })
 })

@@ -1178,7 +1178,9 @@ export default function WordWorkbench() {
           onDragEnd={handleDragEnd}
           onDragCancel={handleDragCancel}
         >
-          <div style={{ marginTop: '8px' }}>
+          {/* v0.7.3 尾段 §4.1：上间距 8 → 4。与返回页（SenseFlow 的 paddingTop 4 + 首个头的 4）合起来，
+              「页签条下缘 → 首个词性头」两页都是 12px（先前是 26 与 34）。 */}
+          <div style={{ marginTop: '4px' }}>
             {flowGroups.length > 0
               ? <SenseFlow groups={flowGroups} measure={ENTRY_BAND_WIDTH} />
               : (

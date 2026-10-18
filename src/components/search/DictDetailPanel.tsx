@@ -14,7 +14,7 @@ import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
 import { countAllDefinitions } from '../../lib/dictPlan'
-import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING } from '../../lib/layout'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, TAB_ITEM_PADDING_X, TAB_STRIP_PADDING } from '../../lib/layout'
 import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
 import type { DictionaryField } from '../../types/dictionary'
@@ -24,9 +24,10 @@ interface Props {
 }
 
 // 页签样式：凸起页签（圆角顶、白底、压住下面那道 2px 线），色值走 token（借 word/TabBar 的视觉）。
+// 内边距取 layout.ts 的 TAB_ITEM_PADDING_X（v0.7.3 尾段 §4.1 / D18），与工作区 TabBar 同一份出处。
 function tabStyle(active: boolean): CSSProperties {
   return {
-    position: 'relative', padding: '7px 18px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
+    position: 'relative', padding: TAB_ITEM_PADDING_X, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
     borderRadius: '8px 8px 0 0', zIndex: 1, border: 'none', fontFamily: 'var(--font-sans)',
     background: active ? 'var(--color-surface)' : 'transparent',
     color: active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
@@ -244,7 +245,13 @@ export default function DictDetailPanel({ word }: Props) {
             v0.7.2 修复 4 / 8：「共 N 条释义」计数移进「词典」页签内（页签右端、在页签的框里），
             「全部收起 / 全部展开」移到页签条最右端——与设计稿 .tabs 的 `.sp` + `.act`
             （showcase-v2:818-821：词典 / 语义网络 / 弹簧 / 全部收起）同序。 */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: '4px 0 0', background: 'var(--color-surface-sunken)', borderBottom: '2px solid var(--color-border-strong)', marginTop: 12, marginBottom: 16 }}>
+        {/* 内边距取 layout.ts 的 TAB_STRIP_PADDING（v0.7.3 尾段 §4.1 / D18）：条面 24px 对齐内容列左缘，
+            与工作区 TabBar 共用一份。
+            **marginTop 已删净（P13(a)）**：先前那条 marginTop:12 把「头带 → 页签条」推到 20px（头带自己的
+            8px 下内距 + 12），工作区同处是 22px（8 + 14）；删净后两页都只剩头带那 8px 下内距。
+            **marginBottom 16 → 4（本任务 Step 4）**：与 SenseFlow 的 paddingTop 4 + 首个词性头 4 合起来，
+            「页签条下缘 → 首个词性头」本页 12px（先前 34px），与工作区（外层 4 + 4 + 4）一致。 */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: TAB_STRIP_PADDING, background: 'var(--color-surface-sunken)', borderBottom: '2px solid var(--color-border-strong)', marginBottom: 4 }}>
           <button type="button" onClick={() => setTab('dict')} style={tabStyle(tab === 'dict')}
             onMouseEnter={tabHoverOn(tab === 'dict')} onMouseLeave={tabHoverOff(tab === 'dict')}>
             词典

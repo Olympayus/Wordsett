@@ -30,15 +30,18 @@ export interface SenseGroup {
  */
 export default function SenseFlow({ groups, measure = ENTRY_MEASURE }: { groups: SenseGroup[]; measure?: number }) {
   return (
-    <div style={{ maxWidth: `${measure}px`, paddingTop: '6px' }}>
+    <div style={{ maxWidth: `${measure}px`, paddingTop: '4px' }}>
       {groups.map((g, i) => (
         <div key={i}>
           {/* 组的 run-in 头：调用方给了 `head` 就用它（工作区的可交互头），否则画标准的
-              「词性缩写 + 计数 + 长横线」（返回页）。两分支的垂直间距一致。 */}
+              「词性缩写 + 计数 + 长横线」（返回页）。两分支的垂直间距一致。
+              首个头的上间距取 4（v0.7.3 尾段 §4.1）：与上方页签条下缘的 4 + 工作区那侧 4 合起来，
+              「页签条 → 首个词性头」两页都是 12px（先前是 26 与 34）。非首个头仍取 16——组间
+              要比组内松，这条不动。 */}
           {g.head !== undefined ? (
-            <div style={{ marginTop: i === 0 ? '12px' : '16px' }}>{g.head}</div>
+            <div style={{ marginTop: i === 0 ? '4px' : '16px' }}>{g.head}</div>
           ) : (
-            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', paddingLeft: '11px', marginTop: i === 0 ? '12px' : '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', paddingLeft: '11px', marginTop: i === 0 ? '4px' : '16px' }}>
               <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '16px', fontWeight: 600 }}>{g.pos}</span>
               {g.counts && <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{g.counts}</span>}
               <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />

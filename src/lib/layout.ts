@@ -56,3 +56,20 @@ export const ENTRY_PHONETIC_GAP = 24
  * 取 16 而不是沿用音标行的 24：末行右簇是 11.5px 小字，与上方 15px 音标行之间那 24px 的呼吸
  * 会让词根（13px 正文）读起来像脱离了音标、归属到右簇那一边。 */
 export const ENTRY_BAND_FOOT_GAP = 16
+
+/** 页签条（条面）的内边距（v0.7.3 尾段 §4.1）——**D18 的落点**。
+ *
+ * 左右 24px 与内容列左缘（`ENTRY_COLUMN_PADDING_X` 的 24px）是同一条线，故条面本身仍与正文左缘齐平。
+ * 两页（工作区 `TabBar` / 返回页 `DictDetailPanel`）共用这一份：改一处就是改两页。 */
+export const TAB_STRIP_PADDING = '4px 24px 0'
+
+/** 页签（单个页签）的内边距（v0.7.3 尾段 §4.1）。
+ *
+ * 首个页签自身 14px —— 条面的 24px 加这 14px，两页的页签文字都落在 38px 上。
+ * 左右对称（14/14），故 `padding` 与 `paddingX` 同值，只此一份。 */
+export const TAB_ITEM_PADDING_X = '7px 14px'
+
+/** 编者模式下页签的内边距（v0.7.3 尾段 §4.1）：右端多让 12px，给页签右缘那枚 ×（删标签页）留位置。
+ *
+ * 左端仍是 14px（与 `TAB_ITEM_PADDING_X` 同一出处），故两种模式下的页签文字左缘不会漂。 */
+export const TAB_ITEM_PADDING_X_EDITOR = '7px 26px 7px 14px'
