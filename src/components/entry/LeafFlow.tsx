@@ -85,10 +85,19 @@ const UNIT_SPAN: CSSProperties = {
   position: 'relative', minWidth: 0, fontSize: '15px', lineHeight: ROW_LINE_HEIGHT, color: 'var(--ink-2)',
 }
 
-// 手柄（v0.7.4 任务 12）：绝对定位在单位**左缘之外**（`right: 100%` + 2px 间距），宽 14px、
-// 上下贯穿单位。与行尾槽同一条论证：流外 → 出现 / 消失不改变单位宽度、不动折行点。
+// 手柄的流外 wrapper（v0.7.4 任务 12 修复）：覆盖单位左缘之外 `[-16, 0]`——按钮本体占 `[-16, -2]`，
+// 那 2px 间距也落在 wrapper 内。wrapper 是 span 的 **DOM 后代**（几何上在 span 盒外无妨）：鼠标离开
+// `mouseleave` 只按 DOM 层级判定，指针停在间距里时仍在 span 的子树内，故不会触发 span 的 `onMouseLeave`、
+// 手柄也就不会在指针抵达前被卸载（原先那 2px 谁都不属于，是悬停死区）。wrapper 全程流外、不占位。
+const UNIT_HANDLE_WRAPPER: CSSProperties = {
+  position: 'absolute', right: '100%', top: 0, bottom: 0, width: '16px',
+  display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pointerEvents: 'auto',
+}
+
+// 按钮本体：宽 14px + 右间距 2px，与原来的手柄逐字同宽同图标；只是从绝对定位改为 wrapper 的 flex 子项，
+// 好让那 2px 间距落进同一个 wrapper 里。
 const UNIT_HANDLE: CSSProperties = {
-  position: 'absolute', right: '100%', top: 0, bottom: 0, marginRight: '2px', width: '14px',
+  width: '14px', marginRight: '2px',
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
   cursor: 'grab', color: 'var(--color-text-tertiary)', touchAction: 'none',
@@ -161,19 +170,21 @@ function UnitItemDraggable({ id, it, drag }: { id: string; it: LeafFlowItem; dra
       }}
     >
       {ind && ind.overId === id && unitDropLine(ind.before)}
-      {/* 手柄只在悬停的那一刻现形——它是流外绝对定位元素，条件渲染安全（文件头已有的同款论证）。 */}
+      {/* 手柄只在悬停的那一刻现形——wrapper 是流外绝对定位元素，条件渲染安全（文件头已有的同款论证）。 */}
       {drag.hoveredId === id && (
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          {...listeners}
-          {...attributes}
-          title="拖动排序"
-          aria-label="拖动排序"
-          style={UNIT_HANDLE}
-        >
-          <Icon name="grip" size={10} />
-        </button>
+        <span style={UNIT_HANDLE_WRAPPER}>
+          <button
+            type="button"
+            ref={setActivatorNodeRef}
+            {...listeners}
+            {...attributes}
+            title="拖动排序"
+            aria-label="拖动排序"
+            style={UNIT_HANDLE}
+          >
+            <Icon name="grip" size={10} />
+          </button>
+        </span>
       )}
       {unitBody(it)}
     </span>
