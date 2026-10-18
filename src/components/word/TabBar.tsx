@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { TabKey } from '../../lib/tabs'
 import { TAB_GROUPS } from '../../lib/tabs'
-import { TAB_ITEM_PADDING_X, TAB_ITEM_PADDING_X_EDITOR, TAB_STRIP_PADDING } from '../../lib/layout'
+import { TAB_ITEM_PADDING_X, TAB_STRIP_PADDING } from '../../lib/layout'
 import ContextMenu from '../ui/ContextMenu'
 import Icon from '../icons'
 
@@ -52,7 +52,7 @@ export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, o
               onMouseEnter={e => { if (!active) { e.currentTarget.style.background = TAB_HOVER_BG; e.currentTarget.style.color = 'var(--color-text-primary)' } }}
               onMouseLeave={e => { if (!active) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' } }}
               style={{
-                position: 'relative', padding: editorMode ? TAB_ITEM_PADDING_X_EDITOR : TAB_ITEM_PADDING_X, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
+                position: 'relative', padding: TAB_ITEM_PADDING_X, fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
                 borderRadius: '8px 8px 0 0', zIndex: 1, border: 'none', fontFamily: 'var(--font-sans)',
                 background: active ? 'var(--color-surface)' : 'transparent',
                 color: active ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
@@ -69,8 +69,8 @@ export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, o
                 aria-label={`删除「${TAB_GROUPS[t].label}」标签页`}
                 onClick={() => onDeleteTab(t)}
                 style={{
-                  position: 'absolute', right: 6, top: 6, zIndex: 2,
-                  width: 15, height: 15, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  position: 'absolute', right: 1, top: 1, zIndex: 2,
+                  width: 12, height: 12, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
                   color: 'var(--color-text-tertiary)',
                   transition: 'color var(--duration-fast) var(--ease-smooth)',
@@ -78,7 +78,7 @@ export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, o
                 onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)' }}
                 onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
               >
-                <Icon name="close" size={12} />
+                <Icon name="close" size={10} />
               </button>
             )}
           </span>

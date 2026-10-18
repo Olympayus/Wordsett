@@ -70,10 +70,7 @@ export const TAB_STRIP_PADDING = '4px 24px 0'
 /** 页签（单个页签）的内边距（v0.7.3 尾段 §4.1）。
  *
  * 首个页签自身 14px —— 条面的 24px 加这 14px，两页的页签文字都落在 38px 上。
- * 左右对称（14/14），故 `padding` 与 `paddingX` 同值，只此一份。 */
-export const TAB_ITEM_PADDING_X = '7px 14px'
-
-/** 编者模式下页签的内边距（v0.7.3 尾段 §4.1）：右端多让 12px，给页签右缘那枚 ×（删标签页）留位置。
+ * 左右对称（14/14），故 `padding` 与 `paddingX` 同值，只此一份。
  *
- * 左端仍是 14px（与 `TAB_ITEM_PADDING_X` 同一出处），故两种模式下的页签文字左缘不会漂。 */
-export const TAB_ITEM_PADDING_X_EDITOR = '7px 26px 7px 14px'
+ * v0.7.4 决定七 7.1：编者模式曾用 '7px 26px 7px 14px' 给删页签的 × 预留 12px，每枚页签因此宽 12px、三枚整排 +36px，越过 900px 内容列后被压窄、条面长高、下方正文整体下移（用户报的「打开编者模式整体压缩、跳跃」）。× 改为落进本来就有的 14px 右内边距里，两态共用同一个值。 */
+export const TAB_ITEM_PADDING_X = '7px 14px'

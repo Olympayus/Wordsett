@@ -11,7 +11,6 @@ import {
   ROW_PADDING_Y,
   TAB_STRIP_PADDING,
   TAB_ITEM_PADDING_X,
-  TAB_ITEM_PADDING_X_EDITOR,
 } from './layout'
 
 describe('词条页共享版式常量（v0.7.2）', () => {
@@ -31,10 +30,10 @@ describe('词条页共享版式常量（v0.7.2）', () => {
   // 页签条与页签的内边距先前是两页各自的裸字面量（工作区 '4px 24px 0' + '7px 20px' /
   // '7px 26px 7px 20px'，返回页 '4px 0 0' + '7px 18px'），条面左缘与页签文字左缘都对不齐。
   // 收进本文件后两页共用一份：条 24px 对齐内容列左缘，首个页签自身 14px，两页的页签文字都落在 38px。
-  it('页签条与页签的内边距只有一份出处（v0.7.3 尾段 §4.1）', () => {
+  it('页签内边距两态同值（v0.7.4 决定七 7.1：编者模式不再为 × 多留 12px）', () => {
     expect(TAB_STRIP_PADDING).toBe('4px 24px 0')
     expect(TAB_ITEM_PADDING_X).toBe('7px 14px')
-    expect(TAB_ITEM_PADDING_X_EDITOR).toBe('7px 26px 7px 14px')
+    expect(readFileSync(new URL('./layout.ts', import.meta.url), 'utf8')).not.toMatch(/TAB_ITEM_PADDING_X_EDITOR/)
   })
 })
 
