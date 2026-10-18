@@ -34,13 +34,17 @@ import type { FieldState } from '../../lib/fieldState'
  * 回调，故其 DOM 与之前逐字相同）。`onLeave` 通常把 hover 交还容器行而不是清空，
  * 因为行的 `onMouseEnter` 在指针从行空白移到单位上时不会重发。
  */
-export default function LeafFlow({ items, state = 'none' }: {
+export default function LeafFlow({ items, state = 'none', first = true, last = true }: {
   items: { content: ReactNode; end?: ReactNode; onEnter?: () => void; onLeave?: () => void }[]
   state?: FieldState
+  /** 整块是否是其所属段的**首块**（v0.7.4 决定八）：多单位块按一行参与分段。 */
+  first?: boolean
+  /** 整块是否是其所属段的**末块**。 */
+  last?: boolean
 }) {
   return (
     <div style={{ position: 'relative', padding: `${ROW_PADDING_Y}px 0 ${ROW_PADDING_Y}px 11px` }}>
-      <SourceBar state={state} />
+      <SourceBar state={state} first={first} last={last} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 22px' }}>
         {items.map((it, i) => (
           <span key={i} onMouseEnter={it.onEnter} onMouseLeave={it.onLeave}

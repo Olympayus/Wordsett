@@ -42,11 +42,15 @@ import type { FieldState } from '../../lib/fieldState'
  * 「既在行内、又不进布局」的做法。故两态的 padding 逐字相同（`3px 0 3px 11px`），`focused` 只加
  * 三样不参与布局的东西：内阴影描边、圆角、底色。
  */
-export default function FlowRow({ no, children, end, state = 'none', focused = false }: {
+export default function FlowRow({ no, children, end, state = 'none', first = true, last = true, focused = false }: {
   no?: number | string
   children: ReactNode
   end?: ReactNode
   state?: FieldState
+  /** 本行是否是其所属段的**首行**（v0.7.4 决定八）：段首不向上延伸色条。默认 true = 独立成段。 */
+  first?: boolean
+  /** 本行是否是其所属段的**末行**：段末不向下延伸色条。默认 true = 独立成段。 */
+  last?: boolean
   /** 该行正在编辑或被拖动（v0.7.3 §7.3）：出选中框，**只在这一行**。 */
   focused?: boolean
 }) {
@@ -58,7 +62,7 @@ export default function FlowRow({ no, children, end, state = 'none', focused = f
             background: 'var(--color-brand-soft)' }
         : null),
     }}>
-      <SourceBar state={state} />
+      <SourceBar state={state} first={first} last={last} />
       {no !== undefined && (
         <span style={{ width: '18px', flex: 'none', fontSize: '12.5px', textAlign: 'right',
                        color: 'var(--color-text-tertiary)', fontVariantNumeric: 'tabular-nums', paddingTop: '2px' }}>

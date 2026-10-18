@@ -111,7 +111,7 @@ export default function EntryBand({ headword, speak = true, savedMark, headwordE
       {/* 末行（v0.7.3 尾段）：`footLeft`（字段行的最后一行，工作区是词根）与 `bottomRight`
           （顽固词 + 记忆强度）并成一行——放最后一行右端而不是头字行右端，因为它们带说明文字
           （「顽固词 · 连错 4 次」「记忆强度」），与分类 / 徽标挤在同一行会互相推位置。
-          上间距取 ENTRY_BAND_FOOT_GAP（16），由头带统一给，故 footLeft 那侧不持 marginTop。 */}
+          上间距取 ENTRY_BAND_FOOT_GAP（v0.7.4 起为 8），由头带统一给，故 footLeft 那侧不持 marginTop。 */}
       {footRow}
     </div>
   )

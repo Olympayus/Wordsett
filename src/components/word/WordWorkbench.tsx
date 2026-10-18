@@ -15,7 +15,7 @@ import { visibleTabs, defaultTab, missingTabs, groupRootsByTab, addableLeafKeys,
 import { hasFieldChanges } from '../../lib/fieldChanges'
 import { insertBefore, dropY, reorderSiblingIds } from '../../lib/dragReorder'
 import { selectWordRootItems } from '../../lib/phonetic'
-import { fieldState, type FieldState } from '../../lib/fieldState'
+import { fieldState, containerState, unitState, type FieldState } from '../../lib/fieldState'
 import { Button } from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
 import Tooltip from '../ui/Tooltip'
@@ -130,6 +130,23 @@ interface FieldCardProps extends FieldCardCtx {
    * 子行由组装配另作义项行。同一份拖拽 / hover / 编辑 / 菜单机制因此两种形态共用。
    */
   asGroupHead?: boolean
+  /**
+   * 这一行左缘色条该用什么来源态（v0.7.4 决定九：取**最近的可着色容器**的聚合态）。
+   * 由父级在映射子项时给；**有子级的行自行聚合、忽略它**（见 FieldCard 体内的 myBarState），
+   * 叶子行则用它——父级就是它最近的容器。缺席时退回 `unitState`。
+   */
+  barState?: Exclude<FieldState, 'none'>
+  /**
+   * 本行是否是其所属段的首行 / 末行（v0.7.4 决定八：段 = 一条释义的整棵子树）。
+   * 段首由父级标在释义行上；段末由「最后一个后代叶子」承载——父级在映射子项时，
+   * 只让末位子项收口（段首行的末位子项必定收口，见 FieldCard 体内的传递式），
+   * 其余子项一律 `false`。平铺标签页（行不在任何释义子树里）两值都给 `true`，
+   * 即每行独立成段。
+   */
+  barFirst?: boolean
+  barLast?: boolean
+  /** 本行是否嵌在用户自建的容器里（决定九的继承优先）：为真时整棵子树取「用户创建」色。 */
+  inheritedUser?: boolean
 }
 
 /**
@@ -178,7 +195,7 @@ function RowMenu({ items }: { items: MenuItem[] }) {
 // 单个字段行（v0.7.2 改用原语外壳）：grip 拖拽（仅 grip 激活拖拽）+ 同级插入指示线 + 行尾操作簇。
 // 旧代码里「卡片容器 + 左条 + 三态徽章 + 角落控件」的四层圆角嵌套，换成 FlowRow + SourceBar + RowActions。
 // v0.7.3：行尾那枚 6px 方点（SourceMark）整个退场，来源只剩左缘那根条（SourceBar，由 FlowRow / LeafFlow 渲染）。
-function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false, ...ctx }: FieldCardProps) {
+function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false, barState, barFirst = true, barLast = true, inheritedUser = false, ...ctx }: FieldCardProps) {
   const {
     defs, editorMode, editingId, editValue, insertIndicator, addMenu,
     onStartEdit, onEditValueChange, onSave, onCancelEdit, onDelete, onAddSibling,
@@ -213,8 +230,22 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   // 表内键回落 'plain'（普通正文）。
   const form = leafForm(def.key)
   const state = fieldState(fv)
-  // 来源三态取色（v0.7.2）：普通模式 / 词性窗格一律中性；只有编者模式下的非词性行才现形。
-  const rowState = rowSourceState(editorMode, isPosPane, fv)
+  // 最近的可着色容器的聚合态（v0.7.4 决定九）：**有子级的行自己算**——释义不在
+  // CONTAINER_FIELD_KEYS 里，但它是分段的根，不自己聚合就没人给整段定色。
+  // 叶子行用父级给的 `barState`（父级即它最近的容器）；两者都缺席时退回自己的单位态。
+  const myBarState = hasChildren ? containerState(fv, inheritedUser) : undefined
+  const selfBarState = myBarState ?? barState ?? unitState(fv, inheritedUser)
+  // 来源色只在编者模式现形（与 rowSourceState 同一门控），词性窗格永不出条。
+  // 走的是「这一行的色条该用什么态」而不是「这个节点自己是什么态」——决定九要求
+  // 整段/整容器同色，叶子行因此取最近容器的聚合态，而不是自己的 fieldState。
+  const gated = rowSourceState(editorMode, isPosPane, fv)
+  const rowState: FieldState = gated === 'none' ? 'none' : selfBarState
+  // 分段首末（决定八）：有子级的行自己的条不能在下面收口（它后面还有行），而是把
+  // 「末行」交给最后一个子项 / 整块 LeafFlow。平铺标签页父级同时给 first/last，
+  // 每行独立成段，子项也照此继承（perRowBar）。
+  const perRowBar = barFirst && barLast && hasChildren
+  const ownFirst = barFirst
+  const ownLast = hasChildren ? perRowBar : barLast
 
   const posChildren = fv.children ?? []
   const childKey = (c: FieldValue) => defs.find(d => d.id === c.fieldId)?.key ?? ''
@@ -334,11 +365,22 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   // 只换子项的渲染方式。
   const childCounters = { zh: 0, en: 0 }
   const leafFlow = isLeafFlow(def.key)
+  // 向下继承的「用户容器」标记：本行自己若是用户建的，整棵子树都取 personal（决定九）。
+  const childInheritedUser = inheritedUser || fv.source === 'user'
   const renderedChildren = hasChildren && !leafFlow
-    ? fv.children!.map(child => (
+    ? fv.children!.map((child, i) => (
         <FieldCard
           key={child.id} fv={child} depth={depth + 1} parentFv={fv}
           labelOverride={childLabelOverride(def.key, childKey(child), child, childCounters)}
+          // 父级即最近的容器：叶子子项用它着色；有子级的子项会自行聚合，忽略它。
+          barState={myBarState}
+          // 分段（决定八）：段首只在释义行上；末位子项接住本行的收口标记，其余一律不收。
+          // 段首行（释义）自己的条不能在下面收口，但它的最后一个后代必须收口——故
+          // 「本行是段首」也算作把 barLast 交下去；平铺标签页的 perRowBar 则让每个子项
+          // 都独立成段（都收口）。
+          barFirst={perRowBar}
+          barLast={perRowBar || (i === fv.children!.length - 1 && (barFirst || barLast))}
+          inheritedUser={childInheritedUser}
           {...ctx}
         />
       ))
@@ -537,6 +579,8 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           <FlowRow
             no={no}
             state={rowState}
+            first={ownFirst}
+            last={ownLast}
             focused={isFocused}
             end={
               <RowActions
@@ -589,6 +633,10 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           {leafFlow && (
             <LeafFlow
               state={rowState}
+              // 多单位块在分段里算「一行」：首末直接透传——段首/段末由块整体收口，
+              // 块前若还有容器行（first=false）则条向上接进那一行。
+              first={barFirst}
+              last={barLast}
               items={(fv.children ?? []).map(ch => ({
                 content: renderUnitContent(ch),
                 onEnter: () => onHover(ch.id),
@@ -960,7 +1008,7 @@ export default function WordWorkbench() {
   //    作义项行。这与返回页「每个顶层容器一个 run-in 头」的用法一致。
   //  · 平铺标签页：整体一个头（页签名），子项直接作义项行（与旧行为一致，根容器仍跳过）。
   // 每行连同其父节点一起带上——行尾「＋」要加到**本行所在容器**，叶子行的容器就是父节点。
-  const flatRows: { fv: FieldValue; parentFv: FieldValue | null; depth: number }[] = sortedTabValues
+  const flatRows: { fv: FieldValue; parentFv: FieldValue; depth: number }[] = sortedTabValues
     .flatMap(root => (root.children ?? []).map(child => ({ fv: child, parentFv: root, depth: isGroupTab ? 0 : 1 })))
   const flowGroups: SenseGroup[] = isFlatTab
     ? (flatRows.length > 0
@@ -970,6 +1018,12 @@ export default function WordWorkbench() {
             <FieldCard
               key={fv.id} fv={fv} depth={depth} parentFv={parentFv}
               labelOverride={rowTitle(keyOfFv(fv), fv.value, defs.find(d => d.id === fv.fieldId)?.name ?? '')}
+              // 平铺标签页的行走廊不在任何释义子树里（根容器只以页签名作 run-in 头、自己不出条），
+              // 故每行独立成段：first/last 都是 true，颜色取根容器的聚合态（决定九）。
+              barState={containerState(parentFv, false)}
+              barFirst
+              barLast
+              inheritedUser={parentFv.source === 'user'}
               {...cardCtx}
             />
           )) }]
@@ -977,12 +1031,25 @@ export default function WordWorkbench() {
     : sortedTabValues.map(root => {
         const counters = { zh: 0, en: 0 }
         const rootKey = keyOfFv(root)
+        // 主标签页的根容器是 run-in 头（自己不出条），它的直属子项由本处映射：
+        // 每一行最近的可着色容器就是根容器，故聚合态在根上算一次即可。
+        // 段只以**释义**为界：词性窗格的直属子项（中/英释义）各自开启一段，
+        // 其余根容器（补充）的直属子项维持一行一条。
+        const rootBarState = containerState(root, false)
+        const rootInheritedUser = root.source === 'user'
+        const segmented = rootKey === 'part_of_speech'
         return {
           head: <FieldCard key={root.id} fv={root} depth={0} parentFv={null} asGroupHead {...cardCtx} />,
           items: (root.children ?? []).map(child => (
             <FieldCard
               key={child.id} fv={child} depth={1} parentFv={root}
               labelOverride={childLabelOverride(rootKey, keyOfFv(child), child, counters)}
+              barState={rootBarState}
+              // 释义行（词性窗格的每个直属子项）是段首；它有子级时自己不能在下面收口，
+              // 末行交给最后一个后代叶子。无子级则单行成段（barLast 默认 true）。
+              barFirst
+              barLast={!(segmented && (child.children?.length ?? 0) > 0)}
+              inheritedUser={rootInheritedUser}
               {...cardCtx}
             />
           )),
@@ -1015,10 +1082,11 @@ export default function WordWorkbench() {
     </div>
   )
 
-  // 头带里的字段行（音标 / 词根）：与返回页同一形态。标签取设计稿 .frow .lb 的形式——
-  // 62px 定宽列 / 11.5px / 常规字重 / 三级字色 / padding-top 2，与返回页 WordTitleExtras 的
-  // LABEL_COL 逐项一致（评审 Minor M-1：两页曾一为 12px/700/次级、一为 11.5px/三级，看着不是一列）。
-  // 各行 gap 同为 10px（设计稿 .frow 的 gap），与返回页 WordTitleExtras 一致（评审：改前 8px）。
+  // 头带里的字段行（音标 / 词根）：与返回页同一形态。标签取 `lib/labelStyle.ts` 的
+  // FIELD_LABEL_STYLE——44px 定宽列 / 13px / 700 / 次级字色 / 0.5px 字距，与工作区正文的
+  // 「中文释义(n)」是同一套字形、也与返回页 WordTitleExtras 共用同一份常量（v0.7.4 决定七 7.3；
+  // 先前是 62px / 11.5px / 常规字重 / 三级字色，两页看着不是一列）。
+  // 各行 gap 同为 8px（BAND_LABEL_GAP），与返回页 WordTitleExtras 一致（v0.7.4 由 10 收到 8）。
   // （分类行 v0.7.3 起挪进头带行右端 rightCluster，不再是字段行。）
 
   // 记忆强度（v0.7.2 缺陷 1；v0.7.3 标签改由本页印）：「记忆强度」那枚标签现在由本文件下方的

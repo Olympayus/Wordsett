@@ -128,25 +128,26 @@ describe('工作区改用原语（源码级守卫）', () => {
 //
 // 例外白名单（逐条对应行号；这些比较问的是「显示设置映射 / 标签文字 / 窗格身份 / 增删可行性 /
 // 布局分流」，不问「渲染成什么形状」，故不在 leafForm 的辖区内）：
-//   WordWorkbench.tsx:142-147 childLabelOverride——按父/子键决定**标签文字**（「中文释义(n)」），渲染壳仍归 leafForm
-//   WordWorkbench.tsx:202,203,211 isPosPane / isGroupPane / isPhonetic——**窗格身份**，非渲染形状
-//   WordWorkbench.tsx:221,222 zhCount / enCount——数中/英条数给窗格头的计数
+//   WordWorkbench.tsx:160-165 childLabelOverride——按父/子键决定**标签文字**（「中文释义(n)」），渲染壳仍归 leafForm
+//   WordWorkbench.tsx:219,220,228 isPosPane / isGroupPane / isPhonetic——**窗格身份**，非渲染形状
+//   WordWorkbench.tsx:252,253 zhCount / enCount——数中/英条数给窗格头的计数
 // 行号是**当前 HEAD 的行号**：任何上方插入都会让本守卫失败，需连同 allow-list 一起改
 //（v0.7.3 尾段 §3.4 给 FieldCard 加 `unitMenuItems` 时就整体下移了 9 行；
 //  修补单位行内编辑时插入 `renderUnitContent` 又让下面那组下移 35 行；
-//  v0.7.4 Task 1 删掉 `childItems` 三行，这一组再下移 3 行）。
-//   WordWorkbench.tsx:769 空标签校验——**数据校验**，不是渲染分支
-//   WordWorkbench.tsx:778/782/825/838/1161 容器路由（CONTAINER_FIELD_KEYS / ALLOWED_CHILD_KEYS
+//  v0.7.4 Task 1 删掉 `childItems` 三行，这一组再下移 3 行；
+//  v0.7.4 Task 10 给 FieldCard 补色条分段入参，整组再下移 17 行）。
+//   WordWorkbench.tsx:768 空标签校验——**数据校验**，不是渲染分支
+//   WordWorkbench.tsx:817/826/830/873/886/1229 容器路由（CONTAINER_FIELD_KEYS / ALLOWED_CHILD_KEYS
 //     与 word_root / word_root_item / synonym_discrimination_group / part_of_speech / phonetic
 //     等键的判定）——**增删可行性**（能不能加、加在哪、加完要不要进编辑态），不是渲染
-//   WordWorkbench.tsx:1011 页级菜单「音标」——按 key 找定义再添加，**布局分流**
+//   WordWorkbench.tsx:1078 页级菜单「音标」——按 key 找定义再添加，**布局分流**
 //   DictDetailCard.tsx:83-84 keyAllowed——displayFields 可见性映射（只查「显不显示」，不问「长什么样」）
 //   DictDetailCard.tsx:94-97 filter——可见性过滤与空容器丢弃（95 的 phonetic 同理，只问显不显示）
 //   DictDetailCard.tsx:193 sourceMark——哪几枚行尾来源标
 //   DictDetailCard.tsx:248 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
 //   DictDetailCard.tsx:345 isPos——run-in 头形态
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [142, 143, 144, 147, 202, 203, 211, 221, 222, 769, 778, 782, 825, 838, 1011, 1161], '标签文字 / 窗格身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['WordWorkbench.tsx', [160, 161, 162, 165, 219, 220, 228, 252, 253, 768, 817, 826, 830, 873, 886, 1078, 1229], '标签文字 / 窗格身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
   ['DictDetailCard.tsx', [83, 84, 94, 95, 97, 193, 248, 345], '可见性映射与过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 
