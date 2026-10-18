@@ -115,3 +115,20 @@ describe('tokens.css 的深色块（v0.7.3）', () => {
     expect(darkValue('color-scheme')).toBe('dark')
   })
 })
+
+describe('来源两色的色值（v0.7.4 决定九：色相对调）', () => {
+  it('浅色：被编辑橙、用户创建蓝', () => {
+    expect(value('--color-weave-edited')).toBe('#C17A4E')
+    expect(value('--color-weave-personal')).toBe('#4A6FA5')
+  })
+
+  it('深色：同一对色相按深底取值', () => {
+    expect(darkValue('--color-weave-edited')).toBe('#D99667')
+    expect(darkValue('--color-weave-personal')).toBe('#7FA5DA')
+  })
+
+  it('对调只动这两色，中性 original 不变', () => {
+    expect(value('--color-weave-original')).toBe('#BAB4AA')
+    expect(darkValue('--color-weave-original')).toBe('#575757')
+  })
+})

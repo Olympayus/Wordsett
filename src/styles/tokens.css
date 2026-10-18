@@ -58,8 +58,10 @@
   /* v0.7.3：原始值这一态现在也要出条，旧值 #D9D4CE 压在内容面 #F9F8F5 上只有 1.39:1，
      等于看不见。改到 1.94:1——「看得见但退让」。该 token 此前零消费点，改值不影响任何现有画面。 */
   --color-weave-original: #BAB4AA;
-  --color-weave-edited: #4A6FA5;
-  --color-weave-personal: #C17A4E;
+  /* v0.7.4 决定九：色相对调——被编辑 = 橙、用户创建 = 蓝。用户按眼睛挑的，
+     与 v0.7.3 相反是有意的：橙在浅底上更「热」，更像「动过」。 */
+  --color-weave-edited: #C17A4E;
+  --color-weave-personal: #4A6FA5;
   --color-field-edited-badge: #7A7368;
   --color-field-personal-badge: #C17A4E;
 
@@ -208,8 +210,8 @@
   --color-hairline: rgba(255, 255, 255, 0.14);
 
   --color-weave-original: #575757;
-  --color-weave-edited: #7FA5DA;
-  --color-weave-personal: #D99667;
+  --color-weave-edited: #D99667;
+  --color-weave-personal: #7FA5DA;
   --color-field-edited-badge: #9A9A9A;
   --color-field-personal-badge: #D99667;
 
