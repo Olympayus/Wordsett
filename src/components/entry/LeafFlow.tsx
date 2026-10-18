@@ -89,9 +89,11 @@ const UNIT_SPAN: CSSProperties = {
 // 那 2px 间距也落在 wrapper 内。wrapper 是 span 的 **DOM 后代**（几何上在 span 盒外无妨）：鼠标离开
 // `mouseleave` 只按 DOM 层级判定，指针停在间距里时仍在 span 的子树内，故不会触发 span 的 `onMouseLeave`、
 // 手柄也就不会在指针抵达前被卸载（原先那 2px 谁都不属于，是悬停死区）。wrapper 全程流外、不占位。
+// **不写 `alignItems`**：默认 `stretch` 让按钮撑满整行高，命中区回到原来的纵向满高（写 `center`
+// 会把按钮压成图标内容高，等于把水平死区换成纵向死区）。
 const UNIT_HANDLE_WRAPPER: CSSProperties = {
   position: 'absolute', right: '100%', top: 0, bottom: 0, width: '16px',
-  display: 'flex', alignItems: 'center', justifyContent: 'flex-end', pointerEvents: 'auto',
+  display: 'flex', justifyContent: 'flex-end', pointerEvents: 'auto',
 }
 
 // 按钮本体：宽 14px + 右间距 2px，与原来的手柄逐字同宽同图标；只是从绝对定位改为 wrapper 的 flex 子项，
