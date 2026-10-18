@@ -47,8 +47,13 @@ describe('工作区改用原语（源码级守卫）', () => {
     expect(src).toMatch(/<RowActions\s+visible=/)
     // 反面：任何 `x && <RowActions` / `x ? <RowActions`（含改名后的变量、含括号）都不得出现——
     // 这是 v0.5.2 hover 折行抖动的回归形态。比只钉两个字面拼写（hovered / showsButtons）宽得多。
+    // 例外：LeafFlow 的 `end` 槽（`end: hoveredId === ch.id ? <RowActions …> : undefined`）是
+    // **绝对定位、不进排版流**的，条件渲染不会引起折行抖动（设计稿 §3.2 明确允许）。
+    // 故这里排除 `end:` 那一处，其余任何条件渲染形态仍视为回归。
     expect(src).not.toMatch(/&&\s*\(?\s*<RowActions/)
-    expect(src).not.toMatch(/\?\s*\(?\s*<RowActions/)
+    // 去掉 end: 那一处之后，不应再有 `? <RowActions` 形态
+    const withoutEndSlot = src.replace(/end:\s*hoveredId\s*===\s*ch\.id\s*\?\s*\(?\s*<RowActions/, '')
+    expect(withoutEndSlot).not.toMatch(/\?\s*\(?\s*<RowActions/)
   })
 
   it('旧的卡片左条与三态徽章已删净（FIELD_LEFT_COLOR / fieldPaneLeftBar）', () => {
@@ -86,6 +91,11 @@ describe('工作区改用原语（源码级守卫）', () => {
     const at = src.indexOf('end: hoveredId === ch.id')
     expect(at, '工作区要按单位挂行尾槽').toBeGreaterThan(-1)
     expect(src.slice(at, at + 400), '单位上不设 ＋').not.toMatch(/onAdd/)
+    // FIX 1.4：hover 必须由单位 span 上的 onEnter/onLeave 驱动（而不是条件 wrapper），
+    // 否则操作簇永远不出现。钉住这条接线，防止静默回归。
+    expect(leaf).toMatch(/onMouseEnter=\{it\.onEnter\}/)
+    expect(leaf).toMatch(/onMouseLeave=\{it\.onLeave\}/)
+    expect(src).toMatch(/onEnter: \(\) => onHover\(ch\.id\)/)
   })
 })
 
@@ -100,8 +110,8 @@ describe('工作区改用原语（源码级守卫）', () => {
 // 例外白名单（逐条对应行号；这些比较问的是「显示设置映射 / 标签文字 / 窗格身份 / 增删可行性 /
 // 布局分流」，不问「渲染成什么形状」，故不在 leafForm 的辖区内）：
 //   WordWorkbench.tsx:142-147 childLabelOverride——按父/子键决定**标签文字**（「中文释义(n)」），渲染壳仍归 leafForm
-//   WordWorkbench.tsx:200-209 isPosPane / isGroupPane / isPhonetic——**窗格身份**，非渲染形状
-//   WordWorkbench.tsx:219-220 zhCount / enCount——数中/英条数给窗格头的计数
+//   WordWorkbench.tsx:201,202,210 isPosPane / isGroupPane / isPhonetic——**窗格身份**，非渲染形状
+//   WordWorkbench.tsx:220,221 zhCount / enCount——数中/英条数给窗格头的计数
 // 行号是**当前 HEAD 的行号**：任何上方插入都会让本守卫失败，需连同 allow-list 一起改
 //（v0.7.3 尾段 §3.4 给 FieldCard 加 `unitMenuItems` 时就整体下移了 9 行）。
 //   WordWorkbench.tsx:733 空标签校验——**数据校验**，不是渲染分支
@@ -112,11 +122,11 @@ describe('工作区改用原语（源码级守卫）', () => {
 //   DictDetailCard.tsx:83-84 keyAllowed——displayFields 可见性映射（只查「显不显示」，不问「长什么样」）
 //   DictDetailCard.tsx:94-97 filter——可见性过滤与空容器丢弃（95 的 phonetic 同理，只问显不显示）
 //   DictDetailCard.tsx:193 sourceMark——哪几枚行尾来源标
-//   DictDetailCard.tsx:247 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
-//   DictDetailCard.tsx:346 isPos——run-in 头形态
+//   DictDetailCard.tsx:248 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
+//   DictDetailCard.tsx:347 isPos——run-in 头形态
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [142, 143, 144, 147, 201, 202, 210, 220, 221, 733, 742, 746, 789, 802, 975, 1125], '标签文字 / 窗格身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
-  ['DictDetailCard.tsx', [83, 84, 94, 95, 97, 193, 248, 347], '可见性映射与过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
+  ['WordWorkbench.tsx', [142, 143, 144, 147, 201, 202, 210, 220, 221, 737, 746, 750, 793, 806, 979, 1129], '标签文字 / 窗格身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['DictDetailCard.tsx', [83, 84, 94, 95, 97, 193, 248, 348], '可见性映射与过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 
 // 取出文件里全部「某字段键 ===/' !== '某键字面量'」的行（命中 .key 直比与 childKey(…) 等值两类）

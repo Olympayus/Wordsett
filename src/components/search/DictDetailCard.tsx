@@ -287,7 +287,8 @@ export default function DictDetailCard({
       const checkboxLabel = isDefinition && no !== undefined ? `${label}(${no})` : (label || node.field.value || node.field.key)
       const collapsed = isContainer && collapsedKeys.has(node.key)
       // v0.7.3 §5.4：容器下的子项若全是短叶子（近义词 / 词源相关词 / 词形变化…），
-      // 不再逐个递归成一行一条，改由 LeafFlow 排成流式多列。判据只看子项形状（不看 key）。
+      // 不再逐个递归成一行一条，改由 LeafFlow 排成流式多列。判据先看容器 key（经 childKind
+      // 定档），再看子项形状（全部是叶子且每条 ≤ 40 字符）。
       // 每项包成 `{ content: renderContent(c) }`，保住 `标签: 值` 的拆写；**不传 `end`**——
       // 返回页没有编者模式，单位行尾槽在这里无处可挂，DOM 因此与本轮之前逐字相同。
       const leafFlow = isContainer && isLeafFlow(

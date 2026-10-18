@@ -294,8 +294,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   // 两档都收成 marginTop:0，由 FlowRow 的悬挂缩进统一表达层级）。
   //
   // v0.7.3 §5.4：若全部子项都是短叶子（近义词 / 词源相关词 / 派生词 / 补充 / 词形变化），
-  // 逐个 FieldCard 的「一行一条」改成 LeafFlow 的流式多列。判据只看子项形状（不看 key），
-  // 故用户自建的同类字段一样命中。容器自身的行**原样不动**，只换子项的渲染方式。
+  // 逐个 FieldCard 的「一行一条」改成 LeafFlow 的流式多列。判据先看容器 key（经 childKind
+  // 定档：例句容器恒 false、列举容器单条也成列、其余走形状门槛），再看子项形状
+  //（全部是叶子且每条 ≤ 40 字符）。容器自身的行**原样不动**，只换子项的渲染方式。
   const childCounters = { zh: 0, en: 0 }
   const childItems = hasChildren
     ? (fv.children ?? []).map(ch => ({ value: ch.value, childCount: (ch.children ?? []).length }))
@@ -549,21 +550,24 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               且按钮本身也是 22px（NAV_CONTROL_HEIGHT），一格一枚正好合上。
               编者模式**不传 onAdd**（D17）：单位上不设 ＋，往容器里加一项的入口是「近义词」容器行的 ＋。
               指针交互：`onMouseLeave` 交还**本行**的 id 而不是 `null`——指针从行的空白移到单位上时
-              行自己的 `onMouseEnter` 不会重发，置 `null` 会让整行的 ⋯ 在指针仍在行内时消失。 */}
+              行自己的 `onMouseEnter` 不会重发，置 `null` 会让整行的 ⋯ 在指针仍在行内时消失。
+              hover 由单位 span 上的 `onMouseEnter` / `onMouseLeave` 驱动（LeafFlow 的
+              `onEnter` / `onLeave`）——这两个 handler 挂在**无条件渲染**的单位 span 上，
+              而不是像之前挂在条件渲染的 wrapper 上（那样永远无法触发）。 */}
           {leafFlow && (
             <LeafFlow
               state={rowState}
               items={(fv.children ?? []).map(ch => ({
                 content: ch.value,
+                onEnter: () => onHover(ch.id),
+                onLeave: () => onHover(fv.id),
                 end: hoveredId === ch.id ? (
-                  <span onMouseEnter={() => onHover(ch.id)} onMouseLeave={() => onHover(fv.id)}>
-                    <RowActions
-                      visible
-                      mode={editorMode ? 'edit' : 'view'}
-                      onDelete={() => onDelete(ch)}
-                      menu={<RowMenu items={unitMenuItems(ch)} />}
-                    />
-                  </span>
+                  <RowActions
+                    visible
+                    mode={editorMode ? 'edit' : 'view'}
+                    onDelete={() => onDelete(ch)}
+                    menu={<RowMenu items={unitMenuItems(ch)} />}
+                  />
                 ) : undefined,
               }))}
             />

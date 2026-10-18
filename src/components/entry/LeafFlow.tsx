@@ -23,9 +23,18 @@ import type { FieldState } from '../../lib/fieldState'
  * （近义词 → `⋯` 编辑 / 删除），绝对定位在本单位右缘之外那 22px 里。**必须绝对定位**——
  * 它一进排版流，悬停那一刻该单位就变宽、后继的词重新折行（与 v0.5.2 修过的行尾簇抖动同一个坑）。
  * 22px 正好等于栏距（`gap: '6px 22px'`），且按钮本身也是 22px（`NAV_CONTROL_HEIGHT`），一格一枚正好合上。
+ *
+ * `end` 是**条件渲染**的（有指针悬停的那一枚才非空），这在行尾槽里是安全的：该槽
+ * `position: absolute`、完全不进排版流，无论出现还是消失都不会让任何东西重新折行
+ * （与行尾操作簇「必须常驻占位、只用 opacity 显隐」的约束不冲突——那一条针对的是
+ * **在流内**的控件；这里是流外的）。
+ *
+ * 单位悬停由 `items` 上的 `onEnter` / `onLeave` 回调驱动（缺省不传——返回页不传这两个
+ * 回调，故其 DOM 与之前逐字相同）。`onLeave` 通常把 hover 交还容器行而不是清空，
+ * 因为行的 `onMouseEnter` 在指针从行空白移到单位上时不会重发。
  */
 export default function LeafFlow({ items, state = 'none' }: {
-  items: { content: ReactNode; end?: ReactNode }[]
+  items: { content: ReactNode; end?: ReactNode; onEnter?: () => void; onLeave?: () => void }[]
   state?: FieldState
 }) {
   return (
@@ -33,7 +42,8 @@ export default function LeafFlow({ items, state = 'none' }: {
       <SourceBar state={state} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 22px' }}>
         {items.map((it, i) => (
-          <span key={i} style={{ position: 'relative', fontSize: '15px', lineHeight: 1.75, color: 'var(--ink-2)' }}>
+          <span key={i} onMouseEnter={it.onEnter} onMouseLeave={it.onLeave}
+            style={{ position: 'relative', minWidth: 0, fontSize: '15px', lineHeight: 1.75, color: 'var(--ink-2)' }}>
             <span style={{ color: 'var(--ink-3)', marginRight: '5px' }} aria-hidden>·</span>
             {it.content}
             {it.end && (
