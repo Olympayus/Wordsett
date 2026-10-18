@@ -458,6 +458,18 @@ describe('reviewService 的每词顺延（v0.7.3：内容闸门前移）', () =>
     expect(queue).toEqual([])
   })
 
+  it('内容取不到（loadContent → null）时整词跳过，不出题也不报错', async () => {
+    // getWordContent 返回 null（词不存在）→ loadContent 吞掉异常或空结果 → pickServable
+    // 的 `if (!content) continue` 把该词整体跳过。这条路径是「词从队列里消失」的另一个
+    // 出口（区别于 cardPresentable 过不了闸门），此前没有测试覆盖。
+    getCandidatesMock.mockResolvedValue({ ok: true, data: [
+      candidate({ cardId: 'c1', wordId: 'w1', template: 'recall' }),
+    ] })
+    getWordContentMock.mockResolvedValue(null)
+    const { queue } = await getQueue('today', REVIEW_DEFAULTS)
+    expect(queue).toEqual([])
+  })
+
   it('顺延不会让同一个词在一轮里出两张（used 跨轮组装生效）', async () => {
     getCandidatesMock.mockResolvedValue({ ok: true, data: [
       candidate({ cardId: 'c1', wordId: 'w1', template: 'cloze' }),

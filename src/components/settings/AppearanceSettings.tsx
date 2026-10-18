@@ -12,8 +12,8 @@ export default function AppearanceSettings() {
   const setTheme = useSettingsStore(s => s.setTheme)
   return (
     <div>
-      <h3 style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semibold)', margin: 0 }}>外观</h3>
-      <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+      <h3 id="appearance-heading" style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semibold)', margin: 0 }}>外观</h3>
+      <div role="radiogroup" aria-labelledby="appearance-heading" style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
         {OPTIONS.map(o => {
           const on = o.value === theme
           return (
@@ -26,7 +26,7 @@ export default function AppearanceSettings() {
               style={{
                 flex: 1, textAlign: 'left', cursor: 'pointer',
                 padding: '10px 12px', borderRadius: 'var(--radius-lg)',
-                border: `1px solid ${on ? 'color-mix(in srgb, var(--color-brand) 35%, transparent)' : 'var(--color-border)'}`,
+                border: `2px solid ${on ? 'color-mix(in srgb, var(--color-brand) 35%, white)' : 'var(--color-border-strong)'}`,
                 background: on ? 'var(--color-brand-soft)' : 'var(--color-surface-sunken)',
                 color: 'var(--color-text-primary)',
                 fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)',

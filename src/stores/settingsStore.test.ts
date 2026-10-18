@@ -64,6 +64,18 @@ describe('settingsStore（规格 §7）', () => {
     expect(s.displayFields.derivatives).toBe(true)
     expect('etymology' in s.displayFields).toBe(false)
   })
+
+  it('theme 迁移：旧存档无 theme 键时 rehydrate 后取默认值 system', async () => {
+    // 这是「migrate 挂进 persist」唯一可观察的路径（version 1 ≠ 10 → migrate 必跑）。
+    // 若 migrate 被摘掉、或 version 回退成 1，本条都会红（缺键的存档经默认 merge 后
+    // theme 是 undefined，而不是 'system'）。
+    localStorage.setItem('wordsett-settings', JSON.stringify({
+      state: { sidebarMode: 'category' },
+      version: 1,
+    }))
+    await useSettingsStore.persist.rehydrate()
+    expect(useSettingsStore.getState().theme).toBe('system')
+  })
 })
 
 const TITLE_KEYS: TitleInfoKey[] = ['showBadges', 'showPhonetic', 'showWordRoot', 'showCollinsStars', 'showDomainCategory', 'showDomainRegion', 'showDomainUsage']
