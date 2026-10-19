@@ -13,6 +13,7 @@ import WordListItem from '../word/WordListItem'
 import ContextMenu, { type MenuItem } from '../ui/ContextMenu'
 import CategoryPickerPopover from '../ui/CategoryPickerPopover'
 import { vocabularySearch } from '../../lib/search'
+import { moveActionLabel, moveBatchConfirmRequest, moveConfirmRequest, moveTarget } from '../../lib/archiveMove'
 import { groupByLetter, groupByCategory, SIDEBAR_ROW_HEIGHT, SIDEBAR_ROW_HEIGHT_COLLAPSED, type SidebarMode } from '../../lib/sidebar'
 import { rangeSelect, selectAll, pruneToRows, selectedWordIdsFromRows } from '../../lib/selection'
 import { SMART_VIEW_ORDER, filterBySmartView, sidebarViews, smartViewCount } from '../../lib/smartViews'
@@ -64,7 +65,7 @@ export default function WordList({
   mode: SidebarMode
   onToggleMode: () => void
 }) {
-  const { words, selectedWordId, selectWord, location } = useWordStore()
+  const { words, selectedWordId, selectWord, location, moveToArchive, moveToWorkspace } = useWordStore()
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchorKey, setAnchorKey] = useState<string | null>(null)
@@ -151,6 +152,17 @@ export default function WordList({
           ...cats.map(c => ({ key: `rm-${c.id}`, label: c.name, onSelect: () => { void removeFromWord(word.id, c.id) } })),
           { key: 'more', label: '更多…', onSelect: () => openAssign(word.id) },
         ],
+      },
+      {
+        // 移入 / 移回（v0.7.5 Task 11）：位置只影响侧栏模块与复习可见性（Task 12 负责
+        // 复习侧的计算），故确认框说清楚去向，但不提「删除」。
+        key: 'move', label: moveActionLabel(location),
+        onSelect: async () => {
+          const to = moveTarget(location)
+          if (!(await useUiStore.getState().confirm(moveConfirmRequest(to, word.lemma)))) return
+          if (to === 'archive') await moveToArchive(word.id)
+          else await moveToWorkspace(word.id)
+        },
       },
       {
         key: 'delete', label: '删除单词', danger: true,
@@ -252,6 +264,25 @@ export default function WordList({
     if (!ok) return
     await deleteWords(ids)
     exitSelect()
+  }
+
+  // 批量移入 / 移回（v0.7.5 Task 11）：确认框与行菜单、导航条同一套解释（lib/archiveMove）。
+  // 逐个 id 走 store 的单条动作（每次都会重载当前模块并刷新索引/计数）；无论写入是否全部成功，
+  // 都退出选择模式——移动后这些行已经从当前模块消失，留着批量条没有意义。
+  const runBatchMove = async () => {
+    const ids = selectedWordIds
+    if (ids.length === 0) return
+    const to = moveTarget(location)
+    const ok = await useUiStore.getState().confirm(moveBatchConfirmRequest(to, ids.length))
+    if (!ok) return
+    try {
+      for (const id of ids) {
+        if (to === 'archive') await moveToArchive(id)
+        else await moveToWorkspace(id)
+      }
+    } finally {
+      exitSelect()
+    }
   }
 
   // 归类两动作都走 try/finally：写入失败时也要退出选择模式。
@@ -481,20 +512,20 @@ export default function WordList({
       </div>
       {/* 批量操作条（v0.6.5 §4.2）：排在该 flex 列的末尾、footer 之上，是**在流内**的一节
           （不是浮层）——它占掉自己的高度，剩下的给上面的滚动容器，因此不会遮挡 footer。
-          三个动作，前两个共用分类下拉浮层。
-          收起态（最窄 120px）下三个中文标签放不下，换成图标按钮 + tooltip + aria-label——
-          这是本次唯一一处「按宽度换形态」。
-          **一行不肯换行的算法**（v0.6.5 修订）：收起态三颗图标钮 24px + 两道 spacing 各 8px
-          = 88px，恰好装进「侧栏 120 − 两侧 margin 16 − 容器 padding 16 = 88」。原来那版
-          flexWrap: wrap + 每颗 28px 宽（内边距 0 8px）算下来是 92px，超 4px 就折行——
-          折行后三颗挤在左上角，既不是一行也不对称。现在 nowrap + space-between：
-          两端贴边、中间那颗因两侧留白相等而落在正中（三颗等宽时这是恒等式，不是巧合）。
+          四个动作（v0.7.5 Task 11 加入「移入储藏库 / 移回工作台」），前两个共用分类下拉浮层。
+          展开态四条中文标签排不成一行（300px 侧栏净宽 268px，实算约 350px），故用两列网格：
+          加入分类 / 从分类移除一行，移入·移回 / 删除一行，每颗各占半行、标签不截。
+          收起态（最窄 132px）换成图标按钮 + tooltip + aria-label：每颗内边距 0 3px → 20px，
+          4×20 + 三道 gap 4px = 92px，装进「132 − 两侧 margin 16 − 容器 padding 16 − 描边 2 = 98」，
+          仍是一行、不折行（v0.7.5 由三颗扩到四颗，24px 的旧算法放不下）。
           浮层传 placement="top"：本条贴侧栏底部，向下会撞上 footer。 */}
       {selectMode && selectedWordIds.length > 0 && (
         <div style={{ margin: '6px 8px 8px' }}>
           <div ref={batchAnchorRef} style={{
-            display: 'flex', alignItems: 'center', gap: '4px',
-            flexWrap: 'nowrap', justifyContent: 'space-between',
+            display: collapsed ? 'flex' : 'grid',
+            gridTemplateColumns: collapsed ? undefined : '1fr 1fr',
+            alignItems: 'center', gap: '4px',
+            justifyContent: collapsed ? 'space-between' : undefined,
             padding: '8px', background: 'var(--color-surface)',
             border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
           }}>
@@ -502,6 +533,7 @@ export default function WordList({
               onClick={() => setBatchPopover(batchPopover === 'add' ? null : 'add')} />
             <BatchChip label="从分类移除" icon="minus" collapsed={collapsed}
               onClick={() => setBatchPopover(batchPopover === 'remove' ? null : 'remove')} />
+            <BatchChip label={moveActionLabel(location)} icon="box" collapsed={collapsed} onClick={() => { void runBatchMove() }} />
             <BatchChip label="删除" icon="trash" danger collapsed={collapsed} onClick={() => { void runBatchDelete() }} />
           </div>
           {batchPopover === 'add' && (
@@ -527,9 +559,9 @@ export default function WordList({
 }
 
 /** 批量条上的一颗动作。收起态只留图标，标签进 title 与 aria-label。
- *  收起态内边距 6px（而非展开态的 10px）：三颗图标钮因此各 24px 宽，连同两道间距
- *  恰好是 88px，装进最窄侧栏（120px）那一行的净宽——这是「永不折行」成立的前提，
- *  改这个数前先看批量条那处的算式。 */
+ *  收起态内边距 3px（而非展开态的 10px）：四颗图标钮各 20px 宽（12 图标 + 6 内边距 + 2 描边），
+ *  连同三道 4px 间距是 92px，装进最窄侧栏 132px 那一行的净宽 98px——「永不折行」的前提，
+ *  改这个数前先看批量条那处的算式。展开态是两列网格的子项：撑满半行、内容居中。 */
 function BatchChip({ label, icon, danger, collapsed, onClick }: {
   label: string
   icon: IconName
@@ -544,8 +576,9 @@ function BatchChip({ label, icon, danger, collapsed, onClick }: {
       aria-label={label}
       onClick={onClick}
       style={{
-        display: 'inline-flex', alignItems: 'center', gap: '5px',
-        height: '28px', padding: collapsed ? '0 6px' : '0 10px',
+        display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '5px',
+        height: '28px', padding: collapsed ? '0 3px' : '0 10px',
+        width: collapsed ? undefined : '100%',
         border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
         background: 'var(--color-surface-raised)', cursor: 'pointer',
         color: danger ? 'var(--color-danger)' : 'var(--color-text-primary)',

@@ -7,6 +7,7 @@ vi.mock('../services/wordService', () => ({
   addWord: vi.fn(),
   mergeFields: vi.fn(),
   deleteWord: vi.fn(),
+  setWordLocation: vi.fn(),
 }))
 vi.mock('../services/fieldService', () => ({
   getValues: vi.fn(),
@@ -125,6 +126,94 @@ describe('wordStore.libraryIndex / counts（v0.7.5 Task 9：两个模块的词�
     expect(s.words.map(w => w.id)).toEqual(['w2'])
     expect(s.libraryLocationOf('forsake')).toBe('archive')
     expect(s.counts).toEqual({ total: 2, workspace: 1, archive: 1 })
+  })
+})
+
+describe('wordStore.moveToArchive / moveToWorkspace（v0.7.5 Task 11：移入 / 移回）', () => {
+  const abandon = { id: 'w1', lemma: 'abandon', normalizedLemma: 'abandon', language: 'en', location: 'workspace' as const, createdAt: 1, updatedAt: 1 }
+  const forsake = { id: 'w2', lemma: 'forsake', normalizedLemma: 'forsake', language: 'en', location: 'archive' as const, createdAt: 1, updatedAt: 1 }
+  const keep = { id: 'w3', lemma: 'keep', normalizedLemma: 'keep', language: 'en', location: 'workspace' as const, createdAt: 1, updatedAt: 1 }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useWordStore.setState({
+      words: [],
+      fieldValues: [],
+      selectedWordId: null,
+      location: 'workspace',
+      libraryIndex: new Map(),
+      counts: { total: 0, workspace: 0, archive: 0 },
+    })
+    vi.mocked(wordService.setWordLocation).mockResolvedValue(true)
+    vi.mocked(wordService.getPreviews).mockResolvedValue([])
+    vi.mocked(wordService.getLemmaLocations).mockResolvedValue([])
+    vi.mocked(wordService.getLocationCounts).mockResolvedValue({ total: 0, workspace: 0, archive: 0 })
+  })
+
+  it('移入储藏库：落库、当前词表里消失、清空选中、索引与计数更新', async () => {
+    useWordStore.setState({ words: [abandon, keep], selectedWordId: 'w1', fieldValues: [{ id: 'fv1' } as never] })
+    // 移动后的世界：工作区只剩 keep，索引把 abandon 记为储藏库。
+    vi.mocked(wordService.getPreviews).mockImplementation(async location =>
+      location === 'workspace' ? [keep] : [abandon])
+    vi.mocked(wordService.getLemmaLocations).mockResolvedValue([
+      { normalizedLemma: 'abandon', location: 'archive' },
+      { normalizedLemma: 'keep', location: 'workspace' },
+    ])
+    vi.mocked(wordService.getLocationCounts).mockResolvedValue({ total: 2, workspace: 1, archive: 1 })
+
+    await useWordStore.getState().moveToArchive('w1')
+
+    expect(wordService.setWordLocation).toHaveBeenCalledWith('w1', 'archive')
+    const s = useWordStore.getState()
+    expect(s.words.map(w => w.id)).toEqual(['w3'])          // 立刻离开当前模块词表
+    expect(s.selectedWordId).toBeNull()                      // 移的正是选中词
+    expect(s.fieldValues).toEqual([])
+    expect(s.libraryLocationOf('abandon')).toBe('archive')   // 索引按全库重建
+    expect(s.counts).toEqual({ total: 2, workspace: 1, archive: 1 })
+    expect(wordService.getPreviews).toHaveBeenLastCalledWith('workspace')  // 重载的是当前模块
+  })
+
+  it('移入非选中词：选中项与字段不动', async () => {
+    useWordStore.setState({ words: [abandon, keep], selectedWordId: 'w1', fieldValues: [{ id: 'fv1' } as never] })
+    vi.mocked(wordService.getPreviews).mockResolvedValue([abandon])
+
+    await useWordStore.getState().moveToArchive('w3')
+
+    expect(wordService.setWordLocation).toHaveBeenCalledWith('w3', 'archive')
+    const s = useWordStore.getState()
+    expect(s.words.map(w => w.id)).toEqual(['w1'])
+    expect(s.selectedWordId).toBe('w1')
+    expect(s.fieldValues).toEqual([{ id: 'fv1' }])
+  })
+
+  it('移回工作台：在储藏库模块里执行，词表与索引按当前模块刷新', async () => {
+    useWordStore.setState({ location: 'archive', words: [forsake], selectedWordId: 'w2' })
+    vi.mocked(wordService.getPreviews).mockImplementation(async location =>
+      location === 'archive' ? [] : [forsake])
+    vi.mocked(wordService.getLemmaLocations).mockResolvedValue([
+      { normalizedLemma: 'forsake', location: 'workspace' },
+    ])
+    vi.mocked(wordService.getLocationCounts).mockResolvedValue({ total: 1, workspace: 1, archive: 0 })
+
+    await useWordStore.getState().moveToWorkspace('w2')
+
+    expect(wordService.setWordLocation).toHaveBeenCalledWith('w2', 'workspace')
+    const s = useWordStore.getState()
+    expect(s.words).toEqual([])
+    expect(s.selectedWordId).toBeNull()
+    expect(s.libraryLocationOf('forsake')).toBe('workspace')
+    expect(s.counts).toEqual({ total: 1, workspace: 1, archive: 0 })
+    expect(wordService.getPreviews).toHaveBeenLastCalledWith('archive')
+  })
+
+  it('位置写入失败：不重载、不清选中', async () => {
+    useWordStore.setState({ words: [abandon], selectedWordId: 'w1' })
+    vi.mocked(wordService.setWordLocation).mockResolvedValue(false)
+
+    await useWordStore.getState().moveToArchive('w1')
+
+    expect(wordService.getPreviews).not.toHaveBeenCalled()
+    expect(useWordStore.getState().selectedWordId).toBe('w1')
   })
 })
 

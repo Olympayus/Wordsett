@@ -29,6 +29,10 @@ interface WordStore {
   loadWords: () => Promise<void>
   /** 切模块：设置 `location`、清空选中，再按新模块加载词表（索引与计数随 `loadWords` 刷新）。 */
   setLocation: (location: WordLocation) => Promise<void>
+  /** 移入储藏库（v0.7.5 Task 11）：只改位置、清选中、重载当前模块；复习卡与历史不动。 */
+  moveToArchive: (id: string) => Promise<void>
+  /** 移回工作台（v0.7.5 Task 11）：同上，方向相反。 */
+  moveToWorkspace: (id: string) => Promise<void>
   /** 重建词库索引与三档计数（`loadWords` 内顺带调；移入/移出后再调）。 */
   reloadLibraryIndex: () => Promise<void>
   /** 目标词所在模块；不在库返回 null。 */
@@ -43,6 +47,25 @@ interface WordStore {
   mergeWordFields: (wordId: string, fields: MergeFieldInput[]) => Promise<boolean>
   deleteWord: (id: string) => Promise<void>
   deleteWords: (ids: string[]) => Promise<void>
+}
+
+/**
+ * 移入 / 移回的唯一实现（v0.7.5 Task 11）：只改位置，**复习卡与历史一律不动**
+ * （Task 12 负责让它们不参与计算；删词才级联删）。
+ * 成功后若移的正是当前选中词，回到空态——工作区不会停在一个已经离开本模块的词上。
+ * 随后 `loadWords` 重载**当前模块**词表，并顺带重建索引与三档计数（`reloadLibraryIndex`）。
+ * 确认框由调用点弹（菜单 / 批量条 / 导航条），store 不做 UI。
+ */
+async function moveWord(
+  get: () => WordStore,
+  set: (partial: Pick<WordStore, 'selectedWordId' | 'fieldValues'>) => void,
+  id: string,
+  to: WordLocation,
+): Promise<void> {
+  const ok = await wordService.setWordLocation(id, to)
+  if (!ok) return
+  if (get().selectedWordId === id) set({ selectedWordId: null, fieldValues: [] })
+  await get().loadWords()
 }
 
 export const useWordStore = create<WordStore>((set, get) => ({
@@ -178,4 +201,7 @@ export const useWordStore = create<WordStore>((set, get) => ({
     }
     return ok
   },
+
+  moveToArchive: (id) => moveWord(get, set, id, 'archive'),
+  moveToWorkspace: (id) => moveWord(get, set, id, 'workspace'),
 }))

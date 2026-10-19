@@ -10,11 +10,21 @@ import Tooltip from '../ui/Tooltip'
 import CategoryPickerPopover from '../ui/CategoryPickerPopover'
 import FamiliarityChoice from '../search/FamiliarityChoice'
 import type { InitialFamiliarityChoice } from '../../services/wordService'
+import type { WordLocation } from '../../types'
+import { moveActionLabel } from '../../lib/archiveMove'
 import { NAV_HEIGHT, NAV_CONTROL_HEIGHT } from '../../lib/layout'
 
 interface WorkbenchNavBarProps {
   /** 所在区域：工作台显示编者/删除，搜索返回页显示返回/合并添加 */
   region: 'workbench' | 'dict'
+  /**
+   * 当前模块（v0.7.5 Task 11）：决定「移入储藏库 / 移回工作台」按钮的文案。
+   * 由调用方从 store 传入——本组件是共享组件，自己不读模块状态。
+   */
+  location?: WordLocation
+  /** 移动当前词（v0.7.5 Task 11）。有值且 region='workbench' 时，在前进箭头右侧出按钮；
+   *  调用方负责弹确认框并执行移动（本组件只交出点击）。 */
+  onMoveWord?: () => void
   /** 删除当前词条（仅 region='workbench' 使用） */
   onDeleteWord?: () => void
   /** 左箭头行为（仅 region='dict' 使用）：返回工作台 */
@@ -59,7 +69,7 @@ const navBtn = (disabled = false): CSSProperties => ({
 //   故 WorkbenchNavBar 的左右内边距只留 14px（见下方 style 的 padding），wrapper 通栏不垫。
 // ② 底色取 **--color-chrome**（spec §1.1 的标题栏 / 活动栏档，用户指定）。
 export default function WorkbenchNavBar({
-  region, onDeleteWord, onBack, onMergeAdd, mergeCount = 0, mergeDisabled = false,
+  region, location, onMoveWord, onDeleteWord, onBack, onMergeAdd, mergeCount = 0, mergeDisabled = false,
   familiarity, onFamiliarityChange, inLibrary = false, breadcrumb,
   editing, onSaveEdit, onCancelEdit,
 }: WorkbenchNavBarProps) {
@@ -142,6 +152,15 @@ export default function WorkbenchNavBar({
         >
           <Icon name="arrow-right" size={15} />
         </button>
+      )}
+      {/* 移入 / 移回（v0.7.5 Task 11）：左簇、前进箭头右侧、面包屑与右端簇之前。
+          只在工作台、且调用方传了当前模块与回调时渲染——WordWorkbench 只会在选中词存在时
+          渲染本导航条，故「没有选中词就没有这枚按钮」由调用点保证。
+          文案跟随**当前模块**：工作台是「移入储藏库」，储藏库是「移回工作台」。 */}
+      {region === 'workbench' && location && onMoveWord && (
+        <SquareButton size="nav" tone="canvas" onClick={onMoveWord}>
+          {moveActionLabel(location)}
+        </SquareButton>
       )}
 
       {/* ⋯ 更多操作（普通模式可见）本轮不实现：⋯ 菜单内容与「删除此标签页」收进菜单是 v0.7.0 段二的独立项，

@@ -121,6 +121,12 @@ export async function deleteWords(ids: string[]): Promise<boolean> {
   return result.ok
 }
 
+/** 移入 / 移回（v0.7.5 Task 11）：只改位置；复习卡与历史不动，删词才级联删。 */
+export async function setWordLocation(wordId: string, location: WordLocation): Promise<boolean> {
+  const result = await wordsDb.setWordLocation(wordId, location)
+  return result.ok
+}
+
 /** 侧栏预览。`location` 缺省为工作区——保留 v0.7.5 之前调用点的语义。 */
 export async function getPreviews(location: WordLocation = 'workspace'): Promise<WordWithPreview[]> {
   const result = await wordsDb.getWordsByLocation(location)

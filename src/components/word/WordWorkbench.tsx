@@ -54,6 +54,7 @@ import { isWordInLibrary } from '../../lib/ensureWord'
 import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
 import { displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
+import { moveConfirmRequest, moveTarget } from '../../lib/archiveMove'
 import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_PHONETIC_GAP } from '../../lib/layout'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
@@ -820,7 +821,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
 }
 
 export default function WordWorkbench() {
-  const { words, selectedWordId, fieldValues, updateFieldValue, deleteWord, addFieldValue, deleteFieldValue, reorderFieldValues, libraryLocationOf } = useWordStore()
+  const { words, selectedWordId, fieldValues, location, updateFieldValue, deleteWord, addFieldValue, deleteFieldValue, reorderFieldValues, libraryLocationOf, moveToArchive, moveToWorkspace } = useWordStore()
   const [defs, setDefs] = useState<FieldDefinition[]>([])
   const editorMode = useViewStore(s => s.editorMode)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -969,6 +970,16 @@ export default function WordWorkbench() {
     })
     if (!ok) return
     await deleteWord(selectedWord.id)
+  }
+
+  // 移入 / 移回（v0.7.5 Task 11）：确认框与另外两处入口共用同一份文案（lib/archiveMove），
+  // store 只执行移动。移动的是当前选中词——成功后 selectedWordId 清空，本组件落到空态。
+  const handleMoveWord = async () => {
+    const to = moveTarget(location)
+    const ok = await useUiStore.getState().confirm(moveConfirmRequest(to, selectedWord.lemma))
+    if (!ok) return
+    if (to === 'archive') await moveToArchive(selectedWord.id)
+    else await moveToWorkspace(selectedWord.id)
   }
 
   // 添加字段：主标签页直接加根容器（词性/补充）；单独标签页直接挂项到根容器下（无则先建空容器）→ 自动进入编辑态
@@ -1335,6 +1346,9 @@ export default function WordWorkbench() {
                     background: 'var(--color-chrome)' }}>
         <WorkbenchNavBar
           region="workbench"
+          // 移入 / 移回（v0.7.5 Task 11）：导航条保持哑组件，模块与回调动词由这里传入。
+          location={location}
+          onMoveWord={() => { void handleMoveWord() }}
           onDeleteWord={handleDelete}
           // 编辑态的保存 / 取消（v0.7.4 任务 14）：`editing` 有值才出现。`dirty` 本版只作
           // 将来的「未保存」提示，不据此禁用按钮（见 WorkbenchNavBar 的 prop 注释）。
