@@ -166,12 +166,16 @@ describe('工作区改用原语（源码级守卫）', () => {
 //  三态勾选、容器标题带横线、renderRows 增 inset 参数）：本文件四处命中行重算为
 //  102 / 193 / 256 / 384；原 allow-list 里的 86 / 87 / 97 / 99 是更早版本遗留的空条目
 //  （那几行本就不匹配守卫的裸比较正则），本次按新树重算一并清掉。
+//  v0.7.4 Task 16 拖拽副本：DragOverlay / DragGhost 两行 import（+2）、draggingStyle 注释改写
+//  并把 scale 换成 opacity/background（+3）、落点线加左端圆点（+9）；dragGhost 的解析插在
+//  `return (` 之前，只影响更下游的 1341 那一条（+16）。本文件十二处命中行重算为
+//  282 / 283 / 291 / 298 / 317 / 318 / 944 / 953 / 957 / 1000 / 1196 / 1371。
 //   DictDetailCard.tsx:102 filter 里的 phonetic——可见性过滤（只问「显不显示」，不问「长什么样」）
 //   DictDetailCard.tsx:193 sourceMark——哪几枚行尾来源标
 //   DictDetailCard.tsx:256 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
 //   DictDetailCard.tsx:384 isPos——run-in 头形态
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [280, 281, 289, 296, 315, 316, 930, 939, 943, 986, 1182, 1341], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['WordWorkbench.tsx', [282, 283, 291, 298, 317, 318, 944, 953, 957, 1000, 1196, 1371], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
   ['DictDetailCard.tsx', [102, 193, 256, 384], '可见性过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 

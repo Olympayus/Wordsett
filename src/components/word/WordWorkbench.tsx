@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import {
   DndContext,
+  DragOverlay,
   pointerWithin,
   useDraggable,
   useDroppable,
@@ -24,6 +25,7 @@ import LeechBadge from '../ui/LeechBadge'
 import ContextMenu, { type MenuItem } from '../ui/ContextMenu'
 import Icon from '../icons'
 import CategoryCapsule from './CategoryCapsule'
+import DragGhost from './DragGhost'
 import PhoneticArea from './PhoneticArea'
 import TabBar from './TabBar'
 import WorkbenchNavBar from './WorkbenchNavBar'
@@ -336,9 +338,11 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     return (node.children ?? []).some(c => containsId(c, id))
   }
   const showsButtons = containsId(fv, hoveredId)
-  // v0.7.2 §1.1：投影已全站摘除，拖拽反馈只剩轻微放大（scale 保留——它是拖拽态的位移提示，
-  // 不是 §1.4 要删的「按压」缩放）。
-  const draggingStyle = isDragging ? { transform: 'scale(1.02)' } : null
+  // v0.7.4 任务 16：被拖行的原位留痕——内容变淡 + 极浅品牌底；跟手的那一份副本由 DragOverlay
+  // 在页面级渲染（DragGhost）。**不再缩放**：副本已经在跟手，原位再缩放是双重反馈。
+  // 只碰 opacity 与 background 两件「画」的属性：任何进布局的属性（边框 / 内边距）都会让行在
+  // 开始拖动那一刻位移——与 focused 用内阴影是同一条理由（R46）。
+  const draggingStyle = isDragging ? { opacity: 0.35, background: 'var(--color-brand-softer)' } : null
 
   // 拖拽手柄（左端 gutter）：FlowRow 行与 run-in 头共用。宽度固定 10px，手柄显隐不改变文字区宽度 → 零重排。
   const grip = (
@@ -665,7 +669,17 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
             bottom: insertIndicator.before ? undefined : -2,
             height: '2px', background: 'var(--color-brand)', borderRadius: '1px', pointerEvents: 'none',
           }}
-        />
+        >
+          {/* 左端圆点（v0.7.4 任务 16）：6px 的品牌色圆点压在线的左端，top −2 让圆心落在
+              2px 线的高度中点上；流外绝对定位，不占位、不改落点判定。 */}
+          <span
+            aria-hidden="true"
+            style={{
+              position: 'absolute', left: 0, top: -2, width: 6, height: 6,
+              borderRadius: '50%', background: 'var(--color-brand)',
+            }}
+          />
+        </div>
       )}
 
       {/* 行体：组的根容器走 run-in 头（groupHead）；其余行走 FlowRow
@@ -1218,6 +1232,22 @@ export default function WordWorkbench() {
   // （它才拿得到设置）。`> 0` **不可**代用——阈值可配且 `isLeech` 在阈值为 0（「关掉」）时返回 false。
   const leechCount = overlay && isLeech(overlay.maxLapses, leechThreshold) ? overlay.maxLapses : undefined
 
+  // 拖拽副本的正文（v0.7.4 任务 16，R43）：可拖 id 有两类——行 id（FieldCard 注册的 `fv.id`）
+  // 与单位 id（LeafFlow 注册的 `id`）。两者都是同一棵 fieldValues 树里的节点，故统一走
+  // findFieldValueById 解析一次，再经字段定义取字体壳；解析不到（id 已失效 / 定义未加载）就
+  // **不画副本**，而不是抛错或画空盒子。
+  // 容器行本身没有值（它显示的是字段名 / 词性值），故空值回落到字段名；两者都空则仍不画。
+  const dragGhost = (() => {
+    if (!activeDragId) return null
+    const fv = findFieldValueById(activeDragId)
+    const def = fv ? defs.find(d => d.id === fv.fieldId) : undefined
+    if (!fv || !def) return null
+    const text = fv.value.trim() ? fv.value : def.name
+    if (!text.trim()) return null
+    const kind: 'example' | 'plain' = leafForm(def.key) === 'example' ? 'example' : 'plain'
+    return { text, kind }
+  })()
+
   return (
     <div
       onMouseLeave={() => setHoveredId(null)}
@@ -1412,6 +1442,11 @@ export default function WordWorkbench() {
                 </div>
               )}
           </div>
+          {/* 拖拽副本（v0.7.4 任务 16）：DragOverlay 自己跟随指针，副本只画内容。
+              `dragGhost` 已按 activeDragId 解析好；解析不到时为空，overlay 不渲染任何东西。 */}
+          <DragOverlay>
+            {dragGhost && <DragGhost text={dragGhost.text} kind={dragGhost.kind} />}
+          </DragOverlay>
         </DndContext>
 
         {/* 页级「＋ 添加」（v0.7.2 D7）：流末尾一个中性按钮，点开本标签页全部可加项 + 新建标签页 / 词根 / 音标。
