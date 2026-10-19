@@ -125,7 +125,6 @@ interface FieldCardCtx {
   onSave: () => void
   onCancelEdit: () => void
   onDelete: (fv: FieldValue) => void
-  onAddSibling: (fv: FieldValue) => void
   onToggleAddMenu: (fv: FieldValue) => void
   onPickAdd: (containerFv: FieldValue, def: FieldDefinition) => void
   hoveredId: string | null
@@ -190,7 +189,8 @@ function childLabelOverride(
  * 行尾「⋯」菜单（v0.7.2）：两枚 22px 方钮里的第二枚。`RowActions` 出两套形态——编者模式
  * （`mode="edit"`）是 `＋` 与垃圾桶、不出 `menu`；普通模式（`mode="view"`）只出这一个 `menu` 槽，
  * 故这里自带 `⋯` 触发器，点开走现成的 `ContextMenu`（fixed 落位，点外 / Esc 自关）。
- * v0.7.3：普通模式的**所有**动作并进这一份菜单——编辑 / 添加子项 / 添加同级 / 删除。
+ * v0.7.3：普通模式的**所有**动作并进这一份菜单。
+ * v0.7.4 决定三：行级只删不加——菜单收成「编辑 / 添加子项 / 删除」，「添加同级」全站撤掉。
  */
 function RowMenu({ items }: { items: MenuItem[] }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
@@ -218,7 +218,7 @@ function RowMenu({ items }: { items: MenuItem[] }) {
 function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false, barState, barFirst = true, barLast = true, inheritedUser = false, ...ctx }: FieldCardProps) {
   const {
     defs, editorMode, editingId, editValue, insertIndicator, activeDragId, addMenu,
-    onStartEdit, onEditValueChange, onSave, onCancelEdit, onDelete, onAddSibling,
+    onStartEdit, onEditValueChange, onSave, onCancelEdit, onDelete,
     onToggleAddMenu, onPickAdd, hoveredId, onHover,
   } = ctx
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: fv.id })
@@ -321,24 +321,26 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     </span>
   )
 
-  // 行尾菜单条目（v0.7.3）：普通模式的**所有**动作都并进这里——编辑 / 添加子项 / 添加同级 / 删除。
-  // 「添加子项」即编者模式那枚独立 `＋` 在普通模式下的落点（加到本行所在容器）。
-  // 容器（非词性 / 非辨析组）无值格可编辑，不出「编辑」。
+  // 行尾菜单（v0.7.4 决定三）：**行级只删不加**。
+  // 「添加同级」全站撤掉；「添加子项」只留给真正的容器——今天那个按钮标着「添加子项」，
+  // 在叶子行上点它其实加的是同级（容器回落成 parentFv，ALLOWED_CHILD_KEYS 对叶子为空），
+  // 而同一个行上「添加同级」走的是同一条路、结果逐字相同：两个按钮一个动作。
   const menuItems: MenuItem[] = [
     ...((!isContainer || isPosPane || isGroupPane)
       ? [{ key: 'edit', label: '编辑', onSelect: () => onStartEdit(fv) }]
       : []),
-    { key: 'addChild', label: '添加子项', onSelect: () => onToggleAddMenu(fv) },
-    { key: 'sibling', label: '添加同级', onSelect: () => onAddSibling(fv) },
+    ...(isContainer || rowHasAllowedChildren
+      ? [{ key: 'addChild', label: '添加子项', onSelect: () => onToggleAddMenu(fv) }]
+      : []),
     { key: 'delete', label: '删除', danger: true, onSelect: () => onDelete(fv) },
   ]
 
   // v0.7.3 尾段 §3.4（D17）：**单位自己的**行尾槽——近义词 / 词源相关词 / 词形变化这些短叶子
   // 容器里的每个单位，悬停时行尾出一枚 `⋯`（普通模式）或一枚 `✕`（编者模式）。
-  // 与 `menuItems` 的分工：容器行那枚 `⋯` 管的是「这一行」（编辑 / 添加子项 / 添加同级 / 删除），
+  // 与 `menuItems` 的分工：容器行那枚 `⋯` 管的是「这一行」（编辑 / 添加子项 / 删除），
   // 单位这枚只管「这一个单位」，故**只有「编辑」「删除」两条**（D17 已确认）——
   // 单位上既不设 `＋`（往容器里加一项的入口是**容器行**的 `＋`，与行菜单的「添加子项」同一个），
-  // 也不出「添加同级」（同一条理由：同级就是同一个容器里的下一个单位）。
+  // 也没有「添加同级」——该动作 v0.7.4 决定三已全站撤掉（同级本就是同一个容器里的下一个单位）。
   const unitMenuItems = (unit: FieldValue): MenuItem[] => [
     { key: 'edit', label: '编辑', onSelect: () => onStartEdit(unit) },
     { key: 'delete', label: '删除', danger: true, onSelect: () => onDelete(unit) },
@@ -917,19 +919,6 @@ export default function WordWorkbench() {
     setEntryValue('')
   }
 
-  // 添加同级：与目标同 fieldId、挂到同一父下（根级则新增一个根容器）
-  const handleAddSibling = async (fv: FieldValue) => {
-    setAddMenu(null)
-    const def = defs.find(d => d.id === fv.fieldId)
-    if (!def) return
-    const created = await addFieldValue(def.id, fv.parentId)
-    if (!created) return
-    if (CONTAINER_FIELD_KEYS.includes(def.key) && def.key !== 'synonym_discrimination_group' && def.key !== 'part_of_speech') return
-    setEditingId(created.id)
-    setEditValue('')
-    setEntryValue('')
-  }
-
   // 单节点删除：级联确认，含子级时提示删除子树（Task 10 §Step 3）
   const handleDeleteField = async (fv: FieldValue) => {
     setAddMenu(null)
@@ -1040,7 +1029,6 @@ export default function WordWorkbench() {
     onSave: handleSave,
     onCancelEdit: () => setEditingId(null),
     onDelete: handleDeleteField,
-    onAddSibling: handleAddSibling,
     onToggleAddMenu: (fv) => setAddMenu(prev => prev?.target === 'row' && prev.id === fv.id ? null : { target: 'row', id: fv.id }),
     onPickAdd: handleAddChild,
     hoveredId,
