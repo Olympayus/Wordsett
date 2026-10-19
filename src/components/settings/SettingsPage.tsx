@@ -93,8 +93,7 @@ export default function SettingsPage() {
             <>
               <SectionHeading>外观</SectionHeading>
               <AppearanceSettings />
-              <div style={{ marginTop: '24px' }}><SectionHeading>侧边栏显示</SectionHeading></div>
-              <SidebarSettings />
+              <div style={{ marginTop: '24px' }}><SidebarSettings /></div>
               <div style={{ marginTop: '24px' }}><SectionHeading>托盘与窗口</SectionHeading></div>
               <TrayWindowSettings />
             </>
@@ -106,10 +105,10 @@ export default function SettingsPage() {
           {active === 'platform' && <PlatformSettings />}
           {active === 'about' && (
             <>
-              <SectionHeading>数据</SectionHeading>
-              <DataSettings />
-              <div style={{ marginTop: '24px' }}><SectionHeading>版本与更新</SectionHeading></div>
+              <SectionHeading>版本与更新</SectionHeading>
               <AboutSettings />
+              <div style={{ marginTop: '24px' }}><SectionHeading>数据</SectionHeading></div>
+              <DataSettings />
             </>
           )}
         </div>

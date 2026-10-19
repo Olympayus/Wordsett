@@ -1,7 +1,7 @@
 import { useSettingsStore, type ThemeMode } from '../../stores/settingsStore'
 
 const OPTIONS: { value: ThemeMode; label: string; hint: string }[] = [
-  { value: 'system', label: '跟随系统', hint: '系统切到深色时应用一起切' },
+  { value: 'system', label: '跟随系统', hint: '' },
   { value: 'light', label: '浅色', hint: '' },
   { value: 'dark', label: '深色', hint: '' },
 ]
@@ -12,8 +12,7 @@ export default function AppearanceSettings() {
   const setTheme = useSettingsStore(s => s.setTheme)
   return (
     <div>
-      <h3 id="appearance-heading" style={{ fontSize: 'var(--text-sm)', fontWeight: 'var(--weight-semibold)', margin: 0 }}>外观</h3>
-      <div role="radiogroup" aria-labelledby="appearance-heading" style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+      <div role="radiogroup" aria-label="外观" style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
         {OPTIONS.map(o => {
           const on = o.value === theme
           return (
