@@ -31,9 +31,23 @@ if (Object.keys(platforms).length === 0) {
   process.exit(1)
 }
 
+// notes 的来源：优先 `docs/releases/v<version>.md`（面向用户的更新说明，仓库里每版一份），
+// 没有这个文件时**沿用上一次 latest.json 里的 notes**——`docs/` 不入 git，macOS 那台机器上
+// 可能没有该文件，重新生成 latest.json 时不能把 Windows 那轮写好的 notes 抹成空串。
+const notesFile = `docs/releases/v${version}.md`
+const prevNotes = existsSync('./latest.json')
+  ? (JSON.parse(readFileSync('./latest.json', 'utf8')).notes ?? '')
+  : ''
+const notes = existsSync(notesFile) ? readFileSync(notesFile, 'utf8').trim() : prevNotes
+console.log(
+  existsSync(notesFile) ? `notes: from ${notesFile}`
+  : prevNotes ? 'notes: kept from existing latest.json'
+  : 'notes: EMPTY — 写一份 docs/releases/v<version>.md 或手工填写',
+)
+
 const latest = {
   version,
-  notes: '', // 发布时手工填写本次更新说明
+  notes,
   pub_date: new Date().toISOString(),
   platforms,
 }
