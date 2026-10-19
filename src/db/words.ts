@@ -42,6 +42,24 @@ export async function getAllWords(): Promise<DbResult<Word[]>> {
   }
 }
 
+/**
+ * 词库索引的轻量查询（v0.7.5 Task 9）：全库每词的归一化词面与所在模块。
+ * 只取两列——索引要覆盖**两个模块**，不能拿当前模块的词表充数。
+ */
+export async function getLemmaLocations(): Promise<DbResult<{ normalizedLemma: string; location: WordLocation }[]>> {
+  try {
+    const rows = await getDb().select<Record<string, any>[]>(
+      'SELECT normalized_lemma, location FROM words'
+    )
+    return {
+      ok: true,
+      data: rows.map(r => ({ normalizedLemma: r.normalized_lemma, location: r.location as WordLocation })),
+    }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
 // Shared preview query: single implementation for "all words" and "filtered".
 // (Deduplicates the former duplicate in src/lib/search.ts vocabularySearch.)
 // `location` 为 null 表示**不限模块**：全库搜索（searchWords）沿用旧语义，不吃视图过滤；

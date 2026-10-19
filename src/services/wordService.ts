@@ -1,6 +1,6 @@
 import * as wordsDb from '../db/words'
 import * as fieldsDb from '../db/fields'
-import type { Word, WordWithPreview } from '../types/word'
+import type { Word, WordWithPreview, WordLocation } from '../types/word'
 import type { UpsertFieldValueInput } from '../types/field'
 import { getFieldValuesForWord } from '../db/fields'
 import { getDefinitions, renumberWordByTemplate } from './fieldService'
@@ -17,6 +17,9 @@ export interface AddWordOptions {
 }
 
 export async function addWord(lemma: string, opts?: AddWordOptions): Promise<Word | null> {
+  // 全库查重、不分模块（v0.7.5 Task 9 的硬要求）：`words.normalized_lemma` 没有唯一索引，
+  // 去重只在应用侧做。已归档的同名词命中这里就直接返回既有行——再插一条同拼写行会让
+  // getWordByLemma 的 `LIMIT 1` 随机取一条。
   const existing = await wordsDb.getWordByLemma(lemma)
   if (existing.ok && existing.data) return existing.data
 
@@ -118,9 +121,22 @@ export async function deleteWords(ids: string[]): Promise<boolean> {
   return result.ok
 }
 
-export async function getPreviews(): Promise<WordWithPreview[]> {
-  const result = await wordsDb.getWordsWithPreviews()
+/** 侧栏预览。`location` 缺省为工作区——保留 v0.7.5 之前调用点的语义。 */
+export async function getPreviews(location: WordLocation = 'workspace'): Promise<WordWithPreview[]> {
+  const result = await wordsDb.getWordsByLocation(location)
   return result.ok ? result.data : []
+}
+
+/** 词库索引的轻量查询（全库、两个模块），失败回落空表（索引退化为「都不在库」）。 */
+export async function getLemmaLocations(): Promise<{ normalizedLemma: string; location: WordLocation }[]> {
+  const result = await wordsDb.getLemmaLocations()
+  return result.ok ? result.data : []
+}
+
+/** 词库三档计数（总数 / 工作区 / 储藏库），失败回落全零。 */
+export async function getLocationCounts(): Promise<{ total: number; workspace: number; archive: number }> {
+  const result = await wordsDb.getLocationCounts()
+  return result.ok ? result.data : { total: 0, workspace: 0, archive: 0 }
 }
 
 /** 初始熟悉度：完全陌生 1 / 眼熟 2 / 认识 3（spec 4.6）。 */

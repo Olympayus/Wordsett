@@ -337,3 +337,22 @@ describe('wordService.addWord 的默认分类归属', () => {
     expect(r.data.map(c => c.id)).toEqual([def.data.id])
   })
 })
+
+describe('wordService.addWord 全库查重（v0.7.5 Task 9）', () => {
+  it('已归档的同名词不会被收集成第二条', async () => {
+    const w1 = await addWord('forsake')
+    if (!w1) throw new Error('addWord failed')
+    // Controller Ruling A：Task 11 的 moveToArchive 尚未存在，直调数据层设置位置。
+    const moved = await wordsDb.setWordLocation(w1.id, 'archive')
+    expect(moved.ok).toBe(true)
+
+    const w2 = await addWord('forsake')
+    if (!w2) throw new Error('addWord failed')
+    expect(w2.id).toBe(w1.id)
+
+    // 本文件共用一张测试库，故按词面过滤而不是断言全表长度（任务书假设了独占库）。
+    const all = await wordsDb.getAllWords()
+    if (!all.ok) throw new Error('getAllWords failed')
+    expect(all.data.filter(w => w.normalizedLemma === 'forsake')).toHaveLength(1)
+  })
+})

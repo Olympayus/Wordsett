@@ -145,4 +145,16 @@ describe('db/words', () => {
     expect(after.data.archive).toBe(before.data.archive + 1)
     expect(after.data.total).toBe(after.data.workspace + after.data.archive)
   })
+
+  it('getLemmaLocations 返回全库每词的归一化词面与模块', async () => {
+    const ws = await wordsDb.createWord({ lemma: 'IndexWS' })
+    const ar = await wordsDb.createWord({ lemma: 'IndexAR' })
+    if (!ws.ok || !ar.ok) throw new Error('createWord failed')
+    await wordsDb.setWordLocation(ar.data.id, 'archive')
+
+    const r = await wordsDb.getLemmaLocations()
+    if (!r.ok) throw new Error('getLemmaLocations failed')
+    expect(r.data).toContainEqual({ normalizedLemma: 'indexws', location: 'workspace' })
+    expect(r.data).toContainEqual({ normalizedLemma: 'indexar', location: 'archive' })
+  })
 })

@@ -5,31 +5,32 @@ import * as wordService from '../services/wordService'
 import type { MergeFieldInput } from '../services/wordService'
 import * as fieldService from '../services/fieldService'
 import { normalizeLinkTarget } from '../lib/links'
+import { buildLibraryIndex } from '../lib/collected'
 import { useCategoryStore } from './categoryStore'
 import { useNavHistoryStore } from './navHistoryStore'
 import { current } from '../lib/navHistory'
-
-/**
- * 由已加载的词表构索引（v0.7.5 Task 3）：键与链接校验 / 反链匹配共用 `normalizeLinkTarget`。
- * 本任务只有工作区一个模块，值恒为 `'workspace'`；Task 9 起改由「工作区 ∪ 储藏库」的
- * 轻量查询构建，本函数届时退场。
- */
-function buildLibraryIndex(words: WordWithPreview[]): Map<string, WordLocation> {
-  return new Map(words.map(w => [normalizeLinkTarget(w.lemma), 'workspace' as const]))
-}
 
 interface WordStore {
   words: WordWithPreview[]
   loading: boolean
   selectedWordId: string | null
   fieldValues: FieldValue[]
+  /** 当前侧栏模块（v0.7.5 Task 9）：决定 `loadWords()` 取哪个模块的词表。 */
+  location: WordLocation
   /**
-   * 库内词条索引（v0.7.5 Task 3）：键 `normalizeLinkTarget(lemma)` → 所在模块。
-   * 阅读态链接的「在不在库」判据（`LinkedText` 的失效态）与 Task 4 的跳转目标解析都读它。
+   * 库内词条索引（v0.7.5 Task 3 起，Task 9 扩成两个模块）：键 `normalizeLinkTarget(lemma)`
+   * → 所在模块。阅读态链接的「在不在库」判据（`LinkedText` 的失效态）与 Task 4 的跳转
+   * 目标解析都读它。**必须由全库轻量查询构建**，不能拿当前模块的词表充数。
    */
   libraryIndex: Map<string, WordLocation>
+  /** 词库三档计数：总数 / 工作区 / 储藏库（侧栏徽标与设置页共用）。 */
+  counts: { total: number; workspace: number; archive: number }
 
   loadWords: () => Promise<void>
+  /** 切模块：设置 `location`、清空选中，再按新模块加载词表（索引与计数随 `loadWords` 刷新）。 */
+  setLocation: (location: WordLocation) => Promise<void>
+  /** 重建词库索引与三档计数（`loadWords` 内顺带调；移入/移出后再调）。 */
+  reloadLibraryIndex: () => Promise<void>
   /** 目标词所在模块；不在库返回 null。 */
   libraryLocationOf: (lemma: string) => WordLocation | null
   selectWord: (id: string | null, opts?: { record?: boolean }) => Promise<void>
@@ -49,12 +50,32 @@ export const useWordStore = create<WordStore>((set, get) => ({
   loading: false,
   selectedWordId: null,
   fieldValues: [],
+  location: 'workspace',
   libraryIndex: new Map(),
+  counts: { total: 0, workspace: 0, archive: 0 },
 
   loadWords: async () => {
     set({ loading: true })
-    const words = await wordService.getPreviews()
-    set({ words, loading: false, libraryIndex: buildLibraryIndex(words) })
+    // 词表按当前模块收窄；索引与计数另行从全库查（见 reloadLibraryIndex），
+    // 否则在储藏库模块里「已收录」判定就只剩储藏库。
+    const words = await wordService.getPreviews(get().location)
+    set({ words, loading: false })
+    await get().reloadLibraryIndex()
+  },
+
+  setLocation: async (location) => {
+    // 换模块即换数据集：选中词与字段列表一并清空（与 selectWord(null) 同样的空态），
+    // 随后 loadWords 会顺带重建索引与三档计数。
+    set({ location, selectedWordId: null, fieldValues: [] })
+    await get().loadWords()
+  },
+
+  reloadLibraryIndex: async () => {
+    const [rows, counts] = await Promise.all([
+      wordService.getLemmaLocations(),
+      wordService.getLocationCounts(),
+    ])
+    set({ libraryIndex: buildLibraryIndex(rows), counts })
   },
 
   libraryLocationOf: (lemma) => get().libraryIndex.get(normalizeLinkTarget(lemma)) ?? null,
