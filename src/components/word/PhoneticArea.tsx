@@ -38,6 +38,20 @@ const iconBtn: CSSProperties = {
   cursor: 'pointer', padding: 0,
 }
 
+// chip 内输入框的内边距：**探针与输入框两侧共用这同一个字符串**（`ChipBody` 内再消费）。
+// 本文件的输入框配方是「1px 边 ＋ 上下 1px、左右 6px」，与工作区那套（`MEASURE_INPUT_CLASS`
+// 的 `px-3 py-1.5`）不同，故这里自备一份、不往 lib 里养第二套类名。竖向那 1px 是 chip 原有的
+// 高度配方：编辑态若把它抹成 0，chip 会在进编辑那一刻上下缩 2px（与工作区补回 `py-1.5` 是
+// 同一类零位移问题）；探针绝对定位、竖向 padding 不参与宽度测量，故一份字符串两边都安全。
+// 横向 padding 与 border 两侧同源，就不会出现「探针量的比输入框实际占的窄一截」。
+const INPUT_PADDING = '1px 6px'
+
+// 操作簇（编辑 ＋ 删除，或普通模式的 ⋯）的宽度——**两种形态同为 36px**（两枚 18px 按钮 ＋
+// `gap: 4`，或一枚 18px 按钮 ＋ 它自带的相对定位外壳）。编辑态不渲染任何交互控件（保存 / 取消
+// 已归导航条），但**这一格必须照样留着**：撤掉占位会让 chip 当场短 36px、同一行里后继的
+// chip 整片往左跳——与 v0.5.2 定下的「行尾操作簇常驻占位」是同一条不变量。
+const ACTION_CLUSTER_WIDTH = 36
+
 // 常驻占位 + opacity/visibility 显隐（v0.5.2 修订，本文件原有的那份）：chip 内的编辑 / 删除是
 // 真正的 <button>，只靠 opacity 隐藏时它们仍在 Tab 序列与无障碍树里，Tab+Enter 会误触编辑 / 删除；
 // visibility:hidden 同时移出两者，且不占位差、布局照旧保留。抽到模块级是因为 chip 本体已是组件。
@@ -102,7 +116,7 @@ function ChipBody(props: {
     >
       {isEditing ? (
         <>
-          <span ref={probeRef} aria-hidden="true" style={{ ...MEASURE_STYLE, ...displayFont }}>{displayText}</span>
+          <span ref={probeRef} aria-hidden="true" style={{ ...MEASURE_STYLE, ...displayFont, padding: INPUT_PADDING }}>{displayText}</span>
           <input
             autoFocus
             value={editValue}
@@ -110,7 +124,9 @@ function ChipBody(props: {
             onKeyDown={e => { if (e.nativeEvent.isComposing) return; if (e.key === 'Enter') props.onSave(); if (e.key === 'Escape') props.onCancelEdit() }}
             style={{
               fontFamily: displayFont.fontFamily, fontSize: displayFont.fontSize, color: 'var(--color-text-primary)',
-              border: '1px solid var(--color-brand)', borderRadius: 4, padding: '1px 6px',
+              // border 与 `MEASURE_STYLE` 是同一行字（'1px solid var(--color-brand)'），padding 与
+              // 探针同一个字符串——量出来的 border-box 就是输入框实占的那一段，起点零位移。
+              border: '1px solid var(--color-brand)', borderRadius: 4, padding: INPUT_PADDING,
               background: 'var(--color-surface)', outline: 'none',
               minWidth: MEASURE_MIN_WIDTH, ...(textWidth ? { width: textWidth } : null),
             }}
@@ -131,16 +147,19 @@ function ChipBody(props: {
 
       {/* v0.7.4 任务 14：编辑中的「保存 / 取消」整个搬到词条导航条（WorkbenchNavBar），
           chip 里不再留这枚 ✓/✕ 对——行内留着它们，进编辑那一刻 chip 就要长出一截。
-          键盘照旧：input 自己的 `onKeyDown` 认 Enter 保存 / Esc 取消（并守住 isComposing）。 */}
+          键盘照旧：input 自己的 `onKeyDown` 认 Enter 保存 / Esc 取消（并守住 isComposing）。
 
-      {!isEditing && editorMode && (
+          但**那一格位置不能跟着一起消失**：两态 chip 的宽度必须逐字相同，故编辑态摆一枚
+          与操作簇同宽的惰性占位（不可见、不接指针、不进无障碍树）。占位之外不放任何可点
+          控件——行内再留 ✓/✕ 就等于让保存有两条路，与「导航条接管」的决定相抵。 */}
+      {isEditing ? (
+        <span aria-hidden="true" style={{ width: ACTION_CLUSTER_WIDTH, flexShrink: 0, visibility: 'hidden', pointerEvents: 'none' }} />
+      ) : editorMode ? (
         <span style={reveal(hovered)}>
           <button type="button" title="编辑" onClick={() => props.onStartEdit(fv)} style={iconBtn}><Icon name="edit" size={12} /></button>
           <button type="button" title="删除" onClick={() => props.onDelete(fv)} style={iconBtn}><Icon name="trash" size={12} /></button>
         </span>
-      )}
-
-      {!isEditing && !editorMode && (
+      ) : (
         <span style={{ ...reveal(rowHover), position: 'relative', display: 'inline-flex' }}>
           <button
             type="button" title="更多操作"

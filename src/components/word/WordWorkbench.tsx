@@ -217,6 +217,11 @@ function RowMenu({ items }: { items: MenuItem[] }) {
 // 行内只剩输入框本身，故编辑盒子可以退成行内级、进编辑时周围一个像素不动。
 // 输入框的**起宽**量的是被替换内容的渲染宽度（`lib/measureText.ts`，四处消费点共用一份），
 // 键盘在 `lib/editKeyDown.ts`（纯函数，可直接单测）。
+// 例句（`example`）编辑态的字号（**唯一出处**）：画上去的 `DashMark` 按 em 取值，量它的探针
+// 取 `font.fontSize`，两者必须同为 **14px**（被替换的非编辑行也是 14px）。差一档就是
+// 「量出来 11.2px、画上去 10.4px」——进编辑留 0.8px 的残差位移。故这一支的 wrapper 与
+// 输入框的 `font` 两处同取这个常量，不各写一份数字。
+const EXAMPLE_EDIT_FONT_SIZE = 14
 
 // 单行编辑框：从**被替换内容**的宽度起、随输入增长。字体由调用处按该行给——例句（`example`）
 // 是衬线斜体 14px、行首还有一枚 `DashMark`（见值格的非编辑分支），两样都要算进去，
@@ -581,10 +586,12 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
                 />
               </span>
             ) : (
-              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', fontSize: `${EXAMPLE_EDIT_FONT_SIZE}px` }}>
                 {/* 例句（`example`）在非编辑分支里是「行首一枚 `DashMark`＋8px 右间距 ＋ 衬线斜体
                     14px 的文字」（见下），编辑态必须照样把**同一枚标记**留在输入框前面，只是文字
-                    换成输入框：标记拿走的那一刻，整行会往左跳「标记宽 ＋ 8px」。 */}
+                    换成输入框：标记拿走的那一刻，整行会往左跳「标记宽 ＋ 8px」。
+                    标记按 em 取值（`DashMark` 的 `0.8em`），这一支的 wrapper 与输入框的 `font`
+                    都取 `EXAMPLE_EDIT_FONT_SIZE`，探针与这一支画出来的尺寸才一致。 */}
                 {form === 'example' && measureMarkSlot(
                   <DashMark color={rowState === 'none' ? 'var(--ink-3)' : MARK_COLOR[rowState]} />
                 )}
@@ -592,7 +599,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
                   value={editValue}
                   font={
                     form === 'example'
-                      ? { fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px' }
+                      ? { fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: `${EXAMPLE_EDIT_FONT_SIZE}px` }
                       : { fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)' }
                   }
                   mark={

@@ -5,7 +5,7 @@
  * `MeasuredInput`）与头带的音标 chip（`PhoneticArea.tsx` 的 `ChipBody`）。两侧原先各抄了一份
  * 同样的实现，这里收成一处。测试在 `measureText.test.ts`（本仓惯例：模块与测试分文件）。
  *
- * 三件事各有讲究：
+ * 四件事各有讲究：
  *
  * ① **必须绝对定位**（`position: absolute; visibility: hidden`），不能 `display: 'none'`——后者量不到
  *    任何尺寸。绝对定位同时把探针**移出排版流**：否则编辑前后会长出一枚与被替换内容等宽的盒子，
@@ -19,11 +19,15 @@
  *    是**同一个字符串**，`MEASURE_STYLE` 的 border 与输入框的 border 是**同一行字**：两侧不可能
  *    各自漂移（写成两份数值的话，只改一边就是 26px 的偏差，而这是纯算式、不会有人报错）。
  *
- * ③ `MEASURE_MIN_WIDTH` 兜底：新增字段的值是空串时宽度会是 0，输入框塌成一条线。
+ *    **`MEASURE_INPUT_CLASS` 与 `MEASURE_STYLE` 只服务「`px-3`＋`rounded`」那一套输入框**（值格 /
+ *    单位 / 词性标签 / 辨析组标题）。音标 chip 的输入框是另一副配方（`1px 6px` 内边距、4px 圆角），
+ *    它在 `PhoneticArea.tsx` 里用**同一组常量**（`INPUT_PADDING` + `MEASURE_STYLE` 的 border）交给
+ *    探针与输入框两侧——把常量按各自输入框的配方写在同一处，比在 lib 里再养一份「第二套类名」要好。
  *
- * 只用于**单行**字段（`fieldType !== 'multiline'`）：多行的正文本来就可能折行，「原文字宽度」
- * 没有定义，textarea 照旧 `w-full`（且它的包含块必须是有确定宽度的块级盒子，否则 `width:100%`
- * 落进循环定义）。
+ * ③ **类名里必须带 `py-1.5`**：宽度之外，高度也是「零位移」的一部分。编辑框从 ~33.5px 掉到
+ *    ~21.5px 的话，进编辑那一刻整行会上下错动——那比宽度差几像素更显眼。
+ *
+ * ④ `MEASURE_MIN_WIDTH` 兜底：新增字段的值是空串时宽度会是 0，输入框塌成一条线。
  */
 
 import { createElement, type CSSProperties, type ReactNode } from 'react'
@@ -38,7 +42,7 @@ import { createElement, type CSSProperties, type ReactNode } from 'react'
  * 而 `style` 上的内联 `border-radius` 优先于类，故内联写 `4` 与类里的 `4px` 是同一个值。
  * 这样「类名即出处」这条才成立，也不会出现两处各写一份圆角。
  */
-export const MEASURE_INPUT_CLASS = 'px-3 rounded text-sm'
+export const MEASURE_INPUT_CLASS = 'px-3 py-1.5 rounded text-sm'
 
 /** 探针相对正文额外需要的一切（`font` / `color` 仍由调用处按该行给）。 */
 export const MEASURE_STYLE: CSSProperties = {
