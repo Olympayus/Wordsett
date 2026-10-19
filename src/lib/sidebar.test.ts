@@ -9,7 +9,7 @@ import type { WordWithPreview } from '../types/word'
 import type { Category } from '../types/category'
 
 const mk = (id: string, lemma: string): WordWithPreview => ({
-  id, lemma, normalizedLemma: lemma.toLowerCase(), language: 'en', createdAt: 0, updatedAt: 0,
+  id, lemma, normalizedLemma: lemma.toLowerCase(), language: 'en', location: 'workspace', createdAt: 0, updatedAt: 0,
 })
 
 describe('sidebar 分组', () => {

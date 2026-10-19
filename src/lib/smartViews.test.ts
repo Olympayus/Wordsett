@@ -5,7 +5,7 @@ import type { WordWithPreview } from '../types/word'
 
 const NOW = 1_700_000_000_000
 const w = (id: string, createdAt: number): WordWithPreview => ({
-  id, lemma: id, normalizedLemma: id, language: 'en', createdAt, updatedAt: createdAt,
+  id, lemma: id, normalizedLemma: id, language: 'en', location: 'workspace', createdAt, updatedAt: createdAt,
 })
 const WORDS = [w('w1', NOW - 1000), w('w2', NOW - 2 * 86_400_000), w('w3', NOW - 10 * 86_400_000)]
 

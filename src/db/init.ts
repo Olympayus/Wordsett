@@ -23,6 +23,15 @@ export async function ensureSchema(db: DbHandle): Promise<void> {
     for (const sql of SCHEMA_SEED_STATEMENTS) await db.execute(sql)
   }
 
+  // v0.7.5：words 加 location 列（工作区 / 储藏库）。这是**加列迁移**，不是版本门重建——
+  // 版本门只管 user_version < REBUILD_BELOW_VERSION，v6 及以上的库不会走 DROP。
+  // 用 tableHasColumn 判据而非「current < 7」：空库/重建路径建出的表已带此列，
+  // 而 user_version 可能被外部写成任意值，只有 PRAGMA table_info 说的是事实。
+  // DEFAULT 'workspace' 让既有词全部落回工作区；ALTER 带 NOT NULL 的常量默认值在 SQLite 合法。
+  if (!(await tableHasColumn(db, 'words', 'location'))) {
+    await db.execute("ALTER TABLE words ADD COLUMN location TEXT NOT NULL DEFAULT 'workspace'")
+  }
+
   // 幂等补种内置字段定义（INSERT OR IGNORE）
   await db.execute(seedFieldDefinitionsSQL())
   // v0.4.3 §6：派生词 → 词源相关词 字段名迁移（幂等；新库种子已是新名，此处兼容老库）

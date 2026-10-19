@@ -94,4 +94,55 @@ describe('db/words', () => {
     const p = r.data.find(x => x.id === w.data.id)!
     expect(p.phonetic).toBe('/əbˈzɜːv/')
   })
+
+  it('getWordsByLocation：工作区与储藏库互不串台，旧入口只出工作区', async () => {
+    const ws = await wordsDb.createWord({ lemma: 'zonews' })
+    const ar = await wordsDb.createWord({ lemma: 'zonear' })
+    if (!ws.ok || !ar.ok) throw new Error('createWord failed')
+    expect(ws.data.location).toBe('workspace')
+
+    const moved = await wordsDb.setWordLocation(ar.data.id, 'archive')
+    expect(moved.ok).toBe(true)
+
+    const workspace = await wordsDb.getWordsByLocation('workspace')
+    if (!workspace.ok) throw new Error('getWordsByLocation failed')
+    const archive = await wordsDb.getWordsByLocation('archive')
+    if (!archive.ok) throw new Error('getWordsByLocation failed')
+    expect(workspace.data.some(w => w.id === ws.data.id)).toBe(true)
+    expect(workspace.data.some(w => w.id === ar.data.id)).toBe(false)
+    expect(archive.data.some(w => w.id === ar.data.id)).toBe(true)
+    expect(archive.data.some(w => w.id === ws.data.id)).toBe(false)
+    expect(archive.data.every(w => w.location === 'archive')).toBe(true)
+
+    // 老入口保留为「工作区」别名：既有调用点不改语义。
+    const legacy = await wordsDb.getWordsWithPreviews()
+    if (!legacy.ok) throw new Error('getWordsWithPreviews failed')
+    expect(legacy.data.some(w => w.id === ar.data.id)).toBe(false)
+    expect(legacy.data.find(w => w.id === ws.data.id)?.location).toBe('workspace')
+
+    // 单行读取处也要带 location（Word / WordWithPreview 都带）。
+    const all = await wordsDb.getAllWords()
+    if (!all.ok) throw new Error('getAllWords failed')
+    expect(all.data.find(w => w.id === ar.data.id)?.location).toBe('archive')
+    const byLemma = await wordsDb.getWordByLemma('zonear')
+    if (!byLemma.ok || !byLemma.data) throw new Error('getWordByLemma failed')
+    expect(byLemma.data.location).toBe('archive')
+  })
+
+  it('getLocationCounts 三档数字正确', async () => {
+    const before = await wordsDb.getLocationCounts()
+    if (!before.ok) throw new Error('getLocationCounts failed')
+
+    const ws = await wordsDb.createWord({ lemma: 'countws' })
+    const ar = await wordsDb.createWord({ lemma: 'countar' })
+    if (!ws.ok || !ar.ok) throw new Error('createWord failed')
+    await wordsDb.setWordLocation(ar.data.id, 'archive')
+
+    const after = await wordsDb.getLocationCounts()
+    if (!after.ok) throw new Error('getLocationCounts failed')
+    expect(after.data.total).toBe(before.data.total + 2)
+    expect(after.data.workspace).toBe(before.data.workspace + 1)
+    expect(after.data.archive).toBe(before.data.archive + 1)
+    expect(after.data.total).toBe(after.data.workspace + after.data.archive)
+  })
 })

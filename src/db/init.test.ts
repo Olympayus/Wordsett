@@ -191,6 +191,45 @@ describe('db/init ensureSchema', () => {
     expect(cards[0].c).toBe(1)
   })
 
+  // v0.7.5 Task 8：v6 库没有 words.location。迁移必须是加列（ALTER TABLE），不能靠版本门重建
+  // （版本门只管 user_version < 3）；加列后既有行全部落到 DEFAULT 'workspace'，词库不丢。
+  // 列缺失是**静默失败**：review.ts 的查询会 catch 成 ok:false，界面读作「没有复习数据」，
+  // 所以这里逐项钉住：列存在、版本进位、旧行还在且值为 workspace。
+  it('v6 库加列迁移：补上 location 列、旧词全为 workspace、词库不丢', async () => {
+    const { adapter } = await createRawTestDb()
+    // 先造 v6 形状的 words（无 location）。SQL_CREATE_WORDS 是 IF NOT EXISTS，
+    // 故 SCHEMA_SEED_STATEMENTS 会跳过它、只补齐其余表与内置字段，模拟一个真实的 v6 库。
+    await adapter.execute(
+      `CREATE TABLE words (
+         id TEXT PRIMARY KEY,
+         lemma TEXT NOT NULL,
+         normalized_lemma TEXT NOT NULL,
+         language TEXT NOT NULL DEFAULT 'en',
+         created_at INTEGER NOT NULL,
+         updated_at INTEGER NOT NULL
+       )`
+    )
+    for (const sql of SCHEMA_SEED_STATEMENTS) await adapter.execute(sql)
+    await adapter.execute(
+      "INSERT INTO words (id, lemma, normalized_lemma, language, created_at, updated_at) VALUES ('w1','keep','keep','en',1,1)"
+    )
+    await adapter.execute('PRAGMA user_version = 6')
+
+    await ensureSchema(adapter)
+
+    const v = await adapter.select<{ user_version: number }>('SELECT user_version FROM pragma_user_version')
+    expect(v[0].user_version).toBe(7)
+    const cols = await adapter.select<{ name: string }>("SELECT name FROM pragma_table_info('words')")
+    expect(cols.map(c => c.name)).toContain('location')
+    const rows = await adapter.select<{ id: string; location: string }>('SELECT id, location FROM words')
+    expect(rows).toEqual([{ id: 'w1', location: 'workspace' }])
+
+    // 幂等：第二次启动时守卫看到列已存在，不再 ALTER、不报错，数据原样。
+    await ensureSchema(adapter)
+    const again = await adapter.select<{ c: number }>('SELECT count(*) as c FROM words')
+    expect(again[0].c).toBe(1)
+  })
+
   // 卡模型换代的守卫（REVIEW_DROP_STATEMENTS）**不能**从 SQL_DROP_TABLES 里切片派生：
   // 那里一旦重排行序（先子表后父表是当前顺序，将来若有变动很容易被"顺手整理"），
   // 切片会静默给出错误的顺序，而 SQLite 的 DROP 顺序错了是要抛外键错误的——

@@ -24,7 +24,7 @@ describe('wordStore.mergeWordFields', () => {
 
   it('合并成功 → 刷新侧边栏预览列表（音标/词性即时显示）', async () => {
     const previews = [
-      { id: 'w1', lemma: 'apple', normalizedLemma: 'apple', language: 'en', createdAt: 1, updatedAt: 1, phonetic: '/ˈæpl/', partOfSpeechTags: ['n'] },
+      { id: 'w1', lemma: 'apple', normalizedLemma: 'apple', language: 'en', location: 'workspace' as const, createdAt: 1, updatedAt: 1, phonetic: '/ˈæpl/', partOfSpeechTags: ['n'] },
     ]
     vi.mocked(wordService.mergeFields).mockResolvedValue(true)
     vi.mocked(fieldService.getValues).mockResolvedValue([])
@@ -53,7 +53,7 @@ describe('wordStore.libraryIndex（v0.7.5 Task 3：阅读态链接的在库判�
 
   it('加载词表后按归一化词面建索引，值恒为 workspace（本任务只覆盖工作区）', async () => {
     const previews = [
-      { id: 'w1', lemma: 'Forsake', normalizedLemma: 'forsake', language: 'en', createdAt: 1, updatedAt: 1 },
+      { id: 'w1', lemma: 'Forsake', normalizedLemma: 'forsake', language: 'en', location: 'workspace' as const, createdAt: 1, updatedAt: 1 },
     ]
     vi.mocked(wordService.getPreviews).mockResolvedValue(previews)
 

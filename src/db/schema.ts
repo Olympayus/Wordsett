@@ -6,6 +6,7 @@ export const SQL_CREATE_WORDS = `CREATE TABLE IF NOT EXISTS words (
   lemma TEXT NOT NULL,
   normalized_lemma TEXT NOT NULL,
   language TEXT NOT NULL DEFAULT 'en',
+  location TEXT NOT NULL DEFAULT 'workspace',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );`
@@ -71,7 +72,10 @@ export function seedFieldDefinitionsSQL(): string {
 // 上一版 v0.6.4 的 5 同理是书签：只新增一个内置字段，字段种子走 seedFieldDefinitionsSQL()
 // 的 INSERT OR IGNORE、每次启动无条件执行。进位只为让「本版动过 schema」在
 // pragma_user_version 上留痕，便于真机回归时一眼看出库是新是旧。
-export const SCHEMA_VERSION = 6
+// v0.7.5 的 7 是**真迁移**：words 加 location 列。与 5/6 不同，光把版本号进位**不会**加列
+// （ensureSchema 的版本门只管 < REBUILD_BELOW_VERSION 的重建），必须靠 init.ts 里那条
+// `tableHasColumn` 守卫的 ALTER TABLE；漏掉它不会报错，只会让复习侧查询静默落空。
+export const SCHEMA_VERSION = 7
 
 // ensureSchema 的重建门限（见 init.ts）。这是**版本门，不是空库判定**：user_version 低于此值
 // 就 DROP 重建，哪怕库里已有数据。与 SCHEMA_VERSION 有意解耦——让它跟着 SCHEMA_VERSION 一起涨，

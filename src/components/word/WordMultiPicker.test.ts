@@ -3,7 +3,7 @@ import { pickerWords, pickerConfirmLabel } from './WordMultiPicker'
 import type { WordWithPreview } from '../../types/word'
 
 const w = (id: string, lemma: string): WordWithPreview => ({
-  id, lemma, normalizedLemma: lemma, language: 'en', createdAt: 1, updatedAt: 1,
+  id, lemma, normalizedLemma: lemma, language: 'en', location: 'workspace', createdAt: 1, updatedAt: 1,
 })
 
 const ALL = [w('1', 'alpha'), w('2', 'beta'), w('3', 'gamma')]

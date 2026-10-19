@@ -11,6 +11,8 @@ export interface Word {
   lemma: string
   normalizedLemma: string
   language: string
+  /** 词条所在库模块（v0.7.5，schema v7 起落库）：工作区 / 储藏库。 */
+  location: WordLocation
   createdAt: number
   updatedAt: number
 }
