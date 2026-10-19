@@ -71,6 +71,14 @@ export function rowSourceState(editorMode: boolean, isPosPane: boolean, fv: Fiel
 // 左端 gutter 宽度（v0.5.2 修订）：手柄宽 10px，不额外留余量。
 // 宽度写死的意义是「手柄显隐不改变文字区宽度」→ 零重排。
 const GUTTER_WIDTH = 10
+/** 行内 gutter 与内容之间的 gap（FieldCard 的 content wrapper 用它）。 */
+const GUTTER_GAP = 4
+
+/** 多列块（LeafFlow）的左缘 = 所属容器**标题文字**的左缘（v0.7.4 决定五 5.1）。
+ *  容器行走的是 FlowRow：左内边距 11 + 手柄槽 10 + 行内 gap 4，标题文字因此落在 25px。
+ *  LeafFlow 的默认 11 是按「标题在 11」写的，实际会让第一个 `·` 比标题向左凸出 14px
+ *  （用户实测报的就是这一处）。`inset` 取这个组合值，`·` 与标题同缘。 */
+const LEAF_FLOW_INSET = 11 + GUTTER_WIDTH + GUTTER_GAP
 
 /**
  * 分条标记（`·` / `–`）的取色表（v0.7.4 决定九）：三态各一个来源色 token，**不新增色值**。
@@ -157,6 +165,7 @@ interface FieldCardProps extends FieldCardCtx {
    * 这一行左缘色条该用什么来源态（v0.7.4 决定九：取**最近的可着色容器**的聚合态）。
    * 由父级在映射子项时给；**有子级的行自行聚合、忽略它**（见 FieldCard 体内的 myBarState），
    * 叶子行则用它——父级就是它最近的容器。缺席时退回 `unitState`。
+   * 聚合在嵌套容器处止步（见 lib/fieldState.ts）：改例句只让例句块换色，不染上方释义行。
    */
   barState?: Exclude<FieldState, 'none'>
   /**
@@ -293,12 +302,13 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   // 叶子走哪套排版由 lib/fieldKind 的 leafForm 唯一判定（与返回页同一函数）；
   // 表内键回落 'plain'（普通正文）。
   const form = leafForm(def.key)
-  const state = fieldState(fv)
   // 释义（中/英）是**分段的根**：它永远自己聚合，不取父级（词性根容器）的颜色——否则一条
   // 没有子级的干净释义会被同词性里**别的**释义的改动染成 edited，兄弟的任何脏都不该漏进来。
   const isDefinition = def.key === 'chinese_definition' || def.key === 'english_definition'
   // 最近的可着色容器的聚合态（v0.7.4 决定九）：释义（段根）与**有子级的行**都自己算；
   // 只有真正的叶子行才用父级给的 `barState`（父级即它最近的容器），两者都缺席时退回自己的单位态。
+  // 聚合**在嵌套容器处止步**（修复轮，见 lib/fieldState.ts 的 containerState）：改一个例句只让
+  // 例句块整段变 edited，上方「英文释义」行仍按自己的状态着色。
   const myBarState = hasChildren || isDefinition ? containerState(fv, inheritedUser) : undefined
   const selfBarState = myBarState ?? barState ?? unitState(fv, inheritedUser)
   // 来源色只在编者模式现形（与 rowSourceState 同一门控），词性窗格永不出条。
@@ -566,7 +576,10 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           style={{
             flex: 1, minWidth: 0,
             fontSize: 'var(--text-sm)',
-            color: editorMode && state === 'original' ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+            // 两模式同色（修复轮）：v0.7.2 起这里曾让编者模式下 original 值取次级墨，
+            // 用户实测读作「打开编者模式中文变浅、行距收紧」。编者模式只该让**控件**现形，
+            // 文字外观必须与普通模式逐像素一致。
+            color: 'var(--color-text-primary)',
             fontFamily: isPhonetic ? 'var(--font-phonetic)' : undefined,
           }}
         >
@@ -703,7 +716,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               />
             }
           >
-            <span style={{ display: 'flex', alignItems: 'baseline', gap: '4px', flex: 1, minWidth: 0 }}>
+            <span style={{ display: 'flex', alignItems: 'baseline', gap: `${GUTTER_GAP}px`, flex: 1, minWidth: 0 }}>
               {grip}
               {content}
             </span>
@@ -744,6 +757,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           {leafFlow && (
             <LeafFlow
               state={rowState}
+              // 左缘 = 容器标题文字的左缘（v0.7.4 决定五 5.1）：标题在 11 + 手柄槽 10 + gap 4，
+              // 故多列块要 `inset={25}`；默认的 11 会让第一个 `·` 凸到标题左边 14px。
+              inset={LEAF_FLOW_INSET}
               // 多单位块在分段里算「一行」：首末直接透传——段首/段末由块整体收口，
               // 块前若还有容器行（first=false）则条向上接进那一行。
               first={barFirst}

@@ -63,10 +63,16 @@ describe('来源状态（v0.7.4 决定九）', () => {
     expect(containerState(withKids({ source: 'user' }, [{}]), false)).toBe('personal')
   })
 
-  it('容器：词典自带、子树里有人动过 → 被编辑', () => {
+  it('容器：词典自带、直属叶子有人动过 → 被编辑', () => {
     expect(containerState(withKids({}, [{}, { edited: true }]), false)).toBe('edited')
     expect(containerState(withKids({}, [{}, { source: 'user' }]), false)).toBe('edited')
-    expect(containerState(withKids({}, [{}, withKids({}, [{ edited: true }])]), false)).toBe('edited')
+  })
+
+  // 聚合在**嵌套容器**处止步：每个容器色条覆盖自己的整段（标题行 → 子树结束），
+  // 内层容器有自己的那一段。否则改一个例句会让上方「英文释义」那一段也变成 edited。
+  it('容器：嵌套容器里的改动不向父容器上冒——内层容器独占自己那一段', () => {
+    expect(containerState(withKids({}, [{}, withKids({}, [{ edited: true }])]), false)).toBe('original')
+    expect(containerState(withKids({}, [withKids({ source: 'user' }, [{}])]), false)).toBe('original')
   })
 
   it('容器：词典自带且子树干净 → 默认', () => {

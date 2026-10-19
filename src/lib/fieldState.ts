@@ -30,13 +30,20 @@ export const FIELD_STATE_BG: Record<FieldState, string> = {
 export const unitState = (fv: FieldValue, inUserContainer: boolean): Exclude<FieldState, 'none'> =>
   inUserContainer ? 'personal' : fieldState(fv)
 
-/** 容器行的来源态（v0.7.4 决定九）：容器自己建的 → personal；词典自带但**节点自身或子树里**
- *  有被改过 / 用户添加的节点 → edited；都干净 → original。
- *  聚合从节点自己开始算，不只看子树——释义自己的值被改过时，它整段（含例句）就该是 edited；
- *  同理，辨析组标题被编辑也由这里体现。`dirty` 已经递归进子树，故不必再单列子级判断。 */
+/** 容器行的来源态（v0.7.4 决定九）：容器自己建的 → personal；词典自带但**本段内**有被改过 /
+ *  用户添加的节点 → edited；都干净 → original。
+ *
+ *  **聚合在嵌套容器处止步**（v0.7.4 修复轮，用户实测反馈）：容器只聚合**自己的行与直属叶子**，
+ *  不穿透子容器。每个容器色条覆盖自己的整段（标题行 → 子树结束），内层容器有自己的那一段——
+ *  改一个例句时，例句块（标题 + 各例句）整段变 edited，而上方「英文释义」那一行仍按它**自己**
+ *  的状态着色；改释义正文时，下方的例句 / 近义词块也不受影响。
+ *  （决定九原文写的是「子树里有人动过」，那会让整条释义连例句一起变色；用户的口径更细。）
+ *
+ *  用户建的容器整棵子树取 personal 由调用处的 `inheritedUser` 传递，不靠这里递归。 */
 export function containerState(fv: FieldValue, inUserContainer: boolean): Exclude<FieldState, 'none'> {
   if (inUserContainer || fv.source === 'user') return 'personal'
   const dirty = (n: FieldValue): boolean =>
-    n.edited || n.source === 'user' || (n.children ?? []).some(dirty)
+    n.edited || n.source === 'user' ||
+    (n.children ?? []).some(c => !(c.children?.length) && dirty(c))
   return dirty(fv) ? 'edited' : 'original'
 }

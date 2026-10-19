@@ -75,6 +75,17 @@ describe('工作区改用原语（源码级守卫）', () => {
     expect(src).toMatch(/mode=\{editorMode \? 'edit' : 'view'\}/)
   })
 
+  it('编者模式不改文字颜色（修复轮：开关模式中文深浅不得变化）', () => {
+    // v0.7.2 的 `editorMode && state === 'original' ? 次级墨 : 主墨` 已移除：
+    // 用户实测「打开编者模式中文变浅、看起来行距被压紧」。值格恒主色。
+    expect(src).not.toMatch(/editorMode\s*&&\s*state\s*===\s*'original'/)
+  })
+
+  it('多列块左缘对齐容器标题文字（FlowRow 11 + 手柄槽 10 + gap 4）', () => {
+    expect(src).toMatch(/const LEAF_FLOW_INSET = 11 \+ GUTTER_WIDTH \+ GUTTER_GAP/)
+    expect(src).toMatch(/<LeafFlow[\s\S]{0,400}?inset=\{LEAF_FLOW_INSET\}/)
+  })
+
   it('leechCount 按 isLeech(overlay.maxLapses, leechThreshold) 门控，不直接传 maxLapses', () => {
     expect(src).toMatch(/isLeech\(overlay\.maxLapses, leechThreshold\)/)
     expect(src).not.toMatch(/leechCount=\{overlay\.maxLapses\}/)
@@ -175,12 +186,15 @@ describe('工作区改用原语（源码级守卫）', () => {
 //  （384 → 385）、C-2 头勾选框条件 +2（在 isPos 之后）。本文件十二处命中行重算为
 //  283 / 284 / 292 / 299 / 318 / 319 / 946 / 955 / 959 / 1002 / 1199 / 1374。
 //  行号全部由守卫失败输出回填，未手算。
+//  v0.7.4 修复轮 2（用户实测四项）：删掉编者模式的文字染色（−1 行）、LeafFlow 补左缘
+//  `LEAF_FLOW_INSET`（常量 +9 行、调用点 +3 行），本文件十二处命中行重算为
+//  292 / 293 / 301 / 307 / 328 / 329 / 962 / 971 / 975 / 1018 / 1215 / 1390。
 //   DictDetailCard.tsx:102 filter 里的 phonetic——可见性过滤（只问「显不显示」，不问「长什么样」）
 //   DictDetailCard.tsx:193 sourceMark——哪几枚行尾来源标
 //   DictDetailCard.tsx:256 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
 //   DictDetailCard.tsx:385 isPos——run-in 头形态
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [283, 284, 292, 299, 318, 319, 946, 955, 959, 1002, 1199, 1374], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['WordWorkbench.tsx', [292, 293, 301, 307, 328, 329, 962, 971, 975, 1018, 1215, 1390], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
   ['DictDetailCard.tsx', [102, 193, 256, 385], '可见性过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 
