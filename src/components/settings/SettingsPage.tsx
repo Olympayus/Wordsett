@@ -6,19 +6,21 @@ import VoiceSettings from './VoiceSettings'
 import SidebarSettings from './SidebarSettings'
 import TrayWindowSettings from './TrayWindowSettings'
 import CategorySettings from './CategorySettings'
+import LinkSettings from './LinkSettings'
 import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings'
 import PlatformSettings from './PlatformSettings'
 import AppearanceSettings from './AppearanceSettings'
 import SectionHeading from './SectionHeading'
 
-type SectionKey = 'general' | 'search' | 'review' | 'voice' | 'category' | 'platform' | 'about'
+type SectionKey = 'general' | 'search' | 'review' | 'voice' | 'category' | 'links' | 'platform' | 'about'
 const SECTIONS: { key: SectionKey; label: string }[] = [
   { key: 'general', label: '通用' },
   { key: 'search', label: '搜索设置' },
   { key: 'review', label: '复习' },
   { key: 'voice', label: '语音' },
   { key: 'category', label: '分类管理' },
+  { key: 'links', label: '双向链接' },
   { key: 'platform', label: '平台权限' },
   { key: 'about', label: '关于' },
 ]
@@ -102,6 +104,7 @@ export default function SettingsPage() {
           {active === 'review' && <ReviewSettings />}
           {active === 'voice' && <VoiceSettings />}
           {active === 'category' && <CategorySettings />}
+          {active === 'links' && <LinkSettings />}
           {active === 'platform' && <PlatformSettings />}
           {active === 'about' && (
             <>

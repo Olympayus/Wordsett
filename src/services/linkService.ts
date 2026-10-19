@@ -1,7 +1,7 @@
 import { getDb } from '../db/connection'
 import {
   aggregateBacklinks, linkTargets, normalizeLinkTarget,
-  type Backlink, type BacklinkRow,
+  type Backlink, type BacklinkRow, type LinkKind,
 } from '../lib/links'
 
 /**
@@ -13,6 +13,9 @@ import {
  *
  * **不要**为此建索引 / FTS / 新表（任务书明确 YAGNI）：词库是几千条规模，
  * 这条全表扫 + 两次 join 是毫秒级；真正的成本大头是逐行解析，而那本来就要做。
+ *
+ * 任务 7 的 `getLinkStats` 复用同一次粗筛：统计与反链看的是同一批候选行，
+ * 各写一条 SQL 只会让「LIKE 条件」有两个出处。
  */
 const SQL_BACKLINK_CANDIDATES = `
   SELECT fv.word_id AS wordId, w.lemma AS lemma, fd.name AS fieldName, fv.value AS value
@@ -30,6 +33,20 @@ interface BacklinkCandidate {
 }
 
 /**
+ * 取全部含链接标记的候选行；读失败是环境问题（库未初始化 / IO），返回 `null` 让
+ * 调用方退化为空结果。控制台留一行便于定位，不把错误抛进组件的 effect
+ * （会变成未处理的 rejection）。
+ */
+async function scanLinkCandidates(): Promise<BacklinkCandidate[] | null> {
+  try {
+    return await getDb().select<BacklinkCandidate[]>(SQL_BACKLINK_CANDIDATES)
+  } catch (e) {
+    console.error('link scan failed:', e)
+    return null
+  }
+}
+
+/**
  * 取全库中指向 `targetLemma` 的反链，按「来源词 × 字段」聚合。
  *
  * 同一条 value 里出现两次目标就算两行（`linkTargets` 不去重，这里按次 push）——
@@ -37,15 +54,8 @@ interface BacklinkCandidate {
  * 字段名取 `field_definitions.name`（用户看到的名字），不是渲染层的 `rowTitle`。
  */
 export async function getBacklinks(targetLemma: string): Promise<Backlink[]> {
-  let candidates: BacklinkCandidate[]
-  try {
-    candidates = await getDb().select<BacklinkCandidate[]>(SQL_BACKLINK_CANDIDATES)
-  } catch (e) {
-    // 读失败是环境问题（库未初始化 / IO），脚注没有可画的来源，静默退化为空；
-    // 控制台留一行便于定位，不把错误抛进组件的 effect（会变成未处理的 rejection）。
-    console.error('getBacklinks failed:', e)
-    return []
-  }
+  const candidates = await scanLinkCandidates()
+  if (!candidates) return []
 
   const target = normalizeLinkTarget(targetLemma)
   const hits: BacklinkRow[] = []
@@ -57,4 +67,72 @@ export async function getBacklinks(targetLemma: string): Promise<Backlink[]> {
     }
   }
   return aggregateBacklinks(hits, targetLemma)
+}
+
+/** 统计列表的一行：**源词**（写了链接的词）与它自己该种链接的条数。 */
+export interface LinkStatRow {
+  wordId: string
+  lemma: string
+  count: number
+}
+
+/** 单个标记口径的统计。`wordCount` 是去重后的源词数，`linkCount` 是出现次数（不去重）。 */
+export interface LinkStatBucket {
+  wordCount: number
+  linkCount: number
+  rows: LinkStatRow[]
+}
+
+/** 设置页「双向链接」分区一次扫描产出的两个口径。 */
+export interface LinkStats {
+  dict: LinkStatBucket
+  library: LinkStatBucket
+}
+
+function emptyStats(): LinkStats {
+  return {
+    dict: { wordCount: 0, linkCount: 0, rows: [] },
+    library: { wordCount: 0, linkCount: 0, rows: [] },
+  }
+}
+
+/**
+ * 全库链接统计（v0.7.5 任务 7）：一次扫描同时产出 `{{ }}` 与 `[[ ]]` 两个口径。
+ *
+ * 口径是**源词**（谁写了这条链接），不是被跳转的目标——用户明确决定的。
+ * `wordCount` = 去重后的源词数（与行数相等），`linkCount` = 标记出现次数
+ * （同一个词写两遍算两条，与行里的 `count` 同源）。
+ *
+ * 行序：条数降序 → 词面升序 → wordId。SQL 没有 ORDER BY，若不在这里显式排序，
+ * 列表顺序会随查询计划漂。
+ */
+export async function getLinkStats(): Promise<LinkStats> {
+  const candidates = await scanLinkCandidates()
+  if (!candidates) return emptyStats()
+
+  const buckets: Record<LinkKind, Map<string, LinkStatRow>> = {
+    dict: new Map(),
+    library: new Map(),
+  }
+  const linkCounts: Record<LinkKind, number> = { dict: 0, library: 0 }
+
+  for (const row of candidates) {
+    for (const token of linkTargets(row.value ?? '')) {
+      linkCounts[token.kind] += 1
+      const bucket = buckets[token.kind]
+      const hit = bucket.get(row.wordId)
+      if (hit) hit.count += 1
+      else bucket.set(row.wordId, { wordId: row.wordId, lemma: row.lemma, count: 1 })
+    }
+  }
+
+  const finish = (kind: LinkKind): LinkStatBucket => {
+    const rows = [...buckets[kind].values()].sort((a, b) =>
+      b.count - a.count
+      || normalizeLinkTarget(a.lemma).localeCompare(normalizeLinkTarget(b.lemma))
+      || a.wordId.localeCompare(b.wordId))
+    return { wordCount: rows.length, linkCount: linkCounts[kind], rows }
+  }
+
+  return { dict: finish('dict'), library: finish('library') }
 }

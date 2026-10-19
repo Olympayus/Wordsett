@@ -1,17 +1,19 @@
-import { describe, it, expect, vi, beforeAll } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { getDb } from '../db/connection'
 import * as wordsDb from '../db/words'
 import * as fieldsDb from '../db/fields'
 import { createTestDb, type DbLike } from '../db/test-utils'
-import { getBacklinks } from './linkService'
+import { getBacklinks, getLinkStats } from './linkService'
 
 vi.mock('../db/connection', () => ({
   getDb: vi.fn(),
   initDatabase: vi.fn(),
 }))
 
+// v0.7.5 任务 7 起改为每例独立 DB：`getLinkStats` 是**全库**扫描，共享一张表会让它
+// 把前面用例种下的链接一起数进来（同 categoryService.test.ts 的 beforeEach 模式）。
 let adapter: DbLike
-beforeAll(async () => {
+beforeEach(async () => {
   adapter = await createTestDb()
   vi.mocked(getDb).mockReturnValue(adapter as unknown as ReturnType<typeof getDb>)
 })
@@ -59,5 +61,58 @@ describe('getBacklinks 全库反链扫描', () => {
 
   it('无来源返回空数组', async () => {
     expect(await getBacklinks('nonexistent')).toEqual([])
+  })
+})
+
+describe('getLinkStats 全库链接统计（v0.7.5 任务 7）', () => {
+  it('两种标记分别统计源词数与出现次数；行按次数降序、词面升序', async () => {
+    // dict：abandon 2 条（大小写各一也算两条）、desert 1、forsaken 1
+    // library：forsake 2 条（跨字段合并成一行）、abandon 1、forsaken 1
+    // idle 只有空目标与无链接正文：不产生任何行
+    const abandon = await addWord('abandon')
+    const desert = await addWord('desert')
+    const forsake = await addWord('forsake')
+    const forsaken = await addWord('forsaken')
+    const idle = await addWord('idle')
+
+    await addValue(abandon, 'f_chinese_definition', '{{apple}} 与 {{APPLE}}')
+    await addValue(abandon, 'f_supplementary', '[[beta]]')
+    await addValue(desert, 'f_chinese_definition', '{{pear}}')
+    await addValue(forsake, 'f_chinese_definition', '[[alpha]]')
+    await addValue(forsake, 'f_supplementary', '[[beta]]')
+    await addValue(forsaken, 'f_chinese_definition', '[[alpha]] 与 {{grape}}')
+    await addValue(forsaken, 'f_supplementary', '见 [[unclosed')
+    await addValue(idle, 'f_chinese_definition', '[[]] 与 {{ }}')
+
+    expect(await getLinkStats()).toEqual({
+      dict: {
+        wordCount: 3,
+        linkCount: 4,
+        rows: [
+          { wordId: abandon, lemma: 'abandon', count: 2 },
+          { wordId: desert, lemma: 'desert', count: 1 },
+          { wordId: forsaken, lemma: 'forsaken', count: 1 },
+        ],
+      },
+      library: {
+        wordCount: 3,
+        linkCount: 4,
+        rows: [
+          { wordId: forsake, lemma: 'forsake', count: 2 },
+          { wordId: abandon, lemma: 'abandon', count: 1 },
+          { wordId: forsaken, lemma: 'forsaken', count: 1 },
+        ],
+      },
+    })
+  })
+
+  it('全库没有链接时两个口径都是零', async () => {
+    const w = await addWord('empty')
+    await addValue(w, 'f_chinese_definition', '普通释义，没有标记')
+
+    expect(await getLinkStats()).toEqual({
+      dict: { wordCount: 0, linkCount: 0, rows: [] },
+      library: { wordCount: 0, linkCount: 0, rows: [] },
+    })
   })
 })
