@@ -4,6 +4,7 @@ import type { FieldValue } from '../../types/field'
 import { formatPhonetic } from '../../lib/phonetic'
 import { fieldState, FIELD_STATE_BG } from '../../lib/fieldState'
 import { FIELD_LABEL_STYLE, BAND_LABEL_COLUMN, BAND_LABEL_GAP } from '../../lib/labelStyle'
+import { MEASURE_STYLE, MEASURE_MIN_WIDTH, measureTextWidth } from '../../lib/measureText'
 import Icon from '../icons'
 
 interface PhoneticAreaProps {
@@ -37,15 +38,6 @@ const iconBtn: CSSProperties = {
   cursor: 'pointer', padding: 0,
 }
 
-// 就地编辑的输入框宽度（v0.7.4 任务 14）：**量被替换文字的渲染宽度**，从它起、随输入增长，
-// `minWidth: '4em'` 兜底。原先写死 140px——比原词宽就露出一段空白、比原词窄就把后面的 chip
-// 挤走，两种都是「进编辑那一刻」的位移。
-//
-// 隐藏 span 必须 `position: absolute`：`display:'none'` 量不到尺寸；绝对定位同时把它移出排版流，
-// 否则芯片在编辑前后会长出一枚与音标等宽的盒子，位移照旧。字体取本组件 `displayFont`
-// 的那一套（音标用 `--font-phonetic` / 15px，词根用 `--font-sans` / 13px），量出来才逐像素一致。
-const MEASURE_STYLE: CSSProperties = { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre' }
-
 // 常驻占位 + opacity/visibility 显隐（v0.5.2 修订，本文件原有的那份）：chip 内的编辑 / 删除是
 // 真正的 <button>，只靠 opacity 隐藏时它们仍在 Tab 序列与无障碍树里，Tab+Enter 会误触编辑 / 删除；
 // visibility:hidden 同时移出两者，且不占位差、布局照旧保留。抽到模块级是因为 chip 本体已是组件。
@@ -56,13 +48,6 @@ function reveal(on: boolean): CSSProperties {
     pointerEvents: on ? 'auto' : 'none',
     transition: 'opacity var(--duration-fast) var(--ease-smooth)',
   }
-}
-
-/** 量出的宽度（px）：`0` ＝ 量不到（尚未挂载），调用处回落 `minWidth`。 */
-function measureTextWidth(el: HTMLElement | null): number {
-  if (!el) return 0
-  const w = el.getBoundingClientRect().width
-  return Number.isFinite(w) ? Math.ceil(w) : 0
 }
 
 /**
@@ -91,9 +76,10 @@ function ChipBody(props: {
   onMenu: (id: string | null) => void
 }) {
   const { fv, isEditing, hovered, displayFont, plain, editorMode, rowHover, editValue, menuOpenId } = props
-  // 量**被替换那段文字**——音标模式显示的是 `formatPhonetic` 的产物（比 `fv.value` 更宽：
-  // `[` 与 `]` 等），拿 `fv.value` 量会系统性偏窄。
-  const displayText = plain ? fv.value : formatPhonetic(fv.value)
+  // 量的是**编辑中的值**（`editValue`，不是 `fv.value`）——初始时它等于被替换那段文字，之后随输入
+  // 增长；量 `fv.value` 的话整个编辑过程宽度一动不动（那是评审抓到的 bug）。音标模式显示的是
+  // `formatPhonetic` 的产物（比 `fv.value` 宽：`[` `]` 等），也要照样格式化后再量。
+  const displayText = plain ? editValue : formatPhonetic(editValue)
   const probeRef = useRef<HTMLSpanElement>(null)
   const [textWidth, setTextWidth] = useState(0)
   useLayoutEffect(() => { if (isEditing) setTextWidth(measureTextWidth(probeRef.current)) }, [isEditing, editValue])
@@ -126,7 +112,7 @@ function ChipBody(props: {
               fontFamily: displayFont.fontFamily, fontSize: displayFont.fontSize, color: 'var(--color-text-primary)',
               border: '1px solid var(--color-brand)', borderRadius: 4, padding: '1px 6px',
               background: 'var(--color-surface)', outline: 'none',
-              minWidth: '4em', ...(textWidth ? { width: textWidth } : null),
+              minWidth: MEASURE_MIN_WIDTH, ...(textWidth ? { width: textWidth } : null),
             }}
           />
         </>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useLayoutEffect, useRef, type CSSProperties } from 'react'
+import { useState, useEffect, useCallback, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 import {
   DndContext,
   pointerWithin,
@@ -42,6 +42,7 @@ import { useCategoryStore } from '../../stores/categoryStore'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { isLeech, leechTooltip } from '../../lib/review/leech'
+import { measureTextWidth, MEASURE_STYLE, MEASURE_INPUT_CLASS, MEASURE_MIN_WIDTH, measureMarkSlot } from '../../lib/measureText'
 import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
 import { displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
@@ -213,32 +214,32 @@ function RowMenu({ items }: { items: MenuItem[] }) {
 
 // 就地编辑的两件共用机制（v0.7.4 任务 14）：**保存 / 取消已搬到导航条**（WorkbenchNavBar），
 // 行内只剩输入框本身，故编辑盒子可以退成行内级、进编辑时周围一个像素不动。
+// 输入框的**起宽**量的是被替换文字的渲染宽度（`lib/measureText.ts`，三处消费点共用一份）。
 
-// ① 被替换文字的宽度：一枚**绝对定位**的隐藏 span（与正文同字体、同字号，见调用处的
-// `...font`），量它 `getBoundingClientRect().width`，写成输入框的 `style.width`；
-// `minWidth: '4em'` 兜底（新加的字段值为空时不能塌成 0 宽）。
+// 键盘（挂在编辑中的 input / textarea **自己**身上，不做 window 级：window 级已有一个
+// `Esc` 关「＋ 添加」浮层，两个窗口级监听会互相打架）。
+// 多行字段里 Enter 是保存、Shift+Enter 换行（用户决定）；单行字段 Enter 即保存。
 //
-// 必须绝对定位（`position:'absolute'; visibility:'hidden'`）而不是 `display:'none'`：
-// 后者量不到任何尺寸。绝对定位同时把它**移出排版流**——否则这一行在编辑前后会长出一枚
-// 与文字等宽的盒子，「零位移」当场破功（它跟在正文后面还会把后续单位挤到下一列）。
-//
-// 只用于**单行**字段（`fieldType !== 'multiline'`）：多行的正文本来就可能折行，
-// 「原文字宽度」没有定义，textarea 照旧 `w-full`。
-const MEASURE_STYLE: CSSProperties = { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre' }
-const MEASURE_MIN_WIDTH = '4em'
-
-/** 量出的输入框宽度（px）：`0` ＝ 量不到（尚未挂载、容器不可见），调用方回落 `minWidth`。 */
-function measureTextWidth(el: HTMLElement | null): number {
-  if (!el) return 0
-  const w = el.getBoundingClientRect().width
-  return Number.isFinite(w) ? Math.ceil(w) : 0
+// `isComposing` 守卫不可省：中文输入法**上屏的那一下也是 Enter**，不拦住就会把正在输入的拼音
+// 连同候选一起当成「保存」提交、当场退出编辑（同 `PhoneticArea` 既有的那条守卫）。
+export function editKeyDown(fieldType: FieldDefinition['fieldType'], onSave: () => void, onCancelEdit: () => void) {
+  return (e: { key: string; shiftKey: boolean; nativeEvent: { isComposing: boolean }; preventDefault: () => void }) => {
+    if (e.nativeEvent.isComposing) return
+    if (e.key === 'Escape') { e.preventDefault(); onCancelEdit() }
+    if (e.key === 'Enter' && (fieldType !== 'multiline' || !e.shiftKey)) {
+      e.preventDefault(); onSave()
+    }
+  }
 }
 
-// 单行编辑框：从**被替换文字**的宽度起、随输入增长。字体由调用处按该行的 `font`
-// （单位行是 LeafFlow 的 15px，值格是 `--text-sm` 13px）给出，量宽才与正文逐像素一致。
-function MeasuredInput({ value, font, onChange, onKeyDown }: {
+// 单行编辑框：从**被替换内容**的宽度起、随输入增长。字体由调用处按该行给——例句（`example`）
+// 是衬线斜体 14px、行首还有一枚 `DashMark`（见值格的非编辑分支），两样都要算进去，
+// 否则进编辑那一刻既换了字体、又丢了那枚 `–`，整行当场往左跳。
+function MeasuredInput({ value, font, mark, onChange, onKeyDown }: {
   value: string
   font: CSSProperties
+  /** 被替换内容里、输入框**之前**那部分（例句的行首 `–`）；其余行不传。 */
+  mark?: ReactNode
   onChange: (v: string) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
 }) {
@@ -247,9 +248,9 @@ function MeasuredInput({ value, font, onChange, onKeyDown }: {
   useLayoutEffect(() => { setTextWidth(measureTextWidth(probeRef.current)) }, [value])
   return (
     <>
-      <span ref={probeRef} aria-hidden="true" style={{ ...MEASURE_STYLE, ...font }}>{value}</span>
+      <span ref={probeRef} aria-hidden="true" className={MEASURE_INPUT_CLASS} style={{ ...MEASURE_STYLE, ...font }}>{mark}{value}</span>
       <input
-        className="px-3 py-1.5 rounded text-sm"
+        className={MEASURE_INPUT_CLASS}
         style={{ ...font, minWidth: MEASURE_MIN_WIDTH, ...(textWidth ? { width: textWidth } : null),
                  border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)' }}
         value={value}
@@ -259,21 +260,6 @@ function MeasuredInput({ value, font, onChange, onKeyDown }: {
       />
     </>
   )
-}
-
-// 键盘（挂在编辑中的 input / textarea **自己**身上，不做 window 级：window 级已有一个
-// `Esc` 关「＋ 添加」浮层，两个窗口级监听会互相打架）。
-// 多行字段里 Enter 是保存、Shift+Enter 换行（用户决定）；单行字段 Enter 即保存。
-//
-// 单行与多行的差别只在 Enter 一处分流，`preventDefault` 都做：不拦的话输入框会收到一个
-// 换行（textarea 里就是真换行），与「Enter ＝ 保存」的语义相反。
-function editKeyDown(fieldType: FieldDefinition['fieldType'], onSave: () => void, onCancelEdit: () => void) {
-  return (e: React.KeyboardEvent<HTMLElement>) => {
-    if (e.key === 'Escape') { e.preventDefault(); onCancelEdit() }
-    if (e.key === 'Enter' && (fieldType !== 'multiline' || !e.shiftKey)) {
-      e.preventDefault(); onSave()
-    }
-  }
 }
 
 // 单个字段行（v0.7.2 改用原语外壳）：grip 拖拽（仅 grip 激活拖拽）+ 同级插入指示线 + 行尾操作簇。
@@ -491,16 +477,15 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
       {grip}
       {isPosPane && isEditing ? (
         // v0.7.4 任务 14：行内不再有「保存 / 取消」（搬到导航条），盒子也不留 gap。
-        // 宽度**不做量宽**（仍 `maxWidth: 240px` 收缩到内容）：词性标签恒短，且它跟在
-        // grip 之后、前面没有会被它挤开的行内兄弟。
+        // 宽度走**量宽**（R24 已由控制器推翻）：裸 `<input>` **不会**收缩到内容宽，它取浏览器
+        // 默认的 `size=20`（≈170px），进编辑那一刻整行要往右让出 ~150px。字体取本行头标签的
+        // `headLabelStyle`（衬线斜体 16px / 600），与被替换的 `adj.` 一致。
         <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-          <input
-            className="px-3 py-1.5 rounded text-sm"
-            style={{ border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)', maxWidth: '240px' }}
+          <MeasuredInput
             value={editValue}
-            onChange={e => onEditValueChange(e.target.value)}
+            font={headLabelStyle}
+            onChange={onEditValueChange}
             onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
-            autoFocus
           />
         </span>
       ) : isPosPane ? (
@@ -564,15 +549,15 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           {isGroupPane && isEditing ? (
             // 容器分支不渲染值格，但组标题带描述值：编辑态必须就地长出输入框。
             // v0.7.4 任务 14：行内不再有「保存 / 取消」（搬到导航条），故盒子不留 gap；
-            // 宽度**不做量宽**，仍收缩到内容（组描述是自由文本，能长能短，跟的是标签列宽）。
+            // 宽度走**量宽**（R24 已由控制器推翻）：裸 `<input>` 取浏览器默认 `size=20`
+            // （≈170px），比组描述长得多，进编辑那一刻整行要往右让出一截。字体取**本 span**
+            // 的字形（一级 `--text-sm` / 二级 `--text-xs`、700、字距 0.5px），与被替换的组描述一致。
             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
-              <input
-                className="px-3 py-1.5 rounded text-sm"
-                style={{ border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)' }}
+              <MeasuredInput
                 value={editValue}
-                onChange={e => onEditValueChange(e.target.value)}
+                font={{ fontSize: isLevel1 ? 'var(--text-sm)' : 'var(--text-xs)', fontWeight: 700, letterSpacing: '0.5px' }}
+                onChange={onEditValueChange}
                 onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
-                autoFocus
               />
             </span>
           ) : (
@@ -611,9 +596,24 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               </span>
             ) : (
               <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                {/* 例句（`example`）在非编辑分支里是「行首一枚 `DashMark`＋8px 右间距 ＋ 衬线斜体
+                    14px 的文字」（见下），编辑态必须照样把**同一枚标记**留在输入框前面，只是文字
+                    换成输入框：标记拿走的那一刻，整行会往左跳「标记宽 ＋ 8px」。 */}
+                {form === 'example' && measureMarkSlot(
+                  <DashMark color={rowState === 'none' ? 'var(--ink-3)' : MARK_COLOR[rowState]} />
+                )}
                 <MeasuredInput
                   value={editValue}
-                  font={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm' }}
+                  font={
+                    form === 'example'
+                      ? { fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px' }
+                      : { fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm)' }
+                  }
+                  mark={
+                    form === 'example' ? measureMarkSlot(
+                      <DashMark color={rowState === 'none' ? 'var(--ink-3)' : MARK_COLOR[rowState]} />
+                    ) : undefined
+                  }
                   onChange={onEditValueChange}
                   onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
                 />
