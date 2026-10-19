@@ -12,6 +12,16 @@ import { current } from '../lib/navHistory'
 
 interface WordStore {
   words: WordWithPreview[]
+  /**
+   * 全库预览（工作区 ∪ 储藏库，v0.7.5 Task 14）。
+   *
+   * 两个消费点，都是模块无关的界面：设置页的批量管理弹层（候选集是两个模块的并集，
+   * 每行还要标注所属模块）与分类分模块读数（词 id → 位置的唯一来源；
+   * `libraryIndex` 的键是归一化词面，对不上 `wordCategoryMap` 的词 id）。
+   * 由 `loadWords` 随当前模块词表一并刷新——它是所有词数据写入后的统一重载入口
+   * （移入 / 移回 / 增删词 / 合并字段都走它），故不会出现「当前词表新、并集旧」。
+   */
+  libraryWords: WordWithPreview[]
   loading: boolean
   selectedWordId: string | null
   fieldValues: FieldValue[]
@@ -33,7 +43,7 @@ interface WordStore {
   moveToArchive: (id: string) => Promise<void>
   /** 移回工作台（v0.7.5 Task 11）：同上，方向相反。 */
   moveToWorkspace: (id: string) => Promise<void>
-  /** 重建词库索引与三档计数（`loadWords` 内顺带调；移入/移出后再调）。 */
+  /** 重建词库索引、三档计数与全库并集预览（`loadWords` 内顺带调；移入/移出后再调）。 */
   reloadLibraryIndex: () => Promise<void>
   /** 目标词所在模块；不在库返回 null。 */
   libraryLocationOf: (lemma: string) => WordLocation | null
@@ -70,6 +80,7 @@ async function moveWord(
 
 export const useWordStore = create<WordStore>((set, get) => ({
   words: [],
+  libraryWords: [],
   loading: false,
   selectedWordId: null,
   fieldValues: [],
@@ -79,11 +90,13 @@ export const useWordStore = create<WordStore>((set, get) => ({
 
   loadWords: async () => {
     set({ loading: true })
-    // 词表按当前模块收窄；索引与计数另行从全库查（见 reloadLibraryIndex），
-    // 否则在储藏库模块里「已收录」判定就只剩储藏库。
-    const words = await wordService.getPreviews(get().location)
+    // 当前模块词表与全库数据（并集预览 / 索引 / 计数）并行取：
+    // 索引与计数不能只看当前模块（见 reloadLibraryIndex），并集预览同理。
+    const [words] = await Promise.all([
+      wordService.getPreviews(get().location),
+      get().reloadLibraryIndex(),
+    ])
     set({ words, loading: false })
-    await get().reloadLibraryIndex()
   },
 
   setLocation: async (location) => {
@@ -94,11 +107,12 @@ export const useWordStore = create<WordStore>((set, get) => ({
   },
 
   reloadLibraryIndex: async () => {
-    const [rows, counts] = await Promise.all([
+    const [libraryWords, rows, counts] = await Promise.all([
+      wordService.getAllPreviews(),
       wordService.getLemmaLocations(),
       wordService.getLocationCounts(),
     ])
-    set({ libraryIndex: buildLibraryIndex(rows), counts })
+    set({ libraryWords, libraryIndex: buildLibraryIndex(rows), counts })
   },
 
   libraryLocationOf: (lemma) => get().libraryIndex.get(normalizeLinkTarget(lemma)) ?? null,

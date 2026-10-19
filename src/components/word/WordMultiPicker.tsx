@@ -23,6 +23,10 @@ export type PickerDirection = 'add' | 'remove'
  * 行尾那个「该词现有分类数」（§4.3）是**纯展示的补充读数**，刻意不并进这里：
  * pickerWords 的入参与返回值只认词表与成员集，它的用例锁的正是这套候选口径。
  * 分类数另从 wordCategoryMap 取（见组件内 categoryCountOf），两者互不影响。
+ *
+ * v0.7.5 Task 14：候选词表改为**两个模块的并集**（`wordStore.libraryWords`）。
+ * 弹层从设置页打开，设置页是模块无关的——只列当前模块会让储藏库的成员在「移除」
+ * 方向下凭空消失。谓词本身不变：仍是按成员集取一边，模块归属只是行尾的展示信息。
  */
 export function pickerWords(
   all: WordWithPreview[],
@@ -57,7 +61,9 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
   onConfirm: (wordIds: string[]) => void
   onClose: () => void
 }) {
-  const words = useWordStore(s => s.words)
+  // 候选词表是**两个模块的并集**（v0.7.5 Task 14）：设置页与模块无关，只读当前模块
+  // 会让储藏库的成员在「移除」方向下消失。每行的 location 随预览一起带出，用于行尾标注。
+  const libraryWords = useWordStore(s => s.libraryWords)
   const wordCategoryMap = useCategoryStore(s => s.wordCategoryMap)
   const panelRef = useRef<HTMLDivElement>(null)
   useFocusTrap(open, panelRef)
@@ -68,20 +74,20 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
 
   // 预勾选的来源：**实际会被渲染出来的候选**，不是 memberIds 本身。
   //
-  // memberIds 来自 wordCategoryMap，行渲染来自 wordStore.words，两者各走各的加载路径，
-  // 谁都不保证 memberIds ⊆ words（getPreviews 在 DB 出错时返回 []，而 words 初始为空、
+  // memberIds 来自 wordCategoryMap，行渲染来自 wordStore.libraryWords，两者各走各的加载路径，
+  // 谁都不保证 memberIds ⊆ libraryWords（getAllPreviews 在 DB 出错时返回 []，而并集初始为空、
   // 由异步的 loadWords 填充）。若直接拿 memberIds 播种，两边一旦对不上，checked 里就会
   // 装着一批**屏幕上没有行**的 id：列表空、确认键却亮着「移除 N 个单词」，而 N 是整个
   // 成员数——一次用户看不见、也无法审阅的批量 unassignMany。种子取自 rendered 候选之后，
-  // checked ⊆ removeCandidates ⊆ words 成为结构性事实，不再靠断言维持。
+  // checked ⊆ removeCandidates ⊆ libraryWords 成为结构性事实，不再靠断言维持。
   const removeCandidates = useMemo(
-    () => pickerWords(words, members, 'remove', ''),
-    [words, members])
+    () => pickerWords(libraryWords, members, 'remove', ''),
+    [libraryWords, members])
 
   // 每次打开都重置：方向与分类变了就该重新来。「移除」预勾选全部候选，「加入」全不勾。
   // query 不在依赖里：打字**不得**重新播种，否则筛选一下就把筛选外的勾清掉。
-  // words 在依赖里是有意的——弹层开着时 loadWords 落地（原先的空 words → 真实词表）
-  // 正是该重播种的时刻，且 removeCandidates 只随 words/members 变，无关重渲染不会触发。
+  // libraryWords 在依赖里是有意的——弹层开着时 loadWords 落地（原先的空并集 → 真实词表）
+  // 正是该重播种的时刻，且 removeCandidates 只随 libraryWords/members 变，无关重渲染不会触发。
   useEffect(() => {
     if (!open) return
     setQuery('')
@@ -89,8 +95,8 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
   }, [open, direction, removeCandidates])
 
   const shown = useMemo(
-    () => pickerWords(words, members, direction, query),
-    [words, members, direction, query])
+    () => pickerWords(libraryWords, members, direction, query),
+    [libraryWords, members, direction, query])
 
   // 行尾的分类数：wordCategoryMap 本就是「词 → 它所属的分类 id 列表」，长度即答案，
   // 不另开查询。与上面的候选集**刻意解耦**——读的是 store，不是 pickerWords 的口径。
@@ -101,10 +107,11 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
   //  - 加入方向、没搜索却空 → 词库里的词都已经是这个分类的成员（词库本身为空时另说）
   //  - 移除方向、没搜索却空 → 这个分类本来就没有词
   // 「加入」那一支是本次候选集收窄后新出现的态：收窄前它永远列全库，压根空不了。
+  // 「词库为空」按并集判断：储藏库里只有词、工作区为空时，说「词库为空」是假话。
   const emptyText = query.trim() !== ''
     ? '没有匹配的单词'
     : direction === 'add'
-      ? (words.length === 0 ? '词库为空，使用顶部搜索框添加单词' : '所有单词都已在这个分类里')
+      ? (libraryWords.length === 0 ? '词库为空，使用顶部搜索框添加单词' : '所有单词都已在这个分类里')
       : (members.size > 0 ? '没有匹配的单词' : '这个分类下还没有单词')
 
   if (!open) return null
@@ -155,11 +162,13 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
                 })}
               />
               <span style={{ fontFamily: 'var(--font-serif)', fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{w.lemma}</span>
-              {/* 该词现有分类数（§4.3）：行内补充读数，够不着「统计数字」的量级，
-                  故走三级灰 + xs 字号，不套 .stat-num（那套无衬线+表格数字+主色+半粗是给统计量的）。
-                  「加入」方向下它是这个词有多重归属，「移除」方向下它说明移出去会剩下几个。 */}
-              <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
-                {categoryCountOf(w.id)}
+              {/* 行尾补充读数（v0.7.5 Task 14）：先标注所属模块，再给该词现有分类数（§4.3）。
+                  两者都是行内小字、够不着「统计数字」的量级，故走三级灰 + xs 字号，
+                  不套 .stat-num（那套无衬线+表格数字+主色+半粗是给统计量的）。
+                  模块标注是**纯展示**：候选口径仍只由 pickerWords 的成员谓词决定。 */}
+              <span style={{ marginLeft: 'auto', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>
+                <span>{w.location === 'archive' ? '储藏库' : '工作区'}</span>
+                <span>{categoryCountOf(w.id)}</span>
               </span>
             </label>
           ))}

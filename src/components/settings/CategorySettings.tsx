@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react'
 import { useCategoryStore } from '../../stores/categoryStore'
+import { useWordStore } from '../../stores/wordStore'
 import { useUiStore } from '../../stores/uiStore'
 import type { Category } from '../../types/category'
+import type { WordLocation } from '../../types/word'
+import { categoryLocationCounts, locationCountSegments, type LocationCounts } from '../../lib/categoryCounts'
 import WordMultiPicker from '../word/WordMultiPicker'
 import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
@@ -9,9 +12,10 @@ import SquareButton from '../ui/SquareButton'
 // 选择器没开时的稳定空数组：写在模块作用域，`useMemo` 的回落分支才不会每次渲染造新引用
 const EMPTY_MEMBERS: string[] = []
 
-function CategoryRow({ cat, count, onEdit, onDelete, onBatchAdd, onBatchRemove }: {
+function CategoryRow({ cat, counts, onEdit, onDelete, onBatchAdd, onBatchRemove }: {
   cat: { id: string; name: string; color: string; description?: string | null }
-  count: number
+  /** v0.7.5 Task 14：分类读数分模块——工作区:m 储藏库:n，两个数各自 .stat-num。 */
+  counts: LocationCounts
   onEdit: () => void
   onDelete: () => void
   /** v0.6.5 §4.3：批量入口拆成「加入」「移出」两枚按钮，方向固定（不做一体化差集）。 */
@@ -42,12 +46,15 @@ function CategoryRow({ cat, count, onEdit, onDelete, onBatchAdd, onBatchRemove }
         <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }}>{cat.name}</div>
         {cat.description && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>{cat.description}</div>}
       </div>
-      {/* 计数常驻：数字走 .stat-num（无衬线 + 表格数字 + 主色 + 半粗），汉字无衬线二级灰 */}
-      <span style={{ whiteSpace: 'nowrap' }}>
-        {/* className 统一数字格式（与工作区左下、侧栏分组、词性计数同源），
-            字号仍内联——.stat-num 不设字号，WordList.tsx:241 也是类 + 内联字号。 */}
-        <span className="stat-num" style={{ fontSize: 'var(--text-xs)' }}>{count}</span>
-        <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}> 词</span>
+      {/* 计数常驻：数字走 .stat-num（无衬线 + 表格数字 + 主色 + 半粗），汉字无衬线二级灰。
+          v0.7.5 Task 14：不再是一个「N 词」，而是两个模块的读数——分段由纯函数给出，
+          组件只负责把 stat 段套上 .stat-num。 */}
+      <span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+        {locationCountSegments(counts.workspace, counts.archive).map((seg, i) =>
+          seg.stat
+            ? <span key={i} className="stat-num" style={{ fontSize: 'var(--text-xs)' }}>{seg.text}</span>
+            : <span key={i} style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>{seg.text}</span>
+        )}
       </span>
       {/* 批量两枚按钮排在编辑之前：紧邻分类名，「加一批 / 减一批」先于「改这个分类本身」 */}
       <button type="button" title={`批量加入「${cat.name}」`} aria-label={`批量加入「${cat.name}」`} onClick={onBatchAdd}
@@ -81,6 +88,7 @@ function CategoryRow({ cat, count, onEdit, onDelete, onBatchAdd, onBatchRemove }
 export default function CategorySettings() {
   const categories = useCategoryStore(s => s.categories)
   const wordCategoryMap = useCategoryStore(s => s.wordCategoryMap)
+  const libraryWords = useWordStore(s => s.libraryWords)
   const deleteCategory = useCategoryStore(s => s.deleteCategory)
   const openEditor = useUiStore(s => s.openEditor)
   const { assignMany, unassignMany } = useCategoryStore()
@@ -89,8 +97,18 @@ export default function CategorySettings() {
   // 提到 memo 的 key 里：开着的那个分类的 id（关着时为 null）
   const pickerCatId = picker ? picker.cat.id : null
 
-  const countFor = (catId: string) =>
-    Object.values(wordCategoryMap).filter(ids => ids.includes(catId)).length
+  // 词 id → 所在模块。wordCategoryMap 只有词 id，位置从全库并集词表取（store 的单一来源）。
+  const locationByWord = useMemo(
+    () => new Map<string, WordLocation>(libraryWords.map(w => [w.id, w.location])),
+    [libraryWords])
+
+  // 分类 → 分模块词数：一次遍历建完整张表，不为每一行单独查询。
+  const countsByCategory = useMemo(
+    () => categoryLocationCounts(wordCategoryMap, locationByWord),
+    [wordCategoryMap, locationByWord])
+
+  const countsFor = (catId: string): LocationCounts =>
+    countsByCategory.get(catId) ?? { workspace: 0, archive: 0 }
 
   // wordCategoryMap 是「词 → 它所属的分类 id 列表」，要的是「分类 → 成员词」，故这里反向取键。
   const memberIdsOf = (catId: string) =>
@@ -131,7 +149,7 @@ export default function CategorySettings() {
           <CategoryRow
             key={cat.id}
             cat={cat}
-            count={countFor(cat.id)}
+            counts={countsFor(cat.id)}
             onEdit={() => openEditor(cat, null)}
             onDelete={async () => { if (await useUiStore.getState().confirm({ title: '删除分类', message: `确定删除分类“${cat.name}”吗？将从所有单词移除该分类。`, danger: true })) void deleteCategory(cat.id) }}
             onBatchAdd={() => setPicker({ cat, direction: 'add' })}

@@ -17,8 +17,9 @@ import { moveActionLabel, moveBatchConfirmRequest, moveConfirmRequest, moveTarge
 import { groupByLetter, groupByCategory, SIDEBAR_ROW_HEIGHT, SIDEBAR_ROW_HEIGHT_COLLAPSED, type SidebarMode } from '../../lib/sidebar'
 import { rangeSelect, selectAll, pruneToRows, selectedWordIdsFromRows } from '../../lib/selection'
 import { SMART_VIEW_ORDER, filterBySmartView, sidebarViews, smartViewCount } from '../../lib/smartViews'
+import { categoryLocationCounts, locationCountSegments, type LocationCounts } from '../../lib/categoryCounts'
 import type { SmartViewKey } from '../../lib/smartViews'
-import type { WordWithPreview } from '../../types/word'
+import type { WordLocation, WordWithPreview } from '../../types/word'
 import type { Category } from '../../types/category'
 import Icon, { type IconName } from '../icons'
 
@@ -30,6 +31,8 @@ interface HeaderRow {
   type: HeaderType
   label: string
   count: number
+  /** 分类分组表头的分模块读数（v0.7.5 Task 14）；字母组与未分类没有。 */
+  locationCounts?: LocationCounts
   color?: string
 }
 interface ItemRow {
@@ -65,7 +68,7 @@ export default function WordList({
   mode: SidebarMode
   onToggleMode: () => void
 }) {
-  const { words, selectedWordId, selectWord, location, moveToArchive, moveToWorkspace } = useWordStore()
+  const { words, libraryWords, selectedWordId, selectWord, location, moveToArchive, moveToWorkspace } = useWordStore()
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchorKey, setAnchorKey] = useState<string | null>(null)
@@ -121,6 +124,16 @@ export default function WordList({
   }, [filter, viewFiltered])
 
   const categoryById = useMemo(() => new Map(categories.map(c => [c.id, c])), [categories])
+
+  // 分类分组表头的分模块读数（v0.7.5 Task 14）：与分类管理同一个来源——
+  // wordCategoryMap（全库）+ 并集词表给出的词 id → 模块，一次遍历建完整张表。
+  // 读的是**分类的全库成员**，不是当前模块/筛选后的可见行：表头要与设置页同一句话。
+  const locationByWord = useMemo(
+    () => new Map<string, WordLocation>(libraryWords.map(w => [w.id, w.location])),
+    [libraryWords])
+  const categoryCounts = useMemo(
+    () => categoryLocationCounts(wordCategoryMap, locationByWord),
+    [wordCategoryMap, locationByWord])
 
   // 右键菜单状态：单词菜单 / 分类菜单（分类组头右键）
   const [menu, setMenu] = useState<null
@@ -188,22 +201,25 @@ export default function WordList({
     if (mode === 'alphabet') {
       return groupByLetter(filtered).map(g => ({
         key: `letter:${g.letter}`, type: 'letter' as HeaderType, label: g.letter,
-        count: g.words.length, color: undefined as string | undefined, words: g.words,
+        count: g.words.length, color: undefined as string | undefined,
+        locationCounts: undefined as LocationCounts | undefined, words: g.words,
       }))
     }
     return groupByCategory(filtered, wordCategoryMap, categories).map(g => ({
       key: g.category ? `cat:${g.category.id}` : 'uncat',
       type: g.category ? 'category' as HeaderType : 'uncategorized' as HeaderType,
       label: g.category ? g.category.name : '未分类',
-      count: g.words.length, color: g.category?.color, words: g.words,
+      count: g.words.length, color: g.category?.color,
+      locationCounts: g.category ? (categoryCounts.get(g.category.id) ?? { workspace: 0, archive: 0 }) : undefined,
+      words: g.words,
     }))
-  }, [mode, filtered, wordCategoryMap, categories])
+  }, [mode, filtered, wordCategoryMap, categories, categoryCounts])
 
   // 展平可见行：组头 + 展开组的单词项
   const rows = useMemo<Row[]>(() => {
     const rs: Row[] = []
     for (const g of groups) {
-      rs.push({ kind: 'header', key: g.key, type: g.type, label: g.label, count: g.count, color: g.color })
+      rs.push({ kind: 'header', key: g.key, type: g.type, label: g.label, count: g.count, locationCounts: g.locationCounts, color: g.color })
       const folded = g.type !== 'uncategorized' && collapsedGroups.has(g.key)  // 未分类区不可折叠（§4.3）
       if (!folded) {
         for (const w of g.words) {
@@ -437,7 +453,19 @@ export default function WordList({
         }}>
           {row.label}
         </span>
-        <span className="stat-num" style={{ fontSize: 'var(--text-xs)' }}>{row.count}</span>
+        {/* 分类表头分模块读数（v0.7.5 Task 14）：与分类管理同一句「工作区:m 储藏库:n」，
+            两个数字各自 .stat-num；字母组仍是一个总数。 */}
+        {row.type === 'category' && row.locationCounts ? (
+          <span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {locationCountSegments(row.locationCounts.workspace, row.locationCounts.archive).map((seg, i) =>
+              seg.stat
+                ? <span key={i} className="stat-num" style={{ fontSize: 'var(--text-xs)' }}>{seg.text}</span>
+                : <span key={i} style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>{seg.text}</span>
+            )}
+          </span>
+        ) : (
+          <span className="stat-num" style={{ fontSize: 'var(--text-xs)' }}>{row.count}</span>
+        )}
       </div>
     )
   }

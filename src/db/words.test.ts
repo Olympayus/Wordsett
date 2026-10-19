@@ -95,8 +95,7 @@ describe('db/words', () => {
     expect(p.phonetic).toBe('/əbˈzɜːv/')
   })
 
-  it('getWordsByLocation：工作区与储藏库互不串台，旧入口只出工作区', async () => {
-    const ws = await wordsDb.createWord({ lemma: 'zonews' })
+  it('getWordsByLocation：工作区与储藏库互不串台，旧入口只出工作区', async () => {    const ws = await wordsDb.createWord({ lemma: 'zonews' })
     const ar = await wordsDb.createWord({ lemma: 'zonear' })
     if (!ws.ok || !ar.ok) throw new Error('createWord failed')
     expect(ws.data.location).toBe('workspace')
@@ -119,6 +118,12 @@ describe('db/words', () => {
     if (!legacy.ok) throw new Error('getWordsWithPreviews failed')
     expect(legacy.data.some(w => w.id === ar.data.id)).toBe(false)
     expect(legacy.data.find(w => w.id === ws.data.id)?.location).toBe('workspace')
+
+    // v0.7.5 Task 14：全库预览（批量管理候选集 / 分模块读数的位置来源）两个模块都在。
+    const union = await wordsDb.getAllWordsWithPreviews()
+    if (!union.ok) throw new Error('getAllWordsWithPreviews failed')
+    expect(union.data.find(w => w.id === ws.data.id)?.location).toBe('workspace')
+    expect(union.data.find(w => w.id === ar.data.id)?.location).toBe('archive')
 
     // 单行读取处也要带 location（Word / WordWithPreview 都带）。
     const all = await wordsDb.getAllWords()

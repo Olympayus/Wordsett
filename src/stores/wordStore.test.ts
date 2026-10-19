@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../services/wordService', () => ({
   getPreviews: vi.fn(),
+  getAllPreviews: vi.fn(),
   getLemmaLocations: vi.fn(),
   getLocationCounts: vi.fn(),
   addWord: vi.fn(),
@@ -25,6 +26,7 @@ describe('wordStore.mergeWordFields', () => {
     useWordStore.setState({ words: [], fieldValues: [], selectedWordId: 'w1' })
     vi.mocked(wordService.getLemmaLocations).mockResolvedValue([])
     vi.mocked(wordService.getLocationCounts).mockResolvedValue({ total: 0, workspace: 0, archive: 0 })
+    vi.mocked(wordService.getAllPreviews).mockResolvedValue([])
   })
 
   it('合并成功 → 刷新侧边栏预览列表（音标/词性即时显示）', async () => {
@@ -64,11 +66,17 @@ describe('wordStore.libraryIndex / counts（v0.7.5 Task 9：两个模块的词�
     vi.mocked(wordService.getPreviews).mockResolvedValue([])
     vi.mocked(wordService.getLemmaLocations).mockResolvedValue([])
     vi.mocked(wordService.getLocationCounts).mockResolvedValue({ total: 0, workspace: 0, archive: 0 })
+    vi.mocked(wordService.getAllPreviews).mockResolvedValue([])
   })
 
   it('索引由两个模块的轻量查询构建（不再只覆盖工作区），并刷新三档计数', async () => {
     vi.mocked(wordService.getPreviews).mockResolvedValue([
       { id: 'w1', lemma: 'Abandon', normalizedLemma: 'abandon', language: 'en', location: 'workspace' as const, createdAt: 1, updatedAt: 1 },
+    ])
+    // v0.7.5 Task 14：全库并集预览随 loadWords 一并刷新（批量管理 / 分模块读数的来源）。
+    vi.mocked(wordService.getAllPreviews).mockResolvedValue([
+      { id: 'w1', lemma: 'Abandon', normalizedLemma: 'abandon', language: 'en', location: 'workspace' as const, createdAt: 1, updatedAt: 1 },
+      { id: 'w2', lemma: 'forsake', normalizedLemma: 'forsake', language: 'en', location: 'archive' as const, createdAt: 1, updatedAt: 1 },
     ])
     vi.mocked(wordService.getLemmaLocations).mockResolvedValue([
       { normalizedLemma: 'abandon', location: 'workspace' },
@@ -80,6 +88,8 @@ describe('wordStore.libraryIndex / counts（v0.7.5 Task 9：两个模块的词�
 
     const s = useWordStore.getState()
     expect(wordService.getPreviews).toHaveBeenCalledWith('workspace')
+    expect(s.words.map(w => w.id)).toEqual(['w1'])                       // 当前模块
+    expect(s.libraryWords.map(w => w.id)).toEqual(['w1', 'w2'])          // 两个模块的并集
     expect(s.libraryIndex.get('abandon')).toBe('workspace')
     expect(s.libraryIndex.get('forsake')).toBe('archive')
     expect(s.libraryLocationOf(' FORSAKE ')).toBe('archive')
@@ -148,6 +158,7 @@ describe('wordStore.moveToArchive / moveToWorkspace（v0.7.5 Task 11：移入 / 
     vi.mocked(wordService.getPreviews).mockResolvedValue([])
     vi.mocked(wordService.getLemmaLocations).mockResolvedValue([])
     vi.mocked(wordService.getLocationCounts).mockResolvedValue({ total: 0, workspace: 0, archive: 0 })
+    vi.mocked(wordService.getAllPreviews).mockResolvedValue([])
   })
 
   it('移入储藏库：落库、当前词表里消失、清空选中、索引与计数更新', async () => {
@@ -227,6 +238,7 @@ describe('wordStore.deleteWord 历史栈同步（v0.5.2 §6 自动切词）', ()
     vi.mocked(wordService.getPreviews).mockResolvedValue([])
     vi.mocked(wordService.getLemmaLocations).mockResolvedValue([])
     vi.mocked(wordService.getLocationCounts).mockResolvedValue({ total: 0, workspace: 0, archive: 0 })
+    vi.mocked(wordService.getAllPreviews).mockResolvedValue([])
     vi.mocked(fieldService.getValues).mockResolvedValue([])
   })
 

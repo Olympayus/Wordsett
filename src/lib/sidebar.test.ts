@@ -5,6 +5,7 @@ import {
   SIDEBAR_ROW_HEIGHT, SIDEBAR_ROW_HEIGHT_COLLAPSED,
   COLLAPSED_CHROME_ALPHABET, COLLAPSED_CHROME_CATEGORY, COLLAPSED_MIN_WIDTH,
 } from './sidebar'
+import { categoryLocationCounts } from './categoryCounts'
 import type { WordWithPreview } from '../types/word'
 import type { Category } from '../types/category'
 
@@ -37,6 +38,23 @@ describe('sidebar 分组', () => {
     const groups = groupByCategory([mk('w1', 'run')], {}, cats)
     expect(groups).toHaveLength(1)
     expect(groups[0].category).toBeNull()
+  })
+})
+
+describe('分类分组表头的分模块读数（v0.7.5 Task 14）', () => {
+  it('当前模块只列工作区词，但表头读全库映射、两个模块分开数', () => {
+    const cats = [{ id: 'c1', name: '医学', color: '#6B8E7F' }] as Category[]
+    const map = { w1: ['c1'], w2: ['c1'], w3: ['c1'] }
+    const words = [mk('w1', 'apple'), mk('w2', 'banana')]
+    const groups = groupByCategory(words, map, cats)
+    expect(groups[0].words.map(w => w.id)).toEqual(['w1', 'w2'])
+
+    const counts = categoryLocationCounts(map, new Map([
+      ['w1', 'workspace' as const],
+      ['w2', 'workspace' as const],
+      ['w3', 'archive' as const],
+    ]))
+    expect(counts.get('c1')).toEqual({ workspace: 2, archive: 1 })
   })
 })
 

@@ -140,6 +140,22 @@ export async function getWordsByLocation(location: WordLocation): Promise<DbResu
   }
 }
 
+/**
+ * 全库预览（工作区 ∪ 储藏库，v0.7.5 Task 14）。
+ *
+ * 批量管理弹层（设置页，模块无关）的候选集与分类分模块读数的位置来源都读它。
+ * 复用 `queryWordPreviews(null, null)`——全库搜索早就在走同一条查询，
+ * 只是这里不带筛选；不另写第二条预览 SQL，字段聚合与排序规则因此不会分家。
+ */
+export async function getAllWordsWithPreviews(): Promise<DbResult<WordWithPreview[]>> {
+  try {
+    const data = await queryWordPreviews(null, null)
+    return { ok: true, data }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
 export async function searchWords(query: string): Promise<DbResult<WordWithPreview[]>> {
   try {
     const filter = query.trim() ? query.toLowerCase().trim() : null

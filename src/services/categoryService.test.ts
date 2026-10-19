@@ -101,4 +101,21 @@ describe('categoryService 分类 CRUD 包装', () => {
     const map = await categoryService.getWordCategoryMap('workspace')
     expect(Object.keys(map)).toEqual([ws.data.id])
   })
+
+  // v0.7.5 Task 14：分类管理要按模块分读数，缺省（不传 location）必须仍读全库两个模块，
+  // 否则储藏库的成员会从分类行上消失。
+  it('getWordCategoryMap() 缺省时合并工作区与储藏库（分类管理读全库）', async () => {
+    const cat = await categoriesDb.createCategory({ name: '并集', color: '#5A7A8C' })
+    if (!cat.ok) throw new Error('createCategory failed')
+    const ws = await wordsDb.createWord({ lemma: 'svc-union-workspace' })
+    const ar = await wordsDb.createWord({ lemma: 'svc-union-archive' })
+    if (!ws.ok || !ar.ok) throw new Error('createWord failed')
+    await categoryService.assignCategoryToWord(ws.data.id, cat.data.id)
+    await categoryService.assignCategoryToWord(ar.data.id, cat.data.id)
+    await adapter.execute("UPDATE words SET location = 'archive' WHERE id = ?1", [ar.data.id])
+
+    const map = await categoryService.getWordCategoryMap()
+    expect(map[ws.data.id]).toEqual([cat.data.id])
+    expect(map[ar.data.id]).toEqual([cat.data.id])
+  })
 })

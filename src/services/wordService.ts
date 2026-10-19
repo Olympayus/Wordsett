@@ -133,6 +133,12 @@ export async function getPreviews(location: WordLocation = 'workspace'): Promise
   return result.ok ? result.data : []
 }
 
+/** 全库预览（工作区 ∪ 储藏库，v0.7.5 Task 14）：批量管理候选集与分模块读数的来源。 */
+export async function getAllPreviews(): Promise<WordWithPreview[]> {
+  const result = await wordsDb.getAllWordsWithPreviews()
+  return result.ok ? result.data : []
+}
+
 /** 词库索引的轻量查询（全库、两个模块），失败回落空表（索引退化为「都不在库」）。 */
 export async function getLemmaLocations(): Promise<{ normalizedLemma: string; location: WordLocation }[]> {
   const result = await wordsDb.getLemmaLocations()

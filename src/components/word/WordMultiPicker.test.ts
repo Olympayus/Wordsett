@@ -44,6 +44,16 @@ describe('pickerWords（v0.6.5 §4.3：方向固定，不做差集）', () => {
   it('空成员集在移除方向下列不出任何词（预勾选不得凭空出现）', () => {
     expect(pickerWords(ALL, new Set(), 'remove', '')).toEqual([])
   })
+
+  // v0.7.5 Task 14：候选集是两个模块的并集。模块归属只是展示信息，谓词只认成员集。
+  it('并集词表：两个模块的词都在候选里，模块归属不影响方向谓词', () => {
+    const union: WordWithPreview[] = [
+      ...ALL,
+      { ...w('4', 'delta'), location: 'archive' },
+    ]
+    expect(pickerWords(union, new Set(['1', '4']), 'add', '').map(x => x.id)).toEqual(['2', '3'])
+    expect(pickerWords(union, new Set(['1', '4']), 'remove', '').map(x => x.id)).toEqual(['1', '4'])
+  })
 })
 
 describe('pickerConfirmLabel', () => {
