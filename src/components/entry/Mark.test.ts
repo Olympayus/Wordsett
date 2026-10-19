@@ -1,17 +1,27 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { MARK_DOT_SIZE, MARK_DASH_WIDTH, MARK_DASH_HEIGHT } from './Mark'
+import { MARK_DOT_SIZE, MARK_DASH_WIDTH, markDashHeight } from './Mark'
 
 // 源码级守卫（沿用本仓既有做法，如 WordWorkbench.test.ts 的 LEAF_FORM_GUARD_ALLOWLIST、
 // sidebar.test.ts 读 WordList.tsx）：vitest 只收 *.test.ts、environment: node，
 // 没有组件测试 harness，故把「不再写字形」这类回归钉在源码形状上。
 describe('画出的标记（v0.7.4 决定九）', () => {
-  it('尺寸用 em，跟随字号；横杠厚度钉成整数 2px', () => {
+  it('点尺寸用 em；横杠厚度按整数设备像素取整', () => {
     expect(MARK_DOT_SIZE).toBe('0.33em')
     expect(MARK_DASH_WIDTH).toBe('0.8em')
-    // 0.13em 在 14px 下是 1.82px、max(2px, …) 仍留着小数的行位置影响：厚度固定 2px，
-    // 配合例句 / 正文行高取整（21 / 23 / 26px），横杠在任何一行都画成同样粗细。
-    expect(MARK_DASH_HEIGHT).toBe('2px')
+    // 2 CSS px 在 125% 缩放下是 2.5 设备像素，边缘被抗锯齿摊成 2/3 个像素（用户实测：
+    // 100% 正常、125% 固定地几个粗几个细）。高度取整到整数设备像素后，每种缩放下厚度固定。
+    expect(markDashHeight(1)).toBe('2px')      // 2 设备 px
+    expect(markDashHeight(1.25)).toBe('2.4px') // 3 设备 px
+    expect(markDashHeight(1.5)).toBe('2px')    // 3 设备 px
+    expect(markDashHeight(2)).toBe('2px')      // 4 设备 px
+    expect(markDashHeight(Number.NaN)).toBe('2px')
+  })
+
+  it('横杠用 SVG + crispEdges，边缘吸附到设备像素', () => {
+    const src = readFileSync(new URL('./Mark.tsx', import.meta.url), 'utf8')
+    expect(src).toMatch(/shapeRendering="crispEdges"/)
+    expect(src).toMatch(/devicePixelRatio/)
   })
 
   it('四处调用点都用同一个组件，不再写字形', () => {
