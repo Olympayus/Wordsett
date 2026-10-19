@@ -127,7 +127,14 @@ function pickUsableCards(
   return out
 }
 
-/** 候选池：到期卡 + 未首评新卡，只保留**自己那个题型可用**的卡。suspended 卡排除在外。 */
+/**
+ * 候选池：到期卡 + 未首评新卡，只保留**自己那个题型可用**的卡。suspended 卡排除在外。
+ *
+ * v0.7.5 Task 12：本文件所有复习读路径只认工作区（`words.location = 'workspace'`）。
+ * 归档词的卡与历史**保留在库里**（移回工作区即恢复、进度不丢），但不参与任何计算。
+ * 过滤必须逐条查询显式加——不能塞进 getAvailabilityMask：它有六个调用方，且
+ * foldWordReadings 的 maxLapses 累加发生在掩码门之前，只改掩码会漏掉一半。
+ */
 export async function getCandidates(
   now: number,
   h?: DbHandle,
@@ -143,6 +150,7 @@ export async function getCandidates(
                 WHERE fv.word_id = c.word_id AND fd.key = 'initial_familiarity'
                 ORDER BY fv.display_order LIMIT 1) AS initial_familiarity
        FROM review_cards c
+       JOIN words w ON w.id = c.word_id AND w.location = 'workspace'
        LEFT JOIN review_states s ON s.card_id = c.id
        WHERE s.card_id IS NULL OR (s.suspended = 0 AND s.due_at <= ?1)`,
       [now],
@@ -167,6 +175,7 @@ export async function getAllCandidates(h?: DbHandle, opts: CandidateOpts = {}): 
                 WHERE fv.word_id = c.word_id AND fd.key = 'initial_familiarity'
                 ORDER BY fv.display_order LIMIT 1) AS initial_familiarity
        FROM review_cards c
+       JOIN words w ON w.id = c.word_id AND w.location = 'workspace'
        LEFT JOIN review_states s ON s.card_id = c.id
        WHERE s.card_id IS NULL OR s.suspended = 0`,
     )
@@ -312,6 +321,7 @@ export async function getDistractorTranslations(wordId: string, n: number, h?: D
     `SELECT value FROM (
        SELECT DISTINCT fv.value AS value FROM field_values fv
        JOIN field_definitions fd ON fd.id = fv.field_id
+       JOIN words w ON w.id = fv.word_id AND w.location = 'workspace'
        WHERE fd.key = 'chinese_definition' AND fv.word_id <> ?1
          AND fv.value IS NOT NULL AND trim(fv.value) <> ''
      ) ORDER BY random() LIMIT ?2`,
@@ -319,14 +329,16 @@ export async function getDistractorTranslations(wordId: string, n: number, h?: D
   )
   // v0.7.5 Task 5：独立于 getWordContent 的另一条跨词 SQL。它没有经过上面的行映射，
   // 但干扰项会与正确项同屏比较——不剥就会一边带标记、一边不带。
-  // 保持为**返回前的单独一层**（不塞进 SQL），Task 12 给这条 SQL 加 words.location 过滤时可直接叠加。
+  // 保持为**返回前的单独一层**（不塞进 SQL）。
+  // v0.7.5 Task 12：取数已 JOIN words 收窄到工作区（归档词的释义不当干扰项），
+  // 这一层剥离原样保留（Ruling C）——加过滤与剥标记是两件事，别合并进 SQL。
   return rows.map(r => stripLinks(String(r.value)))
 }
 
-/** 惰性注册：把库里全部词的可用题型卡补齐。 */
+/** 惰性注册：把**工作区**全部词的可用题型卡补齐（归档词不建新卡，已有卡原样保留）。 */
 export async function registerAllWords(h?: DbHandle, opts: CandidateOpts = {}): Promise<void> {
   const d = db(h)
-  const rows = await d.select<{ id: string }>('SELECT id FROM words')
+  const rows = await d.select<{ id: string }>("SELECT id FROM words WHERE location = 'workspace'")
   await registerCards(rows.map(r => r.id), d, opts)
 }
 
@@ -441,6 +453,7 @@ export async function getWeakWordIds(
   try {
     const rows = await d.select<{ word_id: string }>(
       `SELECT DISTINCT c.word_id FROM review_cards c
+       JOIN words w ON w.id = c.word_id AND w.location = 'workspace'
        LEFT JOIN review_states s ON s.card_id = c.id
        WHERE (s.lapses IS NOT NULL AND s.lapses >= ?1)
           OR c.id IN (SELECT card_id FROM review_logs WHERE rating = 1 AND reviewed_at >= ?2)`,
@@ -496,7 +509,7 @@ export async function getWeakWordsWithCounts(
               COALESCE(MAX(s.lapses), 0) AS lapses,
               SUM(${missCount}) AS recentMisses
          FROM review_cards c
-         JOIN words w ON w.id = c.word_id
+         JOIN words w ON w.id = c.word_id AND w.location = 'workspace'
          LEFT JOIN review_states s ON s.card_id = c.id
         GROUP BY c.word_id, w.lemma
        HAVING (MAX(s.lapses) IS NOT NULL AND MAX(s.lapses) >= ?1)
@@ -509,7 +522,9 @@ export async function getWeakWordsWithCounts(
       data: rows.map(r => ({
         wordId: String(r.wordId),
         lemma: String(r.lemma),
-        translation: String(r.translation ?? ''),
+        // v0.7.5 Task 12（Ruling E）：列表直接渲染这段文本，链接标记与
+        // getDistractorTranslations 同一层剥离——不能只在题面里剥、列表里露原文。
+        translation: stripLinks(String(r.translation ?? '')),
         lapses: Number(r.lapses),
         recentMisses: Number(r.recentMisses),
       })),
@@ -538,8 +553,9 @@ export async function getWeakWordsWithCounts(
  *   顽固词徽标说的是历史痛点（「这个词值得回去补内容」），内容被删正是它成立的理由；
  *   spec §4.12 明写 `MAX(s.lapses)` 不变。把它一并门掉，删了内容的顽固词徽标会跟着消失。
  *
- * 折叠后每词**都有**一行——无卡的词、有卡但全未评分的词、只有不可出题卡的词都在，
+ * 折叠后每**个工作区词**都有**一行**——无卡的词、有卡但全未评分的词、只有不可出题卡的词都在，
  * weakestStability 落在 null（cold start），这正是 chip 冷启动分支读的形状。
+ * v0.7.5 Task 12：归档词在 WHERE 里被排除——它们的卡与历史仍在库里，但不进任何读数。
  *
  * 消费方有两个（`getWordReviewOverlay` 与 `getStats` 的直方图），共用这一个函数就是
  * 「与 overlay 同一口径」的兑现：两边不可能各改各的。
@@ -574,7 +590,8 @@ async function foldWordReadings(
             s.lapses AS lapses
        FROM words w
        LEFT JOIN review_cards c ON c.word_id = w.id
-       LEFT JOIN review_states s ON s.card_id = c.id`)
+       LEFT JOIN review_states s ON s.card_id = c.id
+      WHERE w.location = 'workspace'`)
   // 掩码只需这批词的 word_id。无卡的词在 LEFT JOIN 下也会出行（template/stability/lapses
   // 皆 null），它们的掩码自然落在「无内容 → 无可出题卡」那一支，故不必另行补查。
   // 去重：占位符是**逐行**生成的，而 rows 是**逐卡**出行——按行发掩码等于让一个 n 卡词
@@ -710,6 +727,7 @@ export async function getStrategyCounts(
   try {
     const dueRows = await d.select<Record<string, any>>(
       `SELECT c.word_id, c.template FROM review_cards c
+       JOIN words w ON w.id = c.word_id AND w.location = 'workspace'
        JOIN review_states s ON s.card_id = c.id
        WHERE s.suspended = 0 AND s.due_at <= ?1`, [opts.now])
     const mask = await getAvailabilityMask(dueRows.map(r => r.word_id), d)
@@ -732,7 +750,11 @@ export async function getStrategyCounts(
   }
 }
 
-/** 小结态统计：记忆强度分桶（六档：档 0 无记录 + 1–5 各 20%）/ 未来 7 日到期 / 近期评分分布（只读 mode='review'）。 */
+/** 小结态统计：记忆强度分桶（六档：档 0 无记录 + 1–5 各 20%）/ 未来 7 日到期 / 近期评分分布（只读 mode='review'）。
+ *
+ * v0.7.5 Task 12：三个数组都只算工作区。历史聚合（近期评分 / 记得率）同样排除归档词——
+ * 它们属于复习统计，归档词的过去评分不再计入。
+ */
 export async function getStats(now: number = Date.now(), h?: DbHandle, opts: CandidateOpts = {}): Promise<DbResult<{
   masteryBuckets: number[]
   dueByDay: number[]
@@ -756,8 +778,11 @@ export async function getStats(now: number = Date.now(), h?: DbHandle, opts: Can
     }
 
     const dayRows = await d.select<Record<string, any>>(
-      `SELECT CAST((due_at - ?1) / 86400000 AS INTEGER) AS d, count(*) AS c
-       FROM review_states WHERE suspended = 0 AND due_at <= ?1 + 7 * 86400000
+      `SELECT CAST((s.due_at - ?1) / 86400000 AS INTEGER) AS d, count(*) AS c
+       FROM review_states s
+       JOIN review_cards c ON c.id = s.card_id
+       JOIN words w ON w.id = c.word_id AND w.location = 'workspace'
+       WHERE s.suspended = 0 AND s.due_at <= ?1 + 7 * 86400000
        GROUP BY d`, [now])
     const dueByDay = Array.from({ length: 8 }, () => 0)
     for (const r of dayRows) {
@@ -766,9 +791,12 @@ export async function getStats(now: number = Date.now(), h?: DbHandle, opts: Can
     }
 
     const ratingRows = await d.select<Record<string, any>>(
-      `SELECT date(reviewed_at / 1000, 'unixepoch', 'localtime') AS day, rating, count(*) AS c
-       FROM review_logs WHERE mode = 'review' AND reviewed_at >= ?1
-       GROUP BY day, rating ORDER BY day ASC`, [now - 14 * 86400000])
+      `SELECT date(l.reviewed_at / 1000, 'unixepoch', 'localtime') AS day, l.rating, count(*) AS c
+       FROM review_logs l
+       JOIN review_cards c ON c.id = l.card_id
+       JOIN words w ON w.id = c.word_id AND w.location = 'workspace'
+       WHERE l.mode = 'review' AND l.reviewed_at >= ?1
+       GROUP BY day, l.rating ORDER BY day ASC`, [now - 14 * 86400000])
     const byDay = new Map<string, { day: string; again: number; hard: number; good: number }>()
     for (const r of ratingRows) {
       const e = byDay.get(r.day) ?? { day: r.day, again: 0, hard: 0, good: 0 }
@@ -789,7 +817,8 @@ export async function getAbsentWords(h?: DbHandle, opts: CandidateOpts = {}): Pr
   const d = db(h)
   try {
     const rows = await d.select<Record<string, any>>(
-      'SELECT DISTINCT c.word_id, w.lemma FROM review_cards c JOIN words w ON w.id = c.word_id')
+      `SELECT DISTINCT c.word_id, w.lemma FROM review_cards c
+        JOIN words w ON w.id = c.word_id AND w.location = 'workspace'`)
     const mask = await getAvailabilityMask(rows.map(r => r.word_id), d)
     if (!mask.ok) return mask
     const out = rows

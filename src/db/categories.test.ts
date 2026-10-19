@@ -112,6 +112,31 @@ describe('categories db 层', () => {
     expect(r.data['no-such-word']).toBeUndefined()
   })
 
+  // v0.7.5 Task 12：复习分类计数只认工作区，故映射查询要能按 location 收窄。
+  // 不带参数时行为不变（侧栏 / 分类管理仍要全库）。
+  it('getAllWordCategoryMap(location) 只返回该模块的词', async () => {
+    const w1 = await createWord({ lemma: 'map-workspace' })
+    const w2 = await createWord({ lemma: 'map-archive' })
+    if (!w1.ok || !w2.ok) throw new Error('createWord failed')
+    const cat = await categoriesDb.createCategory({ name: '分模块', color: '#6B8E7F' })
+    if (!cat.ok) throw new Error('createCategory failed')
+    await categoriesDb.assignCategoryToWord(w1.data.id, cat.data.id)
+    await categoriesDb.assignCategoryToWord(w2.data.id, cat.data.id)
+    await adapter.execute("UPDATE words SET location = 'archive' WHERE id = ?1", [w2.data.id])
+
+    const all = await categoriesDb.getAllWordCategoryMap()
+    if (!all.ok) throw new Error('getAllWordCategoryMap failed')
+    expect(Object.keys(all.data).sort()).toEqual([w1.data.id, w2.data.id].sort())
+
+    const ws = await categoriesDb.getAllWordCategoryMap('workspace')
+    if (!ws.ok) throw new Error('getAllWordCategoryMap failed')
+    expect(Object.keys(ws.data)).toEqual([w1.data.id])
+
+    const ar = await categoriesDb.getAllWordCategoryMap('archive')
+    if (!ar.ok) throw new Error('getAllWordCategoryMap failed')
+    expect(Object.keys(ar.data)).toEqual([w2.data.id])
+  })
+
   it('unassignCategoryFromWord 解除单词分类关联', async () => {
     const w = await createWord({ lemma: 'unassign-db' })
     if (!w.ok) throw new Error('createWord failed')

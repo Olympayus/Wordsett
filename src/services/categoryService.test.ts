@@ -86,4 +86,19 @@ describe('categoryService 分类 CRUD 包装', () => {
     const map = await categoryService.getWordCategoryMap()
     expect(map[w.data.id]).toContain(cat.data.id)
   })
+
+  // v0.7.5 Task 12：自由练习的分类计数传 'workspace'，储藏库词不能计入「N 词」。
+  it('getWordCategoryMap(location) 只带出该模块的词', async () => {
+    const cat = await categoriesDb.createCategory({ name: '分模块', color: '#5A7A8C' })
+    if (!cat.ok) throw new Error('createCategory failed')
+    const ws = await wordsDb.createWord({ lemma: 'svc-map-workspace' })
+    const ar = await wordsDb.createWord({ lemma: 'svc-map-archive' })
+    if (!ws.ok || !ar.ok) throw new Error('createWord failed')
+    await categoryService.assignCategoryToWord(ws.data.id, cat.data.id)
+    await categoryService.assignCategoryToWord(ar.data.id, cat.data.id)
+    await adapter.execute("UPDATE words SET location = 'archive' WHERE id = ?1", [ar.data.id])
+
+    const map = await categoryService.getWordCategoryMap('workspace')
+    expect(Object.keys(map)).toEqual([ws.data.id])
+  })
 })

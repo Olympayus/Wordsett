@@ -1,5 +1,6 @@
 import { getDb } from './connection'
 import type { Category, CategoryInput, CategoryUpdate } from '../types/category'
+import type { WordLocation } from '../types/word'
 import type { DbResult } from './types'
 
 function mapCategoryRow(r: Record<string, any>): Category {
@@ -138,11 +139,18 @@ export async function unassignCategoryFromWord(wordId: string, categoryId: strin
   }
 }
 
-// 全量 word_id → category_ids 映射（侧边栏分类分组 / 列表项胶囊用）
-export async function getAllWordCategoryMap(): Promise<DbResult<Record<string, string[]>>> {
+// 全量 word_id → category_ids 映射（侧边栏分类分组 / 列表项胶囊用）。
+// 传 location 时只取该模块的词（v0.7.5 Task 12：自由练习的分类「N 词」只算工作区，
+// 否则全归档的分类计数非 0、范围面板会放它进去出一轮空题）。缺省行为不变：全库。
+export async function getAllWordCategoryMap(location?: WordLocation): Promise<DbResult<Record<string, string[]>>> {
   try {
     const rows = await getDb().select<{ word_id: string; category_id: string }[]>(
-      'SELECT word_id, category_id FROM word_categories'
+      location
+        ? `SELECT wc.word_id, wc.category_id FROM word_categories wc
+           JOIN words w ON w.id = wc.word_id
+           WHERE w.location = ?1`
+        : 'SELECT word_id, category_id FROM word_categories',
+      location ? [location] : [],
     )
     const map: Record<string, string[]> = {}
     for (const r of rows) {

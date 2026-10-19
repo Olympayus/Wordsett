@@ -1,6 +1,7 @@
 import * as categoriesDb from '../db/categories'
 import type { Category } from '../types/category'
 import type { CategoryInput, CategoryUpdate } from '../types/category'
+import type { WordLocation } from '../types/word'
 
 export async function getCategories(): Promise<Category[]> {
   const result = await categoriesDb.getAllCategories()
@@ -54,7 +55,8 @@ export async function assignDefaultToWord(wordId: string): Promise<void> {
   await categoriesDb.assignCategoryToWord(wordId, result.data.id)
 }
 
-export async function getWordCategoryMap(): Promise<Record<string, string[]>> {
-  const result = await categoriesDb.getAllWordCategoryMap()
+/** `location` 传入时只取该模块的词（v0.7.5 Task 12：复习分类计数只算工作区）。 */
+export async function getWordCategoryMap(location?: WordLocation): Promise<Record<string, string[]>> {
+  const result = await categoriesDb.getAllWordCategoryMap(location)
   return result.ok ? result.data : {}
 }

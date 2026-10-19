@@ -1431,3 +1431,181 @@ describe('卡级可用性闸门', () => {
     expect(r.data[0].wordId).toBe('w1')
   })
 })
+
+// v0.7.5 Task 12：复习取数只认工作区。归档词的卡与历史**保留在库里**（移回即恢复），
+// 但任何复习统计 / 队列 / 清单都不许把它们算进来——它们不参与任何计算。
+describe('归档词不参与复习取数（v0.7.5 Task 12）', () => {
+  let db: DbLike
+  beforeEach(async () => { db = await createTestDb() })
+
+  const setLocation = (id: string, location: 'workspace' | 'archive') =>
+    db.execute('UPDATE words SET location = ?1 WHERE id = ?2', [location, id])
+
+  const cardsOf = async (wordId: string) =>
+    db.select<{ id: string; template: string }>(
+      'SELECT id, template FROM review_cards WHERE word_id = ?1 ORDER BY template', [wordId])
+
+  /** 一个有内容、两张卡全部到期、lapses 达标、且有一条窗口内 rating=1 日志的词。 */
+  async function seedDueWord(id: string, lemma: string, translation: string) {
+    await seedWord(db, id, lemma)
+    await seedValue(db, `fv-${id}`, id, 'chinese_definition', translation)
+    await registerCards([id], db)
+    const cards = await cardsOf(id)
+    for (const c of cards) {
+      await db.execute(
+        `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+         VALUES (?1, 10, 5, ?2, 5, 3, 0, ?3)`,
+        [c.id, NOW - 1000, NOW - 86400000])
+    }
+    await db.execute(
+      `INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode)
+       VALUES (?1, ?2, ?3, 1, ?4, 'review')`,
+      [`log-${id}`, cards[0].id, NOW - 2 * 86400000, cards[0].template])
+    return cards
+  }
+
+  const weakOpts = { leechThreshold: 4, recentWindowMs: 7 * 86400000, now: NOW }
+
+  it('归档后所有取数只含工作区词；移回后全部恢复且历史未丢', async () => {
+    await seedDueWord('w1', 'alpha', '阿尔法')
+    const w2Cards = await seedDueWord('w2', 'beta', '贝塔')
+    const day = (await db.select<{ day: string }>(
+      "SELECT date(?1 / 1000, 'unixepoch', 'localtime') AS day", [NOW - 2 * 86400000]))[0].day
+
+    // 归档前的基线：两个词都在（各两张卡）
+    const beforeStats = await getStats(NOW, db)
+    if (!beforeStats.ok) throw new Error(beforeStats.error)
+    expect(beforeStats.data.masteryBuckets.reduce((a, b) => a + b, 0)).toBe(2)
+    expect(beforeStats.data.dueByDay[0]).toBe(4)
+    expect(beforeStats.data.recentRatings).toEqual([{ day, again: 2, hard: 0, good: 0 }])
+
+    await setLocation('w2', 'archive')
+
+    // 候选池（到期 / 自由练习两条取数路径）
+    const due = await getCandidates(NOW, db)
+    if (!due.ok) throw new Error(due.error)
+    expect(due.data.map(c => `${c.wordId}:${c.template}`).sort())
+      .toEqual(['w1:recall', 'w1:recognize'])
+    const all = await getAllCandidates(db)
+    if (!all.ok) throw new Error(all.error)
+    expect(all.data.map(c => `${c.wordId}:${c.template}`).sort())
+      .toEqual(['w1:recall', 'w1:recognize'])
+
+    // 计数（标题栏 / 托盘 / 控制台 / 侧栏共用）
+    const counts = await getStrategyCounts(weakOpts, db)
+    if (!counts.ok) throw new Error(counts.error)
+    expect(counts.data.today).toBe(2)
+    expect(counts.data.todayWordIds).toEqual(['w1'])
+    expect(counts.data.weak).toBe(1)
+
+    // 薄弱词集合与专项列表
+    const weakIds = await getWeakWordIds(weakOpts, db)
+    expect(weakIds.ok && weakIds.data).toEqual(['w1'])
+    const weakRows = await getWeakWordsWithCounts(weakOpts, db)
+    expect(weakRows.ok && weakRows.data.map(r => r.wordId)).toEqual(['w1'])
+
+    // 词级读数（chip / 记忆强度 / 直方图共用 foldWordReadings）
+    const overlay = await getWordReviewOverlay(db)
+    if (!overlay.ok) throw new Error(overlay.error)
+    expect(Object.keys(overlay.data)).toEqual(['w1'])
+
+    // getStats 三个数组：分桶（词）/ 未来 7 日（卡）/ 近 14 天评分（日志）
+    const stats = await getStats(NOW, db)
+    if (!stats.ok) throw new Error(stats.error)
+    expect(stats.data.masteryBuckets.reduce((a, b) => a + b, 0)).toBe(1)
+    expect(stats.data.dueByDay).toEqual([2, 0, 0, 0, 0, 0, 0, 0])
+    expect(stats.data.recentRatings).toEqual([{ day, again: 1, hard: 0, good: 0 }])
+
+    // 卡与历史仍在库里：不是删除，只是不参与计算
+    const state = await getState(w2Cards[0].id, db)
+    expect(state.ok && state.data).toMatchObject({ stability: 10, lapses: 5, reps: 3 })
+    const logs = await db.select<{ c: number }>(
+      'SELECT count(*) AS c FROM review_logs WHERE card_id = ?1', [w2Cards[0].id])
+    expect(logs[0].c).toBe(1)
+
+    // 移回工作区 → 立刻恢复（进度还在）
+    await setLocation('w2', 'workspace')
+    const restored = await getCandidates(NOW, db)
+    if (!restored.ok) throw new Error(restored.error)
+    expect(restored.data.map(c => `${c.wordId}:${c.template}`).sort())
+      .toEqual(['w1:recall', 'w1:recognize', 'w2:recall', 'w2:recognize'])
+    const restoredStats = await getStats(NOW, db)
+    if (!restoredStats.ok) throw new Error(restoredStats.error)
+    expect(restoredStats.data.masteryBuckets.reduce((a, b) => a + b, 0)).toBe(2)
+    expect(restoredStats.data.dueByDay[0]).toBe(4)
+    expect(restoredStats.data.recentRatings).toEqual([{ day, again: 2, hard: 0, good: 0 }])
+    const restoredState = await getState(w2Cards[0].id, db)
+    expect(restoredState.ok && restoredState.data).toMatchObject({ stability: 10, lapses: 5, reps: 3 })
+  })
+
+  it('getAbsentWords 只列工作区缺内容词；registerAllWords 不给储藏库词建卡', async () => {
+    // 两个「有卡但内容全没了」的词（手工塞卡模拟，与上一 describe 同一手法）
+    await seedWord(db, 'w1', 'bare-workspace')
+    await seedWord(db, 'w2', 'bare-archive')
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w1','recognize',1)")
+    await db.execute("INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c2','w2','recognize',1)")
+    await setLocation('w2', 'archive')
+    // 有内容、尚未注册的词：一个在储藏库、一个在工作区
+    await seedWord(db, 'w3', 'content-archive')
+    await seedValue(db, 'fv3', 'w3', 'chinese_definition', '储藏库词')
+    await setLocation('w3', 'archive')
+    await seedWord(db, 'w4', 'content-workspace')
+    await seedValue(db, 'fv4', 'w4', 'chinese_definition', '工作区词')
+
+    const absent = await getAbsentWords(db)
+    if (!absent.ok) throw new Error(absent.error)
+    expect(absent.data).toEqual([{ wordId: 'w1', lemma: 'bare-workspace' }])
+
+    await registerAllWords(db)
+    const rows = await db.select<{ word_id: string; c: number }>(
+      'SELECT word_id, count(*) AS c FROM review_cards GROUP BY word_id ORDER BY word_id')
+    // 归档词**已有的卡原样保留**（w2 的手塞卡仍在），但不会新建：
+    // w1 手塞 1 张；w2 归档、手塞 1 张、无内容 → 仍是 1；w3 归档、有内容 → 0；
+    // w4 工作区、有内容 → 新注册 recognize + recall 两张。
+    expect(rows).toEqual([
+      { word_id: 'w1', c: 1 },
+      { word_id: 'w2', c: 1 },
+      { word_id: 'w4', c: 2 },
+    ])
+  })
+
+  it('getDistractorTranslations 不把储藏库词的释义当干扰项', async () => {
+    await seedWord(db, 'w1', 'alpha')
+    await seedWord(db, 'w2', 'beta')
+    await seedWord(db, 'w3', 'gamma')
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
+    await seedValue(db, 'fv2', 'w2', 'chinese_definition', '贝塔')
+    await seedValue(db, 'fv3', 'w3', 'chinese_definition', '伽马')
+    await setLocation('w2', 'archive')
+
+    // 唯一还能当干扰项的是工作区的 gamma（beta 已归档、alpha 是目标词本身）
+    expect(await getDistractorTranslations('w1', 5, db)).toEqual(['伽马'])
+  })
+
+  // Ruling E：薄弱词列表的 translation 与 getDistractorTranslations 同一层剥离，
+  // 否则列表里会露出 [[ ]] 原文（而复习题面里已经剥干净，两处看到的同一个词不一样）。
+  it('getWeakWordsWithCounts 的 translation 剥掉链接标记', async () => {
+    await seedWord(db, 'w1', 'forsake')
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '[[forsake]] 的释义')
+    await registerCards(['w1'], db)
+    const cards = await cardsOf('w1')
+    await db.execute(
+      `INSERT INTO review_states (card_id, stability, difficulty, due_at, lapses, reps, suspended, last_review_at)
+       VALUES (?1, 10, 5, 0, 5, 3, 0, ?2)`, [cards[0].id, NOW - 86400000])
+    const rows = await getWeakWordsWithCounts(weakOpts, db)
+    if (!rows.ok) throw new Error(rows.error)
+    expect(rows.data).toHaveLength(1)
+    expect(rows.data[0].translation).toBe('forsake 的释义')
+  })
+
+  // 刻意不过滤的例外：用户可能正看着一个已归档词的掌握度明细。
+  it('getWordCardBreakdown 对储藏库词照常返回（刻意不过滤）', async () => {
+    await seedWord(db, 'w1', 'archived-detail')
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '归档词')
+    await registerCards(['w1'], db)
+    await setLocation('w1', 'archive')
+    const r = await getWordCardBreakdown('w1', db)
+    if (!r.ok) throw new Error(r.error)
+    expect(r.data.map(x => x.template).sort()).toEqual(['recall', 'recognize'])
+  })
+})

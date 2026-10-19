@@ -23,9 +23,10 @@ export default function FreeScopePanel({ categories, onStart }: {
 }) {
   const reviewSettings = useSettingsStore(s => s.review)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
-  // 词库总数：与侧栏「单词总数」同源（useWordStore 的 words.length）。
-  // 数据在启动时已加载、SidebarFooter 也订阅着同一份，故不新增 db 查询。
-  const wordCount = useWordStore(s => s.words.length)
+  // 词库总数：v0.7.5 Task 12 起是**工作区**词数，不是 `words.length`——
+  // 后者跟着侧栏当前模块走（在储藏库模块下会显示储藏库的词数），而复习只认工作区。
+  // 计数由 useWordStore 的 loadWords 顺带刷新，不新增 db 查询。
+  const wordCount = useWordStore(s => s.counts.workspace)
   const [kind, setKind] = useState<FreeScopeKind>('random')
   const [categoryIds, setCategoryIds] = useState<string[]>([])
   const [rows, setRows] = useState<{ id: string; name: string; color: string; wordCount: number; dueCount: number }[]>([])
@@ -65,7 +66,9 @@ export default function FreeScopePanel({ categories, onStart }: {
       // Promise.all 会把任一个的失败一起带上来，一处 catch 够用。
       try {
         const [wordCategoryMap, dueWordIds] = await Promise.all([
-          getWordCategoryMap(),
+          // 只取工作区：储藏库词不能把分类的「N 词」撑起来（v0.7.5 Task 12），
+          // 否则一个全归档的分类看起来可选、点进去却出一轮空题。
+          getWordCategoryMap('workspace'),
           getDueWordIds(params),
         ])
         if (!alive) return

@@ -78,6 +78,9 @@ export function subtitleFor(kind: 'rating' | 'due' | 'mastery' | 'trend', stats:
       return `共 ${sum} 张，峰值在第 ${future.indexOf(peak) + 1} 天`
     }
     case 'mastery': {
+      // 总词数是 masteryBuckets 之和，该数组由 db/review.ts 的 foldWordReadings 产出。
+      // v0.7.5 Task 12：那份折叠只含工作区词，故这里的「全库词汇数」是**工作区**词数
+      // （它是复习统计，储藏库的词不参与）。
       const total = stats.masteryBuckets.reduce((a, b) => a + b, 0)
       if (total === 0) return '全库还没有词'
       // 索引 2 及以上（初识及更高）算「熟悉及以上」：档 0 是无记录、档 1 是「陌生」，
