@@ -197,10 +197,9 @@ export default function DictDetailPanel({ word }: Props) {
           onBack={showWorkbench}
           onMergeAdd={handleMergeAdd}
           mergeCount={selectionCount + stripInputs.length}
-          // 词在库里（无论工作台还是储藏库）一律不给添加（v0.7.5 spec §2.7）：
-          // 储藏库的词被 ensureWord 命中原行后也不会搬回工作台，添加只会把字段写进
-          // 一个用户看不见的词条；故与工作台同档禁用，标识文案由导航条按模块给出。
-          mergeDisabled={!anySelected || libraryLocation !== null}
+          // 储藏库的词不给添加（review 裁定 H）：它没有可见的工作台页面，合并只会把字段写进
+          // 一个用户看不见的词条；工作区词仍可合并——它在侧栏可见，这是 v0.6.5 起的能力。
+          mergeDisabled={!anySelected || libraryLocation === 'archive'}
           familiarity={familiarity}
           onFamiliarityChange={setFamiliarity}
           libraryLocation={libraryLocation}
