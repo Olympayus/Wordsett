@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { filterBySmartView, smartViewCount, visibleSmartViews, WEEK_MS } from './smartViews'
+import { filterBySmartView, sidebarViews, smartViewCount, visibleSmartViews, WEEK_MS } from './smartViews'
 import type { SmartViewInput } from './smartViews'
 import type { WordWithPreview } from '../types/word'
 
@@ -56,5 +56,12 @@ describe('visibleSmartViews', () => {
       .toEqual(['all', 'due', 'weekNew', 'leech'])
     expect(visibleSmartViews({ all: true, due: false, weekNew: true, leech: false }))
       .toEqual(['all', 'weekNew'])
+  })
+})
+
+describe('sidebarViews（v0.7.5 Task 10：储藏库没有智能视图）', () => {
+  it('储藏库恒空，工作区按开关', () => {
+    expect(sidebarViews({ all: true, due: true, weekNew: true, leech: true }, 'archive')).toEqual([])
+    expect(sidebarViews({ all: true, due: true, weekNew: false, leech: false }, 'workspace')).toEqual(['all', 'due'])
   })
 })

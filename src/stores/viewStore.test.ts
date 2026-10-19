@@ -73,4 +73,20 @@ describe('viewStore 双视图切换（D2）', () => {
     useViewStore.getState().showModule('settings')
     expect(useViewStore.getState().activeModule).toBe('settings')
   })
+
+  // v0.7.5 Task 10：第三个模块
+  it('showModule 可切到储藏库模块', () => {
+    useViewStore.getState().showModule('archive')
+    expect(useViewStore.getState().activeModule).toBe('archive')
+  })
+
+  // 储藏库复用工作台 DOM：侧栏点词条只切回词编辑视图，不得把人送回工作台模块
+  it('showWorkbenchView 只切回词编辑视图，不动模块', () => {
+    useViewStore.setState({ activeModule: 'archive', activeView: 'dict', dictWord: 'observe' })
+    useViewStore.getState().showWorkbenchView()
+    const s = useViewStore.getState()
+    expect(s.activeModule).toBe('archive')
+    expect(s.activeView).toBe('workbench')
+    expect(s.dictWord).toBeNull()
+  })
 })

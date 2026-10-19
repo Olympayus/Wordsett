@@ -12,5 +12,11 @@ import { useWordStore } from '../../stores/wordStore'
  */
 export async function jumpToWord(wordId: string): Promise<void> {
   useViewStore.getState().showWorkbench()
+  // v0.7.5 Task 10：储藏库模块下复习也 reachable，而工作台恒取工作区词表。
+  // 先换数据集再选中（AppShell 的 effect 后跑到时会看到 location 已对而跳过，
+  // 不会把刚选中的词清掉）；本来就在工作区时不动，保持原行为。
+  if (useWordStore.getState().location !== 'workspace') {
+    await useWordStore.getState().setLocation('workspace')
+  }
   await useWordStore.getState().selectWord(wordId)
 }

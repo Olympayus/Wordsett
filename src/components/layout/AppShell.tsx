@@ -39,6 +39,17 @@ export default function AppShell() {
   // 首次关窗弹窗（v0.7.0 §4.7）
   useCloseRequest()
 
+  // 模块 ↔ 数据集的耦合（v0.7.5 Task 10）：工作台取工作区词表，储藏库取储藏库词表。
+  // 刻意放在这里而不是 viewStore 的 action——让 viewStore import wordStore 会造成两个
+  // store 循环依赖；AppShell 本来就是模块分发的唯一地方。
+  // location 已经对了就跳过：链接跳转（linkJump）先 showModule、再自己 await setLocation，
+  // 本 effect 后跑到时再设一次会二次加载词表、清掉刚选中的词。
+  useEffect(() => {
+    if (activeModule !== 'workbench' && activeModule !== 'archive') return
+    const target = activeModule === 'archive' ? 'archive' : 'workspace'
+    if (useWordStore.getState().location !== target) void useWordStore.getState().setLocation(target)
+  }, [activeModule])
+
   // 统一页内查找：注册全局 Ctrl+F（spec §4b，FindBar 单实例）
   useEffect(() => registerFindKeyHandler(), [])
 
@@ -50,15 +61,16 @@ export default function AppShell() {
       </header>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* 活动栏：模块切换（工作台 / 复习 / 设置），设置按钮落在左下角 */}
+        {/* 活动栏：模块切换（工作台 / 储藏库 / 复习 / 设置），设置按钮落在左下角 */}
         <ActivityRail />
 
-        {/* 工作台（词表侧栏 + 编辑/词典区）：模块来回切换时保持挂载、非工作台模块激活时 display:none 隐藏，
-            以保留词表滚动位置与编辑器组件状态（规格 §5；§8 手动验收 3）。复习模块是全屏专注态，
-            同样走隐藏路径，工作台因此不会与复习模块并排显示（spec §2.1）。 */}
+        {/* 工作台与储藏库（词表侧栏 + 编辑/词典区）：两个模块共用同一份 DOM，只是数据集不同
+            （由上面的 effect 换 location）。模块来回切换时保持挂载、非这两个模块激活时
+            display:none 隐藏，以保留词表滚动位置与编辑器组件状态（规格 §5；§8 手动验收 3）。
+            复习模块是全屏专注态，同样走隐藏路径，工作台因此不会与复习模块并排显示（spec §2.1）。 */}
         <div
           className="flex flex-1 overflow-hidden"
-          style={{ display: activeModule === 'workbench' ? 'flex' : 'none' }}
+          style={{ display: activeModule === 'workbench' || activeModule === 'archive' ? 'flex' : 'none' }}
         >
           {/* 侧边栏：展开 300px / 收起内容自适应（D1）+ 底部 footer（规格 §2、§4.5） */}
           <aside
@@ -82,8 +94,10 @@ export default function AppShell() {
           </aside>
 
           {/* 右侧区域：词编辑视图 ↔ 词典详情视图（规格 §2，同一时刻仅其一；D2 替换显示）。
-              data-find-root 供 FindBar 定位当前模块的搜索根（设置页用同名属性区分）。 */}
-          <main data-find-root="workbench" className="flex-1 overflow-hidden">
+              data-find-root 供 FindBar 定位当前模块的搜索根（设置页用同名属性区分）。
+              储藏库与工作台共用这一层，标记须跟 activeModule 走：否则储藏库下 FindBar
+              查不到标记会回落到 document.body，把隐藏节点也搜进来。 */}
+          <main data-find-root={activeModule === 'archive' ? 'archive' : 'workbench'} className="flex-1 overflow-hidden">
             {activeView === 'dict' && dictWord
               ? <DictDetailPanel word={dictWord} />
               : <WordWorkbench />}

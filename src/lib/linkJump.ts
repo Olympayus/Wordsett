@@ -13,9 +13,9 @@ import type { DictionaryField } from '../types/dictionary'
  * `resolveJumpTarget` 刻意是**纯函数**——三种去向的判定（工作区 / 储藏库 / 词典 / 失效）
  * 不依赖 store、可单测；`useLinkJump` 只把判定结果落到实际的导航与提示上。
  *
- * 为什么 `{ to: 'archive' }` 在类型里、本任务却不实现：`ActiveModule` 与
- * `useWordStore.setLocation` 都要到 Task 9 才存在，且当前索引只含工作区、该分支不可达。
- * 届时把 `TODO(Task 9)` 换成 `showModule('archive')` + `setLocation('archive')` 即可。
+ * 储藏库跳转在 v0.7.5 Task 10 接上（Ruling G）：`ActiveModule` 与
+ * `useWordStore.setLocation` 都到位后，`{ to: 'archive' }` 走与工作区同一条
+ * 「模块 → 数据集 → 选中」路径，不再是一个空分支。
  */
 
 export type JumpTarget = { to: WordLocation } | { to: 'dict' }
@@ -49,12 +49,13 @@ async function alertMissing(target: string): Promise<void> {
  * 返回的函数是**稳定引用**（空依赖 `useCallback`）：store 一律在调用时用 `getState()` 读，
  * 而不是在渲染期订阅——点击是一次性动作，不需要为词表 / 索引的变化重渲染调用方。
  *
- * 顺序对 `workspace` 是硬要求：先切模块、再选中词条。反过来的话 `selectWord` 会在
- * 旧数据集里找目标（Task 9 引入储藏库后尤其明显）。
+ * 顺序对 `workspace` / `archive` 都是硬要求：先切模块、再切数据集、最后选中词条。
+ * 反过来的话 `selectWord` 会在旧数据集里找目标；先选后换数据集则 `setLocation`
+ * 会把刚选中的词清掉（v0.7.5 Task 9 引入储藏库后尤其明显）。
  */
 export function useLinkJump(): (token: LinkToken) => Promise<void> {
   return useCallback(async (token: LinkToken): Promise<void> => {
-    const { libraryIndex, words, selectWord } = useWordStore.getState()
+    const { libraryIndex } = useWordStore.getState()
     const resolved = resolveJumpTarget(token, libraryIndex)
     const lemma = normalizeLinkTarget(token.target)
 
@@ -99,23 +100,24 @@ export function useLinkJump(): (token: LinkToken) => Promise<void> {
       return
     }
 
-    if (resolved.to === 'archive') {
-      // TODO(Task 9): 储藏库模块与 `setLocation('archive')` 落地后接上：
-      // showModule('archive') → setLocation('archive') → selectWord(id)。
-      // 本任务不调用 showModule('archive')——该值还不在 `ActiveModule` 里。
-      return
+    // `[[ ]]` 链接：目标所在模块就是数据集（v0.7.5 Task 10 起含储藏库）。
+    // 模块与数据集的耦合平时由 AppShell 的 effect 负责；这里先自己 await 换好数据集，
+    // 保证紧接着的 selectWord 一定落在正确词表上（effect 后跑时会看到 location 已对而跳过）。
+    useViewStore.getState().showModule(resolved.to === 'archive' ? 'archive' : 'workbench')
+    if (useWordStore.getState().location !== resolved.to) {
+      await useWordStore.getState().setLocation(resolved.to)
     }
 
-    // 索引说在工作区，但当前已加载的词表里找不到它（理论上不会发生：两者同源，
-    // 除非两次 loadWords 之间词条被删）。宁可提示，也不要带着 `undefined` 去 selectWord。
-    const word = words.find(w => normalizeLinkTarget(w.lemma) === lemma)
+    // 选中需要 id，而索引只带模块，故在新数据集里按归一化词面反查。
+    const word = useWordStore.getState().words.find(w => normalizeLinkTarget(w.lemma) === lemma)
     if (!word) {
+      // 索引说在库、当前数据集里却没有（理论上不会发生：两者同源，除非两次 loadWords
+      // 之间词条被删）。宁可提示，也不要带着 `undefined` 去 selectWord。
       await alertMissing(token.target)
       return
     }
 
-    useViewStore.getState().showModule('workbench')
     // 默认 `record: true`：链接跳转与列表选词一样进历史栈，导航条左箭头能回来。
-    await selectWord(word.id)
+    await useWordStore.getState().selectWord(word.id)
   }, [])
 }

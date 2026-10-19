@@ -50,6 +50,9 @@ describe('parseIntent', () => {
   it('从标记元素读出模块意图', () => {
     expect(parseIntent(button({ [GUARD_ATTR]: 'module:settings' })))
       .toEqual({ kind: 'module', value: 'settings' })
+    // v0.7.5 Task 10：储藏库是第三个模块，漏了它会让答题中切模块静默不确认
+    expect(parseIntent(button({ [GUARD_ATTR]: 'module:archive' })))
+      .toEqual({ kind: 'module', value: 'archive' })
   })
 
   it('从标记元素读出策略意图', () => {

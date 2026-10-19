@@ -49,6 +49,18 @@ export default function ActivityRail() {
 
       <button
         type="button"
+        title="储藏库"
+        aria-label="储藏库"
+        data-session-guard="module:archive"
+        aria-current={activeModule === 'archive' ? 'page' : undefined}
+        onClick={() => showModule('archive')}
+        style={btnStyle(activeModule === 'archive')}
+      >
+        <Icon name="box" size={17} />
+      </button>
+
+      <button
+        type="button"
         title="复习"
         aria-label="复习"
         data-session-guard="module:review"

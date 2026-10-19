@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type IconName = 'plus' | 'grip' | 'more' | 'trash' | 'search' | 'swap' | 'chevron' | 'arrow-right' | 'chevron-left' | 'settings' | 'arrow-left' | 'close' | 'info' | 'edit' | 'chevron-right' | 'minimize' | 'maximize' | 'restore' | 'layers' | 'book' | 'check-square' | 'library' | 'calendar' | 'sprout' | 'alert' | 'minus'
+export type IconName = 'plus' | 'grip' | 'more' | 'trash' | 'search' | 'swap' | 'chevron' | 'arrow-right' | 'chevron-left' | 'settings' | 'arrow-left' | 'close' | 'info' | 'edit' | 'chevron-right' | 'minimize' | 'maximize' | 'restore' | 'layers' | 'book' | 'check-square' | 'library' | 'calendar' | 'sprout' | 'alert' | 'minus' | 'box'
 
 const PATHS: Record<IconName, ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
@@ -130,6 +130,14 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M12 3l9 16H3l9-16z" />
       <path d="M12 9v5" />
       <circle cx="12" cy="17" r="1" />
+    </>
+  ),
+  // 储藏库：封好的箱体（线性、与其余图标同一 24 视框与 1.5 线宽）
+  box: (
+    <>
+      <path d="M21 8l-9-5-9 5v8l9 5 9-5V8z" />
+      <path d="M3 8l9 5 9-5" />
+      <path d="M12 13v8" />
     </>
   ),
 }

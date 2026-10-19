@@ -1,4 +1,4 @@
-import type { WordWithPreview } from '../types/word'
+import type { WordWithPreview, WordLocation } from '../types/word'
 import type { WordReviewOverlay } from '../db/review'
 import type { IconName } from '../components/icons'
 import { isLeech } from './review/leech'
@@ -33,6 +33,19 @@ export interface SmartViewInput {
 /** 开关筛选后的可见视图列表。 */
 export function visibleSmartViews(enabled: Record<SmartViewKey, boolean>): SmartViewKey[] {
   return SMART_VIEW_ORDER.filter(k => k === LOCKED_SMART_VIEW || enabled[k])
+}
+
+/**
+ * 侧栏实际渲染的视图列表（v0.7.5 Task 10）。
+ *
+ * 与 `visibleSmartViews` 是两件事：后者回答「设置里开了哪些」，前者回答「**这个模块**
+ * 有没有智能视图」。储藏库没有智能视图——即使设置里四条全开也恒返回空。
+ */
+export function sidebarViews(
+  enabled: Record<SmartViewKey, boolean>,
+  location: WordLocation,
+): SmartViewKey[] {
+  return location === 'archive' ? [] : visibleSmartViews(enabled)
 }
 
 /** 视图是**附加**筛选条件——在与筛选框的结果之上再过滤一层。 */

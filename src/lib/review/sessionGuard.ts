@@ -33,7 +33,7 @@ export const GUARD_ATTR = 'data-session-guard'
 /** 做题区容器的标记。落在它内部的点击一律放行。 */
 export const ARENA_ATTR = 'data-arena-region'
 
-const MODULES = new Set<ActiveModule>(['workbench', 'review', 'settings'])
+const MODULES = new Set<ActiveModule>(['workbench', 'archive', 'review', 'settings'])
 const STRATEGIES = new Set<ReviewStrategy>(['today', 'free'])
 /** `home` 目前只有一个合法值：它唯一的动作就是「回工作台首页」，即 viewStore 的 showWorkbench()。 */
 const HOMES = new Set(['workbench'])

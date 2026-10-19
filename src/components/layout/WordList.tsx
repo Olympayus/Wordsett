@@ -15,7 +15,7 @@ import CategoryPickerPopover from '../ui/CategoryPickerPopover'
 import { vocabularySearch } from '../../lib/search'
 import { groupByLetter, groupByCategory, SIDEBAR_ROW_HEIGHT, SIDEBAR_ROW_HEIGHT_COLLAPSED, type SidebarMode } from '../../lib/sidebar'
 import { rangeSelect, selectAll, pruneToRows, selectedWordIdsFromRows } from '../../lib/selection'
-import { SMART_VIEW_ORDER, filterBySmartView, smartViewCount, visibleSmartViews } from '../../lib/smartViews'
+import { SMART_VIEW_ORDER, filterBySmartView, sidebarViews, smartViewCount } from '../../lib/smartViews'
 import type { SmartViewKey } from '../../lib/smartViews'
 import type { WordWithPreview } from '../../types/word'
 import type { Category } from '../../types/category'
@@ -64,7 +64,7 @@ export default function WordList({
   mode: SidebarMode
   onToggleMode: () => void
 }) {
-  const { words, selectedWordId, selectWord } = useWordStore()
+  const { words, selectedWordId, selectWord, location } = useWordStore()
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [anchorKey, setAnchorKey] = useState<string | null>(null)
@@ -90,15 +90,19 @@ export default function WordList({
   const viewInput = useMemo(() => ({ words, dueWordIds, overlay, leechThreshold, now: Date.now() }), [words, dueWordIds, overlay, leechThreshold])
   const viewCounts = useMemo(() => Object.fromEntries(
     SMART_VIEW_ORDER.map(k => [k, smartViewCount(k, viewInput)])) as Record<SmartViewKey, number>, [viewInput])
-  // 在设置里关掉正在激活的视图 → 它从 visibleSmartViews 里消失，这里退回「完整词库」。
+  // 在设置里关掉正在激活的视图 → 它从 sidebarViews 里消失，这里退回「完整词库」。
   // 刻意不写 state（不弹确认、不留一个指向隐藏视图的激活态）：派生的下一次渲染就落到 all。
-  const activeView = visibleSmartViews(smartViews).includes(smartView) ? smartView : 'all'
+  // 储藏库没有智能视图（v0.7.5 Task 10），这个判据同时把 activeView 恒拨回 'all'。
+  const activeView = sidebarViews(smartViews, location).includes(smartView) ? smartView : 'all'
   // 视图是附加筛选：先过视图，再过筛选框。
   const viewFiltered = useMemo(() => filterBySmartView(words, activeView, viewInput), [words, activeView, viewInput])
 
   // 空态取哪一句（§4.4）：**库本身就是空**时说什么都像在指责筛选，保留原那句引导去搜索框；
   // 否则只要有视图在生效就用它自己的口径——「完整词库」键的值就是通用那一句。
-  const emptyText = words.length === 0 ? '词库为空，使用顶部搜索框添加单词' : EMPTY_TEXT[activeView]
+  // 储藏库例外：顶部搜索框收录的新词落工作区，在储藏库里照搬那句会指错路（v0.7.5 Task 10）。
+  const emptyText = words.length === 0
+    ? (location === 'archive' ? '储藏库为空' : '词库为空，使用顶部搜索框添加单词')
+    : EMPTY_TEXT[activeView]
 
   // 筛选：空串显示视图内的全部；非空走词库搜索（lemma + 字段值，沿用现状）
   useEffect(() => {
@@ -122,7 +126,14 @@ export default function WordList({
     | { x: number; y: number; kind: 'word'; word: WordWithPreview }
     | { x: number; y: number; kind: 'category'; category: Category }>(null)
   const showWorkbench = useViewStore(s => s.showWorkbench)
+  const showWorkbenchView = useViewStore(s => s.showWorkbenchView)
   const setEditorMode = useViewStore(s => s.setEditorMode)
+  // 储藏库与工作台共用这一层 DOM：点词条只切回词编辑视图。照旧调 showWorkbench
+  // 会把模块一起拨回工作台，用户在储藏库里点一下词就被送走了（v0.7.5 Task 10）。
+  const openWordView = () => {
+    if (useViewStore.getState().activeModule === 'archive') showWorkbenchView()
+    else showWorkbench()
+  }
   const { openAssign, openEditor } = useUiStore()
   const { deleteWord } = useWordStore()
   const { removeFromWord, deleteCategory } = useCategoryStore()
@@ -132,7 +143,7 @@ export default function WordList({
       .map(id => categoryById.get(id))
       .filter((c): c is Category => Boolean(c))
     return [
-      { key: 'edit', label: '编辑', onSelect: () => { void selectWord(word.id); showWorkbench(); setEditorMode(true) } },
+      { key: 'edit', label: '编辑', onSelect: () => { void selectWord(word.id); openWordView(); setEditorMode(true) } },
       { key: 'assign', label: '添加到…', onSelect: () => openAssign(word.id) },
       {
         key: 'remove', label: '从…中移除', disabled: cats.length === 0,
@@ -269,7 +280,7 @@ export default function WordList({
   }
 
   const handleRowClick = (row: ItemRow, e: React.MouseEvent | React.KeyboardEvent) => {
-    if (!selectMode) { void selectWord(row.word.id); showWorkbench(); return }
+    if (!selectMode) { void selectWord(row.word.id); openWordView(); return }
     if (e.shiftKey) { setSelected(prev => rangeSelect(wordRowKeys, anchorKey, row.key, prev)) }
     else {
       setSelected(prev => {
@@ -435,12 +446,15 @@ export default function WordList({
         onClearAll={() => setSelected(new Set())}
         onExitSelect={exitSelect}
       />
-      <SmartViewList
-        views={visibleSmartViews(smartViews)}
-        active={activeView}
-        counts={viewCounts}
-        onSelect={setSmartView}
-      />
+      {/* 储藏库没有智能视图（v0.7.5 Task 10）：整区不渲染，侧栏与工作台同一个组件。 */}
+      {location !== 'archive' && (
+        <SmartViewList
+          views={sidebarViews(smartViews, location)}
+          active={activeView}
+          counts={viewCounts}
+          onSelect={setSmartView}
+        />
+      )}
       <div ref={parentRef} className="flex-1 overflow-y-auto" style={{ padding: '8px' }}>
         {searching ? (
           <div className="px-4 py-8 text-center text-sm" style={{ color: 'var(--color-text-tertiary)' }}>搜索中…</div>
