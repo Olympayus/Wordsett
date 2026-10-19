@@ -13,6 +13,7 @@ import { useWordStore } from '../../stores/wordStore'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
+import { libraryLocationIn } from '../../lib/collected'
 import { countAllDefinitions } from '../../lib/dictPlan'
 import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, TAB_ITEM_PADDING_X, TAB_STRIP_PADDING } from '../../lib/layout'
 import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
@@ -68,11 +69,12 @@ export default function DictDetailPanel({ word }: Props) {
   const selectWord = useWordStore(s => s.selectWord)
   const mergeWordFields = useWordStore(s => s.mergeWordFields)
 
-  // 展示态的在库判据实时求值：启动时 loadWords() 未落地的一瞬会短暂多算成「库外」，代价只是多问一次；
-  // 反过来若在这里快照，导入后词表变化会看不见。写入端的守卫另在 handleMergeAdd 里现算。
-  // 判据与写入守卫 isWordInLibrary 的出处同一份，但这里必须订阅式：helper 读 getState()
-  // 是一次快照，用在 JSX 里词表变化就不会重渲染（R15）。
-  const inLibrary = useWordStore(s => s.words.some(w => w.lemma.toLowerCase() === word.toLowerCase()))
+  // 展示态的在库判据（v0.7.5 Task 13）：实时订阅**词库索引**（工作区 ∪ 储藏库），
+  // 与写入守卫 isWordInLibrary 同源；判定逻辑走 collected.ts 的 `libraryLocationIn`。
+  // 启动时 loadWords() 未落地的一瞬索引为空，会短暂把库内词当成库外，代价只是多问一次；
+  // 反过来若在这里快照，导入 / 移动后词表变化就看不见。
+  // 订阅式是必须的：helper 读 getState() 是一次快照，用在 JSX 里词表变化就不会重渲染（R15）。
+  const libraryLocation = useWordStore(s => libraryLocationIn(s.libraryIndex, word))
 
   // 初始熟悉度（spec 4.6）：只对库外词问一次，写入随「合并添加」一起发生。
   // 所有权在本面板：只此一处状态，别处不留副本（两份会漂）。
@@ -106,7 +108,7 @@ export default function DictDetailPanel({ word }: Props) {
     inputs.push(...stripInputs)
     if (inputs.length === 0) return
     // 守卫用的在库判据现算，且必须在 ensureWord 之前取：ensureWord 收录成功会把新词塞进 store，
-    // 那时再算，刚收录的库外词也会翻成「已在库」。这里不能沿用渲染期求值的那一份——
+    // 那时再算，刚收录的库外词也会翻成「已在工作台」。这里不能沿用渲染期求值的那一份——
     // 面板开着时启动加载的 loadWords() 或设置里的词典导入都可能改写词表，渲染期那份会过期。
     const wordWasInLibrary = isWordInLibrary(word)
     const target = await ensureWord(word, categoryId ? { skipDefaultCategory: true } : undefined)
@@ -120,7 +122,7 @@ export default function DictDetailPanel({ word }: Props) {
       return
     }
     // 熟悉度随收录一并写入，但**只在用户被问过时才写**（spec §4.6：单选与本写入同一个条件）。
-    // 在库词这里显示的是「已在库」、familiarity 恒为重置默认值 1，无条件写就会把用户当初选的档
+    // 在库词这里显示的是「已在工作台 / 已在储藏库」、familiarity 恒为重置默认值 1，无条件写就会把用户当初选的档
     // 覆写成「陌生」——不可撤销，且该值直通 Task 4 三键预填与 Task 6 冷启动档位徽标，
     // 毁的正是本版要合上的那个环（spec §4.7）。失败不阻断收录：字段已入库，缺失只让该词回落 1。
     if (!wordWasInLibrary) {
@@ -195,10 +197,13 @@ export default function DictDetailPanel({ word }: Props) {
           onBack={showWorkbench}
           onMergeAdd={handleMergeAdd}
           mergeCount={selectionCount + stripInputs.length}
-          mergeDisabled={!anySelected}
+          // 词在库里（无论工作台还是储藏库）一律不给添加（v0.7.5 spec §2.7）：
+          // 储藏库的词被 ensureWord 命中原行后也不会搬回工作台，添加只会把字段写进
+          // 一个用户看不见的词条；故与工作台同档禁用，标识文案由导航条按模块给出。
+          mergeDisabled={!anySelected || libraryLocation !== null}
           familiarity={familiarity}
           onFamiliarityChange={setFamiliarity}
-          inLibrary={inLibrary}
+          libraryLocation={libraryLocation}
           breadcrumb={<>词典 › <b style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>{word}</b></>}
         />
       </div>

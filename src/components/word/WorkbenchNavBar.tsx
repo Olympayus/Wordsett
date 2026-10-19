@@ -12,6 +12,7 @@ import FamiliarityChoice from '../search/FamiliarityChoice'
 import type { InitialFamiliarityChoice } from '../../services/wordService'
 import type { WordLocation } from '../../types'
 import { moveActionLabel } from '../../lib/archiveMove'
+import { collectedLabel } from '../../lib/collected'
 import { NAV_HEIGHT, NAV_CONTROL_HEIGHT } from '../../lib/layout'
 
 interface WorkbenchNavBarProps {
@@ -37,8 +38,9 @@ interface WorkbenchNavBarProps {
   /** 词不在库时的初始熟悉度单选（region='dict' 使用）。 */
   familiarity?: InitialFamiliarityChoice
   onFamiliarityChange?: (v: InitialFamiliarityChoice) => void
-  /** 词已在库：三键整组换成「已在库」四字，保持右端宽度接近、按钮不左右跳。 */
-  inLibrary?: boolean
+  /** 词已在库时所在的模块（region='dict' 使用）：三键整组换成「已在工作台 / 已在储藏库」，
+   * 保持右端宽度接近、按钮不左右跳。null / 缺省＝不在库。 */
+  libraryLocation?: WordLocation | null
   /** 有东西正在编辑时显现（工作区唯一）：保存 / 取消。 */
   editing?: { dirty: boolean }
   onSaveEdit?: () => void
@@ -70,7 +72,7 @@ const navBtn = (disabled = false): CSSProperties => ({
 // ② 底色取 **--color-chrome**（spec §1.1 的标题栏 / 活动栏档，用户指定）。
 export default function WorkbenchNavBar({
   region, location, onMoveWord, onDeleteWord, onBack, onMergeAdd, mergeCount = 0, mergeDisabled = false,
-  familiarity, onFamiliarityChange, inLibrary = false, breadcrumb,
+  familiarity, onFamiliarityChange, libraryLocation = null, breadcrumb,
   editing, onSaveEdit, onCancelEdit,
 }: WorkbenchNavBarProps) {
   const editorMode = useViewStore(s => s.editorMode)
@@ -107,6 +109,9 @@ export default function WorkbenchNavBar({
     e.currentTarget.style.background = 'transparent'
     e.currentTarget.style.color = 'var(--color-text-secondary)'
   }
+
+  // 「已在工作台 / 已在储藏库」；null＝不在库（region='dict' 才可能有值）
+  const libraryLabel = collectedLabel(libraryLocation)
 
   return (
     <div
@@ -221,9 +226,10 @@ export default function WorkbenchNavBar({
         ) : (
           <>
             {/* 初始熟悉度三键（v0.6.5 §4.5，从页面底部收录区上移）：词不在库时可选，缺省落第 1 档「陌生」。
-                词已在库则整组换成灰色「已在库」四字——这一支与三键的右端宽度接近，切词时按钮不左右跳。 */}
-            {inLibrary ? (
-              <span style={{ fontSize: '12px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>已在库</span>
+                词已在库则整组换成灰色「已在工作台 / 已在储藏库」（v0.7.5 Task 13 按模块分档）——
+                这一支与三键的右端宽度接近，切词时按钮不左右跳。 */}
+            {libraryLabel ? (
+              <span style={{ fontSize: '12px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{libraryLabel}</span>
             ) : (
               <>
                 <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>初始熟悉度</span>

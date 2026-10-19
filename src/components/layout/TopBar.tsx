@@ -46,7 +46,9 @@ export default function TopBar() {
   const hasUpdate = useUpdaterStore(s => s.hasUpdateBadge)
   const badgeVersion = useUpdaterStore(s => s.badgeVersion)
   const openDialog = useUpdaterStore(s => s.openDialog)
-  const words = useWordStore(s => s.words)
+  // 建议列表的模块标识读**词库索引**（v0.7.5 Task 13，工作区 ∪ 储藏库），
+  // 不再拿当前模块的词表充数——那会把储藏库的词显示成未收录。
+  const libraryIndex = useWordStore(s => s.libraryIndex)
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // 建议下拉点外关闭：用 document 级 pointerdown 监听（既有 useClickOutside 模式）。
@@ -233,7 +235,7 @@ export default function TopBar() {
               onSelect={handleSelectWord}
               onHover={i => setSelectedIndex(i)}
               query={query}
-              collectedWords={words}
+              libraryIndex={libraryIndex}
               glosses={zhGlosses}
             />
           )}

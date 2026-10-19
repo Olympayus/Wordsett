@@ -4,7 +4,7 @@ import { splitGlossParts } from '../../lib/wordnetParse'
 import type { RelatedWords, RelatedGroup } from '../../providers/wordnet'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
-import { isWordCollected } from '../../lib/collected'
+import { collectedLabel, libraryLocationIn } from '../../lib/collected'
 import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
 
@@ -63,7 +63,8 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
   // 每组是否展开显示全部（默认折叠，只显示前 9 个）；按组标签 key
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const showDict = useViewStore(s => s.showDict)
-  const collectedWords = useWordStore(s => s.words)
+  // 模块标识读**词库索引**（v0.7.5 Task 13，工作区 ∪ 储藏库），不读当前模块词表。
+  const libraryIndex = useWordStore(s => s.libraryIndex)
 
   // 换词取消过期请求；数据就绪后上报徽章计数（全组词条总数）；失败进入 error 态（如 wordnet.db 未生成）
   useEffect(() => {
@@ -102,32 +103,37 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
       border: '1px solid var(--color-border-strong)', background: 'var(--color-surface)',
       color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
     }}>
-      {g.words.map((w, i) => (
-        <span key={w} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          {i > 0 && <span style={{ color: 'var(--color-text-tertiary)', opacity: 0.7 }}>·</span>}
-          <Tooltip content={`查询「${w}」`} width={220}>
-            <button
-              type="button"
-              onClick={() => showDict(w)}
-              style={{
-                border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
-                fontSize: 13, color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
-                borderRadius: 'var(--radius-sm)',
-                transition: 'color var(--duration-fast) var(--ease-smooth), text-decoration-color var(--duration-fast) var(--ease-smooth)',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.textUnderlineOffset = '2px' }}
-              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.textDecoration = 'none' }}
-            >
-              {w}
-            </button>
-          </Tooltip>
-          {isWordCollected(w, collectedWords) && (
-            // 「已收录」是**内容的数据标记**（这个词在不在库里），§6 规则 3：蓝不做数据标记，
-            // 故用中性二级灰，不再用品牌蓝。
-            <span aria-label="已收录" title="已收录" style={{ color: 'var(--color-text-secondary)', fontSize: 10, fontWeight: 700 }}>✓</span>
-          )}
-        </span>
-      ))}
+      {g.words.map((w, i) => {
+        // 模块标识（v0.7.5 Task 13）：胶囊里每个词只放一枚 ✓，模块文案走 title / aria-label。
+        // 胶囊是 13px 的紧凑词串，再塞「已在工作台」五个字会把同一组挤到换行。
+        const collected = collectedLabel(libraryLocationIn(libraryIndex, w))
+        return (
+          <span key={w} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            {i > 0 && <span style={{ color: 'var(--color-text-tertiary)', opacity: 0.7 }}>·</span>}
+            <Tooltip content={`查询「${w}」`} width={220}>
+              <button
+                type="button"
+                onClick={() => showDict(w)}
+                style={{
+                  border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
+                  fontSize: 13, color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
+                  borderRadius: 'var(--radius-sm)',
+                  transition: 'color var(--duration-fast) var(--ease-smooth), text-decoration-color var(--duration-fast) var(--ease-smooth)',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.textDecoration = 'underline'; e.currentTarget.style.textUnderlineOffset = '2px' }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.textDecoration = 'none' }}
+              >
+                {w}
+              </button>
+            </Tooltip>
+            {collected && (
+              // 「已收录」是**内容的数据标记**（这个词在不在库里），§6 规则 3：蓝不做数据标记，
+              // 故用中性二级灰，不再用品牌蓝。
+              <span aria-label={collected} title={collected} style={{ color: 'var(--color-text-secondary)', fontSize: 10, fontWeight: 700 }}>✓</span>
+            )}
+          </span>
+        )
+      })}
       {g.definition && (
         <Tooltip content={<GlossTip gloss={g.definition} />} width={340}>
           <span role="img" aria-label={`组说明：${g.words.join('、')}`} style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'help' }}><Icon name="info" size={12} /></span>

@@ -1,23 +1,32 @@
 import { describe, it, expect } from 'vitest'
-import { isWordCollected, libraryLocationOf } from './collected'
+import { collectedLabel, libraryLocationIn, libraryLocationOf } from './collected'
+import type { WordLocation } from '../types/word'
 
-describe('isWordCollected', () => {
-  const collected = [
-    { normalizedLemma: 'interesting' },
-    { normalizedLemma: 'apple' },
-  ]
-  it('normalizedLemma 精确命中 → true', () => {
-    expect(isWordCollected('interesting', collected)).toBe(true)
+describe('libraryLocationIn（Map 形态，v0.7.5 Task 13）', () => {
+  const index = new Map<string, WordLocation>([
+    ['abandon', 'workspace'],
+    ['forsake', 'archive'],
+  ])
+
+  it('按索引的归一化键命中两个模块', () => {
+    expect(libraryLocationIn(index, 'abandon')).toBe('workspace')
+    expect(libraryLocationIn(index, 'forsake')).toBe('archive')
   })
-  it('大小写/首尾空白归一化后命中 → true', () => {
-    expect(isWordCollected('  Apple ', collected)).toBe(true)
+
+  it('入参大小写/首尾空白归一化后命中；不在库或空串回落 null', () => {
+    expect(libraryLocationIn(index, '  Abandon ')).toBe('workspace')
+    expect(libraryLocationIn(index, 'FORSAKE')).toBe('archive')
+    expect(libraryLocationIn(index, 'unknown')).toBeNull()
+    expect(libraryLocationIn(index, '')).toBeNull()
+    expect(libraryLocationIn(index, '   ')).toBeNull()
   })
-  it('不在词库 → false', () => {
-    expect(isWordCollected('banana', collected)).toBe(false)
-  })
-  it('空串/纯空白 → false', () => {
-    expect(isWordCollected('', collected)).toBe(false)
-    expect(isWordCollected('   ', collected)).toBe(false)
+})
+
+describe('collectedLabel（v0.7.5 Task 13）', () => {
+  it('标识文案按模块分', () => {
+    expect(collectedLabel('workspace')).toBe('已在工作台')
+    expect(collectedLabel('archive')).toBe('已在储藏库')
+    expect(collectedLabel(null)).toBeNull()
   })
 })
 
