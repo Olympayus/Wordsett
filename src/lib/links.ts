@@ -79,6 +79,44 @@ export function normalizeLinkTarget(raw: string): string {
   return raw.trim().toLowerCase()
 }
 
+/** 反链扫描的一行原始命中（`getBacklinks` 按次产出，同一格出现两次就是两行）。 */
+export interface BacklinkRow {
+  sourceWordId: string
+  sourceLemma: string
+  fieldName: string
+}
+
+/** 聚合后的反链：来源词 × 字段，`count` 是该格里命中目标的次数。 */
+export interface Backlink extends BacklinkRow {
+  count: number
+}
+
+/**
+ * 把逐次命中聚合成「来源词 × 字段」，顺序 = 首次出现的顺序（稳定，UI 与测试都按它排）。
+ *
+ * `targetLemma` 是接口的一部分（`getBacklinks` 的查询目标，保持签名一致），聚合本身
+ * 不读它——命中过滤发生在扫描阶段，行里没有目标可供再筛一次。
+ * `sourceWordId + fieldName` 作键：同一个词在**不同**字段里链了目标应各占一行，
+ * 同一个字段里链两次才合并成 `count: 2`。
+ */
+export function aggregateBacklinks(rows: BacklinkRow[], _targetLemma: string): Backlink[] {
+  const out: Backlink[] = []
+  const byKey = new Map<string, Backlink>()
+  for (const row of rows) {
+    // 分隔符取 NUL：字段名是用户可改的文本，普通符号有撞键风险。
+    const key = `${row.sourceWordId}\u0000${row.fieldName}`
+    const hit = byKey.get(key)
+    if (hit) {
+      hit.count += 1
+      continue
+    }
+    const entry: Backlink = { ...row, count: 1 }
+    byKey.set(key, entry)
+    out.push(entry)
+  }
+  return out
+}
+
 /** 只用于「挖掉所有成对标记」：目标内容是否为空不影响配对与否。 */
 const PAIRED_RE = /\[\[[^[\]{}]*\]\]|\{\{[^[\]{}]*\}\}/g
 

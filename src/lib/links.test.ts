@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { parseLinks, stripLinks, linkTargets, validateLinks, linkableField, normalizeLinkTarget, linkErrorText } from './links'
+import { parseLinks, stripLinks, linkTargets, validateLinks, linkableField, normalizeLinkTarget, linkErrorText, aggregateBacklinks } from './links'
 
 describe('parseLinks', () => {
   it('把两种标记切成 link 段，其余是 text 段', () => {
@@ -99,6 +99,24 @@ describe('linkErrorText', () => {
     expect(t).toContain('a')
     expect(t).toContain('b')
   })
+})
+
+describe('aggregateBacklinks', () => {
+  const rows = [
+    { sourceWordId: 'w1', sourceLemma: 'abandon', fieldName: '近义词辨析' },
+    { sourceWordId: 'w1', sourceLemma: 'abandon', fieldName: '近义词辨析' },   // 同词同字段两次
+    { sourceWordId: 'w1', sourceLemma: 'abandon', fieldName: '补充' },
+    { sourceWordId: 'w2', sourceLemma: 'desert', fieldName: '近义词辨析' },
+  ]
+
+  it('按「来源词 × 字段」聚合，同格两次计数为 2', () => {
+    expect(aggregateBacklinks(rows, 'forsake')).toEqual([
+      { sourceWordId: 'w1', sourceLemma: 'abandon', fieldName: '近义词辨析', count: 2 },
+      { sourceWordId: 'w1', sourceLemma: 'abandon', fieldName: '补充', count: 1 },
+      { sourceWordId: 'w2', sourceLemma: 'desert', fieldName: '近义词辨析', count: 1 },
+    ])
+  })
+  it('无来源返回空数组', () => { expect(aggregateBacklinks([], 'forsake')).toEqual([]) })
 })
 
 describe('接入形状', () => {

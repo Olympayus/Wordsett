@@ -27,6 +27,7 @@ import Icon from '../icons'
 import CategoryCapsule from './CategoryCapsule'
 import DragGhost from './DragGhost'
 import PhoneticArea from './PhoneticArea'
+import BacklinksFootnote from './BacklinksFootnote'
 import TabBar from './TabBar'
 import WorkbenchNavBar from './WorkbenchNavBar'
 import EntryBand from '../entry/EntryBand'
@@ -1503,6 +1504,10 @@ export default function WordWorkbench() {
             {dragGhost && <DragGhost text={dragGhost.text} kind={dragGhost.kind} />}
           </DragOverlay>
         </DndContext>
+
+        {/* 反链脚注（v0.7.5 Task 6）：正文流之后、页级「＋ 添加」之上。空结果显示 null，
+            故没有来源的词条看不到这一节，也不会留下一段空白。 */}
+        <BacklinksFootnote lemma={selectedWord.lemma} />
 
         {/* 页级「＋ 添加」（v0.7.2 D7）：流末尾一个中性按钮，点开本标签页全部可加项 + 新建标签页 / 词根 / 音标。
             与正文流同度量（ENTRY_BAND_WIDTH），不像头带那样铺满。
