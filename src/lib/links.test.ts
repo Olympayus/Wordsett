@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseLinks, stripLinks, linkTargets, validateLinks, linkableField, normalizeLinkTarget } from './links'
+import { parseLinks, stripLinks, linkTargets, validateLinks, linkableField, normalizeLinkTarget, linkErrorText } from './links'
 
 describe('parseLinks', () => {
   it('把两种标记切成 link 段，其余是 text 段', () => {
@@ -79,5 +79,22 @@ describe('linkableField', () => {
     for (const k of ['part_of_speech', 'phonetic', 'word_root', 'initial_familiarity']) {
       expect(linkableField(k)).toBe(false)
     }
+  })
+})
+
+describe('linkErrorText', () => {
+  it('不在库的目标按名字列出来', () => {
+    const t = linkErrorText([{ code: 'not-in-library', target: 'unknown' }])
+    expect(t).toContain('unknown')
+    expect(t).toContain('{{')
+  })
+  it('残缺标记与空目标各有各的句子', () => {
+    expect(linkErrorText([{ code: 'unclosed' }])).toContain(']]')
+    expect(linkErrorText([{ code: 'empty-target' }])).toContain('空')
+  })
+  it('多条错误合成一段文本，不重复标题', () => {
+    const t = linkErrorText([{ code: 'unclosed' }, { code: 'not-in-library', target: 'a' }, { code: 'not-in-library', target: 'b' }])
+    expect(t).toContain('a')
+    expect(t).toContain('b')
   })
 })

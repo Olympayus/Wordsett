@@ -46,6 +46,8 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { isLeech, leechTooltip } from '../../lib/review/leech'
 import { measureTextWidth, MEASURE_STYLE, MEASURE_INPUT_CLASS, MEASURE_MIN_WIDTH, measureMarkSlot } from '../../lib/measureText'
 import { editKeyDown } from '../../lib/editKeyDown'
+import { linkableField, validateLinks, linkErrorText } from '../../lib/links'
+import { isWordInLibrary } from '../../lib/ensureWord'
 import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
 import { displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
@@ -918,6 +920,16 @@ export default function WordWorkbench() {
     if (defKeyByFieldId.get(fv.fieldId) === 'part_of_speech' && !editValue.trim()) {
       await useUiStore.getState().confirm({ title: '词性标签不能为空', message: '请为词性填写标签后再保存。', alertMode: true })
       return
+    }
+    // 链接校验（v0.7.5 Task 2）：必须在「未改动早退」之前——没改的文本不必校验，
+    // 改过的文本一律校验；不合法则不落库、留在编辑态。
+    const defKey = defKeyByFieldId.get(fv.fieldId) ?? ''
+    if (linkableField(defKey)) {
+      const errs = validateLinks(editValue, isWordInLibrary)
+      if (errs.length > 0) {
+        await useUiStore.getState().confirm({ title: '链接有误', message: linkErrorText(errs), alertMode: true })
+        return
+      }
     }
     if (editValue === entryValue) { setEditingId(null); return }  // 未真实修改：不置位
     if (fv.source === 'user') {

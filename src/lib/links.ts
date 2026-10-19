@@ -125,3 +125,30 @@ const NON_LINKABLE_FIELD_KEYS: ReadonlySet<string> = new Set([
 export function linkableField(fieldKey: string): boolean {
   return !NON_LINKABLE_FIELD_KEYS.has(fieldKey)
 }
+
+/**
+ * 把校验结果合成一段弹窗正文（保存时用）：按 code 归并——同一类错误只写一句，
+ * `not-in-library` 的多个目标并进同一句、按出现顺序去重（同一个词连写两次不该重复点名）。
+ * 标题「链接有误」由调用方的 `confirm` 负责，这里只管正文，避免同一条提示出现两遍标题。
+ */
+export function linkErrorText(errors: LinkError[]): string {
+  const lines: string[] = []
+
+  if (errors.some(e => e.code === 'unclosed')) {
+    lines.push('链接标记没有闭合：成对的 [[词条]] 或 {{词典词}} 才算链接，请补上 ]] 或 }}。')
+  }
+  if (errors.some(e => e.code === 'empty-target')) {
+    lines.push('链接目标不能为空：请写成 [[词条]] 或 {{词典词}}。')
+  }
+
+  const missing = [...new Set(
+    errors
+      .filter((e): e is LinkError & { target: string } => e.code === 'not-in-library' && !!e.target)
+      .map(e => e.target),
+  )]
+  if (missing.length > 0) {
+    lines.push(`以下目标不在词库中：${missing.join('、')}。链接库内词条请用 [[词条]]，词典词请用 {{词典词}}。`)
+  }
+
+  return lines.join('\n')
+}
