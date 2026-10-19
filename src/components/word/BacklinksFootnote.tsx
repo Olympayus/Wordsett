@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getBacklinks } from '../../services/linkService'
 import { useLinkJump } from '../../lib/linkJump'
+import { ENTRY_BAND_WIDTH } from '../../lib/layout'
 import type { Backlink } from '../../lib/links'
 
 /**
@@ -31,7 +32,10 @@ export default function BacklinksFootnote({ lemma }: { lemma: string }) {
   if (items.length === 0) return null
 
   return (
-    <section aria-label="反链" style={{ marginTop: '20px' }}>
+    // 自身持与页级「＋ 添加」相同的度量（ENTRY_BAND_WIDTH）：组件因此不依赖调用方是否
+    // 已经在 900 内容列里（当前是，见 WordWorkbench 的内容列），换到别处也不会横向溢出。
+    // 块级 auto 宽度本来就不会超出父列，故这里不改变现有对齐；也不新增 wrapper 或竖向间距。
+    <section aria-label="反链" style={{ marginTop: '20px', maxWidth: `${ENTRY_BAND_WIDTH}px` }}>
       {/* 小节标题沿用页面既有节奏：小号粗体三级墨 + 一条拉到右缘的细横线（与组头同形态）。 */}
       <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '6px' }}>
         <span style={{
