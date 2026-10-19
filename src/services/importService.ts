@@ -15,7 +15,7 @@ async function readCurrentSnapshot(): Promise<LibrarySnapshot> {
   const db = getDb()
   const q = (sql: string) => db.select<Record<string, any>[]>(sql)
   return {
-    words: mapRows(await q(`SELECT * FROM words`), { id: 'id', lemma: 'lemma', normalized_lemma: 'normalizedLemma', language: 'language', created_at: 'createdAt', updated_at: 'updatedAt' }),
+    words: mapRows(await q(`SELECT * FROM words`), { id: 'id', lemma: 'lemma', normalized_lemma: 'normalizedLemma', language: 'language', location: 'location', created_at: 'createdAt', updated_at: 'updatedAt' }),
     // 仅自定义字段参与 dry-run 统计（内置字段按 key 重建，不计数）
     fieldDefinitions: mapRows(await q(`SELECT * FROM field_definitions`), { id: 'id', name: 'name', key: 'key', field_type: 'fieldType', display_order: 'displayOrder', created_at: 'createdAt' })
       .filter((d: any) => !d.id.startsWith('f_')),
@@ -62,7 +62,8 @@ export async function applyImport(path: string): Promise<{ ok: boolean; error?: 
         values
       )
     // 依赖顺序：words/categories/fieldDefinitions 先，fieldValues 次（父 id 需已存在），word_categories 最后
-    for (const w of incoming.words) await upsertLww('words', ['id', 'lemma', 'normalized_lemma', 'language', 'created_at', 'updated_at'], [w.id, w.lemma, w.normalizedLemma, w.language, w.createdAt, w.updatedAt])
+    // v0.7.5 Task 15：location 随词条写入；老快照没有该字段（FORMAT_VERSION 未变），回落 'workspace'。
+    for (const w of incoming.words) await upsertLww('words', ['id', 'lemma', 'normalized_lemma', 'language', 'location', 'created_at', 'updated_at'], [w.id, w.lemma, w.normalizedLemma, w.language, w.location ?? 'workspace', w.createdAt, w.updatedAt])
     for (const c of incoming.categories) await upsertLww('categories', ['id', 'name', 'color', 'description', 'is_default', 'created_at', 'updated_at'], [c.id, c.name, c.color, c.description, c.isDefault, c.createdAt, c.updatedAt])
     for (const d of incoming.fieldDefinitions) await upsertNewOnly('field_definitions', ['id', 'name', 'key', 'field_type', 'display_order', 'created_at'], [d.id, d.name, d.key, d.fieldType, d.displayOrder, d.createdAt])
     for (const fv of incoming.fieldValues) await upsertLww('field_values', ['id', 'word_id', 'field_id', 'value', 'source', 'edited', 'original_value', 'display_order', 'parent_id', 'created_at', 'updated_at'], [fv.id, fv.wordId, fv.fieldId, fv.value, fv.source, fv.edited, fv.originalValue, fv.displayOrder, fv.parentId, fv.createdAt, fv.updatedAt])

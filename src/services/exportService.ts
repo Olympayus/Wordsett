@@ -8,7 +8,8 @@ import pkg from '../../package.json'
 async function readSnapshot(): Promise<LibrarySnapshot> {
   const db = getDb()
   const q = (sql: string) => db.select<any[]>(sql)
-  const words = await q(`SELECT id, lemma, normalized_lemma AS normalizedLemma, language, created_at AS createdAt, updated_at AS updatedAt FROM words`)
+  // v0.7.5 Task 15：导出带 location，备份恢复才不会把储藏库词条静默落回工作台。
+  const words = await q(`SELECT id, lemma, normalized_lemma AS normalizedLemma, language, location, created_at AS createdAt, updated_at AS updatedAt FROM words`)
   // 只导出「自定义字段」：内置字段 id 固定为 f_<key>
   const fieldDefinitions = (await q(`SELECT id, name, key, field_type AS fieldType, display_order AS displayOrder, created_at AS createdAt FROM field_definitions`))
     .filter((d: any) => !d.id.startsWith('f_'))

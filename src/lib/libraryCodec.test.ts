@@ -30,6 +30,14 @@ describe('encodeLibrary / decodeLibrary', () => {
     const bad = JSON.stringify({ formatVersion: 999, words: [] })
     expect(() => decodeLibrary(bad)).toThrow(/formatVersion/i)
   })
+  it('导入不带 location 的老快照时一律落 workspace', () => {
+    const snap = decodeLibrary(JSON.stringify({ formatVersion: 1, words: [{ id: 'w', lemma: 'a', normalizedLemma: 'a', language: 'en', createdAt: 1, updatedAt: 1 }] }))
+    expect(snap.words[0].location ?? 'workspace').toBe('workspace')
+  })
+  it('round-trips location through encode / decode', () => {
+    const snap: LibrarySnapshot = { ...empty, words: [{ ...word('a'), location: 'archive' }] }
+    expect(decodeLibrary(encodeLibrary(snap, '0.7.5')).words[0].location).toBe('archive')
+  })
 })
 
 describe('planImport', () => {

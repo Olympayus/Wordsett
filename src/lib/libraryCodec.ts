@@ -1,6 +1,13 @@
 // src/lib/libraryCodec.ts
+import type { WordLocation } from '../types/word'
+
 export interface WordRow {
   id: string; lemma: string; normalizedLemma: string; language: string;
+  /**
+   * 词条所在模块（v0.7.5 Task 15）。**可选**：FORMAT_VERSION 仍是 1——加字段是兼容扩展，
+   * 老备份没有这一栏，导入时由 `applyImport` 统一回落 `'workspace'`（当时全库只有工作区）。
+   */
+  location?: WordLocation
   createdAt: number; updatedAt: number
 }
 export interface FieldDefRow {

@@ -18,6 +18,9 @@ export default function DataSettings() {
   const [error, setError] = useState<string>('')
   const [pendingPath, setPendingPath] = useState<string | null>(null)
   const [plan, setPlan] = useState<ImportPlan | null>(null)
+  // 三档词数直接读 store 的 counts（由 loadWords / reloadLibraryIndex 刷新），
+  // 不在每次渲染里再查一遍库。
+  const counts = useWordStore(s => s.counts)
 
   const fmt = (p: ImportPlan) =>
     `新增 ${p.newWords} 词 / 更新 ${p.updatedWords} 词，新增分类 ${p.newCategories}、字段定义 ${p.newFieldDefinitions}、字段值 ${p.newFieldValues}、词分类 ${p.newWordCategories}，跳过 ${p.skipped}`
@@ -73,11 +76,16 @@ export default function DataSettings() {
           浏览按钮用 SquareButton 的 row 尺寸（不限最小宽），紧跟文字其后。
           中间不留 flex:1 撑开占位——那会把按钮推到行尾，与「跟随其后」的意图相反。 */}
       <div style={{
-        display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12,
+        display: 'flex', alignItems: 'center', gap: 8,
         fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
       }}>
         <span>本地数据存储位置</span>
         <SquareButton tone="surface" size="row" onClick={() => { void handleBrowse() }} title="在系统文件管理器中打开数据目录并选中 wordsett.db">浏览</SquareButton>
+      </div>
+      {/* 三档词数（v0.7.5 Task 15）：紧贴「本地数据存储位置」的下一行，三个数各套 .stat-num。
+          间距由本行 marginBottom 承担（原先在存储位置行上），与下方「导出词库」的总间距不变。 */}
+      <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', marginBottom: 12 }}>
+        词库单词总数: <span className="stat-num">{counts.total}</span> 工作台: <span className="stat-num">{counts.workspace}</span> 储藏库: <span className="stat-num">{counts.archive}</span>
       </div>
       <div>
         <div style={{ ...SECTION_TITLE, marginBottom: '6px' }}>导出词库</div>
