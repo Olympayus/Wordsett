@@ -99,6 +99,14 @@ export function buildMergeInputs(fields: DictionaryField[], selected: Set<string
   return out
 }
 
+// 勾选作用域：该键的后代键（键树用 `${parent}-` 前缀编码）；叶子没有后代，回落到键自身。
+// `selectionState`（画什么）与 `toggleSubtreeSelection`（翻什么）共用这一份，
+// 两处各算一次的话，一旦前缀规则漂移，就会画出 minus 而点下去清空整棵子树。
+function scopeKeys(allKeys: string[], key: string): string[] {
+  const descendantKeys = allKeys.filter(k => k.startsWith(`${key}-`))
+  return descendantKeys.length ? descendantKeys : [key]
+}
+
 // 词性/容器级整体勾选：未全选 → 补全子树；全选 → 清空子树（spec §4.5）。
 // v0.7.4 决定六：集合里**只存叶子键**，父键不进集合（进了就再也删不掉——本函数只动后代，
 // 「合并添加」的 disabled 判据与计数都会带上一个下限）。因此调用方传进来的 allKeys 只应是叶子键。
@@ -106,8 +114,7 @@ export function buildMergeInputs(fields: DictionaryField[], selected: Set<string
 // 若仍以 descendantKeys 判据，叶子勾选框会永远只会删、不会加。
 export function toggleSubtreeSelection(selected: Set<string>, allKeys: string[], key: string): Set<string> {
   const next = new Set(selected)
-  const descendantKeys = allKeys.filter(k => k.startsWith(`${key}-`))
-  const keys = descendantKeys.length ? descendantKeys : [key]
+  const keys = scopeKeys(allKeys, key)
   const isOn = !keys.every(k => next.has(k))
   for (const k of keys) {
     if (isOn) next.add(k); else next.delete(k)
@@ -118,8 +125,7 @@ export function toggleSubtreeSelection(selected: Set<string>, allKeys: string[],
 // 勾选三态（v0.7.4 决定六）：父级状态一律由子树推出，勾选框不再直接读 selected.has(key)。
 // 叶子键没有后代，判据回落到键自身。
 export function selectionState(selected: Set<string>, allKeys: string[], key: string): 'none' | 'partial' | 'all' {
-  const descendantKeys = allKeys.filter(k => k.startsWith(`${key}-`))
-  const scope = descendantKeys.length ? descendantKeys : [key]
+  const scope = scopeKeys(allKeys, key)
   const hit = scope.reduce((n, k) => n + (selected.has(k) ? 1 : 0), 0)
   return hit === 0 ? 'none' : hit === scope.length ? 'all' : 'partial'
 }

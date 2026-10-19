@@ -120,7 +120,8 @@ interface FieldCardCtx {
   editingId: string | null
   editValue: string
   insertIndicator: InsertIndicator | null
-  /** 正在被拖动的单位 id（v0.7.4 任务 12）：LeafFlow 的单位选中框据此判定。 */
+  /** 正在被拖动的节点 id（v0.7.4 任务 12 起是单位、任务 16 起也可能是行）：LeafFlow 的
+   *  单位选中框与页面级的 `dragGhost` 副本解析都读它。 */
   activeDragId: string | null
   addMenu: AddMenuState
   onStartEdit: (fv: FieldValue) => void
@@ -597,7 +598,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
                     标记按 em 取值（`DashMark` 的 `0.8em`），这一支的 wrapper 与输入框的 `font`
                     都取 `EXAMPLE_EDIT_FONT_SIZE`，探针与这一支画出来的尺寸才一致。 */}
                 {form === 'example' && measureMarkSlot(
-                  <DashMark color={rowState === 'none' ? 'var(--ink-3)' : MARK_COLOR[rowState]} />
+                  <DashMark color={editorMode ? MARK_COLOR[unitState(fv, inheritedUser)] : 'var(--ink-3)'} />
                 )}
                 <MeasuredInput
                   value={editValue}
@@ -608,7 +609,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
                   }
                   mark={
                     form === 'example' ? measureMarkSlot(
-                      <DashMark color={rowState === 'none' ? 'var(--ink-3)' : MARK_COLOR[rowState]} />
+                      <DashMark color={editorMode ? MARK_COLOR[unitState(fv, inheritedUser)] : 'var(--ink-3)'} />
                     ) : undefined
                   }
                   onChange={onEditValueChange}
@@ -629,10 +630,10 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               {form === 'example' ? (
                 // 例句（v0.7.2 缺陷 3）：与搜索返回页同一处理（DictDetailCard 的 `example` 分支）——
                 // 衬线斜体 14px/1.65 次级色，行首一枚 `–` 作分条标识（showcase-v2:197-198）。
-                // v0.7.4 决定九：`–` 改**画**（DashMark），颜色取该行的来源态——普通模式
-                // （`rowState === 'none'`）恒三级色，编者模式才是该行的来源色。
+                // v0.7.4 决定九：`–` 改**画**（DashMark），且**按词自己着色**——取该单位自己的
+                // `unitState`，不是所在容器的聚合态（两者可以不同）；普通模式恒三级色。
                 <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: 1.65, color: 'var(--ink-2)' }}>
-                  <span style={{ marginRight: '8px' }}><DashMark color={rowState === 'none' ? 'var(--ink-3)' : MARK_COLOR[rowState]} /></span>{fv.value}
+                  <span style={{ marginRight: '8px' }}><DashMark color={editorMode ? MARK_COLOR[unitState(fv, inheritedUser)] : 'var(--ink-3)'} /></span>{fv.value}
                 </span>
               ) : form === 'english-def' ? (
                 // v0.7.3 尾段 §1.3：英文释义在工作区本来没有分支，于是它在这里是无衬线正文色、
@@ -795,8 +796,9 @@ export default function WordWorkbench() {
   const [saved, setSaved] = useState(false)
   const [fadeIn, setFadeIn] = useState(true)
   const [insertIndicator, setInsertIndicator] = useState<InsertIndicator | null>(null)
-  // 正在被拖动的单位 id（v0.7.4 任务 12）：LeafFlow 的 `drag.isDragging` 由它派生——选中框只画在
-  // 被拖的那一枚上。不从 dnd-kit 的 `useDraggable().isDragging` 取：LeafFlow 是哑组件，拖拽态经 props 进。
+  // 正在被拖动的节点 id（v0.7.4 任务 12 的单位、任务 16 的行）：LeafFlow 的 `drag.isDragging`
+  // 由它派生——选中框只画在被拖的那一枚上；页面级 `dragGhost` 也用它解析副本内容。不从
+  // dnd-kit 的 `useDraggable().isDragging` 取：LeafFlow 是哑组件，拖拽态经 props 进。
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [capsuleExpanded, setCapsuleExpanded] = useState(false)
   // 标签页记忆：用户停留的页；切换单词后若该页已不可见则经 effectiveTab 兜底回退到 defaultTab
@@ -1017,10 +1019,11 @@ export default function WordWorkbench() {
     await deleteFieldValue(fv.id)
   }
 
-  // 拖拽重排（规格 §5.5）：仅同级；拖动中行缩放+阴影，目标处 2px 品牌色插入线
+  // 拖拽重排（规格 §5.5）：仅同级；拖动中行原位淡出（opacity 0.35 + 极浅品牌底，不缩放、
+  // 不投影），跟手的副本由 DragOverlay 画；目标处 2px 品牌色插入线（左端一枚圆点）
   const handleDragStart = (event: DragStartEvent) => {
     setInsertIndicator(null)
-    // 记下被拖单位（v0.7.4 任务 12）：LeafFlow 据此给该单位画选中框。
+    // 记下被拖节点（v0.7.4 任务 12 的单位、任务 16 的行）：LeafFlow 据此给该单位画选中框。
     setActiveDragId(String(event.active.id))
   }
 

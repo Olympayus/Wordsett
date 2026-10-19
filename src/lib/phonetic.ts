@@ -10,7 +10,12 @@ export function formatPhonetic(value: string): string {
 /**
  * 词根项选择（v0.5.2 §1）：把各 word_root 容器下的子项按容器顺序打平成一个列表。
  * 原实现在 WordWorkbench 内联为 flatMap + filter，抽出来便于单测与复用。
- * 保留规则：正在编辑的项、有值的项、或编者模式下的容器整体（空容器编者模式下仍渲染行外壳）。
+ * 保留规则：正在编辑的项、有值的项。
+ *
+ * `editorMode` 参数如今**没有可观察效果**：容器级的「空容器也渲染行外壳」已由
+ * `PhoneticArea` 在两种模式下无条件承担（v0.7.4），而保留下来的容器若没有子项，flatMap
+ * 照样不出任何项；项级过滤也从不读这个参数。保留它只为不牵动调用点签名——改本函数时
+ * 不必再替它找行为。
  */
 export function selectWordRootItems(
   containers: FieldValue[],

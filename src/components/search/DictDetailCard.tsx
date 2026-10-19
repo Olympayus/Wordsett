@@ -17,7 +17,7 @@ import { DashMark } from '../entry/Mark'
 import { leafForm, rowTitle } from '../../lib/fieldKind'
 import { isLeafFlow } from '../../lib/leafFlow'
 import Icon from '../icons'
-import { ENTRY_BAND_WIDTH } from '../../lib/layout'
+import { ENTRY_BAND_WIDTH, ROW_PADDING_Y } from '../../lib/layout'
 
 // 返回页正文的左缘档位（v0.7.4 决定五 5.1）：
 //   INSET_TOP   = run-in 头文字、以及头下第一层无编号行的正文（FlowRow 的 11px 左内边距）；
@@ -298,12 +298,12 @@ export default function DictDetailCard({
   //   · 子级对齐的是**本行正文**的左缘：释义行（正文 41）的子级恒在 41；无编号容器行
   //     （正文在本层 childInset）的子级随本层——「近义词直接挂词性下」的兜底形态因此也对齐。
   //
-  // v0.7.2 二轮（缺陷 4）：子级块 `marginTop: -4px` —— 容器行 → 首个子级的间距收到设计稿的
-  // 紧值。设计稿里**例子块是嵌在释义行里的**（`.sense .tx > .ex`，showcase-v2:196 的
+  // v0.7.2 二轮（缺陷 4）：子级块 `marginTop: -ROW_PADDING_Y` —— 容器行 → 首个子级的间距收到
+  // 设计稿的紧值。设计稿里**例子块是嵌在释义行里的**（`.sense .tx > .ex`，showcase-v2:196 的
   // `.ex{margin-top:4px}`），所以那一段只有 4px；本页则把子级渲染成容器行的**兄弟 FlowRow**，
-  // 于是间距 = 容器行底内边距 4 + 子级行顶内边距 4 = **8px**，正好是设计值的两倍。
-  // 用户原话「标题离下方的子标题间距过大……近义词与其中的词的间距」。
-  // 扣掉的 4px 正是被兄弟模型重复计算的那一层（FlowRow 的 11px 左缩进量与上下 4px 都照旧）。
+  // 于是间距 = 容器行底内边距 ROW_PADDING_Y(3) + 子级行顶内边距 ROW_PADDING_Y(3) = **6px**，
+  // 比设计值多出一层。扣掉的 ROW_PADDING_Y 正是被兄弟模型重复计算的那一层（FlowRow 的 11px
+  // 左缩进量与上下内边距都照旧）。
   // 只改**返回页**：工作区的同一处已在 ecd3b4f 收过一轮（额外 marginTop 8/4 → 0），用户此后
   // 未再抱怨，故此处不动它（见报告「分歧」）。
   //
@@ -337,16 +337,17 @@ export default function DictDetailCard({
           </FlowRow>
           {isContainer && !collapsed && (
             leafFlow
-              // 与下面未分流的兄弟分支同用 `marginTop: -4px`：LeafFlow 自身带 `padding: 4px 0`，
-              // 与容器行底的 4px 相加会翻倍成 8px，故同样要扣掉被兄弟模型重复计算的那一层——
+              // 与下面未分流的兄弟分支同用 `marginTop: -ROW_PADDING_Y`：LeafFlow 自身带
+              // `padding: ROW_PADDING_Y 0`，与容器行底的 ROW_PADDING_Y 相加会翻倍成 2 × padY，
+              // 故同样要扣掉被兄弟模型重复计算的那一层——
               // 两条分支的容器→子项间距才一致（brief 验收项 4「返回页同一组字段行为一致」）。
-              // 不改 LeafFlow 自身的内边距：它与工作区共用，那里的 4px 顶内边距是与 FlowRow 对齐所需。
-              ? <div style={{ marginTop: '-4px' }}><LeafFlow inset={nestedInset} items={node.children.map(c => ({
+              // 不改 LeafFlow 自身的内边距：它与工作区共用，那里的 ROW_PADDING_Y 顶内边距是与 FlowRow 对齐所需。
+              ? <div style={{ marginTop: -ROW_PADDING_Y }}><LeafFlow inset={nestedInset} items={node.children.map(c => ({
                   content: renderContent(c),
                   markColor: 'var(--ink-3)',
                   end: selectionCheckbox(c, c.field.value || c.field.key),
                 }))} /></div>
-              : <div style={{ marginTop: '-4px' }}>{renderRows(node.children, counter, nestedInset)}</div>
+              : <div style={{ marginTop: -ROW_PADDING_Y }}>{renderRows(node.children, counter, nestedInset)}</div>
           )}
         </Fragment>
       )
@@ -396,7 +397,9 @@ export default function DictDetailCard({
             ? <span className="stat-num" style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{`中 ${z.cn} · 英 ${z.en}`}</span>
             : hasChildren && <span className="stat-num" style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{node.children.length}</span>}
           <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />
-          {selectionCheckbox(node, headTitle)}
+          {/* 无子级的顶层节点会走 `items` 兜底被渲染成一行，行尾槽（`endSlot`）已经给它
+              一枚勾选框；这里再画一枚就是同一个 key 两枚框。故头里的勾选框只在有子级时出现。 */}
+          {hasChildren && selectionCheckbox(node, headTitle)}
           {hasChildren && groupFold(node.key, collapsed)}
         </div>
       ),

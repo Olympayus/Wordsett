@@ -170,13 +170,18 @@ describe('工作区改用原语（源码级守卫）', () => {
 //  并把 scale 换成 opacity/background（+3）、落点线加左端圆点（+9）；dragGhost 的解析插在
 //  `return (` 之前，只影响更下游的 1341 那一条（+16）。本文件十二处命中行重算为
 //  282 / 283 / 291 / 298 / 317 / 318 / 944 / 953 / 957 / 1000 / 1196 / 1371。
+//  v0.7.4 全分支修复轮（Task 17 之后）：A-2 的例句注释 +1、activeDragId 的 ctx 注释 +1（落在
+//  283 之上），下方 activeDragId state 注释再 +1；DictDetailCard 的第二处子级间距注释 +1
+//  （384 → 385）、C-2 头勾选框条件 +2（在 isPos 之后）。本文件十二处命中行重算为
+//  283 / 284 / 292 / 299 / 318 / 319 / 946 / 955 / 959 / 1002 / 1199 / 1374。
+//  行号全部由守卫失败输出回填，未手算。
 //   DictDetailCard.tsx:102 filter 里的 phonetic——可见性过滤（只问「显不显示」，不问「长什么样」）
 //   DictDetailCard.tsx:193 sourceMark——哪几枚行尾来源标
 //   DictDetailCard.tsx:256 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
-//   DictDetailCard.tsx:384 isPos——run-in 头形态
+//   DictDetailCard.tsx:385 isPos——run-in 头形态
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [282, 283, 291, 298, 317, 318, 944, 953, 957, 1000, 1196, 1371], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
-  ['DictDetailCard.tsx', [102, 193, 256, 384], '可见性过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
+  ['WordWorkbench.tsx', [283, 284, 292, 299, 318, 319, 946, 955, 959, 1002, 1199, 1374], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['DictDetailCard.tsx', [102, 193, 256, 385], '可见性过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 
 // 取出文件里全部「某字段键 ===/' !== '某键字面量'」的行（命中 .key 直比与 childKey(…) 等值两类）

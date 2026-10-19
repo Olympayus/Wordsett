@@ -46,10 +46,12 @@ const iconBtn: CSSProperties = {
 // 横向 padding 与 border 两侧同源，就不会出现「探针量的比输入框实际占的窄一截」。
 const INPUT_PADDING = '1px 6px'
 
-// 操作簇（编辑 ＋ 删除，或普通模式的 ⋯）的宽度——**两种形态同为 36px**（两枚 18px 按钮 ＋
-// `gap: 4`，或一枚 18px 按钮 ＋ 它自带的相对定位外壳）。编辑态不渲染任何交互控件（保存 / 取消
-// 已归导航条），但**这一格必须照样留着**：撤掉占位会让 chip 当场短 36px、同一行里后继的
-// chip 整片往左跳——与 v0.5.2 定下的「行尾操作簇常驻占位」是同一条不变量。
+// 操作簇（编辑 ＋ 删除，或普通模式的 ⋯）的宽度——**三种形态同为 36px**：两枚 18px 按钮
+// 并排、簇内无 gap ＝ 36；普通模式虽只有一枚 18px 按钮，外层壳仍保留 36px 并把按钮右对齐；
+// 编辑态不渲染任何交互控件（保存 / 取消已归导航条），但**这一格必须照样留着**：撤掉占位会让
+// chip 当场短 36px、同一行里后继的 chip 整片往左跳——与 v0.5.2 定下的「行尾操作簇常驻占位」
+// 是同一条不变量。chip 根节点的 `gap: 4` 在三种形态里都只贡献同一个 gap（整个簇是一个子项），
+// 故不参与这段算术。
 const ACTION_CLUSTER_WIDTH = 36
 
 // 常驻占位 + opacity/visibility 显隐（v0.5.2 修订，本文件原有的那份）：chip 内的编辑 / 删除是
@@ -160,7 +162,9 @@ function ChipBody(props: {
           <button type="button" title="删除" onClick={() => props.onDelete(fv)} style={iconBtn}><Icon name="trash" size={12} /></button>
         </span>
       ) : (
-        <span style={{ ...reveal(rowHover), position: 'relative', display: 'inline-flex' }}>
+        // 普通模式只有一枚 ⋯，但外框仍占满 ACTION_CLUSTER_WIDTH 并右对齐——三种形态
+        // （普通 / 编者 / 编辑中）宽度逐字相同，切换模式时 chip 与后继内容零位移。
+        <span style={{ ...reveal(rowHover), position: 'relative', display: 'inline-flex', width: ACTION_CLUSTER_WIDTH, flexShrink: 0, justifyContent: 'flex-end' }}>
           <button
             type="button" title="更多操作"
             onClick={() => props.onMenu(menuOpenId === fv.id ? null : fv.id)}

@@ -30,12 +30,13 @@ export const FIELD_STATE_BG: Record<FieldState, string> = {
 export const unitState = (fv: FieldValue, inUserContainer: boolean): Exclude<FieldState, 'none'> =>
   inUserContainer ? 'personal' : fieldState(fv)
 
-/** 容器行的来源态（v0.7.4 决定九）：容器自己建的 → personal；词典自带但子树里
- *  有被改过 / 用户添加的节点 → edited；子树干净 → original。
- *  「子树里有人动过」这一层是新的——`fieldState` 只看节点自己，看不出它。 */
+/** 容器行的来源态（v0.7.4 决定九）：容器自己建的 → personal；词典自带但**节点自身或子树里**
+ *  有被改过 / 用户添加的节点 → edited；都干净 → original。
+ *  聚合从节点自己开始算，不只看子树——释义自己的值被改过时，它整段（含例句）就该是 edited；
+ *  同理，辨析组标题被编辑也由这里体现。`dirty` 已经递归进子树，故不必再单列子级判断。 */
 export function containerState(fv: FieldValue, inUserContainer: boolean): Exclude<FieldState, 'none'> {
   if (inUserContainer || fv.source === 'user') return 'personal'
   const dirty = (n: FieldValue): boolean =>
     n.edited || n.source === 'user' || (n.children ?? []).some(dirty)
-  return (fv.children ?? []).some(dirty) ? 'edited' : 'original'
+  return dirty(fv) ? 'edited' : 'original'
 }

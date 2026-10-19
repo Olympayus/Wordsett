@@ -12,6 +12,10 @@ export const rowIconStyle: CSSProperties = {
   fontSize: '12px', lineHeight: 1, transition: 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
 }
 
+/** 编者模式操作簇的宽度：两枚 22px 按钮 ＋ 簇内 `gap: 2` ＝ 46px。
+ *  普通模式只有一枚 ⋯，但**同样预留这 46px** 并右对齐（见组件注释的常驻占位不变量）。 */
+const EDIT_CLUSTER_WIDTH = NAV_CONTROL_HEIGHT * 2 + 2
+
 /**
  * 行尾操作簇（v0.7.3）：两套形态按 `mode` 分流。
  *
@@ -25,6 +29,11 @@ export const rowIconStyle: CSSProperties = {
  * 控件进出 DOM 会让该行可用宽度骤减、值文本重新折行、下方内容整体位移，鼠标在行间
  * 上下移动时来回弹。`visible` 由父级给：**只有悬停行及其祖先链为 true**（编者模式不再
  * 恒 true——v0.7.2 二轮用户要求「完全隐藏，不可见」，编者模式同理）。
+ *
+ * **两种模式的占宽也必须相同**（v0.7.4 修复轮）：普通模式只有一枚 22px 的 `⋯`，编者模式是
+ * 22 + 2 + 22 = 46px。这个簇在 `FlowRow` 的 `end` 槽里是**在流内**的，若两种模式各占各的宽度，
+ * 切换编辑器模式就会让每一行的正文宽 24px 跳变、长释义重新折行。故普通模式的外壳同样预留
+ * 46px，并把 `⋯` 右对齐——按钮的视觉位置仍在右缘，只是左边的空白先占住了。
  *
  * 隐藏态是**真的不可见、且不可交互**（v0.7.2 二轮）：`opacity: 0` 只是第一步——
  * 透明控件仍在 Tab 序列与无障碍树里，Tab+Enter 会误触删除 / 加子词条，0 透明度下的
@@ -54,6 +63,8 @@ export default function RowActions({ visible, mode, onAdd, onDelete, menu }: {
 }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', flex: 'none',
+                   width: mode === 'view' ? `${EDIT_CLUSTER_WIDTH}px` : undefined,
+                   justifyContent: mode === 'view' ? 'flex-end' : undefined,
                    opacity: visible ? 1 : 0,
                    visibility: visible ? 'visible' : 'hidden',
                    pointerEvents: visible ? 'auto' : 'none',

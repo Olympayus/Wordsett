@@ -12,7 +12,7 @@ describe('画出的标记（v0.7.4 决定九）', () => {
     expect(MARK_DASH_HEIGHT).toBe('0.13em')
   })
 
-  it('三处调用点都用同一个组件，不再写字形', () => {
+  it('四处调用点都用同一个组件，不再写字形', () => {
     // ① 同目录的 LeafFlow（单位前的 `·`）。
     const leaf = readFileSync(new URL('./LeafFlow.tsx', import.meta.url), 'utf8')
     expect(leaf).toMatch(/from '\.\/Mark'/)
@@ -23,8 +23,8 @@ describe('画出的标记（v0.7.4 决定九）', () => {
     expect(leaf).toMatch(/<DotMark color=\{it\.markColor\} \/>/)
     expect(leaf).not.toMatch(/onClick|onDoubleClick/)
 
-    // ②③ 另外两处跨目录调用点（工作区例句行、返回页 example 分支）。
-    for (const f of ['../word/WordWorkbench.tsx', '../search/DictDetailCard.tsx'] as const) {
+    // ②③④ 另外三处跨目录调用点（工作区例句行、返回页 example 分支、拖拽副本）。
+    for (const f of ['../word/WordWorkbench.tsx', '../search/DictDetailCard.tsx', '../word/DragGhost.tsx'] as const) {
       const src = readFileSync(new URL(f, import.meta.url), 'utf8')
       expect(src, f).toMatch(/from '\.\.\/entry\/Mark'/)
       // 反面：旧的字形破折号 span 必须消失。`–` 在无关文案里也出现，故钉渲染形状而不是字符本身。
@@ -41,8 +41,10 @@ describe('画出的标记（v0.7.4 决定九）', () => {
     expect(wb).toMatch(/personal: 'var\(--color-weave-personal\)'/)
     // 单位的小点：编者模式取**该单位自己的**来源态，普通模式一律三级色。
     expect(wb).toMatch(/markColor:\s*editorMode\s*\?\s*MARK_COLOR\[unitState\(ch, childInheritedUser\)\]/)
-    // 例句的横杠：取该行的 rowState，'none' 时三级色。
-    expect(wb).toMatch(/<DashMark color=\{rowState === 'none'/)
+    // 例句的横杠：与单位小点同一判据——**按词自己着色**，取该单位自己的 `unitState`
+    // （不是所在容器的聚合态 `rowState`）；普通模式恒三级色。
+    expect(wb).toMatch(/<DashMark color=\{editorMode \? MARK_COLOR\[unitState\(fv, inheritedUser\)\] : 'var\(--ink-3\)'\}/)
+    expect(wb).not.toMatch(/<DashMark color=\{rowState/)
   })
 
   it('返回页：没有编者模式，标记恒三级色', () => {

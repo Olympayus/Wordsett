@@ -73,6 +73,14 @@ describe('来源状态（v0.7.4 决定九）', () => {
     expect(containerState(withKids({}, [{}, {}]), false)).toBe('original')
   })
 
+  it('容器：自己的值被改过（子树干净甚至没有子级）→ 被编辑', () => {
+    expect(containerState(node({ edited: true }), false)).toBe('edited')
+  })
+
+  it('容器：词典自带、没有子级且自身干净 → 默认', () => {
+    expect(containerState(node({}), false)).toBe('original')
+  })
+
   it('容器：在用户建的容器里 → 一律用户创建', () => {
     expect(containerState(withKids({}, [{ edited: true }]), true)).toBe('personal')
   })

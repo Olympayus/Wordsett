@@ -56,6 +56,17 @@ describe('indeterminate 部分选中（v0.7.4 决定六）', () => {
     expect(p.background).toContain(`linear-gradient(${blue}, ${blue}) center / 10px 2px no-repeat`)
     expect(p.boxShadow.split('inset').length).toBe(3)
   })
+
+  it('生产形态 checked: true + indeterminate: true ——仍不填色块，减号照画', () => {
+    // DictDetailCard 的容器勾选框传的是 checked:true（“该键已被选中”）＋ indeterminate:true，
+    // 与上面两条用的 checked:false 不同；部分选中必须压过 checked，否则会画成满色块。
+    const a = checkboxAppearance({ checked: true, hover: false, disabled: false, indeterminate: true, color: blue })
+    expect(a.fill).toBeNull()
+    expect(a.border).toBe(blue)
+    const p = checkboxPaint({ checked: true, hover: false, disabled: false, indeterminate: true, color: blue })
+    expect(p.background).toContain(`linear-gradient(${blue}, ${blue}) center / 10px 2px no-repeat`)
+    expect(p.boxShadow.split('inset').length).toBe(3)
+  })
 })
 
 describe('checkboxPaint（v0.6.5 修订：内块是画出来的，控件里没有第二个盒子）', () => {

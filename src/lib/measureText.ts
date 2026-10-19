@@ -1,7 +1,7 @@
 /**
  * 就地编辑的输入框起宽（v0.7.4 任务 14）：**量被替换那段内容的渲染宽度**，从它起、随输入增长。
  *
- * 消费点三处——工作区的值格 / 流式单位 / 词性标签 / 辨析组标题（`WordWorkbench.tsx` 的
+ * 消费点五处——工作区的值格 / 流式单位 / 词性标签 / 辨析组标题（`WordWorkbench.tsx` 的
  * `MeasuredInput`）与头带的音标 chip（`PhoneticArea.tsx` 的 `ChipBody`）。两侧原先各抄了一份
  * 同样的实现，这里收成一处。测试在 `measureText.test.ts`（本仓惯例：模块与测试分文件）。
  *
@@ -11,9 +11,10 @@
  *    任何尺寸。绝对定位同时把探针**移出排版流**：否则编辑前后会长出一枚与被替换内容等宽的盒子，
  *    而「进编辑零位移」正是本版要的东西（在流式多列里它还会把后继单位挤到下一列）。
  *
- * ② **量的是 border-box**（`getBoundingClientRect().width`），且**探针要带上与被测输入框逐字相同的
- *    横向 padding 与 border**。Tailwind preflight 让 `box-sizing: border-box` 全站生效，而
- *    `getBoundingClientRect().width` 量的是**内容**宽度——只量文字的话，输入框的内容盒会比文字窄出
+ * ② **量的是 border-box**（`getBoundingClientRect().width` 返回的是元素的 border-box 宽，
+ *    **不是**内容宽），且**探针要带上与被测输入框逐字相同的横向 padding 与 border**。
+ *    Tailwind preflight 让 `box-sizing: border-box` 全站生效，故输入框的 border-box 已经
+ *    包含左右 padding 与 border；探针若只带文字，它的 border-box 就比输入框窄出
  *    「左右 padding + 左右 border」那么多（本仓的输入框是 `1px` 边 + `px-3` 的 12px 内边距，
  *    即 **26px**），被替换的文字当场被裁掉。故 `MEASURE_INPUT_CLASS` 与输入框的 `className`
  *    是**同一个字符串**，`MEASURE_STYLE` 的 border 与输入框的 border 是**同一行字**：两侧不可能

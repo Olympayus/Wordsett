@@ -63,8 +63,9 @@ export const BUTTON_BASE: CSSProperties = {
   padding: '8px 12px',
   borderRadius: BUTTON_RADIUS,
   border: '1px solid var(--color-hairline)',
-  // 默认态用主题暖中性底而非强调橙（v0.6.1 §2.1）：暖橙在本仓库有既定语义——个人录入字段
-  // （--color-weave-personal）与分类胶囊第 5 色。通用按钮占满默认态会冲淡那层语义。
+  // 默认态用主题暖中性底而非强调橙（v0.6.1 §2.1）：暖橙在本仓库有既定语义——「被编辑」
+  // 的字段（--color-weave-edited；v0.7.4 决定九色相对调后橙归被编辑、蓝归用户创建）
+  // 与分类胶囊第 5 色。通用按钮占满默认态会冲淡那层语义。
   // 底色取值见上方 NEUTRAL_REST_CANVAS（暖中性阶梯的深一阶，比画布明显深，按钮立得住）。
   // 这是缺省 canvas 套的值；tone='surface' 的调用点由下方 tone 分支覆盖成浅一阶。
   background: NEUTRAL_REST_CANVAS,
