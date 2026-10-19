@@ -43,6 +43,7 @@ import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { isLeech, leechTooltip } from '../../lib/review/leech'
 import { measureTextWidth, MEASURE_STYLE, MEASURE_INPUT_CLASS, MEASURE_MIN_WIDTH, measureMarkSlot } from '../../lib/measureText'
+import { editKeyDown } from '../../lib/editKeyDown'
 import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
 import { displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
@@ -214,23 +215,8 @@ function RowMenu({ items }: { items: MenuItem[] }) {
 
 // 就地编辑的两件共用机制（v0.7.4 任务 14）：**保存 / 取消已搬到导航条**（WorkbenchNavBar），
 // 行内只剩输入框本身，故编辑盒子可以退成行内级、进编辑时周围一个像素不动。
-// 输入框的**起宽**量的是被替换文字的渲染宽度（`lib/measureText.ts`，三处消费点共用一份）。
-
-// 键盘（挂在编辑中的 input / textarea **自己**身上，不做 window 级：window 级已有一个
-// `Esc` 关「＋ 添加」浮层，两个窗口级监听会互相打架）。
-// 多行字段里 Enter 是保存、Shift+Enter 换行（用户决定）；单行字段 Enter 即保存。
-//
-// `isComposing` 守卫不可省：中文输入法**上屏的那一下也是 Enter**，不拦住就会把正在输入的拼音
-// 连同候选一起当成「保存」提交、当场退出编辑（同 `PhoneticArea` 既有的那条守卫）。
-export function editKeyDown(fieldType: FieldDefinition['fieldType'], onSave: () => void, onCancelEdit: () => void) {
-  return (e: { key: string; shiftKey: boolean; nativeEvent: { isComposing: boolean }; preventDefault: () => void }) => {
-    if (e.nativeEvent.isComposing) return
-    if (e.key === 'Escape') { e.preventDefault(); onCancelEdit() }
-    if (e.key === 'Enter' && (fieldType !== 'multiline' || !e.shiftKey)) {
-      e.preventDefault(); onSave()
-    }
-  }
-}
+// 输入框的**起宽**量的是被替换内容的渲染宽度（`lib/measureText.ts`，四处消费点共用一份），
+// 键盘在 `lib/editKeyDown.ts`（纯函数，可直接单测）。
 
 // 单行编辑框：从**被替换内容**的宽度起、随输入增长。字体由调用处按该行给——例句（`example`）
 // 是衬线斜体 14px、行首还有一枚 `DashMark`（见值格的非编辑分支），两样都要算进去，

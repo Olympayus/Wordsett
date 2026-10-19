@@ -1,25 +1,9 @@
 /**
- * 量宽模块（v0.7.4 任务 14）——实现与它的测试同住本文件。
- *
- * 为什么测试不放在 measureText.test.ts：本仓的惯例是源码文件自己就是测试文件（tokens 的实现
- * 与断言同在 tokens.test.ts，fonts 同理），所以模块即便带测试也叫 .ts；而 vitest.config.ts 的
- * include 只收 src 下的 .test.ts。两条同时成立，就只能让测试住进不带 .test 的模块文件里。
- *
- * 模块里唯一那点 JSX 由 `React.createElement` 承担——本仓「视觉一律走内联 style」这条约定
- * 本来就绕开了 JSX 的编译期糖，故文件可以保持 `.ts`（`.tsx` 只是多一个编译期步骤）。
- */
-
-import { describe, it, expect } from 'vitest'
-import { createElement, type CSSProperties, type ReactNode } from 'react'
-import { editKeyDown } from '../components/word/WordWorkbench'
-import type { FieldDefinition } from '../types/field'
-
-/**
  * 就地编辑的输入框起宽（v0.7.4 任务 14）：**量被替换那段内容的渲染宽度**，从它起、随输入增长。
  *
  * 消费点三处——工作区的值格 / 流式单位 / 词性标签 / 辨析组标题（`WordWorkbench.tsx` 的
  * `MeasuredInput`）与头带的音标 chip（`PhoneticArea.tsx` 的 `ChipBody`）。两侧原先各抄了一份
- * 同样的实现，这里收成一处。
+ * 同样的实现，这里收成一处。测试在 `measureText.test.ts`（本仓惯例：模块与测试分文件）。
  *
  * 三件事各有讲究：
  *
@@ -42,6 +26,8 @@ import type { FieldDefinition } from '../types/field'
  * 落进循环定义）。
  */
 
+import { createElement, type CSSProperties, type ReactNode } from 'react'
+
 /**
  * 输入框样式的**唯一出处**：横向 padding 与 border 必须与消费点给输入框的那一份逐字相同。
  *
@@ -62,92 +48,6 @@ export const MEASURE_STYLE: CSSProperties = {
 
 /** 宽度下限：空值时不塌成 0 宽。 */
 export const MEASURE_MIN_WIDTH = '4em'
-
-type ReactNativeEventLike = { isComposing: boolean }
-
-/** 只带 `fieldType` 的假定义：editKeyDown 只读这一个字段。 */
-const fieldType = (t: 'text' | 'multiline') => t as FieldDefinition['fieldType']
-
-describe('editKeyDown（v0.7.4 任务 14 的键盘契约）', () => {
-  const run = (t: 'text' | 'multiline', key: string, opts?: { composing?: boolean; shiftKey?: boolean }) => {
-    const saved: string[] = []
-    const cancelled: string[] = []
-    const prevented: string[] = []
-    const e = {
-      key,
-      nativeEvent: { isComposing: opts?.composing ?? false } as unknown as ReactNativeEventLike,
-      shiftKey: opts?.shiftKey ?? false,
-      preventDefault: () => prevented.push('prevented'),
-    }
-    editKeyDown(fieldType(t), () => saved.push('save'), () => cancelled.push('cancel'))(e)
-    return { saved, cancelled, prevented }
-  }
-
-  it('单行：Enter 保存（并拦掉默认行为）', () => {
-    const r = run('text', 'Enter')
-    expect(r.saved).toEqual(['save'])
-    expect(r.cancelled).toEqual([])
-    expect(r.prevented).toEqual(['prevented'])
-  })
-
-  it('多行：Enter 保存；Shift+Enter 只换行、不保存', () => {
-    expect(run('multiline', 'Enter').saved).toEqual(['save'])
-    const shift = run('multiline', 'Enter', { shiftKey: true })
-    expect(shift.saved).toEqual([])
-    expect(shift.cancelled).toEqual([])
-    expect(shift.prevented).toEqual([])
-  })
-
-  it('Esc 一律取消（两种字段形态都一样）', () => {
-    for (const t of ['text', 'multiline'] as const) {
-      const r = run(t, 'Escape')
-      expect(r.cancelled).toEqual(['cancel'])
-      expect(r.saved).toEqual([])
-    }
-  })
-
-  it('输入法上屏的那一下 Enter 什么都不做（isComposing 守卫）', () => {
-    for (const t of ['text', 'multiline'] as const) {
-      const r = run(t, 'Enter', { composing: true })
-      expect(r.saved).toEqual([])
-      expect(r.cancelled).toEqual([])
-      expect(r.prevented).toEqual([])
-    }
-  })
-
-  it('输入法组合中的 Esc 同样不取消', () => {
-    const r = run('text', 'Escape', { composing: true })
-    expect(r.cancelled).toEqual([])
-  })
-
-  it('其余按键（字母、空格）不触发任何动作', () => {
-    const r = run('text', ' ')
-    expect(r.saved).toEqual([])
-    expect(r.cancelled).toEqual([])
-    expect(r.prevented).toEqual([])
-  })
-})
-
-describe('measureTextWidth / measureMarkSlot（v0.7.4 任务 14 的量宽契约）', () => {
-  it('量的是 border-box 宽（调用方原样写进 input 的 style.width）', () => {
-    const el = { getBoundingClientRect: () => ({ width: 137.4 }) } as unknown as HTMLElement
-    expect(measureTextWidth(el)).toBe(138)   // 向上取整：宁可宽 1px，不可裁字
-  })
-
-  it('量不到（未挂载 / 隐藏）时返回 0，让调用方回落 minWidth', () => {
-    expect(measureTextWidth(null)).toBe(0)
-    const hidden = { getBoundingClientRect: () => ({ width: 0 }) } as unknown as HTMLElement
-    expect(measureTextWidth(hidden)).toBe(0)
-  })
-
-  it('探针样式与宽度下限是同一份常量，两侧不可能漂移', () => {
-    expect(MEASURE_STYLE.position).toBe('absolute')      // 不能用 display:none（量不到）
-    expect(MEASURE_STYLE.visibility).toBe('hidden')
-    expect(MEASURE_INPUT_CLASS).toContain('px-3')        // 与输入框 className 里的 px-3 同一个类
-    expect(MEASURE_STYLE.border).toBe('1px solid var(--color-brand)')
-    expect(MEASURE_MIN_WIDTH).toBe('4em')
-  })
-})
 
 /**
  * 量出的输入框宽度（px）＝ 探针的 border-box 宽 ＝ 被替换内容完整占的那一段。
