@@ -540,15 +540,15 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     <>
       {labelText && (
         <span
-          // 编辑态时整组手势让位：输入框是本 span 的 DOM 子节点（v0.7.4 任务 14 之前还有
-          // 行内的保存 / 取消）。键盘事件的 `e.target !== e.currentTarget` 守卫在编辑态尤其
-          // 要紧——键是从输入框冒泡上来的，不拦住就会把「Enter」当成「进编辑」。
-          // 点击那条让位是历史遗留（那时行内那对按钮不阻断冒泡，点「取消」会先
-          // setEditingId(null)、再被冒泡上来的这次点击拉回编辑态并把输入回滚成已存值，
-          // 按钮看上去完全失灵）；按钮搬走后它已无对应物，但形态无害、故一并保留。
+          // 编辑态时整组手势让位：输入框是本 span 的 DOM 子节点。键盘的 `e.target !== e.currentTarget`
+          // 守卫在编辑态尤其要紧——键是从输入框冒泡上来的，不拦住就会把「Enter」当成「进编辑」。
+          // （点击那条让位是历史遗留：v0.7.4 任务 14 之前行内还有那对不阻断冒泡的「保存 / 取消」，
+          // 点「取消」会先 setEditingId(null)、再被冒泡上来的这次点击拉回编辑态并把输入回滚成
+          // 已存值，按钮看上去完全失灵；按钮搬走后它已无对应物，但形态无害、故一并保留。）
           onClick={isGroupPane && !isEditing ? () => onStartEdit(fv) : undefined}
           onDoubleClick={isGroupPane && !isEditing ? () => onStartEdit(fv) : undefined}
           role={isGroupPane && !isEditing ? 'button' : undefined}
+          tabIndex={isGroupPane && !isEditing ? 0 : undefined}
           onKeyDown={isGroupPane ? e => {
             if (e.target !== e.currentTarget) return
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStartEdit(fv) }
