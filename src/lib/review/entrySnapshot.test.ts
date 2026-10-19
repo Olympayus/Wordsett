@@ -122,4 +122,21 @@ describe('buildPosTree（v0.6.2 条目 12）', () => {
   it('空输入返回空数组', () => {
     expect(buildPosTree([])).toEqual([])
   })
+
+  // v0.7.5 Task 5：快照是「复习时读的完整词条」——内容当纯文本消费，标记不该露出来。
+  it('含链接的释义 / 例句 / 词性在快照里剥成词面', () => {
+    const tree = buildPosTree([
+      row('p1', 'part_of_speech', '[[v.]]', null, 0),
+      row('zh1', 'chinese_definition', '见 [[forsake]] 的用法', 'p1', 1),
+      row('en1', 'english_definition', 'to {{forsake}}', 'p1', 2),
+      row('s1', 'example_sentence', '', 'en1', 3),
+      row('e1', 'example', 'He would [[forsake]] it.', 's1', 4),
+      row('e2', 'example', 'They {{forsake}} it.', 'p1', 5),
+    ])
+    expect(tree[0].pos).toBe('v.')
+    expect(tree[0].definitions.zh[0].text).toBe('见 forsake 的用法')
+    expect(tree[0].definitions.en[0].text).toBe('to forsake')
+    expect(tree[0].definitions.en[0].examples).toEqual(['He would forsake it.'])
+    expect(tree[0].examples).toEqual(['They forsake it.'])
+  })
 })

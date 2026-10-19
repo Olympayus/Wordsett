@@ -19,6 +19,8 @@
  * 挂载仍按 parentId 精确匹配，不会串到别的释义下。
  */
 
+import { stripLinks } from '../links'
+
 /** 扁平字段值（`fieldService.getValuesWithKeys` 的返回元素）。 */
 export interface SnapshotRow {
   id: string
@@ -59,11 +61,14 @@ export function buildPosTree(rows: SnapshotRow[]): PosGroup[] {
   // 某行下面的例句值。`example_sentence` 是容器，取它下面的 `example` 子项；
   // 容器本身的值不算（那是例句行的标题位，值通常为空）。
   // 无容器的 `example` 直接挂在该行下，同样收。
+  //
+  // v0.7.5 Task 5：快照是「复习时读的完整词条」，内容按纯文本消费——链接标记在
+  // 这个纯函数里就剥掉（词性同样剥：它虽然不可链接，但这层是快照的最后一道出口）。
   const exampleValues = (parentId: string): string[] => childrenOf(parentId).flatMap(r =>
     r.key === 'example'
-      ? (r.value !== '' ? [r.value] : [])
+      ? (r.value !== '' ? [stripLinks(r.value)] : [])
       : r.key === 'example_sentence'
-        ? childrenOf(r.id).filter(e => e.key === 'example' && e.value !== '').map(e => e.value)
+        ? childrenOf(r.id).filter(e => e.key === 'example' && e.value !== '').map(e => stripLinks(e.value))
         : [],
   )
 
@@ -72,10 +77,10 @@ export function buildPosTree(rows: SnapshotRow[]): PosGroup[] {
     const defs = (key: 'chinese_definition' | 'english_definition'): SnapshotDef[] =>
       children
         .filter(c => c.key === key && c.value !== '')
-        .map(c => ({ id: c.id, text: c.value, examples: exampleValues(c.id) }))
+        .map(c => ({ id: c.id, text: stripLinks(c.value), examples: exampleValues(c.id) }))
     return {
       id: p.id,
-      pos: p.value,
+      pos: stripLinks(p.value),
       definitions: {
         zh: defs('chinese_definition'),
         en: defs('english_definition'),

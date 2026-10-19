@@ -35,4 +35,9 @@ describe('rowTitle（§10：标题取组描述，不取字段名）', () => {
   it('其余走字段名', () => {
     expect(rowTitle('synonyms', '', '近义词')).toBe('近义词')
   })
+  // v0.7.5 Task 5：标题类渲染一律纯文本——组描述里可能有链接标记，标题不渲染链接。
+  it('辨析组标题把链接标记剥成词面', () => {
+    expect(rowTitle('synonym_discrimination_group', '[[abandon]] 与 took 的差别', '近义词辨析组'))
+      .toBe('abandon 与 took 的差别')
+  })
 })

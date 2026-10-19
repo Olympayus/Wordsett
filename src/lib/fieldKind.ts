@@ -9,6 +9,9 @@
  * 子级的形式由**所在容器**决定，不由它自己的 key 决定：同一个 `*_item` 挂在近义词下是列举项，
  * 挂在辨析组下就是一行一条。表外（含用户自建字段）落 'plain'，即既有的一行一条。
  */
+
+import { stripLinks } from './links'
+
 export type FieldKind = 'example' | 'list' | 'plain'
 
 const CONTAINER_KIND: Record<string, FieldKind> = {
@@ -31,11 +34,17 @@ export const leafForm = (key: string): LeafForm =>
 // 项类型字段（#4）：标签列不渲染字段名，值占满整行。
 export const ITEM_FIELD_KEYS: readonly string[] = ['exchange_item', 'supplementary_item', 'phrase_item', 'derivatives_item', 'synonym_item', 'example', 'word_root_item', 'synonym_discrimination_item']
 
-/** 一行该显示什么标题（v0.7.3 尾段 §10）。
- *  返回页早就有这个判断（`DictDetailCard` 的 `rowLabel`），工作区漏了——平铺标签页那条分支
- *  压根没传 `labelOverride`，于是辨析组回落到字段名，印出「近义词辨析组」。收成一处，两页共用。 */
+/**
+ * 一行该显示什么标题（v0.7.3 尾段 §10）。
+ * 返回页早就有这个判断（`DictDetailCard` 的 `rowLabel`），工作区漏了——平铺标签页那条分支
+ * 压根没传 `labelOverride`，于是辨析组回落到字段名，印出「近义词辨析组」。收成一处，两页共用。
+ *
+ * v0.7.5 Task 5：标题类渲染一律纯文本。辨析组取的是组描述（`fv.value`），它会成为一行
+ * 的标题而不是正文——标题里不渲染链接，故在返回值上剥标记。工作区与返回页共用这一个函数，
+ * 剥在这里一处生效（编辑框仍读原文，那是编辑态该显示的东西）。
+ */
 export function rowTitle(key: string, value: string, name: string): string {
-  if (key === 'synonym_discrimination_group') return value
+  if (key === 'synonym_discrimination_group') return stripLinks(value)
   if (ITEM_FIELD_KEYS.includes(key)) return ''
   return name
 }

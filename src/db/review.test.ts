@@ -306,6 +306,19 @@ describe('db/review 读路径', () => {
     expect(c?.example).toBe('')
   })
 
+  // v0.7.5 Task 5：字段文本可含链接标记；复习把文本当**内容**消费（挖空 / 答案比对 / 选项），
+  // 故 getWordContent 这一条 SQL 喂出的每个 value 都必须在行映射里剥干净。
+  it('含链接的例句进复习后不含 [[', async () => {
+    await seedWord(db, 'w1', 'forsake')
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '[[forsake]] 的释义')
+    await seedValue(db, 'fv2', 'w1', 'example_sentence', '见 [[forsake]] 的用法')
+    const content = await getWordContent('w1', db)
+    expect(content).not.toBeNull()
+    expect(content!.example).not.toContain('[[')
+    expect(content!.example).toBe('见 forsake 的用法')
+    expect(content!.translation).toBe('forsake 的释义')
+  })
+
   it('firstSensePos 与 translation 同源，不跟例句走（v0.6.3 条目 4a）', async () => {
     await seedWord(db, 'w1', 'detrimental')
     // 义项 1：n. 有害性（无例句）；义项 2：adj. 有害的（例句挂在这一支）
@@ -403,6 +416,16 @@ describe('db/review 读路径', () => {
     const seen = new Set<string>()
     for (let i = 0; i < 30; i++) seen.add((await getDistractorTranslations('w1', 3, db)).join('|'))
     expect(seen.size).toBeGreaterThan(1)
+  })
+
+  // v0.7.5 Task 5：干扰项是另一条独立 SQL，但它与正确项同屏比较——不剥就会一边带标记一边不带。
+  it('getDistractorTranslations 剥掉链接标记', async () => {
+    await seedWord(db, 'w1', 'alpha')
+    await seedWord(db, 'w2', 'beta')
+    await seedValue(db, 'fv1', 'w1', 'chinese_definition', '阿尔法')
+    await seedValue(db, 'fv2', 'w2', 'chinese_definition', '见 [[forsake]]')
+    const ds = await getDistractorTranslations('w1', 1, db)
+    expect(ds).toEqual(['见 forsake'])
   })
 
   it('getAllCandidates 含未到期的熟词，getCandidates 不含', async () => {

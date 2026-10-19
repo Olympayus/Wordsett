@@ -1,6 +1,7 @@
 import { getDb } from './connection'
 import type { DbHandle } from './init'
 import type { DbResult } from './types'
+import { stripLinks } from '../lib/links'
 import { FIELD_KEY_GROUPS, usableTemplates, type FieldMask } from '../lib/review/template'
 import { masteryTier, weakestStability } from '../lib/review/mastery'
 import type { CardContent, InitialFamiliarity, Template } from '../lib/review/types'
@@ -210,6 +211,14 @@ export async function getWordContent(wordId: string, h?: DbHandle): Promise<Card
 
   // 一次性取全字段值 + 字段 key，上溯在内存里做。
   // value 列可空（schema 未加 NOT NULL，导入路径也原样透传），统一成空串再参与后续比较。
+  //
+  // v0.7.5 Task 5：链接标记只属于编辑 / 渲染层。复习把文本当**内容**消费（挖空、答案比对、
+  // 选项、题面），故在这一条 SQL 的行映射里统一剥掉——下游 assembleCardDTO / blankOut /
+  // recognizeOptions / cardPresentable / correctAnswerText 一个字都不用改。
+  // 刻意**不**在这里改的四处（已核对）：① 搜索走 LIKE '%q%'，[[forsake]] 里本就含 forsake，
+  // 子串匹配天然命中；② TTS 只读 lemma，没有一处朗读字段文本；③ initial_familiarity 是
+  // 不可链接字段（linkableField 的排除集），数值解析安全；④ 导出 / 导入与 mergeFields
+  // 去重键要留原文——原文就是要备份 / 比较的东西。
   const fvs = (await d.select<{
     id: string; parent_id: string | null; key: string; value: string | null; display_order: number
   }>(
@@ -218,7 +227,7 @@ export async function getWordContent(wordId: string, h?: DbHandle): Promise<Card
       WHERE fv.word_id = ?1
       ORDER BY fv.display_order, fv.id`,
     [wordId],
-  )).map(r => ({ ...r, value: r.value ?? '' }))
+  )).map(r => ({ ...r, value: stripLinks(r.value ?? '') }))
 
   const byId = new Map(fvs.map(r => [r.id, r]))
   /** 从某行沿 parent_id 上溯，返回第一个满足 key 的祖先（不含自身）。带深度上限防环。 */
@@ -308,7 +317,10 @@ export async function getDistractorTranslations(wordId: string, n: number, h?: D
      ) ORDER BY random() LIMIT ?2`,
     [wordId, n],
   )
-  return rows.map(r => String(r.value))
+  // v0.7.5 Task 5：独立于 getWordContent 的另一条跨词 SQL。它没有经过上面的行映射，
+  // 但干扰项会与正确项同屏比较——不剥就会一边带标记、一边不带。
+  // 保持为**返回前的单独一层**（不塞进 SQL），Task 12 给这条 SQL 加 words.location 过滤时可直接叠加。
+  return rows.map(r => stripLinks(String(r.value)))
 }
 
 /** 惰性注册：把库里全部词的可用题型卡补齐。 */
