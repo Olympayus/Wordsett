@@ -6,7 +6,7 @@ import type { MergeFieldInput } from '../../services/wordService'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { isFieldVisible } from '../../lib/fieldTree'
 import type { DisplayFieldKey } from '../../stores/settingsStore'
-import { flattenTree, buildMergeInputs, toggleSubtreeSelection, shouldNumberField, countZhEn } from '../../lib/dictPlan'
+import { flattenTree, buildMergeInputs, toggleSubtreeSelection, selectionState, shouldNumberField, countZhEn } from '../../lib/dictPlan'
 import type { FlatNode } from '../../lib/dictPlan'
 import CheckBox from '../ui/CheckBox'
 import SenseFlow from '../entry/SenseFlow'
@@ -18,6 +18,12 @@ import { leafForm, rowTitle } from '../../lib/fieldKind'
 import { isLeafFlow } from '../../lib/leafFlow'
 import Icon from '../icons'
 import { ENTRY_BAND_WIDTH } from '../../lib/layout'
+
+// 返回页正文的左缘档位（v0.7.4 决定五 5.1）：
+//   INSET_TOP   = run-in 头文字、以及头下第一层无编号行的正文（FlowRow 的 11px 左内边距）；
+//   INSET_INNER = 内层容器行与释义行正文 = 11（FlowRow 内边距）+ 18（编号槽）+ 12（gap）。
+const INSET_TOP = 11
+const INSET_INNER = 41
 
 interface Props {
   word: string
@@ -102,10 +108,18 @@ export default function DictDetailCard({
 
   const flat = useMemo(() => flattenTree(visible), [visible])
 
-  // 全树路径 key 表（toggleSubtree 判定子树是否全选）
-  const allNodeKeys = useMemo(() => {
+  // 叶子键表（v0.7.4 决定六）：勾选集合**只存叶子键**，父级三态由 selectionState 从子树推出。
+  // 容器键一旦进了集合就再也删不掉（toggleSubtreeSelection 只动后代），「合并添加」的
+  // disabled 判据与计数都会带上一个下限；而 buildMergeInputs 的 addLineage 会给选中项补全
+  // 祖先链，故默认全选的合并输出不变。
+  const leafKeys = useMemo(() => {
     const keys: string[] = []
-    const walk = (nodes: FlatNode[]) => { for (const n of nodes) { keys.push(n.key); walk(n.children) } }
+    const walk = (nodes: FlatNode[]) => {
+      for (const n of nodes) {
+        if (n.children.length === 0) keys.push(n.key)
+        walk(n.children)
+      }
+    }
     walk(flat)
     return keys
   }, [flat])
@@ -121,19 +135,10 @@ export default function DictDetailCard({
   // 勾选状态：Set<key>，key 为路径（'0'、'0-1'、'0-1-0'）
   const [selected, setSelected] = useState<Set<string>>(new Set())
   useEffect(() => {
-    const all = new Set<string>()
-    // 顶层容器由 SenseFlow 的 run-in 头承担，没有勾选框，故不种进 selected：种进去就永远删不掉，
+    // 默认全选**只种叶子**（v0.7.4 决定六）：父键不进集合——种进去就永远删不掉，
     // selected.size 再也到不了 0，「合并添加」的 disabled 判据随之失效、计数也带上一个下限。
-    // buildMergeInputs 的 addLineage 会在其子项被选中时把祖先补回来，故默认全选的输出不变。
-    const walk = (nodes: FlatNode[], topLevel: boolean) => {
-      for (const n of nodes) {
-        if (!(topLevel && n.children.length > 0)) all.add(n.key)
-        walk(n.children, false)
-      }
-    }
-    walk(flat, true)
-    setSelected(all)
-  }, [word_, flat])
+    setSelected(new Set(leafKeys))
+  }, [word_, leafKeys])
 
   // 词性组默认全部展开（v0.4.4：默认展开，用户可「全部收起」），换词时重置为空
   const [collapsedKeys, setCollapsedKeys] = useState<Set<string>>(new Set())
@@ -175,17 +180,11 @@ export default function DictDetailCard({
     onCollapseStateChange?.({ hasContainers: containerKeys.size > 0, allCollapsed })
   }, [containerKeys, allCollapsed, onCollapseStateChange])
 
-  const toggle = (key: string) => {
-    setSelected(prev => {
-      const next = new Set(prev)
-      if (next.has(key)) next.delete(key); else next.add(key)
-      return next
-    })
-  }
-
-  // 词性/容器级整体勾选：未全选 → 补全子树；全选 → 清空子树（dictPlan.toggleSubtreeSelection）
+  // 词性/容器级整体勾选：未全选 → 补全子树；全选 → 清空子树（dictPlan.toggleSubtreeSelection）。
+  // v0.7.4 决定六起集合只存叶子键，故这里把 leafKeys（而不是全树键）交给判据——容器键
+  // 一旦进集合就再也删不掉。叶子没有后代时，dictPlan 会把判据回落到键自身（R21）。
   const toggleSubtree = (key: string) => {
-    setSelected(prev => toggleSubtreeSelection(prev, allNodeKeys, key))
+    setSelected(prev => toggleSubtreeSelection(prev, leafKeys, key))
   }
 
   // 中英释义行尾的来源小标记（其余字段类型不带）。只做提示，不参与勾选与入库。
@@ -202,25 +201,31 @@ export default function DictDetailCard({
     )
   }
 
-  // 行尾槽（FlowRow 的 end）：来源标 + 勾选框。
-  // 勾选框沿用卡片既有激活形态（v0.7.2 Ruling 36）：<button> 自己经 onChange 切换，外层 span
-  // 只吞冒泡。FlowRow 本身没有行级 onClick（整行不再点击折叠），这层吞冒泡是防御性的——
-  // 一旦将来给行加点击，勾选框不会被顺手带上。
-  const endSlot = (node: FlatNode, checkboxLabel: string): ReactNode => {
-    const isContainer = node.children.length > 0
+  // 一枚勾选框（v0.7.4 决定六）：三态由子树推出——非空即勾、部分选中出减号。
+  // 点击一律走 toggleSubtreeSelection（叶子翻自己、容器翻整棵子树）。
+  // 外层 span 只吞冒泡：FlowRow 没有行级 onClick，这层是防御性的——一旦将来给行加点击，
+  // 勾选框不会被顺手带上。
+  const selectionCheckbox = (node: FlatNode, label: string): ReactNode => {
+    const state = selectionState(selected, leafKeys, node.key)
     return (
-      <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-        {sourceMark(node)}
-        <span style={{ display: 'inline-flex' }} onClick={e => e.stopPropagation()}>
-          <CheckBox
-            checked={selected.has(node.key)}
-            label={checkboxLabel}
-            onChange={isContainer ? () => toggleSubtree(node.key) : () => toggle(node.key)}
-          />
-        </span>
+      <span style={{ display: 'inline-flex', alignSelf: 'center' }} onClick={e => e.stopPropagation()}>
+        <CheckBox
+          checked={state !== 'none'}
+          indeterminate={state === 'partial'}
+          label={label}
+          onChange={() => toggleSubtree(node.key)}
+        />
       </span>
     )
   }
+
+  // 行尾槽（FlowRow 的 end）：来源标 + 勾选框（返回页唯一带来源标的位置）。
+  const endSlot = (node: FlatNode, checkboxLabel: string): ReactNode => (
+    <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      {sourceMark(node)}
+      {selectionCheckbox(node, checkboxLabel)}
+    </span>
+  )
 
   // 一行的正文内容（spec §8.2）：中英释义、例句（衬线斜体 + 短破折号）、
   // 词形变化 / 近义词辨析项（「标签: 值」），容器行显示其标题。
@@ -259,13 +264,39 @@ export default function DictDetailCard({
             )
           }
         }
-        return node.children.length > 0 ? rowLabel(node) : node.field.value
+        if (node.children.length > 0) {
+          // 容器行的标题（v0.7.4 决定五 5.2，仅返回页）：沿用 run-in 头那套语言——
+          // 衬线斜体 + 主墨 + 与正文同档的 15px，后接一条细横线拉到右缘。
+          // 横线是 children 的**最后一个元素**（flex:1），行尾槽在 FlowRow 里排在 children
+          // 之后，故勾选框落在横线之后——不新增 FlowRow 入参，也不另开一条渲染路径。
+          // 外层这层 display:flex 是必要的：FlowRow 给 children 的容器本身不是 flex，
+          // 里面再放一个 `flex: 1` 的横线不会伸展。
+          return (
+            <span style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+              <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '15px', fontWeight: 600, color: 'var(--ink-1)' }}>
+                {rowLabel(node)}
+              </span>
+              <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />
+            </span>
+          )
+        }
+        return node.field.value
     }
   }
 
   // 组内行：FlowRow 一行 + 其子级（文档序递归）。义号在中/英释义间**连续**（1..N），
   // 容器行不编号；行内的子容器（例句 / 近义词辨析…）仍只随「全部收起/展开」整组折叠——
   // 单组折叠键（v0.7.2 修复 7）只挂在顶层分组的 run-in 头上，行尾槽留给来源标与勾选框。
+  //
+  // **左缘（v0.7.4 决定五 5.1）**：`childInset` 是本层行正文的目标左缘，也是本层容器
+  // 子级的默认左缘。
+  //   · 顶层 run-in 头下传 INSET_TOP(11)：无编号的行**不传 `no`**，18px 空槽整个消失，
+  //     正文落在 11——与头文字同一条左缘（R41：`no` 原样传，只有本来无编号的行失去空槽，
+  //     编号绝不消失；带编号的释义行仍占编号槽，正文在 41）。
+  //   · 内层容器下传 INSET_INNER(41)：保留 `no ?? ''`，无编号的行也保住设计稿的空编号槽
+  //     （showcase-v2:831 的 `<span class="no"></span>`），与例句 / 近义词行同缘。
+  //   · 子级对齐的是**本行正文**的左缘：释义行（正文 41）的子级恒在 41；无编号容器行
+  //     （正文在本层 childInset）的子级随本层——「近义词直接挂词性下」的兜底形态因此也对齐。
   //
   // v0.7.2 二轮（缺陷 4）：子级块 `marginTop: -4px` —— 容器行 → 首个子级的间距收到设计稿的
   // 紧值。设计稿里**例子块是嵌在释义行里的**（`.sense .tx > .ex`，showcase-v2:196 的
@@ -281,7 +312,7 @@ export default function DictDetailCard({
   // `·ec` / `·wn` 文字标上（`sourceMark`，见上），不走左缘色条。四态落地前这里给的是
   // `'original'`（当时 original 不出条，等效）；v0.7.3 original 改出中性条后必须显式给
   // `'none'`，否则返回页每一行都会冒出条来。
-  const renderRows = (nodes: FlatNode[], counter: { n: number }): ReactNode =>
+  const renderRows = (nodes: FlatNode[], counter: { n: number }, childInset: number): ReactNode =>
     nodes.map(node => {
       const isContainer = node.children.length > 0
       const isDefinition = shouldNumberField(node.field.key)
@@ -289,19 +320,19 @@ export default function DictDetailCard({
       const label = rowLabel(node)
       const checkboxLabel = isDefinition && no !== undefined ? `${label}(${no})` : (label || node.field.value || node.field.key)
       const collapsed = isContainer && collapsedKeys.has(node.key)
+      // 子级（多列块与逐行子行）的左缘 = 本行正文的左缘，见上方注释。
+      const nestedInset = isDefinition ? INSET_INNER : childInset
       // v0.7.3 §5.4：容器下的子项若全是短叶子（近义词 / 词源相关词 / 词形变化…），
       // 不再逐个递归成一行一条，改由 LeafFlow 排成流式多列。v0.7.4 起判据只认容器 key
       //（在不在 LEAF_FLOW_CONTAINER_KEYS 里），子项形状与长度一律不参与。
-      // 每项包成 `{ content: renderContent(c) }`，保住 `标签: 值` 的拆写；**不传 `end`**——
-      // 返回页没有编者模式，单位行尾槽在这里无处可挂，DOM 因此与本轮之前逐字相同。
+      // 每项包成 `{ content: renderContent(c), end: 勾选框 }`：保住 `标签: 值` 的拆写；
+      // 单位自己的行尾槽（决定六）只放勾选框——`·ec` / `·wn` 来源标属于 FlowRow 的行尾槽，
+      // 不在这里重复（R29）。槽是流外绝对定位的 22px，16px 勾选框放得下、不引起折行。
       const leafFlow = isContainer && isLeafFlow(node.field.key)
       return (
         <Fragment key={node.key}>
-          {/* `no` 一律给值（无编号的行给 ''）：v0.7.2 二轮 FlowRow 改成「编号槽缺席即零宽」，
-              这里必须显式补一个空串，才能保住设计稿的空编号槽（showcase-v2:831 的
-              `<span class="no"></span>`）——返回页的例句 / 近义词行因此仍与带编号的释义行同一条
-              左缘，不会因为这次改动往里缩 18px。工作区不同：它的行全部无编号，缺的正是这个槽。 */}
-          <FlowRow no={no ?? ''} state="none" end={endSlot(node, checkboxLabel)}>
+          {/* `no` 的给法见上方左缘注释：顶层 11 档原样传（R41），内层 41 档补空串保住编号槽。 */}
+          <FlowRow no={childInset === INSET_TOP ? no : (no ?? '')} state="none" end={endSlot(node, checkboxLabel)}>
             {renderContent(node)}
           </FlowRow>
           {isContainer && !collapsed && (
@@ -310,8 +341,12 @@ export default function DictDetailCard({
               // 与容器行底的 4px 相加会翻倍成 8px，故同样要扣掉被兄弟模型重复计算的那一层——
               // 两条分支的容器→子项间距才一致（brief 验收项 4「返回页同一组字段行为一致」）。
               // 不改 LeafFlow 自身的内边距：它与工作区共用，那里的 4px 顶内边距是与 FlowRow 对齐所需。
-              ? <div style={{ marginTop: '-4px' }}><LeafFlow items={node.children.map(c => ({ content: renderContent(c), markColor: 'var(--ink-3)' }))} /></div>
-              : <div style={{ marginTop: '-4px' }}>{renderRows(node.children, counter)}</div>
+              ? <div style={{ marginTop: '-4px' }}><LeafFlow inset={nestedInset} items={node.children.map(c => ({
+                  content: renderContent(c),
+                  markColor: 'var(--ink-3)',
+                  end: selectionCheckbox(c, c.field.value || c.field.key),
+                }))} /></div>
+              : <div style={{ marginTop: '-4px' }}>{renderRows(node.children, counter, nestedInset)}</div>
           )}
         </Fragment>
       )
@@ -344,25 +379,28 @@ export default function DictDetailCard({
   // 词性组右侧计数沿用 countZhEn（中 N · 英 M），其余容器显示子项数。
   // v0.7.2 修复 7：头改由本页自绘（保住标准形：衬线斜体词性 + 11px 计数 + 拉到右缘的长横线），
   // 右端补上该组的折叠键；折叠仍走同一份 collapsedKeys，与「全部收起」不打架。
+  // v0.7.4 决定六：大标题也补一枚勾选框，位置在横线之后、折叠键之前；它的三态同样由叶子子树推出。
   const groups: SenseGroup[] = flat.map(node => {
     const isPos = node.field.key === 'part_of_speech'
     const z = countZhEn(node)
     const hasChildren = node.children.length > 0
     const collapsed = hasChildren && collapsedKeys.has(node.key)
+    const headTitle = isPos ? node.field.value : (rowLabel(node) || node.field.value)
     return {
       head: (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', paddingLeft: '11px' }}>
           <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '16px', fontWeight: 600 }}>
-            {isPos ? node.field.value : (rowLabel(node) || node.field.value)}
+            {headTitle}
           </span>
           {isPos
             ? <span className="stat-num" style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{`中 ${z.cn} · 英 ${z.en}`}</span>
             : hasChildren && <span className="stat-num" style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{node.children.length}</span>}
           <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />
+          {selectionCheckbox(node, headTitle)}
           {hasChildren && groupFold(node.key, collapsed)}
         </div>
       ),
-      items: collapsed ? null : renderRows(hasChildren ? node.children : [node], { n: 0 }),
+      items: collapsed ? null : renderRows(hasChildren ? node.children : [node], { n: 0 }, INSET_TOP),
     }
   })
 

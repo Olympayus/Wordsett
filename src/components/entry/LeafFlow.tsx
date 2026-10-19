@@ -21,16 +21,22 @@ import type { FieldState } from '../../lib/fieldState'
  * 差三倍），固定列数会让短词后半列全空、长词被省略号截断；流式排法让长条目自己占满一行。
  *
  * 不参与编号：这类行本来就没有义号（`FlowRow` 的 `no` 不传），多列后也不引入。
- * 左缘与 `FlowRow` 一致（11px），故它仍是同一条正文流里的块。
+ * 左缘默认与 `FlowRow` 一致（11px），故它仍是同一条正文流里的块。**返回页例外**
+ * （v0.7.4 决定五 5.1）：内层容器（近义词 / 例句…）下的多列块要右移到 41px——那是
+ * `FlowRow` 的左内边距 11 + 18px 空编号槽 + 12px gap——才能与容器行标题的左缘对齐；
+ * 顶层 run-in 头下直接挂的容器（无释义兜底）仍取 11。左缘由 `inset` 入参给，默认 11，
+ * 工作区的调用点不传、几何逐字不变。
  *
  * `items` 是 `{ content, end?, onEnter?, onLeave?, markColor, id? }[]`（v0.7.3 控制器裁决 P4、
  * 尾段 §3.4）：两个调用页各自把**今天渲染的那个节点**原样交进来——工作区传
  * `{ id: ch.id, content: ch.value, end: …, onEnter/onLeave, markColor }`（它的叶子行本就只渲染
- * `fv.value`），返回页传 `{ content: renderContent(c), markColor }`（保住 `标签: 值` 的拆写、
- * **不传 end / onEnter / onLeave / id**）。这样两页的文本渲染逐字不变，也不必再写第二份拆分实现。
+ * `fv.value`），返回页传 `{ content: renderContent(c), end: <勾选框>, markColor }`（保住 `标签: 值` 的拆写、
+ * **不传 onEnter / onLeave / id**）。这样两页的文本渲染逐字不变，也不必再写第二份拆分实现。
  *
  * `end` 是**单位自己的行尾槽**（v0.7.3 尾段 §3.4）：每个单位一枚 22px 的操作簇
- * （近义词 → `⋯` 编辑 / 删除），绝对定位在本单位右缘之外那 22px 里。**必须绝对定位**——
+ * （工作区是「近义词 → `⋯` 编辑 / 删除」；v0.7.4 任务 15 起返回页也用它挂一枚勾选框，
+ * 且只放勾选框——`·ec` / `·wn` 来源标留在 `FlowRow` 的行尾槽，不在这里重复），
+ * 绝对定位在本单位右缘之外那 22px 里。**必须绝对定位**——
  * 它一进排版流，悬停那一刻该单位就变宽、后继的词重新折行（与 v0.5.2 修过的行尾簇抖动同一个坑）。
  * 22px 正好等于栏距（`gap: '6px 22px'`），且按钮本身也是 22px（`NAV_CONTROL_HEIGHT`），一格一枚正好合上。
  *
@@ -193,7 +199,7 @@ function UnitItemDraggable({ id, it, drag }: { id: string; it: LeafFlowItem; dra
   )
 }
 
-export default function LeafFlow({ items, state = 'none', first = true, last = true, drag }: {
+export default function LeafFlow({ items, state = 'none', first = true, last = true, drag, inset = 11 }: {
   items: LeafFlowItem[]
   state?: FieldState
   /** 整块是否是其所属段的**首块**（v0.7.4 决定八）：多单位块按一行参与分段。 */
@@ -202,9 +208,12 @@ export default function LeafFlow({ items, state = 'none', first = true, last = t
   last?: boolean
   /** 单位手势（v0.7.4 任务 12）：工作区传、返回页不传（决定单位走哪个变体）。 */
   drag?: LeafFlowDrag
+  /** 块的左内边距（v0.7.4 决定五 5.1）：默认 11（与 FlowRow 同一条正文流左缘）；
+   *  返回页的内层容器传 41（= 11 + 18 编号槽 + 12 gap），与容器行标题对齐。 */
+  inset?: number
 }) {
   return (
-    <div style={{ position: 'relative', padding: `${ROW_PADDING_Y}px 0 ${ROW_PADDING_Y}px 11px` }}>
+    <div style={{ position: 'relative', padding: `${ROW_PADDING_Y}px 0 ${ROW_PADDING_Y}px ${inset}px` }}>
       <SourceBar state={state} first={first} last={last} />
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 22px' }}>
         {items.map((it, i) =>

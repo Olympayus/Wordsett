@@ -42,6 +42,22 @@ describe('checkboxAppearance（v0.6.3 条目 14）', () => {
   })
 })
 
+describe('indeterminate 部分选中（v0.7.4 决定六）', () => {
+  const blue = 'var(--color-brand)'
+
+  it('描边品牌色、不填色块（减号由背景层画）', () => {
+    const a = checkboxAppearance({ checked: false, hover: false, disabled: false, indeterminate: true, color: blue })
+    expect(a.fill).toBeNull()
+    expect(a.border).toBe(blue)
+  })
+
+  it('涂装：减号是背景层里 10×2 的一条，阴影层数与其他态一致（不新增布局盒子）', () => {
+    const p = checkboxPaint({ checked: false, hover: false, disabled: false, indeterminate: true, color: blue })
+    expect(p.background).toContain(`linear-gradient(${blue}, ${blue}) center / 10px 2px no-repeat`)
+    expect(p.boxShadow.split('inset').length).toBe(3)
+  })
+})
+
 describe('checkboxPaint（v0.6.5 修订：内块是画出来的，控件里没有第二个盒子）', () => {
   const blue = 'var(--color-brand)'
   const SURFACE = 'var(--color-surface)'

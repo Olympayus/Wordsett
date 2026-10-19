@@ -99,15 +99,29 @@ export function buildMergeInputs(fields: DictionaryField[], selected: Set<string
   return out
 }
 
-// 词性/容器级整体勾选：未全选 → 补全子树；全选 → 清空子树（spec §4.5）
+// 词性/容器级整体勾选：未全选 → 补全子树；全选 → 清空子树（spec §4.5）。
+// v0.7.4 决定六：集合里**只存叶子键**，父键不进集合（进了就再也删不掉——本函数只动后代，
+// 「合并添加」的 disabled 判据与计数都会带上一个下限）。因此调用方传进来的 allKeys 只应是叶子键。
+// R21：叶子键没有后代，此时翻的键组必须回落到 [key] 自己——空数组的 every 恒真，
+// 若仍以 descendantKeys 判据，叶子勾选框会永远只会删、不会加。
 export function toggleSubtreeSelection(selected: Set<string>, allKeys: string[], key: string): Set<string> {
   const next = new Set(selected)
   const descendantKeys = allKeys.filter(k => k.startsWith(`${key}-`))
-  const isOn = !descendantKeys.every(k => next.has(k))
-  for (const k of [key, ...descendantKeys]) {
+  const keys = descendantKeys.length ? descendantKeys : [key]
+  const isOn = !keys.every(k => next.has(k))
+  for (const k of keys) {
     if (isOn) next.add(k); else next.delete(k)
   }
   return next
+}
+
+// 勾选三态（v0.7.4 决定六）：父级状态一律由子树推出，勾选框不再直接读 selected.has(key)。
+// 叶子键没有后代，判据回落到键自身。
+export function selectionState(selected: Set<string>, allKeys: string[], key: string): 'none' | 'partial' | 'all' {
+  const descendantKeys = allKeys.filter(k => k.startsWith(`${key}-`))
+  const scope = descendantKeys.length ? descendantKeys : [key]
+  const hit = scope.reduce((n, k) => n + (selected.has(k) ? 1 : 0), 0)
+  return hit === 0 ? 'none' : hit === scope.length ? 'all' : 'partial'
 }
 
 // 词性窗格统计：只数直属中/英释义（例句/变形/近义词等不混算，spec §6）

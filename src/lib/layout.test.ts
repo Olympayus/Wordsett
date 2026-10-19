@@ -45,13 +45,23 @@ describe('正文行密度（v0.7.4 决定七 7.4：收一档）', () => {
 })
 
 describe('正文行原语都引用这两个常量', () => {
-  it('FlowRow 与 LeafFlow', () => {
-    for (const f of ['../components/entry/FlowRow.tsx', '../components/entry/LeafFlow.tsx'] as const) {
-      const src = readFileSync(new URL(f, import.meta.url), 'utf8')
-      expect(src, f).toMatch(/import\s*\{[^}]*ROW_LINE_HEIGHT[^}]*ROW_PADDING_Y[^}]*\}\s*from\s*'[^']*layout'/)
-      expect(src, f).toMatch(/lineHeight:\s*ROW_LINE_HEIGHT/)
-      expect(src, f).toMatch(/padding:\s*`\$\{ROW_PADDING_Y\}px 0 \$\{ROW_PADDING_Y\}px 11px`/)
-    }
+  // v0.7.4 任务 15：LeafFlow 加 `inset`（默认 11）后，左内边距模板合法地变成 `${inset}px`。
+  // 断言不删、也不放宽成「标识符出现过」：FlowRow 仍钉那条字面 11px，LeafFlow 钉参数化模板
+  // 与默认值 11，两条各自守住自己的左缘。
+  it('FlowRow：行高/上下内边距常量 + 字面 11px 左内边距', () => {
+    const src = readFileSync(new URL('../components/entry/FlowRow.tsx', import.meta.url), 'utf8')
+    expect(src).toMatch(/import\s*\{[^}]*ROW_LINE_HEIGHT[^}]*ROW_PADDING_Y[^}]*\}\s*from\s*'[^']*layout'/)
+    expect(src).toMatch(/lineHeight:\s*ROW_LINE_HEIGHT/)
+    expect(src).toMatch(/padding:\s*`\$\{ROW_PADDING_Y\}px 0 \$\{ROW_PADDING_Y\}px 11px`/)
+  })
+
+  it('LeafFlow：行高/上下内边距常量 + inset 参数化左内边距，默认 11', () => {
+    const src = readFileSync(new URL('../components/entry/LeafFlow.tsx', import.meta.url), 'utf8')
+    expect(src).toMatch(/import\s*\{[^}]*ROW_LINE_HEIGHT[^}]*ROW_PADDING_Y[^}]*\}\s*from\s*'[^']*layout'/)
+    expect(src).toMatch(/lineHeight:\s*ROW_LINE_HEIGHT/)
+    expect(src).toMatch(/padding:\s*`\$\{ROW_PADDING_Y\}px 0 \$\{ROW_PADDING_Y\}px \$\{inset\}px`/)
+    // 默认值必须留在同一文件里，且是 11——它是「工作区调用点不传即与改前逐字相同」的保证。
+    expect(src).toMatch(/inset\s*=\s*11/)
   })
 })
 

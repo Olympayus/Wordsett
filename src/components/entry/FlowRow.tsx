@@ -21,8 +21,10 @@ import type { FieldState } from '../../lib/fieldState'
  * 缺席即零宽之后，两组 grip 落在同一条 **21px** 左缘上（FlowRow 自己的 11px 仍是设计稿
  * `.sense` 的缩进量，一个像素都没动；编号行的悬挂缩进也照旧）。
  *
- * 返回页（`DictDetailCard.tsx`）因此显式给 `no ?? ''`：那一页的设计稿**要**空编号槽
- * （showcase-v2:831 的 `<span class="no"></span>`），例句 / 近义词行靠它与释义行对齐。
+ * 返回页（`DictDetailCard.tsx`）分两档（v0.7.4 决定五 5.1）：顶层 run-in 头下的行把 `no`
+ * **原样传**——只有本来无编号的行失去空槽（正文落到 11px，与头文字同缘），带编号的释义行
+ * 照旧悬挂；内层容器下的行显式给 `no ?? ''`，那一页的设计稿**要**空编号槽
+ * （showcase-v2:831 的 `<span class="no"></span>`），例句 / 近义词行靠它与释义行对齐（41px）。
  *
  * `state` 默认 `'none'`（v0.7.3，原为 `'original'`）：调用方都会显式传，默认值取 `'none'`
  * 是为了「忘了传」时**不出条**，而不是给每一行画一条灰线。

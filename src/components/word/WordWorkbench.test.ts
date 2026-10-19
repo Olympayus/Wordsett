@@ -162,14 +162,17 @@ describe('工作区改用原语（源码级守卫）', () => {
 //  该行内注释补两行说明「标记按 em 取值，量与画必须同字号」（+2 行），并改掉一行既有的
 //  wrapper 属性（净 0 行）：275-311 那一组下移到 280-316，容器路由那组（923/932/936/979）
 //  下移到 930/939/943/986，其后的 1175/1334 下移到 1182/1341。
-//   DictDetailCard.tsx:86-87 keyAllowed——displayFields 可见性映射（只查「显不显示」，不问「长什么样」）
-//   DictDetailCard.tsx:96-99 filter——可见性过滤与空容器丢弃（96 的 phonetic 同理，只问显不显示）
-//   DictDetailCard.tsx:194 sourceMark——哪几枚行尾来源标
-//   DictDetailCard.tsx:251 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
-//   DictDetailCard.tsx:348 isPos——run-in 头形态
+//  v0.7.4 Task 15 返回页左缘 / 小标题 / 勾选重写 DictDetailCard.tsx（INSET 常量、叶子键表、
+//  三态勾选、容器标题带横线、renderRows 增 inset 参数）：本文件四处命中行重算为
+//  102 / 193 / 256 / 384；原 allow-list 里的 86 / 87 / 97 / 99 是更早版本遗留的空条目
+//  （那几行本就不匹配守卫的裸比较正则），本次按新树重算一并清掉。
+//   DictDetailCard.tsx:102 filter 里的 phonetic——可见性过滤（只问「显不显示」，不问「长什么样」）
+//   DictDetailCard.tsx:193 sourceMark——哪几枚行尾来源标
+//   DictDetailCard.tsx:256 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
+//   DictDetailCard.tsx:384 isPos——run-in 头形态
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
   ['WordWorkbench.tsx', [280, 281, 289, 296, 315, 316, 930, 939, 943, 986, 1182, 1341], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
-  ['DictDetailCard.tsx', [86, 87, 96, 97, 99, 194, 251, 348], '可见性映射与过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
+  ['DictDetailCard.tsx', [102, 193, 256, 384], '可见性过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 
 // 取出文件里全部「某字段键 ===/' !== '某键字面量'」的行（命中 .key 直比与 childKey(…) 等值两类）

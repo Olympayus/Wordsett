@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mergeEntryFields, flattenTree, buildMergeInputs, toggleSubtreeSelection, shouldNumberField, shouldFlattenChildren, countZhEn, countAllDefinitions } from './dictPlan'
+import { mergeEntryFields, flattenTree, buildMergeInputs, toggleSubtreeSelection, selectionState, shouldNumberField, shouldFlattenChildren, countZhEn, countAllDefinitions } from './dictPlan'
 import type { DictionaryField } from '../types/dictionary'
 
 const fields: DictionaryField[] = [
@@ -89,24 +89,53 @@ describe('shouldFlattenChildren', () => {
 describe('toggleSubtreeSelection', () => {
   const allKeys = ['0', '0-0', '0-1', '0-1-0', '1', '1-0']
 
-  it('全选时点击 → 清空该子树（key + 全部后代移除，兄弟/外部 key 保留）', () => {
+  // v0.7.4 决定六：集合里只存叶子，父键一律不进集合；toggle 只增删子树的后代，
+  // key 自身不动（它本就不该在集合里，即便误入也删不掉——所以生产调用只传叶子键）。
+  it('全选时点击 → 清空该子树的全部后代（兄弟/外部 key 保留，key 自身不动）', () => {
     const all = new Set(allKeys)
     const next = toggleSubtreeSelection(all, allKeys, '0')
-    expect([...next].sort()).toEqual(['1', '1-0'])
+    expect([...next].sort()).toEqual(['0', '1', '1-0'])
   })
 
-  it('未选时点击 → 补全 key + 全部后代', () => {
+  it('未选时点击 → 补全全部后代（key 自身不进集合）', () => {
     const partial = new Set(['1', '1-0'])
     const next = toggleSubtreeSelection(partial, allKeys, '0')
-    expect([...next].sort()).toEqual([...allKeys].sort())
+    expect([...next].sort()).toEqual(['0-0', '0-1', '0-1-0', '1', '1-0'])
   })
 
   it('前缀安全：key 0-1 不得误匹配兄弟 0-10', () => {
     const keys = ['0', '0-1', '0-10', '0-1-0']
     const all = new Set(keys)
     const next = toggleSubtreeSelection(all, keys, '0-1')
-    // 0-1 子树 = {0-1, 0-1-0} 被清空；兄弟 0-10 保留
-    expect([...next].sort()).toEqual(['0', '0-10'])
+    // 0-1 子树的后代 = {0-1-0} 被清空；0-1 自身与兄弟 0-10 保留
+    expect([...next].sort()).toEqual(['0', '0-1', '0-10'])
+  })
+})
+
+describe('返回页勾选（v0.7.4 决定六）', () => {
+  const all = ['0', '0-0', '0-0-0', '0-0-1']
+
+  it('只勾部分子项 → 父级是 partial', () => {
+    expect(selectionState(new Set(['0-0-0']), all, '0-0')).toBe('partial')
+    expect(selectionState(new Set(['0-0-0', '0-0-1']), all, '0-0')).toBe('all')
+    expect(selectionState(new Set(), all, '0-0')).toBe('none')
+  })
+
+  it('全选 / 全清：勾一次补全子树，再勾一次清空', () => {
+    const on = toggleSubtreeSelection(new Set(), all, '0-0')
+    expect([...on].sort()).toEqual(['0-0-0', '0-0-1'])
+    expect([...toggleSubtreeSelection(on, all, '0-0')]).toEqual([])
+  })
+
+  it('集合里只放叶子键，父键不进集合（否则「合并添加」的 disabled 判据失效）', () => {
+    expect(toggleSubtreeSelection(new Set(), all, '0-0').has('0-0')).toBe(false)
+  })
+
+  // R21：叶子没有后代，判据必须落在 [key] 上，否则空数组的 every 恒真、只会删不会加。
+  it('叶子键：勾一次进集合，再勾一次出集合', () => {
+    const on = toggleSubtreeSelection(new Set(), all, '0-0-0')
+    expect([...on]).toEqual(['0-0-0'])
+    expect([...toggleSubtreeSelection(on, all, '0-0-0')]).toEqual([])
   })
 })
 

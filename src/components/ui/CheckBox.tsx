@@ -31,15 +31,20 @@ import { useState } from 'react'
  * a11y 取舍（改这个组件前先读）：去掉对勾后，选中与否只由「有无色块 + 描边颜色」表达。
  * 这不是纯色相相差（还含面积与明度），对色觉障碍可读；但 aria-checked 必须正确，
  * 否则读屏用户拿不到状态。故本组件渲染 role="checkbox"，而不是套一个原生 input 再藏起来。
+ * v0.7.4 决定六补上第三态：部分选中（`indeterminate`）画一根 10×2 的减号，
+ * `aria-checked` 取 `"mixed"`——形态与「有无色块」同一条画法（背景层），仍不新增布局盒子。
  *
  * `color` 默认为品牌蓝；分类强化行传分类色——那是唯一按分类走色的调用点。
  */
 
 /** 描边与内块的颜色（v0.6.3 条目 14）。抽成纯函数让「悬停不预演填入」这条规则可测。
- *  禁用态返回 fill: null：整体降透明度由组件负责，内块不再单独表达。 */
-export function checkboxAppearance({ checked, hover, disabled, color }: {
-  checked: boolean; hover: boolean; disabled?: boolean; color: string
+ *  禁用态返回 fill: null：整体降透明度由组件负责，内块不再单独表达。
+ *  部分选中（v0.7.4 决定六，`indeterminate`）：描边取色、**不填内块**——那 10×2 的减号
+ *  由 `checkboxPaint` 画在背景层里，控件里因此仍没有第二个布局盒子（见文件头）。 */
+export function checkboxAppearance({ checked, hover, disabled, indeterminate = false, color }: {
+  checked: boolean; hover: boolean; disabled?: boolean; indeterminate?: boolean; color: string
 }): { border: string; fill: string | null } {
+  if (indeterminate) return { border: color, fill: null }
   if (disabled) return { border: checked ? color : 'var(--color-border-strong)', fill: null }
   if (checked) return { border: color, fill: color }
   return { border: hover ? 'var(--color-text-tertiary)' : 'var(--color-border-strong)', fill: null }
@@ -77,20 +82,24 @@ export const CHECKBOX_RING = 1.5
  * 盒子可以偏离它**——这条不变式是该函数存在的全部理由，也是它可测的地方。
  *
  * 两个状态都固定给两层阴影（而不是选中时多一层）：阴影层数不同的过渡不会插值，勾选时
- * 会「啪」地跳一下，层数一致才留下 box-shadow 的颜色过渡。
+ * 会「啪」地跳一下，层数一致才留下 box-shadow 的颜色过渡。部分选中沿用同一组两层阴影，
+ * 减号只是再加一条背景层——层数因此仍是两层，三态之间的过渡一样不跳。
  */
-export function checkboxPaint({ checked, hover, disabled, color }: {
-  checked: boolean; hover: boolean; disabled?: boolean; color: string
+export function checkboxPaint({ checked, hover, disabled, indeterminate = false, color }: {
+  checked: boolean; hover: boolean; disabled?: boolean; indeterminate?: boolean; color: string
 }): { background: string; boxShadow: string } {
-  const { border, fill } = checkboxAppearance({ checked, hover, disabled, color })
+  const { border, fill } = checkboxAppearance({ checked, hover, disabled, indeterminate, color })
   const inset = (CHECKBOX_SIZE - CHECKBOX_INNER) / 2
+  // 部分选中：减号与未选态的空心共用同一块背景区域（10×2、居中、no-repeat），
+  // 底色仍取内容面——阴影两层只负责描边与留白两圈，不会盖住中央的横条。
+  const minus = indeterminate ? `linear-gradient(${color}, ${color}) center / 10px 2px no-repeat, ` : ''
   return {
-    background: fill ?? 'var(--color-surface)',
+    background: fill ?? `${minus}var(--color-surface)`,
     boxShadow: `inset 0 0 0 ${CHECKBOX_RING}px ${fill ?? border}, inset 0 0 0 ${inset}px var(--color-surface)`,
   }
 }
 
-export default function CheckBox({ checked, onChange, disabled, color, label }: {
+export default function CheckBox({ checked, onChange, disabled, color, label, indeterminate = false }: {
   checked: boolean
   onChange: (next: boolean) => void
   disabled?: boolean
@@ -98,15 +107,17 @@ export default function CheckBox({ checked, onChange, disabled, color, label }: 
   color?: string
   /** 无障碍名。本组件不渲染可见文字，故必填 */
   label: string
+  /** 部分选中（v0.7.4 决定六）：画减号、`aria-checked="mixed"`。默认关，其它调用点不受影响。 */
+  indeterminate?: boolean
 }) {
   const [hover, setHover] = useState(false)
   const c = color ?? 'var(--color-brand)'
-  const paint = checkboxPaint({ checked, hover, disabled, color: c })
+  const paint = checkboxPaint({ checked, hover, disabled, indeterminate, color: c })
   return (
     <button
       type="button"
       role="checkbox"
-      aria-checked={checked}
+      aria-checked={indeterminate ? 'mixed' : checked}
       aria-label={label}
       disabled={disabled}
       onClick={() => { if (!disabled) onChange(!checked) }}
