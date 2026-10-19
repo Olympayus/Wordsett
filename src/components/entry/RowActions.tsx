@@ -30,10 +30,13 @@ const EDIT_CLUSTER_WIDTH = NAV_CONTROL_HEIGHT * 2 + 2
  * 上下移动时来回弹。`visible` 由父级给：**只有悬停行及其祖先链为 true**（编者模式不再
  * 恒 true——v0.7.2 二轮用户要求「完全隐藏，不可见」，编者模式同理）。
  *
- * **两种模式的占宽也必须相同**（v0.7.4 修复轮）：普通模式只有一枚 22px 的 `⋯`，编者模式是
- * 22 + 2 + 22 = 46px。这个簇在 `FlowRow` 的 `end` 槽里是**在流内**的，若两种模式各占各的宽度，
- * 切换编辑器模式就会让每一行的正文宽 24px 跳变、长释义重新折行。故普通模式的外壳同样预留
- * 46px，并把 `⋯` 右对齐——按钮的视觉位置仍在右缘，只是左边的空白先占住了。
+ * **两种模式的占宽也必须相同**（v0.7.4 修复轮）：普通模式只有一枚 22px 的 `⋯`，故它预留的
+ * 宽度必须**照抄编者模式实际会渲染的形态**——带 `onAdd` 时是 22 + 2 + 22 = 46px，不带
+ * `onAdd`（只服务单位行尾槽）时只有垃圾桶一枚 22px。这个簇在 `FlowRow` 的 `end` 槽里是
+ * **在流内**的：若两种模式各占各的宽度，切换编辑器模式就会让每一行的正文宽跳变、长释义
+ * 重新折行。单位槽则在 `LeafFlow` 的流外 22px 绝对定位格子里（`left: 100%; width: 22px`），
+ * 多留 24px 会直接溢到右侧邻词上——故预留值不能写死成 46。普通模式把 `⋯` 右对齐，按钮的
+ * 视觉位置仍在右缘，只是左边的空白先占住了。
  *
  * 隐藏态是**真的不可见、且不可交互**（v0.7.2 二轮）：`opacity: 0` 只是第一步——
  * 透明控件仍在 Tab 序列与无障碍树里，Tab+Enter 会误触删除 / 加子词条，0 透明度下的
@@ -63,7 +66,7 @@ export default function RowActions({ visible, mode, onAdd, onDelete, menu }: {
 }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', flex: 'none',
-                   width: mode === 'view' ? `${EDIT_CLUSTER_WIDTH}px` : undefined,
+                   width: mode === 'view' ? `${onAdd ? EDIT_CLUSTER_WIDTH : NAV_CONTROL_HEIGHT}px` : undefined,
                    justifyContent: mode === 'view' ? 'flex-end' : undefined,
                    opacity: visible ? 1 : 0,
                    visibility: visible ? 'visible' : 'hidden',
