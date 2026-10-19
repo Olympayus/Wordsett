@@ -6,12 +6,12 @@ import { MARK_DOT_SIZE, MARK_DASH_WIDTH, MARK_DASH_HEIGHT } from './Mark'
 // sidebar.test.ts 读 WordList.tsx）：vitest 只收 *.test.ts、environment: node，
 // 没有组件测试 harness，故把「不再写字形」这类回归钉在源码形状上。
 describe('画出的标记（v0.7.4 决定九）', () => {
-  it('尺寸用 em，跟随字号；横杠厚度钉住 2px 下限', () => {
+  it('尺寸用 em，跟随字号；横杠厚度钉成整数 2px', () => {
     expect(MARK_DOT_SIZE).toBe('0.33em')
     expect(MARK_DASH_WIDTH).toBe('0.8em')
-    // 0.13em 在 14px 下是 1.82px，背景矩形按设备像素吸附，落在不同纵向位置会画成
-    // 1px 或 2px——同一页里也有粗有细。max(2px, …) 让当前字号下恒为 2px，字号放大时仍随 em 长。
-    expect(MARK_DASH_HEIGHT).toBe('max(2px, 0.13em)')
+    // 0.13em 在 14px 下是 1.82px、max(2px, …) 仍留着小数的行位置影响：厚度固定 2px，
+    // 配合例句 / 正文行高取整（21 / 23 / 26px），横杠在任何一行都画成同样粗细。
+    expect(MARK_DASH_HEIGHT).toBe('2px')
   })
 
   it('四处调用点都用同一个组件，不再写字形', () => {

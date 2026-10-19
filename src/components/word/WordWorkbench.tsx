@@ -479,7 +479,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     ? `中文 ${zhCount} · 英文 ${enCount}`
     : (hasChildren ? String(posChildren.length) : undefined)
   const groupHead = (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', padding: '2px 0 2px 11px' }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', padding: '2px 0 2px 11px', lineHeight: '27px' }}>
       {grip}
       {isPosPane && isEditing ? (
         // v0.7.4 任务 14：行内不再有「保存 / 取消」（搬到导航条），盒子也不留 gap。
@@ -576,6 +576,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           style={{
             flex: 1, minWidth: 0,
             fontSize: 'var(--text-sm)',
+            // 行高取整（修复轮）：13px × 1.6 = 20.8px，多行释义会让后续每一行都落在小数像素上，
+            // 例句的 1.82px 横杠在不同纵向位置被抗锯齿摊成不同粗细。21px 是整数值，观感不变。
+            lineHeight: '21px',
             // 两模式同色（修复轮）：v0.7.2 起这里曾让编者模式下 original 值取次级墨，
             // 用户实测读作「打开编者模式中文变浅、行距收紧」。编者模式只该让**控件**现形，
             // 文字外观必须与普通模式逐像素一致。
@@ -645,13 +648,13 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
                 // 衬线斜体 14px/1.65 次级色，行首一枚 `–` 作分条标识（showcase-v2:197-198）。
                 // v0.7.4 决定九：`–` 改**画**（DashMark），且**按词自己着色**——取该单位自己的
                 // `unitState`，不是所在容器的聚合态（两者可以不同）；普通模式恒三级色。
-                <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: 1.65, color: 'var(--ink-2)' }}>
+                <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: '23px', color: 'var(--ink-2)' }}>
                   <span style={{ marginRight: '8px' }}><DashMark color={editorMode ? MARK_COLOR[unitState(fv, inheritedUser)] : 'var(--ink-3)'} /></span>{fv.value}
                 </span>
               ) : form === 'english-def' ? (
                 // v0.7.3 尾段 §1.3：英文释义在工作区本来没有分支，于是它在这里是无衬线正文色、
                 // 在返回页是衬线次级色——同一个字段两页两样，草案第 6 条要修的就是它。
-                <span style={{ fontFamily: 'var(--font-serif)', fontSize: '15px', lineHeight: 1.7, color: 'var(--ink-1)' }}>{fv.value}</span>
+                <span style={{ fontFamily: 'var(--font-serif)', fontSize: '15px', lineHeight: '26px', color: 'var(--ink-1)' }}>{fv.value}</span>
               ) : fv.value}
             </span>
           )}

@@ -66,7 +66,9 @@ export default function FlowRow({ no, children, end, state = 'none', first = tru
     }}>
       <SourceBar state={state} first={first} last={last} />
       {no !== undefined && (
-        <span style={{ width: '18px', flex: 'none', fontSize: '12.5px', textAlign: 'right',
+        // 行高取整 21px（12.5 × 1.7 = 21.25）：返回页每行都带这个槽，23.25px 的小数会抬高整行、
+        // 让后续所有行的纵向位置落在小数像素上（横杠粗细随之被抗锯齿摊成不同观感）。
+        <span style={{ width: '18px', flex: 'none', fontSize: '12.5px', lineHeight: '21px', textAlign: 'right',
                        color: 'var(--color-text-tertiary)', fontVariantNumeric: 'tabular-nums', paddingTop: '2px' }}>
           {no}
         </span>
@@ -74,7 +76,12 @@ export default function FlowRow({ no, children, end, state = 'none', first = tru
       <span style={{ flex: 1, minWidth: 0, fontSize: '15px', lineHeight: ROW_LINE_HEIGHT }}>
         <span style={{ display: 'flex', alignItems: 'baseline', gap: '12px' }}>
           <span style={{ flex: 1, minWidth: 0 }}>{children}</span>
-          {end && <span style={{ marginLeft: 'auto', flex: 'none', display: 'flex', alignItems: 'center', gap: '8px' }}>{end}</span>}
+          {/* 行尾槽**居中**对齐、不参与基线对齐（v0.7.4 修复轮）：`alignItems: baseline`
+              会用槽内**第一枚控件**的基线参与本行的行盒计算，而普通模式那枚是 SVG `⋯`、
+              编者模式第一枚是文字 `＋`——两者基线相差数像素，于是切换模式时每一行的高度
+              都会变（用户实测：打开编者模式整体文字被压缩、多看到一行）。
+              槽高固定 22px，`alignSelf: 'center'` 让它只贡献高度、不贡献基线。 */}
+          {end && <span style={{ marginLeft: 'auto', flex: 'none', alignSelf: 'center', display: 'flex', alignItems: 'center', gap: '8px' }}>{end}</span>}
         </span>
       </span>
     </div>

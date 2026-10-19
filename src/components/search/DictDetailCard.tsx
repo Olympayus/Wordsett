@@ -236,15 +236,16 @@ export default function DictDetailCard({
     switch (form) {
       case 'english-def':
         return (
-          <span style={{ fontFamily: 'var(--font-serif)', fontSize: '15px', lineHeight: 1.7, color: 'var(--ink-1)' }}>
+          <span style={{ fontFamily: 'var(--font-serif)', fontSize: '15px', lineHeight: '26px', color: 'var(--ink-1)' }}>
             {node.field.value}
           </span>
         )
       case 'example':
         return (
-          <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: 1.65, color: 'var(--ink-2)' }}>
+          <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: '23px', color: 'var(--ink-2)' }}>
             {/* v0.7.4 决定九：`–` 改**画**（与工作区同一枚 DashMark）。本页没有编者模式，
-                来源态是编者视角的信息，故颜色恒为三级色——与左缘色条恒 `state="none"` 同理。 */}
+                来源态是编者视角的信息，故颜色恒为三级色——与左缘色条恒 `state="none"` 同理。
+                行高取整（23px）：14 × 1.65 = 23.1px 的小数会让横杠在不同行位置被摊成不同粗细。 */}
             <span style={{ marginRight: '8px' }}><DashMark color="var(--ink-3)" /></span>{node.field.value}
           </span>
         )
@@ -389,7 +390,7 @@ export default function DictDetailCard({
     const headTitle = isPos ? node.field.value : (rowLabel(node) || node.field.value)
     return {
       head: (
-        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', paddingLeft: '11px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', paddingLeft: '11px', lineHeight: '27px' }}>
           <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '16px', fontWeight: 600 }}>
             {headTitle}
           </span>
