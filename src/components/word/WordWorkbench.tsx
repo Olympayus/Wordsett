@@ -48,6 +48,7 @@ import { isLeech, leechTooltip } from '../../lib/review/leech'
 import { measureTextWidth, MEASURE_STYLE, MEASURE_INPUT_CLASS, MEASURE_MIN_WIDTH, measureMarkSlot } from '../../lib/measureText'
 import { editKeyDown } from '../../lib/editKeyDown'
 import { linkableField, validateLinks, linkErrorText, type LinkToken } from '../../lib/links'
+import { useLinkJump } from '../../lib/linkJump'
 import { isWordInLibrary } from '../../lib/ensureWord'
 import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
 import { displayTier } from '../../lib/review/mastery'
@@ -839,6 +840,8 @@ export default function WordWorkbench() {
 
   const { categories, wordCategoryIds, loadWordCategories } = useCategoryStore()
   const { openAssign, openEditor } = useUiStore()
+  // 链接点击（v0.7.5 Task 4）：去向判定与跳转都在 hook 里，三处 `LinkedText` 共用这一份。
+  const onJump = useLinkJump()
 
   const selectedWord = words.find(w => w.id === selectedWordId)
   // 词级复习叠加层：词头徽标与记忆强度 chip 的数据源（v0.6.4）。wordId 只能取 selectedWordId。
@@ -1166,9 +1169,9 @@ export default function WordWorkbench() {
     // 失效态判据（v0.7.5 Task 3）：索引的键已是归一化词面，`libraryLocationOf` 内部再归一化一次
     // （幂等），`LinkedText` 也按同一份归一化传目标——判据与保存校验同源。
     isInLibrary: lemma => libraryLocationOf(lemma) !== null,
-    // TODO(Task 4): 用 `useLinkJump()` 的返回值替换这个空实现——本任务只把链接渲染出来，
-    // 点击不跳转、也不弹提示（Task 4 才决定落点与失效文案）。刻意不 console，避免阅读态刷日志。
-    onJump: (_token: LinkToken) => {},
+    // 点击去向（v0.7.5 Task 4）：工作区词条 / 词典词 / 失效提示由 `useLinkJump` 判定并执行，
+    // 渲染层（`LinkedText`）仍然只把 token 交出来。
+    onJump,
   }
 
   const tabLabel = effectiveTab ? TAB_GROUPS[effectiveTab].label : ''
