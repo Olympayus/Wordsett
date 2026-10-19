@@ -45,6 +45,26 @@ describe('wordStore.mergeWordFields', () => {
   })
 })
 
+describe('wordStore.libraryIndex（v0.7.5 Task 3：阅读态链接的在库判据）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useWordStore.setState({ words: [], fieldValues: [], selectedWordId: null })
+  })
+
+  it('加载词表后按归一化词面建索引，值恒为 workspace（本任务只覆盖工作区）', async () => {
+    const previews = [
+      { id: 'w1', lemma: 'Forsake', normalizedLemma: 'forsake', language: 'en', createdAt: 1, updatedAt: 1 },
+    ]
+    vi.mocked(wordService.getPreviews).mockResolvedValue(previews)
+
+    await useWordStore.getState().loadWords()
+
+    expect(useWordStore.getState().libraryIndex.get('forsake')).toBe('workspace')
+    expect(useWordStore.getState().libraryLocationOf(' FORSAKE ')).toBe('workspace')
+    expect(useWordStore.getState().libraryLocationOf('unknown')).toBeNull()
+  })
+})
+
 describe('wordStore.deleteWord 历史栈同步（v0.5.2 §6 自动切词）', () => {
   const nav = () => useNavHistoryStore.getState()
   beforeEach(() => {

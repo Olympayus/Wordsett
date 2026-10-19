@@ -1,20 +1,37 @@
 import { create } from 'zustand'
-import type { Word, WordWithPreview, FieldValue } from '../types'
+import type { Word, WordWithPreview, FieldValue, WordLocation } from '../types'
 import type { FieldValueContentUpdate } from '../types/field'
 import * as wordService from '../services/wordService'
 import type { MergeFieldInput } from '../services/wordService'
 import * as fieldService from '../services/fieldService'
+import { normalizeLinkTarget } from '../lib/links'
 import { useCategoryStore } from './categoryStore'
 import { useNavHistoryStore } from './navHistoryStore'
 import { current } from '../lib/navHistory'
+
+/**
+ * 由已加载的词表构索引（v0.7.5 Task 3）：键与链接校验 / 反链匹配共用 `normalizeLinkTarget`。
+ * 本任务只有工作区一个模块，值恒为 `'workspace'`；Task 9 起改由「工作区 ∪ 储藏库」的
+ * 轻量查询构建，本函数届时退场。
+ */
+function buildLibraryIndex(words: WordWithPreview[]): Map<string, WordLocation> {
+  return new Map(words.map(w => [normalizeLinkTarget(w.lemma), 'workspace' as const]))
+}
 
 interface WordStore {
   words: WordWithPreview[]
   loading: boolean
   selectedWordId: string | null
   fieldValues: FieldValue[]
+  /**
+   * 库内词条索引（v0.7.5 Task 3）：键 `normalizeLinkTarget(lemma)` → 所在模块。
+   * 阅读态链接的「在不在库」判据（`LinkedText` 的失效态）与 Task 4 的跳转目标解析都读它。
+   */
+  libraryIndex: Map<string, WordLocation>
 
   loadWords: () => Promise<void>
+  /** 目标词所在模块；不在库返回 null。 */
+  libraryLocationOf: (lemma: string) => WordLocation | null
   selectWord: (id: string | null, opts?: { record?: boolean }) => Promise<void>
   updateFieldValue: (fvId: string, input: FieldValueContentUpdate) => Promise<void>
   restoreFieldValue: (fvId: string) => Promise<void>
@@ -32,12 +49,15 @@ export const useWordStore = create<WordStore>((set, get) => ({
   loading: false,
   selectedWordId: null,
   fieldValues: [],
+  libraryIndex: new Map(),
 
   loadWords: async () => {
     set({ loading: true })
     const words = await wordService.getPreviews()
-    set({ words, loading: false })
+    set({ words, loading: false, libraryIndex: buildLibraryIndex(words) })
   },
+
+  libraryLocationOf: (lemma) => get().libraryIndex.get(normalizeLinkTarget(lemma)) ?? null,
 
   selectWord: async (id, opts) => {
     // 仅切换单词时清空（加载态）；同名刷新（拖拽重排/编辑保存/还原/添加字段）保留列表，

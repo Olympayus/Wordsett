@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { parseLinks, stripLinks, linkTargets, validateLinks, linkableField, normalizeLinkTarget, linkErrorText } from './links'
 
 describe('parseLinks', () => {
@@ -96,5 +98,15 @@ describe('linkErrorText', () => {
     const t = linkErrorText([{ code: 'unclosed' }, { code: 'not-in-library', target: 'a' }, { code: 'not-in-library', target: 'b' }])
     expect(t).toContain('a')
     expect(t).toContain('b')
+  })
+})
+
+describe('接入形状', () => {
+  const read = (p: string) => readFileSync(join(process.cwd(), p), 'utf8')
+  it('工作区的值渲染都走 LinkedText', () => {
+    expect(read('src/components/word/WordWorkbench.tsx')).toContain('LinkedText')
+  })
+  it('结构字段不渲染链接：linkableField 是唯一判据出处', () => {
+    expect(read('src/components/entry/LinkedText.tsx')).toContain('linkableField')
   })
 })

@@ -36,6 +36,7 @@ import FlowRow from '../entry/FlowRow'
 import LeafFlow from '../entry/LeafFlow'
 import { DashMark } from '../entry/Mark'
 import EditableValue from '../entry/EditableValue'
+import LinkedText from '../entry/LinkedText'
 import { isLeafFlow } from '../../lib/leafFlow'
 import { leafForm, rowTitle } from '../../lib/fieldKind'
 import RowActions, { rowIconStyle } from '../entry/RowActions'
@@ -46,7 +47,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { isLeech, leechTooltip } from '../../lib/review/leech'
 import { measureTextWidth, MEASURE_STYLE, MEASURE_INPUT_CLASS, MEASURE_MIN_WIDTH, measureMarkSlot } from '../../lib/measureText'
 import { editKeyDown } from '../../lib/editKeyDown'
-import { linkableField, validateLinks, linkErrorText } from '../../lib/links'
+import { linkableField, validateLinks, linkErrorText, type LinkToken } from '../../lib/links'
 import { isWordInLibrary } from '../../lib/ensureWord'
 import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
 import { displayTier } from '../../lib/review/mastery'
@@ -143,6 +144,10 @@ interface FieldCardCtx {
   onPickAdd: (containerFv: FieldValue, def: FieldDefinition) => void
   hoveredId: string | null
   onHover: (id: string | null) => void
+  /** 目标是否在库（v0.7.5 Task 3）：`LinkedText` 的失效态判据，调用方从 store 的 `libraryIndex` 派生。 */
+  isInLibrary: (lemma: string) => boolean
+  /** 链接点击（v0.7.5 Task 4 接管）：本任务只透传，渲染层不决定跳转。 */
+  onJump: (token: LinkToken) => void
 }
 
 interface FieldCardProps extends FieldCardCtx {
@@ -274,7 +279,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   const {
     defs, editorMode, editingId, editValue, insertIndicator, activeDragId, addMenu,
     onStartEdit, onEditValueChange, onSave, onCancelEdit, onDelete,
-    onToggleAddMenu, onPickAdd, hoveredId, onHover,
+    onToggleAddMenu, onPickAdd, hoveredId, onHover, isInLibrary, onJump,
   } = ctx
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({ id: fv.id })
   const { setNodeRef: setDropRef } = useDroppable({ id: `drop-${fv.id}` })
@@ -436,7 +441,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     }
     return (
       <EditableValue editorMode={editorMode} onStartEdit={() => onStartEdit(ch)}>
-        {ch.value}
+        {/* 阅读态同样渲染链接（v0.7.5 Task 3）：单位是叶子项字段，fieldKey 取**子项自己的**
+            key（`childKey`），结构字段由 `LinkedText` 内部按 `linkableField` 回落原文。 */}
+        <LinkedText value={ch.value} fieldKey={childKey(ch)} isInLibrary={isInLibrary} onJump={onJump} />
       </EditableValue>
     )
   }
@@ -651,13 +658,18 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
                 // v0.7.4 决定九：`–` 改**画**（DashMark），且**按词自己着色**——取该单位自己的
                 // `unitState`，不是所在容器的聚合态（两者可以不同）；普通模式恒三级色。
                 <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: '23px', color: 'var(--ink-2)' }}>
-                  <span style={{ marginRight: '8px' }}><DashMark color={editorMode ? MARK_COLOR[unitState(fv, inheritedUser)] : 'var(--ink-3)'} /></span>{fv.value}
+                  <span style={{ marginRight: '8px' }}><DashMark color={editorMode ? MARK_COLOR[unitState(fv, inheritedUser)] : 'var(--ink-3)'} /></span>
+                  <LinkedText value={fv.value} fieldKey={def.key} isInLibrary={isInLibrary} onJump={onJump} />
                 </span>
               ) : form === 'english-def' ? (
                 // v0.7.3 尾段 §1.3：英文释义在工作区本来没有分支，于是它在这里是无衬线正文色、
                 // 在返回页是衬线次级色——同一个字段两页两样，草案第 6 条要修的就是它。
-                <span style={{ fontFamily: 'var(--font-serif)', fontSize: '15px', lineHeight: '26px', color: 'var(--ink-1)' }}>{fv.value}</span>
-              ) : fv.value}
+                <span style={{ fontFamily: 'var(--font-serif)', fontSize: '15px', lineHeight: '26px', color: 'var(--ink-1)' }}>
+                  <LinkedText value={fv.value} fieldKey={def.key} isInLibrary={isInLibrary} onJump={onJump} />
+                </span>
+              ) : (
+                <LinkedText value={fv.value} fieldKey={def.key} isInLibrary={isInLibrary} onJump={onJump} />
+              )}
             </span>
           )}
         </span>
@@ -806,7 +818,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
 }
 
 export default function WordWorkbench() {
-  const { words, selectedWordId, fieldValues, updateFieldValue, deleteWord, addFieldValue, deleteFieldValue, reorderFieldValues } = useWordStore()
+  const { words, selectedWordId, fieldValues, updateFieldValue, deleteWord, addFieldValue, deleteFieldValue, reorderFieldValues, libraryLocationOf } = useWordStore()
   const [defs, setDefs] = useState<FieldDefinition[]>([])
   const editorMode = useViewStore(s => s.editorMode)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -1151,6 +1163,12 @@ export default function WordWorkbench() {
     onPickAdd: handleAddChild,
     hoveredId,
     onHover: setHoveredId,
+    // 失效态判据（v0.7.5 Task 3）：索引的键已是归一化词面，`libraryLocationOf` 内部再归一化一次
+    // （幂等），`LinkedText` 也按同一份归一化传目标——判据与保存校验同源。
+    isInLibrary: lemma => libraryLocationOf(lemma) !== null,
+    // TODO(Task 4): 用 `useLinkJump()` 的返回值替换这个空实现——本任务只把链接渲染出来，
+    // 点击不跳转、也不弹提示（Task 4 才决定落点与失效文案）。刻意不 console，避免阅读态刷日志。
+    onJump: (_token: LinkToken) => {},
   }
 
   const tabLabel = effectiveTab ? TAB_GROUPS[effectiveTab].label : ''
