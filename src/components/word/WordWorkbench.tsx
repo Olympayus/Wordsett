@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, type CSSProperties } from 'react'
+import { useState, useEffect, useCallback, useLayoutEffect, useRef, type CSSProperties } from 'react'
 import {
   DndContext,
   pointerWithin,
@@ -17,7 +17,6 @@ import { hasFieldChanges } from '../../lib/fieldChanges'
 import { insertBefore, dropY, reorderSiblingIds } from '../../lib/dragReorder'
 import { selectWordRootItems } from '../../lib/phonetic'
 import { fieldState, containerState, unitState, type FieldState } from '../../lib/fieldState'
-import { Button } from '../ui/Button'
 import EmptyState from '../ui/EmptyState'
 import Tooltip from '../ui/Tooltip'
 import WordMasteryTooltip from '../ui/WordMasteryTooltip'
@@ -212,6 +211,71 @@ function RowMenu({ items }: { items: MenuItem[] }) {
   )
 }
 
+// 就地编辑的两件共用机制（v0.7.4 任务 14）：**保存 / 取消已搬到导航条**（WorkbenchNavBar），
+// 行内只剩输入框本身，故编辑盒子可以退成行内级、进编辑时周围一个像素不动。
+
+// ① 被替换文字的宽度：一枚**绝对定位**的隐藏 span（与正文同字体、同字号，见调用处的
+// `...font`），量它 `getBoundingClientRect().width`，写成输入框的 `style.width`；
+// `minWidth: '4em'` 兜底（新加的字段值为空时不能塌成 0 宽）。
+//
+// 必须绝对定位（`position:'absolute'; visibility:'hidden'`）而不是 `display:'none'`：
+// 后者量不到任何尺寸。绝对定位同时把它**移出排版流**——否则这一行在编辑前后会长出一枚
+// 与文字等宽的盒子，「零位移」当场破功（它跟在正文后面还会把后续单位挤到下一列）。
+//
+// 只用于**单行**字段（`fieldType !== 'multiline'`）：多行的正文本来就可能折行，
+// 「原文字宽度」没有定义，textarea 照旧 `w-full`。
+const MEASURE_STYLE: CSSProperties = { position: 'absolute', visibility: 'hidden', whiteSpace: 'pre' }
+const MEASURE_MIN_WIDTH = '4em'
+
+/** 量出的输入框宽度（px）：`0` ＝ 量不到（尚未挂载、容器不可见），调用方回落 `minWidth`。 */
+function measureTextWidth(el: HTMLElement | null): number {
+  if (!el) return 0
+  const w = el.getBoundingClientRect().width
+  return Number.isFinite(w) ? Math.ceil(w) : 0
+}
+
+// 单行编辑框：从**被替换文字**的宽度起、随输入增长。字体由调用处按该行的 `font`
+// （单位行是 LeafFlow 的 15px，值格是 `--text-sm` 13px）给出，量宽才与正文逐像素一致。
+function MeasuredInput({ value, font, onChange, onKeyDown }: {
+  value: string
+  font: CSSProperties
+  onChange: (v: string) => void
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
+}) {
+  const probeRef = useRef<HTMLSpanElement>(null)
+  const [textWidth, setTextWidth] = useState(0)
+  useLayoutEffect(() => { setTextWidth(measureTextWidth(probeRef.current)) }, [value])
+  return (
+    <>
+      <span ref={probeRef} aria-hidden="true" style={{ ...MEASURE_STYLE, ...font }}>{value}</span>
+      <input
+        className="px-3 py-1.5 rounded text-sm"
+        style={{ ...font, minWidth: MEASURE_MIN_WIDTH, ...(textWidth ? { width: textWidth } : null),
+                 border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)' }}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        onKeyDown={onKeyDown}
+        autoFocus
+      />
+    </>
+  )
+}
+
+// 键盘（挂在编辑中的 input / textarea **自己**身上，不做 window 级：window 级已有一个
+// `Esc` 关「＋ 添加」浮层，两个窗口级监听会互相打架）。
+// 多行字段里 Enter 是保存、Shift+Enter 换行（用户决定）；单行字段 Enter 即保存。
+//
+// 单行与多行的差别只在 Enter 一处分流，`preventDefault` 都做：不拦的话输入框会收到一个
+// 换行（textarea 里就是真换行），与「Enter ＝ 保存」的语义相反。
+function editKeyDown(fieldType: FieldDefinition['fieldType'], onSave: () => void, onCancelEdit: () => void) {
+  return (e: React.KeyboardEvent<HTMLElement>) => {
+    if (e.key === 'Escape') { e.preventDefault(); onCancelEdit() }
+    if (e.key === 'Enter' && (fieldType !== 'multiline' || !e.shiftKey)) {
+      e.preventDefault(); onSave()
+    }
+  }
+}
+
 // 单个字段行（v0.7.2 改用原语外壳）：grip 拖拽（仅 grip 激活拖拽）+ 同级插入指示线 + 行尾操作簇。
 // 旧代码里「卡片容器 + 左条 + 三态徽章 + 角落控件」的四层圆角嵌套，换成 FlowRow + SourceBar + RowActions。
 // v0.7.3：行尾那枚 6px 方点（SourceMark）整个退场，来源只剩左缘那根条（SourceBar，由 FlowRow / LeafFlow 渲染）。
@@ -349,10 +413,16 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   // 流式单位（近义词等）的就地与编辑态（v0.7.3 修补）：单位在短条目改流式多列（d4b1bf9）
   // 之后不再走 FieldCard，行内正文那一套整条丢了——既没有双击（普通模式）/ 单击（编者模式）
   // 的编辑触发器，也没有编辑态的输入框，于是 ⋯ 菜单里的「编辑」设了 editingId 也无处渲染。
-  // 这里把行内正文的模板原样接回来：触发器用 EditableValue，编辑中就地长输入框 + 保存 / 取消。
-  // 输入框取固定宽度而不是行内正文的 `w-full`：单位是 flex-wrap 的项、宽度由内容决定，
-  // `w-full` 会缩到文字宽。单位恒为单行的项字段（`*_item`，fieldType 'text'），故不出 textarea
-  // （例句容器不进 LeafFlow，见 lib/leafFlow）。
+  // 这里把行内正文的模板接回来：触发器用 EditableValue，编辑中就地长输入框。
+  // v0.7.4 任务 14：**保存 / 取消整个搬到导航条**（WorkbenchNavBar），行内不再有它们——
+  // 盒子因此退成**行内级**（`display: 'inline-flex'`）：块级盒子跟在行内的 `·` 之后会强制
+  // 断行，正是「`·` 留在原位、单词跳到第二行」的成因。
+  // 输入框宽度由 MeasuredInput 从**被替换文字的宽度**量出（原先写死 160px：比原词宽就把
+  // 后继单位挤到下一列、比原词窄就露出一段空白，两种都算位移）。字体与单位 span 的
+  // UNIT_SPAN 逐字相同（`--font-sans` / 15px；`--ink-2` 由父 span 继承，这里不重复给），
+  // 量出来才与正文逐像素一致。
+  // 单位恒为单行的项字段（`*_item`，fieldType 'text'），故不出 textarea——它没有多行形态
+  // （例句容器不进 LeafFlow，见 lib/leafFlow），`editKeyDown` 对它的 Enter 一律判为保存。
   // `data-field-edit` 不可省：点外关闭的判据是「指针落在 `[data-field-edit]` 里就不管」，
   // 而那个属性挂在**被编辑的那张 FieldCard** 上——编辑单位时它是容器的子项，容器自己的
   // `editingId === fv.id` 为假、拿不到这个属性，于是用户一按进输入框（此刻还没有改动）
@@ -360,16 +430,13 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   const renderUnitContent = (ch: FieldValue) => {
     if (editingId === ch.id) {
       return (
-        <span data-field-edit="true" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <input
-            className="px-3 py-1.5 rounded text-sm"
-            style={{ border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)', width: 160 }}
+        <span data-field-edit="true" style={{ display: 'inline-flex', alignItems: 'center' }}>
+          <MeasuredInput
             value={editValue}
-            onChange={e => onEditValueChange(e.target.value)}
-            autoFocus
+            font={{ fontFamily: 'var(--font-sans)', fontSize: '15px' }}
+            onChange={onEditValueChange}
+            onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
           />
-          <Button onClick={onSave}>保存</Button>
-          <Button variant="secondary" onClick={onCancelEdit}>取消</Button>
         </span>
       )
     }
@@ -423,16 +490,18 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', padding: '2px 0 2px 11px' }}>
       {grip}
       {isPosPane && isEditing ? (
-        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+        // v0.7.4 任务 14：行内不再有「保存 / 取消」（搬到导航条），盒子也不留 gap。
+        // 宽度**不做量宽**（仍 `maxWidth: 240px` 收缩到内容）：词性标签恒短，且它跟在
+        // grip 之后、前面没有会被它挤开的行内兄弟。
+        <span style={{ display: 'inline-flex', alignItems: 'center' }}>
           <input
             className="px-3 py-1.5 rounded text-sm"
             style={{ border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)', maxWidth: '240px' }}
             value={editValue}
             onChange={e => onEditValueChange(e.target.value)}
+            onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
             autoFocus
           />
-          <Button onClick={onSave}>保存</Button>
-          <Button variant="secondary" onClick={onCancelEdit}>取消</Button>
         </span>
       ) : isPosPane ? (
         <span
@@ -471,14 +540,15 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     <>
       {labelText && (
         <span
-          // 编辑态时整组手势让位：input / 保存 / 取消都是本 span 的 DOM 子节点，而 Button
-          // 不阻断冒泡（Button.tsx 把 onClick 原样 {...props} 透传）。点「取消」会先
-          // setEditingId(null)、再被冒泡上来的这次点击 handleStartEdit 拉回编辑态并把
-          // 输入回滚成已存值，按钮看上去完全失灵。故编辑态干脆不挂 click 监听器。
+          // 编辑态时整组手势让位：输入框是本 span 的 DOM 子节点（v0.7.4 任务 14 之前还有
+          // 行内的保存 / 取消）。键盘事件的 `e.target !== e.currentTarget` 守卫在编辑态尤其
+          // 要紧——键是从输入框冒泡上来的，不拦住就会把「Enter」当成「进编辑」。
+          // 点击那条让位是历史遗留（那时行内那对按钮不阻断冒泡，点「取消」会先
+          // setEditingId(null)、再被冒泡上来的这次点击拉回编辑态并把输入回滚成已存值，
+          // 按钮看上去完全失灵）；按钮搬走后它已无对应物，但形态无害、故一并保留。
           onClick={isGroupPane && !isEditing ? () => onStartEdit(fv) : undefined}
           onDoubleClick={isGroupPane && !isEditing ? () => onStartEdit(fv) : undefined}
           role={isGroupPane && !isEditing ? 'button' : undefined}
-          tabIndex={isGroupPane && !isEditing ? 0 : undefined}
           onKeyDown={isGroupPane ? e => {
             if (e.target !== e.currentTarget) return
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStartEdit(fv) }
@@ -493,16 +563,17 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
         >
           {isGroupPane && isEditing ? (
             // 容器分支不渲染值格，但组标题带描述值：编辑态必须就地长出输入框。
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+            // v0.7.4 任务 14：行内不再有「保存 / 取消」（搬到导航条），故盒子不留 gap；
+            // 宽度**不做量宽**，仍收缩到内容（组描述是自由文本，能长能短，跟的是标签列宽）。
+            <span style={{ display: 'inline-flex', alignItems: 'center' }}>
               <input
                 className="px-3 py-1.5 rounded text-sm"
                 style={{ border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)' }}
                 value={editValue}
                 onChange={e => onEditValueChange(e.target.value)}
+                onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
                 autoFocus
               />
-              <Button onClick={onSave}>保存</Button>
-              <Button variant="secondary" onClick={onCancelEdit}>取消</Button>
             </span>
           ) : (
             labelText
@@ -519,29 +590,35 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           }}
         >
           {isEditing ? (
-            <span style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {def.fieldType === 'multiline' ? (
+            // v0.7.4 任务 14：行内不再有「保存 / 取消」（搬到导航条），wrapper 的
+            // column/gap 一并去掉——两档按字段形态分流：
+            //   · 多行（`fieldType === 'multiline'`）：**仍是块级满宽** column。它的 textarea
+            //     用 `w-full`，而 `width:100%` 只有在一个有确定宽度的块级包含块里才有定义；
+            //     换成 inline-flex 的收缩宽度会让百分比落进循环定义，宽度当场塌掉。
+            //   · 单行：**inline-flex**，宽度由 MeasuredInput 从被替换文字量出。
+            //     本行的文字格是 `flex:1`（占满行宽），写死 `w-full` 会把整行占满——进编辑
+            //     时行尾的 `⋯` 与折行点一起跳，「周围一个像素不动」就无从谈起。
+            def.fieldType === 'multiline' ? (
+              <span style={{ display: 'flex', flexDirection: 'column' }}>
                 <textarea
                   className="w-full px-3 py-2 rounded text-sm resize-none min-h-[60px]"
                   style={{ border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)' }}
                   value={editValue}
                   onChange={e => onEditValueChange(e.target.value)}
+                  onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
                   autoFocus
                 />
-              ) : (
-                <input
-                  className="w-full px-3 py-1.5 rounded text-sm"
-                  style={{ border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)' }}
-                  value={editValue}
-                  onChange={e => onEditValueChange(e.target.value)}
-                  autoFocus
-                />
-              )}
-              <span style={{ display: 'flex', gap: '8px' }}>
-                <Button onClick={onSave}>保存</Button>
-                <Button variant="secondary" onClick={onCancelEdit}>取消</Button>
               </span>
-            </span>
+            ) : (
+              <span style={{ display: 'inline-flex', alignItems: 'center' }}>
+                <MeasuredInput
+                  value={editValue}
+                  font={{ fontFamily: 'var(--font-sans)', fontSize: 'var(--text-sm' }}
+                  onChange={onEditValueChange}
+                  onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
+                />
+              </span>
+            )
           ) : (
             <span
               onClick={() => editorMode && onStartEdit(fv)}
@@ -772,7 +849,7 @@ export default function WordWorkbench() {
     if (!editingId) return
     const onPointerDown = (e: PointerEvent) => {
       const target = e.target as HTMLElement
-      if (target.closest('[data-field-edit]')) return   // 编辑行内（输入/保存/取消）不处理
+      if (target.closest('[data-field-edit]')) return   // 编辑行内（输入框）不处理
       if (!hasFieldChanges(editValue, entryValue)) setEditingId(null)
     }
     window.addEventListener('pointerdown', onPointerDown)
@@ -1177,7 +1254,15 @@ export default function WordWorkbench() {
           复习区正解在 ReviewModule.tsx:152（sticky 块无水平内边距，ArenaNavBar 的线通栏）。 */}
       <div style={{ position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
                     background: 'var(--color-chrome)' }}>
-        <WorkbenchNavBar region="workbench" onDeleteWord={handleDelete} />
+        <WorkbenchNavBar
+          region="workbench"
+          onDeleteWord={handleDelete}
+          // 编辑态的保存 / 取消（v0.7.4 任务 14）：`editing` 有值才出现。`dirty` 本版只作
+          // 将来的「未保存」提示，不据此禁用按钮（见 WorkbenchNavBar 的 prop 注释）。
+          editing={editingId ? { dirty: hasFieldChanges(editValue, entryValue) } : undefined}
+          onSaveEdit={handleSave}
+          onCancelEdit={() => setEditingId(null)}
+        />
       </div>
 
       {/* 内容列：保持居中；列宽与内边距取 lib/layout 的共享常量（ENTRY_BAND_WIDTH / ENTRY_COLUMN_PADDING） */}

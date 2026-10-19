@@ -29,6 +29,10 @@ interface WorkbenchNavBarProps {
   onFamiliarityChange?: (v: InitialFamiliarityChoice) => void
   /** 词已在库：三键整组换成「已在库」四字，保持右端宽度接近、按钮不左右跳。 */
   inLibrary?: boolean
+  /** 有东西正在编辑时显现（工作区唯一）：保存 / 取消。 */
+  editing?: { dirty: boolean }
+  onSaveEdit?: () => void
+  onCancelEdit?: () => void
   /** 返回页（region='dict'）的面包屑（词典 › 词），渲染在返回箭头之后。工作区不传。 */
   breadcrumb?: ReactNode
 }
@@ -57,6 +61,7 @@ const navBtn = (disabled = false): CSSProperties => ({
 export default function WorkbenchNavBar({
   region, onDeleteWord, onBack, onMergeAdd, mergeCount = 0, mergeDisabled = false,
   familiarity, onFamiliarityChange, inLibrary = false, breadcrumb,
+  editing, onSaveEdit, onCancelEdit,
 }: WorkbenchNavBarProps) {
   const editorMode = useViewStore(s => s.editorMode)
   const setEditorMode = useViewStore(s => s.setEditorMode)
@@ -154,6 +159,18 @@ export default function WorkbenchNavBar({
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
         {region === 'workbench' ? (
           <>
+            {/* 编辑中的保存 / 取消（v0.7.4 任务 14）：行内那对「保存 / 取消」整个搬到导航条——
+                行内留着它们，编辑盒子就退不回行内级（块级盒子跟在 `·` 后会强制断行，
+                单位跳到第二行），「进编辑零位移」也就无从谈起。两枚按钮**常驻占位**：
+                `editing` 有值才出现，一次编辑全程都在，不做 hover 显隐。
+                `dirty` 本版只作将来的「未保存」提示，不据此禁用按钮。 */}
+            {editing && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {/* 可选 prop 用 `?.()`：`editing` 有值而回调没传时是「看得见、点不动作」的哑控件。 */}
+                <SquareButton size="nav" tone="canvas" onClick={() => onSaveEdit?.()}>保存</SquareButton>
+                <SquareButton size="nav" tone="canvas" onClick={() => onCancelEdit?.()}>取消</SquareButton>
+              </span>
+            )}
             {/* 编者模式（v0.5.3 §4.1 第 16 条重做）：形态开关，开 = 浅品牌蓝底 + 深字、关 = 暖中性底，
                 两态只差底色，几何完全一致，故切换时导航条不跳动。role="switch" + aria-checked
                 保留语义（不用 aria-pressed：它与 aria-checked 语义重复且优先级不明）。

@@ -149,13 +149,17 @@ describe('工作区改用原语（源码级守卫）', () => {
 //     与 word_root / word_root_item / synonym_discrimination_group / part_of_speech / phonetic
 //     等键的判定）——**增删可行性**（能不能加、加在哪、加完要不要进编辑态），不是渲染
 //   WordWorkbench.tsx:1112 页级菜单「音标」——按 key 找定义再添加，**布局分流**
+//  v0.7.4 Task 14 编辑态搬到导航条：四处行内「保存 / 取消」删净（−12 行）、四处 wrapper 的
+//  `gap` 去掉（−4 行）、组标题那处残留的 `tabIndex`（−1 行），新增模块级 MeasuredInput /
+//  editKeyDown / measureTextWidth（+44 行），净 +27 行：239-275 那一组下移到 303-339，
+//  容器路由那组（原 860/869/873/916）下移到 937/946/950/993，其后的 1112/1263 下移到 1189/1348。
 //   DictDetailCard.tsx:86-87 keyAllowed——displayFields 可见性映射（只查「显不显示」，不问「长什么样」）
 //   DictDetailCard.tsx:96-99 filter——可见性过滤与空容器丢弃（96 的 phonetic 同理，只问显不显示）
 //   DictDetailCard.tsx:194 sourceMark——哪几枚行尾来源标
 //   DictDetailCard.tsx:251 plain 壳内的「标签: 值」拆写——问的是哪副渲染壳，不是哪副叶子形状（见该处行内注释）
 //   DictDetailCard.tsx:348 isPos——run-in 头形态
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [239, 240, 248, 255, 274, 275, 860, 869, 873, 916, 1112, 1263], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['WordWorkbench.tsx', [303, 304, 312, 319, 338, 339, 937, 946, 950, 993, 1189, 1348], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
   ['DictDetailCard.tsx', [86, 87, 96, 97, 99, 194, 251, 348], '可见性映射与过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 
