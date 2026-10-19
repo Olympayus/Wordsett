@@ -75,6 +75,19 @@
   --color-cat-7: #5A7A8C;
   --color-cat-8: #8B7355;
 
+  /* 分类色板扩到 16 色（Task 16）：新增 绿、青、靛、紫、玫红、赭金、橄榄、浅褐，
+     与既有 8 色同一明度带（L* ≈ 51，既有 46–58），同族低饱和调子；
+     色相与既有 8 色全部错开（最小色相间隔 ≥ 9°，新增 8 色彼此 ≥ 25°）。
+     选中态仍是白字压在分类色上（4.3:1 以上），故不得比现有 8 色更浅。 */
+  --color-cat-9: #4D8567;   /* 绿   */
+  --color-cat-10: #52808D;  /* 青   */
+  --color-cat-11: #6877B2;  /* 靛   */
+  --color-cat-12: #8E6CA8;  /* 紫   */
+  --color-cat-13: #AA6672;  /* 玫红 */
+  --color-cat-14: #92753D;  /* 赭金 */
+  --color-cat-15: #6F8040;  /* 橄榄 */
+  --color-cat-16: #9E6E5F;  /* 浅褐 */
+
   /* 状态色 */
   --color-success: #6B8E7F;
   --color-warning: #C17A4E;
@@ -225,6 +238,17 @@
   --color-cat-6: #D9736E;
   --color-cat-7: #82A8BB;
   --color-cat-8: #B79A78;
+
+  /* 分类色板 9–16（Task 16）：同族抬亮一档（ΔL* +12 ~ +15，与既有 8 色的
+     +10 ~ +20 同区间），色相不变、饱和度同步提一档以维持深底上的可读性。 */
+  --color-cat-9: #43B17C;
+  --color-cat-10: #52A9C2;
+  --color-cat-11: #708CFA;
+  --color-cat-12: #C47DFA;
+  --color-cat-13: #FA708A;
+  --color-cat-14: #C3964A;
+  --color-cat-15: #8EA846;
+  --color-cat-16: #E0866B;
 
   --color-success: #86B39D;
   --color-warning: #D99667;

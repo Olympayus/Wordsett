@@ -132,3 +132,52 @@ describe('来源两色的色值（v0.7.4 决定九：色相对调）', () => {
     expect(darkValue('--color-weave-original')).toBe('#575757')
   })
 })
+
+describe('分类色板 16 色（Task 16：8 → 16）', () => {
+  it('浅色块 16 个 token 名齐全、16 值为互异 hex，且落在既有明度带内（L* 45–60）', () => {
+    const cats = Array.from({ length: 16 }, (_, n) => value(`--color-cat-${n + 1}`))
+    for (const [n, c] of cats.entries()) expect(c, `--color-cat-${n + 1}`).toMatch(/^#[0-9A-Fa-f]{6}$/)
+    expect(new Set(cats).size).toBe(16)
+    // 选中态是白字压在分类色上：太浅白字就看不见，故 L* 不得高于 60；
+    // 与既有 8 色同带（既有 L* 46.4–57.9），新增 8 色必须落进 45–60。
+    const lstar = (hex: string) => {
+      const lin = (v: number) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
+      const [r, g, b] = [1, 3, 5].map(i => lin(parseInt(hex.slice(i, i + 2), 16)))
+      const Y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+      return Y > 216 / 24389 ? 116 * Y ** (1 / 3) - 16 : Y * 24389 / 27
+    }
+    for (const [n, c] of cats.entries()) {
+      const L = lstar(c!)
+      expect(L, `--color-cat-${n + 1} L*`).toBeGreaterThanOrEqual(45)
+      expect(L, `--color-cat-${n + 1} L*`).toBeLessThanOrEqual(60)
+    }
+  })
+
+  it('深色块同样 16 个 token 名齐全、16 值为互异 hex，且相对浅色同族抬亮（ΔL* 8–22）', () => {
+    const lstar = (hex: string) => {
+      const lin = (v: number) => { v /= 255; return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4 }
+      const [r, g, b] = [1, 3, 5].map(i => lin(parseInt(hex.slice(i, i + 2), 16)))
+      const Y = 0.2126 * r + 0.7152 * g + 0.0722 * b
+      return Y > 216 / 24389 ? 116 * Y ** (1 / 3) - 16 : Y * 24389 / 27
+    }
+    const lightCats = Array.from({ length: 16 }, (_, n) => value(`--color-cat-${n + 1}`))
+    const darkCats = Array.from({ length: 16 }, (_, n) => darkValue(`--color-cat-${n + 1}`))
+    for (const [n, c] of darkCats.entries()) expect(c, `dark --color-cat-${n + 1}`).toMatch(/^#[0-9A-Fa-f]{6}$/)
+    expect(new Set(darkCats).size).toBe(16)
+    // 既有 8 色的抬亮幅度 +9.8 ~ +20.5，新增 8 色必须落进同一区间
+    for (const [n] of darkCats.entries()) {
+      const d = lstar(darkCats[n]!) - lstar(lightCats[n]!)
+      expect(d, `dark ΔL* --color-cat-${n + 1}`).toBeGreaterThanOrEqual(8)
+      expect(d, `dark ΔL* --color-cat-${n + 1}`).toBeLessThanOrEqual(22)
+    }
+  })
+
+  it('既有 8 色逐值钉死（新增 8 色不得顶替旧值）', () => {
+    const lightExpected = ['#7A7368', '#6B8E7F', '#4A6FA5', '#8B6A8B', '#C17A4E', '#B85450', '#5A7A8C', '#8B7355']
+    const darkExpected = ['#9A938A', '#86B39D', '#7FA5DA', '#B58AB5', '#D99667', '#D9736E', '#82A8BB', '#B79A78']
+    for (let n = 1; n <= 8; n++) {
+      expect(value(`--color-cat-${n}`), `light cat-${n}`).toBe(lightExpected[n - 1])
+      expect(darkValue(`--color-cat-${n}`), `dark cat-${n}`).toBe(darkExpected[n - 1])
+    }
+  })
+})

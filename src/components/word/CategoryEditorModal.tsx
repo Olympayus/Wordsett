@@ -7,11 +7,11 @@ import Icon from '../icons'
 import { Button } from '../ui/Button'
 import CheckBox from '../ui/CheckBox'
 
-// 规格 §6.2 分类色板（8 色）：唯一色值来源是 tokens.css 的 --color-cat-1..8
-// （v0.7.2 §6 D 类：裸 hex 收进 token，此处只引用变量名，不再复制一份 hex）。
+// 规格 §6.2 分类色板（16 色，Task 16：8 → 16）：唯一色值来源是 tokens.css 的
+// --color-cat-1..16（v0.7.2 §6 D 类：裸 hex 收进 token，此处只引用变量名，不再复制一份 hex）。
 // 选中某色后落库的就是这个变量名字符串——渲染层（CategoryCapsule 的色块、设置页分类行）
 // 用 `background: <color>` 直接吃它，CSS 会解析变量。
-export const CATEGORY_COLORS = Array.from({ length: 8 }, (_, i) => `var(--color-cat-${i + 1})`)
+export const CATEGORY_COLORS = Array.from({ length: 16 }, (_, i) => `var(--color-cat-${i + 1})`)
 
 // 兼容 v0.7.2 之前落库的 hex 色值（老行存的是这 8 个 hex，新行存 token 名）。
 // **仅**用于把「编辑已有分类」载入的旧值归一到 token，好让色板能正确高亮当前选中色——
