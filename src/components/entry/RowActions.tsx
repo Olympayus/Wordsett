@@ -13,7 +13,9 @@ export const rowIconStyle: CSSProperties = {
 }
 
 /** 编者模式操作簇的宽度：两枚 22px 按钮 ＋ 簇内 `gap: 2` ＝ 46px。
- *  普通模式只有一枚 ⋯，但**同样预留这 46px** 并右对齐（见组件注释的常驻占位不变量）。 */
+ *  普通模式只有一枚 `⋯`，但**按编者模式实际会渲染的形态预留同宽**并右对齐：传了 `onAdd`
+ *  的调用点预留这 46px；没传的（单位行尾槽）其 edit 形态只有一枚垃圾桶，故预留
+ *  `NAV_CONTROL_HEIGHT`（22px）——见组件注释的常驻占位不变量。 */
 const EDIT_CLUSTER_WIDTH = NAV_CONTROL_HEIGHT * 2 + 2
 
 /**
@@ -49,11 +51,12 @@ const EDIT_CLUSTER_WIDTH = NAV_CONTROL_HEIGHT * 2 + 2
  * 它不影响观感，但 `rowIconStyle` 的 `color: inherit` 要靠它拿「静止态该是什么色」，
  * 且 90ms 的 color 过渡让显形那一刻不跳。
  *
- * v0.7.3 尾段 §3.4：`onAdd` 改可选——**不传即不渲染那枚 `＋`**。其余一律不动。
- * 不传 `onAdd` 的形态**只服务单位自己的行尾槽**：那是 `mode='view'` 的一枚 `⋯`，本来就不出 `＋`，
- * 故此处的条件渲染对它是死代码；而带 `＋` 的那条（`'edit'`）两个既有调用点都照旧传着 `onAdd`，
- * 一行未改。行尾簇的不变量（常驻占位、只用 opacity 显隐、绝不条件渲染）管的是**整簇**的进出，
- * 与簇内某枚图标的可选性是两回事。
+ * v0.7.3 尾段 §3.4：`onAdd` 改可选——**不传即不渲染那枚 `＋`**。
+ * 不传 `onAdd` 的形态服务单位自己的行尾槽：它在普通模式是 `mode='view'` 的一枚 `⋯`，
+ * 编者模式则是 `mode='edit'` 的一枚垃圾桶（`WordWorkbench` 的单位调用点传的是
+ * `mode={editorMode ? 'edit' : 'view'}` 且不给 `onAdd`）——两态都只有一枚 22px 按钮，
+ * 故普通模式预留的就是 22px 而不是 46px。行尾簇的不变量（常驻占位、只用 opacity 显隐、
+ * 绝不条件渲染）管的是**整簇**的进出，与簇内某枚图标的可选性是两回事。
  */
 export default function RowActions({ visible, mode, onAdd, onDelete, menu }: {
   visible: boolean
