@@ -1,19 +1,21 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useViewStore } from '../../../stores/viewStore'
-import WordWorkbench from '../../word/WordWorkbench'
+import WordWorkbench, { type WordWorkbenchHandle } from '../../word/WordWorkbench'
 import DictDetailPanel from '../../search/DictDetailPanel'
 import ReviewModule from '../../review/ReviewModule'
 import EmptyState from '../../ui/EmptyState'
+import MobileAppBar from './MobileAppBar'
+import MobileTabBar from './MobileTabBar'
+import WordStrip from './WordStrip'
 import { useWordStore } from '../../../stores/wordStore'
-import { NAV_HEIGHT } from '../../../lib/layout'
 
-// 手机外壳骨架（Task 4）。
+// 手机外壳（Task 4 立骨架，Task 5 填三块）。
 //
-// **本任务只立骨架**：顶栏 / 底栏是占位（Task 5 换成 `MobileAppBar` / `MobileTabBar` /
-// `WordStrip`），搜索模块与设置页也先占位（Task 7 / Task 9 才落页面）。骨架先把三件事钉住：
-//   ① 整树 `h-screen` + 纵向 flex，内容区 `flex-1` 且 `overflow: hidden`；
-//   ② 词条渲染**只走 `WordWorkbench`**（含 `DictDetailPanel`），不复制任何正文渲染；
-//   ③ 工作台在手机上不带桌面导航条——`WordWorkbench` 收到 `chrome="mobile"`，动作归 `MobileAppBar`。
+// 结构（spec §4.1 / §4.3）：顶栏（52dp）→ 词条条（横向滚动，只有词片）→ 内容区 → 底栏（62dp）。
+// 四块**全部常显**——本版不做滚动显隐（spec §4.2），顶栏 / 词条条 / 底栏都只在模块切换时换内容。
+//
+// 词条渲染**只走 `WordWorkbench`**（含 `DictDetailPanel`），不复制任何正文渲染；
+// 工作台在手机上不带桌面导航条——`WordWorkbench` 收到 `chrome="mobile"`，动作归 `MobileAppBar`。
 //
 // 面与线只取既有 token（`--color-chrome` / `--color-canvas`），本任务不新增任何色值。
 
@@ -22,21 +24,30 @@ function findRoot(module: string): string {
   return module === 'archive' ? 'archive' : module
 }
 
-/** 占位底栏的中文标签（Task 5 的 `MobileTabBar` 用 `MOBILE_TABS` 的 icon + label，这里只有文字）。 */
-const TAB_LABELS: Record<string, string> = {
-  workbench: '工作台',
-  archive: '储藏库',
-  search: '搜索',
-  review: '复习',
-  settings: '设置',
-}
-const TAB_KEYS = ['workbench', 'archive', 'search', 'review', 'settings'] as const
+/**
+ * 词条页的编辑态：有正在编辑的字段（`editingId`）且值真的改过（`hasFieldChanges`）。
+ *
+ * 这个状态**只存在于 `WordWorkbench` 内部**（`editingId` / `editValue` / `entryValue` 三件都是
+ * 它的局部 state），而「取消 / 保存」要画在顶栏，故由它经 `onEditStateChange` 上报给外壳。
+ * 判据与桌面导航条逐字一致：`editing` 有值才出现，`dirty` 只作将来的「未保存」提示、
+ * 不据此禁用按钮（见 `WorkbenchNavBar` 的 prop 注释）。
+ *
+ * 上报走 `useEffect` 而不是渲染期 setState：渲染期 setState 会让 `WordWorkbench` 的每次
+ * 按键都同步重挂外壳（含正在输入的那个输入框），代价落在最不该慢的一条路径上。
+ */
+interface EditState { dirty: boolean }
 
 export default function MobileShell() {
   const activeModule = useViewStore(s => s.activeModule)
   const activeView = useViewStore(s => s.activeView)
   const dictWord = useViewStore(s => s.dictWord)
-  const showModule = useViewStore(s => s.showModule)
+  // 词条页的编辑态（由 `WordWorkbench` 上报，见上方 `EditState`）
+  const [editing, setEditing] = useState<EditState | null>(null)
+  // 保存 / 取消：编辑态归 `WordWorkbench` 所有（`editingId` / `editValue` 都在它体内），
+  // 故这两件经它的 `ref` 调用。外壳只持有「谁在编辑」这个状态，不复制保存 / 取消的逻辑。
+  const workbenchRef = useRef<WordWorkbenchHandle>(null)
+  const saveEdit = () => { workbenchRef.current?.saveEdit() }
+  const cancelEdit = () => { workbenchRef.current?.cancelEdit() }
 
   // 模块 ↔ 数据集的耦合：与 `AppShell` 同一份判据（工作台取工作区词表，储藏库取储藏库词表）。
   // 两处各写一遍是刻意的——`AppShell` 与 `MobileShell` 的模块分发本就是两套，而 `viewStore`
@@ -48,34 +59,30 @@ export default function MobileShell() {
     if (useWordStore.getState().location !== target) void useWordStore.getState().setLocation(target)
   }, [activeModule])
 
-  // 占位底栏的跳转（Task 2 的 `MOBILE_TABS` 那五格）。搜索走 `openSearch`——它保存来源模块
-  // 与视图，`closeSearch` 据此回到来源（Task 2）；复习 / 设置是普通模块切换。
-  const tabClick = (key: string) => {
-    if (key === 'search') { useViewStore.getState().openSearch(); return }
-    if (key === 'review' || key === 'settings') showModule(key)
-  }
+  // 抽屉（Task 6 的 `MobileDrawer`）：本版 `MobileDrawer` 尚未落地，故这里是**占位 no-op**——
+  // 顶栏那枚按钮仍在（布局与可及名已就位），接线留给 Task 6。
+  const openDrawer = () => {}
 
   return (
     <div className="h-screen flex flex-col" style={{ background: 'var(--color-canvas)' }}>
-      {/* 顶栏占位（Task 5 换成 `MobileAppBar`：抽屉 / 返回前进 / 标题 / 色条开关 / ⋯） */}
-      <header
-        className="shrink-0 flex items-center justify-center"
-        style={{
-          height: `${NAV_HEIGHT}px`,
-          background: 'var(--color-chrome)',
-          borderBottom: '1px solid var(--color-border)',
-          // 状态栏（挖孔屏 / 刘海）之下：安全区内边距只加在顶栏与底栏上，内容区不再叠加
-          paddingTop: 'env(safe-area-inset-top)',
-        }}
-      >
-        <span style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)', fontFamily: 'var(--font-sans)' }}>
-          顶栏占位
-        </span>
-      </header>
+      {/* 顶栏：抽屉 / 返回前进 / 标题 / 色条开关 / ⋯（编辑态换成取消 / 保存）。
+          只在词条页（工作台 / 储藏库）出现：搜索、复习、设置是各自的一级页面，
+          顶部由各自的页面自己负责（spec §4.1「其余页面按各自导航需要出一枚返回与面包屑」）。 */}
+      {(activeModule === 'workbench' || activeModule === 'archive') && (
+        <MobileAppBar
+          onOpenDrawer={openDrawer}
+          editing={editing ?? undefined}
+          onSaveEdit={saveEdit}
+          onCancelEdit={cancelEdit}
+        />
+      )}
 
       {/* 内容区：`data-find-root` 供 `FindBar` 定位当前模块的搜索根（与 `AppShell` 同名属性）。
-          高度由 `flex-1` + `minHeight: 0` 决定——不写死高度，Task 5 再往里加词条条。 */}
-      <div className="flex-1 flex overflow-hidden" style={{ minHeight: 0 }}>
+          高度由 `flex-1` + `minHeight: 0` 决定——不写死高度。 */}
+      <div className="flex-1 flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
+        {/* 词条条（spec §4.3 方案 B）：只在词条页出现；词库为空时它自己不渲染。 */}
+        {(activeModule === 'workbench' || activeModule === 'archive') && <WordStrip />}
+
         {activeModule === 'workbench' || activeModule === 'archive' ? (
           <main
             data-find-root={findRoot(activeModule)}
@@ -83,10 +90,16 @@ export default function MobileShell() {
             style={{ background: 'var(--color-canvas)' }}
           >
             {/* 词典详情视图：手机端与工作台同一层（`AppShell` 也是这一层），
-                故手机外壳不复制 `WordList`——词条列表由 `MobileAppBar` 的抽屉承担（Task 5）。 */}
+                故手机外壳不复制 `WordList`——词条列表由 `MobileAppBar` 的抽屉承担（Task 6）。 */}
             {activeView === 'dict' && dictWord
               ? <DictDetailPanel word={dictWord} />
-              : <WordWorkbench chrome="mobile" />}
+              : (
+                <WordWorkbench
+                  ref={workbenchRef}
+                  chrome="mobile"
+                  onEditStateChange={setEditing}
+                />
+              )}
           </main>
         ) : activeModule === 'review' ? (
           /* 复习模块：**原样复用桌面布局**（Plan 3 再改移动版），故不额外包内容根——
@@ -108,34 +121,8 @@ export default function MobileShell() {
         )}
       </div>
 
-      {/* 底栏占位（Task 5 换成 `MobileTabBar`：五格 + 中间凸起的搜索圆钮 + 复习到期徽标） */}
-      <nav
-        aria-label="模块"
-        className="shrink-0 flex items-center justify-around"
-        style={{
-          height: `${NAV_HEIGHT}px`,
-          background: 'var(--color-chrome)',
-          borderTop: '1px solid var(--color-border)',
-          // 手势条（Android 手势导航）之上：底栏高度不含它，故这里补上
-          paddingBottom: 'env(safe-area-inset-bottom)',
-        }}
-      >
-        {TAB_KEYS.map(key => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => tabClick(key)}
-            style={{
-              border: 'none', background: 'transparent', cursor: 'pointer',
-              padding: '0 12px', fontSize: 12, fontFamily: 'var(--font-sans)',
-              color: activeModule === key ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)',
-              fontWeight: activeModule === key ? 600 : 400,
-            }}
-          >
-            {TAB_LABELS[key]}
-          </button>
-        ))}
-      </nav>
+      {/* 底栏：五格 + 中间凸起的搜索圆钮 + 复习到期徽标。 */}
+      <MobileTabBar />
     </div>
   )
 }

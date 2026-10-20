@@ -1,9 +1,7 @@
 import { useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { useViewStore } from '../../stores/viewStore'
-import { useNavHistoryStore } from '../../stores/navHistoryStore'
-import { useWordStore } from '../../stores/wordStore'
-import { canGoBack, canGoForward } from '../../lib/navHistory'
+import { useWorkbenchNavigation } from '../../lib/useWorkbenchNavigation'
 import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
 import Tooltip from '../ui/Tooltip'
@@ -81,34 +79,13 @@ export default function WorkbenchNavBar({
 }: WorkbenchNavBarProps) {
   const editorMode = useViewStore(s => s.editorMode)
   const setEditorMode = useViewStore(s => s.setEditorMode)
-  const history = useNavHistoryStore(s => s.history)
+  // 前进 / 后退（Task 5）：顺序与解析器收在 `useWorkbenchNavigation`，手机顶栏共用同一份。
+  const { canBack, canForward, goBack, goForward } = useWorkbenchNavigation()
   // 「＋」分类下拉的开关（仅 dict 区用），以及那对按钮所在的容器——浮层的锚点
   // （v0.6.5 修订：浮层已是 fixed 落位，锚点由它现算。原来这里靠 position: relative
   //  让面板按容器下沿展开，那条契约已被 popoverPosition 取代）。
   const [pickerOpen, setPickerOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
-
-  // 历史项 → 词条**当前**所在模块（v0.7.5 修正）。已删除 / 已不在库返回 null，历史项随之丢弃；
-  // 移过模块的项拿到新位置，退回它时才不会切错数据集。
-  const locationOfHistoryId = (id: string): WordLocation | null =>
-    useWordStore.getState().libraryWords.find(w => w.id === id)?.location ?? null
-
-  // 导航切换不入栈（record:false），否则后退会立刻变成前进。
-  // 顺序与 `useLinkJump` 一致（硬要求）：先切模块 → 数据集不同则切数据集 → 最后选中词条。
-  // 反过来的话 `selectWord` 会在旧数据集里找目标；先选后换数据集则 `setLocation` 会把
-  // 刚选中的词清掉——跨模块后退就落进「空态里没有导航条」的死角（v0.7.5 修复的关键）。
-  const go = async (dir: 'back' | 'forward') => {
-    const nav = useNavHistoryStore.getState()
-    const entry = dir === 'back'
-      ? nav.goBack(locationOfHistoryId)
-      : nav.goForward(locationOfHistoryId)
-    if (!entry) return
-    useViewStore.getState().showModule(entry.location === 'archive' ? 'archive' : 'workbench')
-    if (useWordStore.getState().location !== entry.location) {
-      await useWordStore.getState().setLocation(entry.location)
-    }
-    await useWordStore.getState().selectWord(entry.id, { record: false })
-  }
 
   // V8 .nav-btn:hover：hover 起底色并转主色。
   // 导航条底色取 **--color-surface-sunken**（与它下方那条页签条同一档面），hover 的底色则取
@@ -148,11 +125,11 @@ export default function WorkbenchNavBar({
         type="button"
         title={region === 'dict' ? '返回' : '上一个词条'}
         aria-label={region === 'dict' ? '返回' : '上一个词条'}
-        disabled={region === 'workbench' && !canGoBack(history)}
-        onClick={() => region === 'dict' ? onBack?.() : void go('back')}
+        disabled={region === 'workbench' && !canBack}
+        onClick={() => region === 'dict' ? onBack?.() : goBack()}
         onMouseEnter={hoverOn}
         onMouseLeave={hoverOff}
-        style={navBtn(region === 'workbench' && !canGoBack(history))}
+        style={navBtn(region === 'workbench' && !canBack)}
       >
         <Icon name="arrow-left" size={15} />
       </button>
@@ -166,11 +143,11 @@ export default function WorkbenchNavBar({
           type="button"
           title="下一个词条"
           aria-label="下一个词条"
-          disabled={!canGoForward(history)}
-          onClick={() => void go('forward')}
+          disabled={!canForward}
+          onClick={goForward}
           onMouseEnter={hoverOn}
           onMouseLeave={hoverOff}
-          style={navBtn(!canGoForward(history))}
+          style={navBtn(!canForward)}
         >
           <Icon name="arrow-right" size={15} />
         </button>

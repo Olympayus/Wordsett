@@ -1,0 +1,185 @@
+import { useState } from 'react'
+import type { CSSProperties } from 'react'
+import { useViewStore } from '../../../stores/viewStore'
+import { useWordStore } from '../../../stores/wordStore'
+import { useUiStore } from '../../../stores/uiStore'
+import { useWorkbenchNavigation } from '../../../lib/useWorkbenchNavigation'
+import { moveConfirmRequest, moveTarget, moveActionLabel } from '../../../lib/archiveMove'
+import { deleteWordConfirmRequest } from '../../../lib/wordActions'
+import Icon from '../../icons'
+import SquareButton from '../../ui/SquareButton'
+import ContextMenu, { type MenuItem } from '../../ui/ContextMenu'
+
+/** 顶栏高度（spec §4.1：约 52dp）。不含状态栏——刘海 / 挖孔由 `paddingTop` 的安全区另加。 */
+const BAR_HEIGHT = 52
+/** 顶栏里控件的高度：桌面导航条的 22px 在手机上不够点，提到 32（spec §10 的 38–44dp 触摸适配）。 */
+const CONTROL = 32
+
+/**
+ * 无边框无底色的图标键（手机顶栏）：hover 才起底色，与桌面 `WorkbenchNavBar` 的 `nav-btn` 同形。
+ * 32px 高于既有 28px，命中区由左簇到右簇之间保证（间距 2–6px）。
+ */
+const iconBtn = (disabled = false): CSSProperties => ({
+  width: `${CONTROL}px`, height: `${CONTROL}px`, flexShrink: 0,
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)',
+  cursor: disabled ? 'default' : 'pointer',
+  color: 'var(--color-text-secondary)',
+  opacity: disabled ? 0.3 : 1,
+  transition: 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
+  touchAction: 'manipulation',
+  WebkitTapHighlightColor: 'transparent',
+})
+
+/** ⋯ 菜单的浮层落位：直接以点击处为锚，由 `ContextMenu` 钳进视口（与桌面行尾 ⋯ 同一配方）。 */
+const MENU_ANCHOR_OFFSET = 8
+
+interface Props {
+  /** 打开左侧抽屉（Task 6 的 `MobileDrawer`）。本版 `MobileDrawer` 尚未落地，
+   *  故这里是**占位 no-op**：按钮仍在（顶栏布局与可及名已就位），接线留给 Task 6。 */
+  onOpenDrawer: () => void
+  /** 有东西正在编辑时换成「取消 / 保存」——与桌面 `WorkbenchNavBar`
+   *  的 `editing` prop 同一形状：有值才出现。 */
+  editing?: { dirty: boolean }
+  onSaveEdit?: () => void
+  onCancelEdit?: () => void
+}
+
+/**
+ * 手机顶栏（Task 5，spec §4.1）：抽屉、返回 / 前进、标题、「色条」开关、⋯。
+ *
+ * - 返回 / 前进走 `useWorkbenchNavigation`——与桌面 `WorkbenchNavBar` 共用同一份
+ *   「先切模块 → 再切数据集 → 最后选词」的实现（Task 5 抽出），两处入口顺序不可能分家。
+ * - 「色条」开关是 `useViewStore.editorMode`（编者模式）的形态开关：`SquareButton` 的
+ *   `size="nav" + pressed`，与桌面 `WorkbenchNavBar` 同一配方（含 `role="switch"` + `aria-checked`
+ *   与品牌蓝浅一阶底）。高度保持 `size="nav"` 自带的 22px，与 32px 的箭头键并排时居中对齐
+ *   ——本仓既有做法是**同排控件各自等高**，而 22px 与 32px 混排会读成两种控件。
+ * - ⋯ 里两件动作与桌面工作台**同一批调用**：移动复用 `lib/archiveMove` 的文案与
+ *   `useWordStore` 的 `moveToArchive` / `moveToWorkspace`，删除复用 `useWordStore.deleteWord`
+ *   与同一句确认文案（`WordWorkbench.handleDelete` 的逐字副本——两处都在「当前选中词」上操作，
+ *   动作与确认文案必须一致，故确认文案抽成 `src/lib/wordActions.ts` 一份、两处共用）。
+ * - 编辑态（`editing` 有值）时右端整簇换成「取消 / 保存」——与桌面 `WorkbenchNavBar` 的
+ *   「编者 / 删除」换成「保存 / 取消」是同一个约定。
+ *
+ * 只有存在选中词时才出 ⋯ 与移动项：没有选中词，移动 / 删除都没有宾语。
+ */
+export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCancelEdit }: Props) {
+  const { words, selectedWordId, location, moveToArchive, moveToWorkspace, deleteWord } = useWordStore()
+  const editorMode = useViewStore(s => s.editorMode)
+  const setEditorMode = useViewStore(s => s.setEditorMode)
+  const { canBack, canForward, goBack, goForward } = useWorkbenchNavigation()
+
+  const selectedWord = words.find(w => w.id === selectedWordId)
+  // ⋯ 菜单的锚点（`ContextMenu` 按点击处落位并钳进视口）
+  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+
+  // 两件动作：都先弹与桌面同一句确认，再走 `useWordStore` 的既有 action（不自己写 SQL）。
+  const onMove = async () => {
+    if (!selectedWord) return
+    const to = moveTarget(location)
+    const ok = await useUiStore.getState().confirm(moveConfirmRequest(to, selectedWord.lemma))
+    if (!ok) return
+    if (to === 'archive') await moveToArchive(selectedWord.id)
+    else await moveToWorkspace(selectedWord.id)
+  }
+
+  const onDelete = async () => {
+    if (!selectedWord) return
+    const ok = await useUiStore.getState().confirm(deleteWordConfirmRequest(selectedWord.lemma))
+    if (!ok) return
+    await deleteWord(selectedWord.id)
+  }
+
+  const menuItems: MenuItem[] = [
+    { key: 'move', label: moveActionLabel(location), onSelect: () => { void onMove() } },
+    { key: 'delete', label: '删除词条', danger: true, onSelect: () => { void onDelete() } },
+  ]
+
+  return (
+    <header
+      className="shrink-0 flex items-center"
+      style={{
+        height: `${BAR_HEIGHT}px`, gap: 2, padding: '0 8px',
+        background: 'var(--color-chrome)',
+        borderBottom: '1px solid var(--color-border)',
+        // 状态栏（挖孔屏 / 刘海）之下：安全区内边距只加在顶栏与底栏上，内容区不再叠加
+        paddingTop: 'env(safe-area-inset-top)',
+      }}
+    >
+      <button type="button" title="词库" aria-label="词库" onClick={onOpenDrawer} style={iconBtn()}>
+        <Icon name="layers" size={18} />
+      </button>
+      <button type="button" title="上一个词条" aria-label="上一个词条" disabled={!canBack} onClick={goBack} style={iconBtn(!canBack)}>
+        <Icon name="arrow-left" size={17} />
+      </button>
+      <button type="button" title="下一个词条" aria-label="下一个词条" disabled={!canForward} onClick={goForward} style={iconBtn(!canForward)}>
+        <Icon name="arrow-right" size={17} />
+      </button>
+
+      {/* 标题：有选中词就是词面，没有就是模块名。`minWidth: 0` + 省略号——长词不撑破顶栏 */}
+      <div
+        aria-live="polite"
+        style={{
+          flex: '1 1 auto', minWidth: 0, margin: '0 2px',
+          fontFamily: 'var(--font-sans)', fontSize: 15, fontWeight: 600,
+          color: 'var(--color-text-primary)', lineHeight: 1.2,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}
+      >
+        {selectedWord ? selectedWord.lemma : location === 'archive' ? '储藏库' : '工作台'}
+      </div>
+
+      {/* 右端簇 */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+        {editing ? (
+          <>
+            {/* 编辑态（Plan 2 的行内编辑）：与桌面 `WorkbenchNavBar` 同一约定——右端整簇换成
+                「取消 / 保存」，色条开关与 ⋯ 都让位（编辑中不该还能切形态开关或删除词条）。
+                `SquareButton size="nav"` 的配方，与色条开关同形，形状语言不另起一套。 */}
+            <SquareButton size="nav" tone="canvas" onClick={() => onCancelEdit?.()}>
+              取消
+            </SquareButton>
+            <SquareButton size="nav" tone="canvas" onClick={() => onSaveEdit?.()}>
+              保存
+            </SquareButton>
+          </>
+        ) : (
+          <>
+            {/* 编者模式（「色条」）：形态开关，开 = 品牌蓝浅一阶 + 深字。`SquareButton` 的
+                `pressed` 配方与桌面 `WorkbenchNavBar` 逐字相同（`role="switch"` + `aria-checked`）。 */}
+            <SquareButton
+              size="nav"
+              tone="canvas"
+              pressed={editorMode}
+              role="switch"
+              aria-checked={editorMode}
+              aria-label="色条"
+              title="色条"
+              onClick={() => setEditorMode(!editorMode)}
+            >
+              色条
+            </SquareButton>
+            {/* ⋯ 里两件动作：移入 / 移出储藏库、删除词条（与桌面工作台同一批调用，见组件头注释）。
+                没有选中词时整枚不出——移动与删除都没有宾语。 */}
+            {selectedWord && (
+              <button
+                type="button"
+                title="更多操作"
+                aria-label="更多操作"
+                onClick={e => setMenu({ x: e.clientX, y: e.clientY + MENU_ANCHOR_OFFSET })}
+                style={iconBtn()}
+              >
+                <Icon name="more" size={18} />
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* ⋯ 菜单：fixed 落位、点外 / Esc 自关（`ContextMenu` 自带），与桌面行尾 ⋯ 同一组件 */}
+      {menu && selectedWord && (
+        <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(null)} />
+      )}
+    </header>
+  )
+}

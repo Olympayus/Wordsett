@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useLayoutEffect, useRef, type CSSProperties, type ReactNode } from 'react'
+import { useState, useEffect, useCallback, useLayoutEffect, useImperativeHandle, forwardRef, useRef, type CSSProperties, type ReactNode } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -55,6 +55,7 @@ import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
 import { familiarityFromValue, displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
 import { moveConfirmRequest, moveTarget } from '../../lib/archiveMove'
+import { deleteWordConfirmRequest } from '../../lib/wordActions'
 import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_PHONETIC_GAP } from '../../lib/layout'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
@@ -829,9 +830,32 @@ interface Props {
    * 缺省 `'desktop'`：桌面两个调用点（`AppShell`、`MobileShell` 之外）不传，行为逐字不变。
    */
   chrome?: 'desktop' | 'mobile'
+  /**
+   * 编辑态上报（Task 5，手机外壳）：`chrome='mobile'` 时，「取消 / 保存」画在顶栏
+   * （`MobileAppBar`），而编辑态三件套（`editingId` / `editValue` / `entryValue`）是本组件的
+   * 局部 state，故由本组件把结论报给外壳。**只有手机端传**：桌面把这对按钮画在自己的
+   * `WorkbenchNavBar` 里（props 见下），不经过外壳，传了也是死代码。
+   *
+   * 报的是**当前有没有在编辑 + 值是否改过**，与桌面 `editing` prop 同一个形状；判据也同一份
+   * （`hasFieldChanges`）。回调在 effect 里调（见组件体内那个 `useEffect`），不在渲染期。
+   */
+  onEditStateChange?: (editing: { dirty: boolean } | null) => void
 }
 
-export default function WordWorkbench({ chrome = 'desktop' }: Props) {
+/**
+ * 手机外壳要用的两个动作（Task 5）：保存 / 取消当前正在编辑的字段。
+ * 经 `ref` 交出（`chrome='mobile'` 时才有 ref）——编辑态只存在于本组件体内。
+ */
+export interface WordWorkbenchHandle {
+  saveEdit: () => void
+  cancelEdit: () => void
+}
+
+// `forwardRef` 只为了让手机外壳拿到保存 / 取消（见 `WordWorkbenchHandle`）。
+// 桌面两个调用点不传 ref，行为逐字不变。
+const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbench(
+  { chrome = 'desktop', onEditStateChange }, ref,
+) {
   const { words, selectedWordId, fieldValues, location, updateFieldValue, deleteWord, addFieldValue, deleteFieldValue, reorderFieldValues, libraryLocationOf, moveToArchive, moveToWorkspace } = useWordStore()
   const [defs, setDefs] = useState<FieldDefinition[]>([])
   const editorMode = useViewStore(s => s.editorMode)
@@ -901,6 +925,26 @@ export default function WordWorkbench({ chrome = 'desktop' }: Props) {
   useEffect(() => {
     setAddMenu(null)
   }, [editorMode])
+
+  // 编辑态上报（Task 5，手机外壳）：编辑态三件套都是本组件的局部 state，而「取消 / 保存」
+  // 画在顶栏（`MobileAppBar`），故由这里把结论报给外壳。判据与桌面那份 `editing` prop 逐字
+  // 一致（`hasFieldChanges`），只是方向相反——桌面是外壳传进来、这里是本组件传出去。
+  //
+  // 走 effect 而不是渲染期 setState：渲染期上报会让每一次按键都同步重挂外壳（含正在输入的
+  // 那个输入框），代价落在最不该慢的一条路径上。`onEditStateChange` 未传时整段短路——
+  // 桌面不传（它把这对按钮画在自己的 `WorkbenchNavBar` 里），依赖数组保持空、零成本。
+  //
+  // 初值刻意**不报**（`ref` 门）：从 `null` 到 `null` 的上报是白跑一趟——外壳为此多渲染一次，
+  // 且中间那一帧顶栏会按「没在编辑」画，闪一下。状态真变了才报，报完把 ref 记成已报的值。
+  const lastEditReport = useRef<{ dirty: boolean } | null>(null)
+  useEffect(() => {
+    if (!onEditStateChange) return
+    const next = editingId ? { dirty: hasFieldChanges(editValue, entryValue) } : null
+    if (next === null && lastEditReport.current === null) return
+    if (next && lastEditReport.current && next.dirty === lastEditReport.current.dirty) return
+    lastEditReport.current = next
+    onEditStateChange(next)
+  }, [onEditStateChange, editingId, editValue, entryValue])
 
   // 内联编辑点外关闭：点击编辑行外部且未改动时退出编辑（有改动保持，供继续编辑/保存）
   useEffect(() => {
@@ -973,12 +1017,23 @@ export default function WordWorkbench({ chrome = 'desktop' }: Props) {
     setSaved(true)  // 保存确认条：仅在真实落库后置位（未改动早退的那条不置）
   }
 
+  // ── 手机外壳的保存 / 取消（Task 5）──────────────────────────────────────────────
+  // 编辑态归本组件所有（`editingId` / `editValue` / `entryValue` 都在体内），而「取消 / 保存」
+  // 在手机上画在顶栏（`MobileAppBar`）。plumbing 的两半由 `useImperativeHandle` 交给外壳
+  // （`chrome='mobile'` 时才有 ref）——外壳只负责「谁在编辑」这个状态，**不复制**保存 / 取消
+  // 的逻辑。两个 handler 都是稳定的 useCallback 包装：外壳每渲染一次都会重挂这棵子树，
+  // 包装让子组件少一次重渲染。
+  useImperativeHandle(ref, () => ({
+    saveEdit: () => { void handleSave() },
+    cancelEdit: () => setEditingId(null),
+  }), [])
+  // 桌面那对回调直接复用同一组：`WorkbenchNavBar` 的 `onSaveEdit` / `onCancelEdit` 语义逐字相同
+  // （桌面版此前是内联箭头函数，换成同一组稳定引用）。
+  const saveEdit = () => { void handleSave() }
+  const cancelEdit = () => setEditingId(null)
+
   const handleDelete = async () => {
-    const ok = await useUiStore.getState().confirm({
-      title: '删除单词',
-      message: `确定删除单词“${selectedWord.lemma}”吗？此操作不可撤销。`,
-      danger: true,
-    })
+    const ok = await useUiStore.getState().confirm(deleteWordConfirmRequest(selectedWord.lemma))
     if (!ok) return
     await deleteWord(selectedWord.id)
   }
@@ -1374,9 +1429,10 @@ export default function WordWorkbench({ chrome = 'desktop' }: Props) {
             onDeleteWord={handleDelete}
             // 编辑态的保存 / 取消（v0.7.4 任务 14）：`editing` 有值才出现。`dirty` 本版只作
             // 将来的「未保存」提示，不据此禁用按钮（见 WorkbenchNavBar 的 prop 注释）。
+            // 手机外壳（Task 5）复用这同一对回调，见上方 `useImperativeHandle`。
             editing={editingId ? { dirty: hasFieldChanges(editValue, entryValue) } : undefined}
-            onSaveEdit={handleSave}
-            onCancelEdit={() => setEditingId(null)}
+            onSaveEdit={saveEdit}
+            onCancelEdit={cancelEdit}
           />
         </div>
       )}
@@ -1582,4 +1638,6 @@ export default function WordWorkbench({ chrome = 'desktop' }: Props) {
       </div>
     </div>
   )
-}
+})
+
+export default WordWorkbench
