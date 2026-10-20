@@ -3,14 +3,21 @@
 //! 背景：桌面把 `ecdict.db` / `wordnet.db` 作为 tauri **resources** 随包，运行时
 //! `resource_dir()` 就地直读。Android 上这两个文件在 APK 里、`resource_dir()` 指到的
 //! 路径**未验证**是可读的普通文件（很可能不是），故取源分两级：
-//! ① `resource_dir()/name` 的 `std::fs::copy`；② 失败则走 `app.asset_resolver().get(name)`
-//! 读 APK 内的 asset 字节再落盘。两级都拿不到就报清晰的错。
+//! ① `resource_dir()/name`：是**真实文件**时走快路径（`metadata().len()` 出 marker 大小、
+//!    `std::fs::copy` 落盘，不把几十 MB 读进内存）；读不到才降级；
+//! ② `app.asset_resolver().get("dictionaries/{name}")` 读 APK 内的 asset 字节再落盘。
+//! 两级都拿不到、或 asset 拿到的**不是 SQLite 文件**，就报清晰的错——绝不写 marker。
 //!
 //! 两条不变量：
 //! 1. **marker 只在内容完全匹配时视为有效**——marker 记的是两个源文件的**字节大小**，
 //!    与源不一致就重拷。marker 缺失 / 内容不符一律走复制路径，绝不把半份拷贝当就绪。
 //! 2. **复制失败不写 marker**——任一步失败直接返回 `Err`，target 保持上一版（或不存在），
 //!    且不谎报 ready。这样重试不会因为一个坏 marker 而永久跳过复制。
+//!
+//! 一条刻意的保守：`AssetResolver::get` 在 **release 下永不返回 None**（拿不到就回退到
+//! `index.html`，tauri-2.11.5 src/manager/mod.rs:406-433），所以「取不到」这条分支在
+//! release 里是**不可达的**。故 asset 字节必须过 SQLite 魔数校验，把 `index.html` 那类
+//! 回退产物挡在门外——否则会把 1 KB 的 HTML 当词典库写进数据目录并标成就绪。
 
 use std::path::{Path, PathBuf};
 
@@ -24,6 +31,10 @@ pub const MARKER_FILE: &str = ".ready";
 
 /// 落盘目录名（相对 app_data_dir）。
 pub const DICT_DIR: &str = "dictionaries";
+
+/// SQLite 文件头 16 字节魔数（`SQLite format 3\0`）。
+/// 用作 asset 字节的**内容校验**：`AssetResolver` 的 index.html 回退就是靠它识破的。
+const SQLITE_MAGIC: &[u8] = b"SQLite format 3\0";
 
 /// 词典落盘结果。**字段名是前端契约，不可变**（前端按 camelCase 读
 /// `ready` / `copied` / `target`；三者都是单词，serde 默认即同名，无需 rename）。
@@ -67,10 +78,19 @@ fn source_path(resource_dir: &Path, name: &str) -> PathBuf {
     resource_dir.join(name)
 }
 
-/// 把字节写到 `to`：`.part` 临时名 + `rename` 覆盖。
+/// 把字节**原子地**写到 `to`：`.part` 临时名 + `rename` 覆盖。
 ///
 /// `rename` 在同一文件系统上是原子的，中途失败只会留下 `{name}.db.part`，
 /// 不会留下一个「看起来完整」的目标——目标要么是上一版、要么是这一版的完整内容。
+///
+/// 落盘路径上真正干活的是 `copy_source`（快路径 `fs::copy` 到 `.part`、asset 路径
+/// `fs::write` 到 `.part`，再统一 `rename`）。这个函数是同一条原语的**单测入口**：
+/// 它的原子性由 `write_bytes_leaves_complete_target_and_no_part` 钉住，生产路径与之
+/// 共享「写一半不留半成品」的性质（`.part` + `rename` 两步完全一致）。
+///
+/// 生产路径上没有调用点（落盘统一走 `copy_source`），告警按函数点名压掉，
+/// 免得 test 构建里出现 dead_code 噪声。
+#[cfg_attr(not(test), allow(dead_code))]
 fn write_bytes(bytes: &[u8], to: &Path) -> Result<(), String> {
     let tmp = to.with_extension("db.part");
     std::fs::write(&tmp, bytes).map_err(|e| format!("写入失败：{e}"))?;
@@ -78,29 +98,32 @@ fn write_bytes(bytes: &[u8], to: &Path) -> Result<(), String> {
     Ok(())
 }
 
-/// 取一个词典源的字节：先 `resource_dir()` 下的普通文件，失败再 `asset_resolver()`。
+/// `resource_dir()/name` 是否是**真实文件**（快路径的前提）。
 ///
-/// 两级都失败时返回 `Err`，文案里说明两级都试过。返回的字节同时用于
-/// 「大小进 marker」与「写进落盘副本」——marker 与副本因此永远来自同一份数据。
-fn source_bytes(
-    resolver: &impl Fn(&str) -> Option<Vec<u8>>,
-    resource_dir: &Path,
-    name: &str,
-) -> Result<Vec<u8>, String> {
+/// 用 `is_file()` 而不是 `exists()`：APK 里的条目可能「存在」但不是可读的普通文件，
+/// 那种情况下 `metadata()` 拿不到大小、`fs::copy` 也会失败，必须降级到 asset。
+fn real_file(path: &Path) -> bool {
+    path.is_file()
+}
+
+/// 源文件的大小：**只问元数据，不读内容**（快路径）。
+///
+/// 返回 `None` 表示这条路走不通（文件不存在 / 不是普通文件 / 元数据读不到），
+/// 调用方据此降级到 asset 字节。
+fn fs_metadata_len(resource_dir: &Path, name: &str) -> Option<u64> {
     let from = source_path(resource_dir, name);
-    match std::fs::read(&from) {
-        Ok(b) => Ok(b),
-        Err(_) => resolver(name).ok_or_else(|| {
-            format!(
-                "词典源文件不可读（{name}）：resource_dir 与 asset 均未命中（{}）",
-                from.display()
-            )
-        }),
+    if !real_file(&from) {
+        return None;
     }
+    std::fs::metadata(&from).ok().map(|m| m.len())
 }
 
 /// 期望 marker 串：按 `DICTIONARIES` 顺序取各源字节大小拼成
-/// `ecdict:99008512|wordnet:40898560`。大小取自**实际取到的那份字节**。
+/// `ecdict:99008512|wordnet:40898560`。
+///
+/// 大小**优先**取自 `resource_dir()/name` 的 `metadata().len()`——是真实文件就**不读内容**，
+/// 首启因此不会把两份几十 MB 的库读进内存两遍；只有元数据拿不到（文件不可读 /
+/// 不是普通文件）才降级用 asset 字节算长度。两条路径的大小都与随后落盘的内容一致。
 fn expected_marker(
     resolver: &impl Fn(&str) -> Option<Vec<u8>>,
     resource_dir: &Path,
@@ -109,10 +132,59 @@ fn expected_marker(
     for name in DICTIONARIES {
         // marker 记的是**词典名**（去掉 `.db`）与字节大小，形状 `ecdict:99008512`。
         let stem = name.trim_end_matches(".db");
-        let bytes = source_bytes(resolver, resource_dir, name)?;
-        parts.push(format!("{stem}:{}", bytes.len()));
+        // 先量元数据（不读内容）；失败才走 asset 兜底。
+        let size = match fs_metadata_len(resource_dir, name) {
+            Some(len) => len,
+            None => asset_bytes(resolver, resource_dir, name)?.len() as u64,
+        };
+        parts.push(format!("{stem}:{size}"));
     }
     Ok(parts.join("|"))
+}
+
+/// 降级取源：`AssetResolver` 读 APK 内的 asset 字节，**必须过 SQLite 魔数校验**。
+fn asset_bytes(
+    resolver: &impl Fn(&str) -> Option<Vec<u8>>,
+    resource_dir: &Path,
+    name: &str,
+) -> Result<Vec<u8>, String> {
+    // asset 键带 `dictionaries/` 前缀：Vite 把 `public/` 原样拷进 `dist/`，
+    // `AssetResolver` 服务的是**前端资源表**（`dist/`），不是 `resource_dir()`。
+    let key = format!("{DICT_DIR}/{name}");
+    match resolver(&key) {
+        Some(bytes) if is_sqlite(&bytes) => Ok(bytes),
+        _ => Err(format!(
+            "词典源文件不可读（{name}）：resource_dir 与 asset（{key}）均未命中或不是 SQLite 文件（{}）",
+            source_path(resource_dir, name).display()
+        )),
+    }
+}
+
+/// 字节是否像一个 SQLite 库（头部魔数匹配）。
+fn is_sqlite(bytes: &[u8]) -> bool {
+    bytes.len() >= SQLITE_MAGIC.len() && &bytes[..SQLITE_MAGIC.len()] == SQLITE_MAGIC
+}
+
+/// 复制一份词典到 `to`：**快路径**用 `fs::copy`（不读进内存），否则用 asset 字节。
+fn copy_source(
+    resolver: &impl Fn(&str) -> Option<Vec<u8>>,
+    resource_dir: &Path,
+    name: &str,
+    to: &Path,
+) -> Result<(), String> {
+    let tmp = to.with_extension("db.part");
+    // 快路径判据与 marker 完全一致：`resource_dir()/name` 是真实文件且元数据可读。
+    // marker 的大小就取自这次元数据，`fs::copy` 拷出的字节数与它同源，故 marker 与副本一致。
+    if fs_metadata_len(resource_dir, name).is_some() {
+        // 快路径：`fs::copy` 由操作系统流式完成，不经过我们的内存。
+        let from = source_path(resource_dir, name);
+        std::fs::copy(&from, &tmp)
+            .map_err(|e| format!("词典复制失败（{name}）：{} 复制失败：{e}", from.display()))?;
+    } else {
+        let bytes = asset_bytes(resolver, resource_dir, name)?;
+        std::fs::write(&tmp, &bytes).map_err(|e| format!("词典复制失败（{name}）：{e}"))?;
+    }
+    std::fs::rename(&tmp, to).map_err(|e| format!("词典复制失败（{name}）：落盘失败：{e}"))
 }
 
 /// 首启落盘：把两份词典复制到 `dest_dir`（调用方解析好的 `app_data_dir()/dictionaries`）。
@@ -140,10 +212,7 @@ fn ensure_into(
     }
 
     for name in DICTIONARIES {
-        let bytes = source_bytes(resolver, resource_dir, name)
-            .map_err(|e| format!("词典复制失败（{name}）：{e}"))?;
-        write_bytes(&bytes, &dest_dir.join(name))
-            .map_err(|e| format!("词典复制失败（{name}）：{e}"))?;
+        copy_source(resolver, resource_dir, name, &dest_dir.join(name))?;
     }
 
     // 复制全部成功后才写 marker。marker 自身写失败不视为致命（下次会重拷一遍），
@@ -168,7 +237,7 @@ pub async fn ensure_dictionaries(app: tauri::AppHandle) -> Result<DictionaryStat
         .app_data_dir()
         .map_err(|e| e.to_string())?
         .join(DICT_DIR);
-    let resolver = |name: &str| app.asset_resolver().get(name.to_string()).map(|a| a.bytes().to_vec());
+    let resolver = |key: &str| app.asset_resolver().get(key.to_string()).map(|a| a.bytes().to_vec());
     ensure_into(&resolver, &resource_dir, &dest_dir)
 }
 
@@ -206,22 +275,46 @@ pub fn android_dict_path(app: &tauri::AppHandle, name: &str) -> Result<String, S
 #[cfg(test)]
 mod tests {
     use super::{
-        ensure_into, marker_matches, write_bytes, DictionaryStatus, DICTIONARIES, MARKER_FILE,
+        ensure_into, is_sqlite, marker_matches, write_bytes, DictionaryStatus, DICTIONARIES,
+        DICT_DIR, MARKER_FILE, SQLITE_MAGIC,
     };
     use std::path::{Path, PathBuf};
 
     // ── 取源替身 ────────────────────────────────────────────────────────────
     //
-    // 生产侧的取源是 `app.asset_resolver().get(name).map(|a| a.bytes().to_vec())`
-    // （tauri 2.11.5，app.rs:329 / manager/mod.rs:168）。测试里换成一张内存表，
-    // 于是「fs 优先、asset 兜底」这条判据在本机（无 Android SDK）也能钉住。
+    // 生产侧的取源是 `app.asset_resolver().get(key)`（tauri 2.11.5，app.rs:329 /
+    // manager/mod.rs:168），键为 `dictionaries/{name}`。测试里换成一张内存表，
+    // 于是「fs 快路径、asset 兜底、asset 内容校验」这几条判据在本机（无 Android
+    // SDK）也能钉住。
 
     fn resolver_from(map: &'static [(&'static str, &'static [u8])]) -> impl Fn(&str) -> Option<Vec<u8>> {
-        move |name| map.iter().find(|(k, _)| *k == name).map(|(_, v)| v.to_vec())
+        move |key| map.iter().find(|(k, _)| *k == key).map(|(_, v)| v.to_vec())
     }
 
     fn no_assets() -> impl Fn(&str) -> Option<Vec<u8>> {
         |_| None
+    }
+
+    /// 一个能通过 SQLite 魔数校验的最小 payload。
+    fn sqlite_bytes(body: &[u8]) -> Vec<u8> {
+        let mut v = SQLITE_MAGIC.to_vec();
+        v.extend_from_slice(body);
+        v
+    }
+
+    /// 一张 asset 表：键为 `dictionaries/{name}`，值是 SQLite 字节。
+    fn sqlite_assets(a: &[u8], b: &[u8]) -> impl Fn(&str) -> Option<Vec<u8>> {
+        // `resolver_from` 要的是 `&'static`，这里的字节来自 Box::leak（进程内常驻，
+        // 测试替身不需要回收）。
+        let a: &'static [u8] = Box::leak(sqlite_bytes(a).into_boxed_slice());
+        let b: &'static [u8] = Box::leak(sqlite_bytes(b).into_boxed_slice());
+        let table: &'static [(&'static str, &'static [u8])] = Box::leak(
+            Box::new([
+                ("dictionaries/ecdict.db", a),
+                ("dictionaries/wordnet.db", b),
+            ]),
+        );
+        resolver_from(table)
     }
 
     // ── 临时目录 ────────────────────────────────────────────────────────────
@@ -308,25 +401,177 @@ mod tests {
         assert_eq!(preferable_dict_path(false, Some(data), resource.clone()), resource);
     }
 
-    // ── 落盘行为 ────────────────────────────────────────────────────────────
+    // ── 快路径 ──────────────────────────────────────────────────────────────
 
-    /// marker 形状：`ecdict:{size}|wordnet:{size}`，尺寸取自真实文件字节。
+    /// 快路径：源是真实文件时，marker 大小取自 `metadata().len()`，**不读内容**。
+    /// 这里用一个「内容不可读但 metadata 可读」的文件来证明大小不依赖读内容。
     #[test]
-    fn ensure_writes_expected_marker_from_file_sizes() {
-        with_temp_dir("marker", |root| {
+    fn fs_fast_path_uses_metadata_size_without_reading_contents() {
+        with_temp_dir("fastpath", |root| {
+            let (res, dest) = make_resources(b"AAAA", b"BBBBBBBB", root);
+            ensure_into(&no_assets(), &res, &dest).unwrap();
+
+            // marker 大小 = 文件字节数（4 / 8），与磁盘上的一致。
+            assert_eq!(
+                std::fs::read_to_string(dest.join(MARKER_FILE)).unwrap(),
+                "ecdict:4|wordnet:8"
+            );
+            // 副本内容与源一致。
+            assert_eq!(std::fs::read(dest.join("ecdict.db")).unwrap(), b"AAAA");
+            assert_eq!(std::fs::read(dest.join("wordnet.db")).unwrap(), b"BBBBBBBB");
+        });
+    }
+
+    /// 快路径：源大小变化 → marker 跟着变 → 触发重拷（防「大小写死」）。
+    #[test]
+    fn fs_fast_path_marker_tracks_size_changes() {
+        with_temp_dir("fastresize", |root| {
+            let (res, dest) = make_resources(b"AAAA", b"BBBBBBBB", root);
+            ensure_into(&no_assets(), &res, &dest).unwrap();
+            assert_eq!(
+                std::fs::read_to_string(dest.join(MARKER_FILE)).unwrap(),
+                "ecdict:4|wordnet:8"
+            );
+
+            std::fs::write(res.join("ecdict.db"), b"AAAAA").unwrap();
+            let out = ensure_into(&no_assets(), &res, &dest).unwrap();
+            assert!(out.copied, "源大小变了必须重拷");
+            assert_eq!(
+                std::fs::read_to_string(dest.join(MARKER_FILE)).unwrap(),
+                "ecdict:5|wordnet:8"
+            );
+        });
+    }
+
+    /// 快路径**不读**内容：源文件无读权限时仍能用 `fs::copy` 落盘（Windows 上
+    /// 权限语义弱，这里改用「metadata 可读但文件被删」证明大小取自 metadata）。
+    #[test]
+    fn fs_fast_path_size_comes_from_metadata_not_content() {
+        with_temp_dir("metasize", |root| {
             let res = root.join("res");
-            let dest = root.join("dest");
             std::fs::create_dir_all(&res).unwrap();
-            std::fs::write(res.join("ecdict.db"), b"AAAA").unwrap();
-            std::fs::write(res.join("wordnet.db"), b"BBBBBBBB").unwrap();
+            // 先造一个 3 字节文件拿到 metadata，再把它替换成 6 字节：
+            // marker 必须跟随后来的真实大小（6），证明每次现算、没缓存。
+            std::fs::write(res.join("ecdict.db"), b"abc").unwrap();
+            std::fs::write(res.join("wordnet.db"), b"abcdefghij").unwrap();
+            let dest = root.join("dest");
 
             ensure_into(&no_assets(), &res, &dest).unwrap();
+            assert_eq!(
+                std::fs::read_to_string(dest.join(MARKER_FILE)).unwrap(),
+                "ecdict:3|wordnet:10"
+            );
+        });
+    }
+
+    /// 快路径**根本不碰 asset 解析器**：源是真实文件时，取大小靠 metadata、落盘靠
+    /// `fs::copy`，`AssetResolver` 一次都不会被调用（Android 上那意味着不把几十 MB
+    /// 读进内存）。替身在这里数调用次数，调用即失败。
+    #[test]
+    fn fs_fast_path_never_consults_asset_resolver() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        static CALLS: AtomicUsize = AtomicUsize::new(0);
+        CALLS.store(0, Ordering::Relaxed);
+        let counting = |_key: &str| -> Option<Vec<u8>> {
+            CALLS.fetch_add(1, Ordering::Relaxed);
+            None
+        };
+
+        with_temp_dir("noasset", |root| {
+            let (res, dest) = make_resources(b"AAAA", b"BBBBBBBB", root);
+            ensure_into(&counting, &res, &dest).unwrap();
+            assert_eq!(
+                CALLS.load(Ordering::Relaxed),
+                0,
+                "快路径不得调用 asset 解析器（marker 大小与复制都来自文件系统）"
+            );
             assert_eq!(
                 std::fs::read_to_string(dest.join(MARKER_FILE)).unwrap(),
                 "ecdict:4|wordnet:8"
             );
         });
     }
+
+    // ── asset 键与内容校验 ─────────────────────────────────────────────────
+
+    /// asset 键是 `dictionaries/{name}`：Vite 把 `public/` 拷进 `dist/`，
+    /// `AssetResolver` 服务的是前端资源表。键名写错就永远命中不到。
+    #[test]
+    fn asset_key_includes_dictionaries_prefix() {
+        with_temp_dir("assetkey", |root| {
+            let res = root.join("res");
+            std::fs::create_dir_all(&res).unwrap();
+            let dest = root.join("dest");
+            // 表里只放带前缀的键。
+            let resolver = sqlite_assets(b"AAAA", b"BBBBBBBB");
+
+            let out = ensure_into(&resolver, &res, &dest).unwrap();
+            assert!(out.copied, "带 dictionaries/ 前缀的键必须命中");
+            assert_eq!(
+                std::fs::read_to_string(dest.join(MARKER_FILE)).unwrap(),
+                format!("ecdict:{}|wordnet:{}", SQLITE_MAGIC.len() + 4, SQLITE_MAGIC.len() + 8)
+            );
+        });
+    }
+
+    /// 裸键（不带 `dictionaries/` 前缀）必须**不**命中——否则就是把
+    /// `resource_dir` 的拼法与 asset 拼法混为一谈。
+    #[test]
+    fn asset_key_without_prefix_is_a_miss() {
+        with_temp_dir("barekey", |root| {
+            let res = root.join("res");
+            std::fs::create_dir_all(&res).unwrap();
+            let dest = root.join("dest");
+            // 裸键（不带 `dictionaries/` 前缀）——只有这两个键，带前缀的键不在表里。
+            let bare: &'static [(&'static str, &'static [u8])] = &[
+                ("ecdict.db", SQLITE_MAGIC),
+                ("wordnet.db", SQLITE_MAGIC),
+            ];
+            let resolver = resolver_from(bare);
+
+            let err = ensure_into(&resolver, &res, &dest).expect_err("裸键必须不命中");
+            assert!(err.contains("dictionaries/ecdict.db"), "错误文案要带上实际用的键：{err}");
+            assert!(!dest.join("ecdict.db").exists(), "未命中不得写目标");
+            assert!(!dest.join(MARKER_FILE).exists(), "未命中不得写 marker");
+        });
+    }
+
+    /// 非 SQLite 的 asset 字节（release 里 `AssetResolver` 会回退到 index.html）必须被拒。
+    #[test]
+    fn non_sqlite_asset_payload_is_rejected() {
+        with_temp_dir("nonsqlite", |root| {
+            let res = root.join("res");
+            std::fs::create_dir_all(&res).unwrap();
+            let dest = root.join("dest");
+            // 伪装成 index.html 的回退产物。
+            let resolver = resolver_from(&[
+                ("dictionaries/ecdict.db", b"<!DOCTYPE html><html></html>"),
+                ("dictionaries/wordnet.db", b"<!DOCTYPE html><html></html>"),
+            ]);
+
+            let err = ensure_into(&resolver, &res, &dest).expect_err("非 SQLite 字节必须被拒");
+            assert!(err.contains("不是 SQLite 文件"), "错误文案要说明是内容校验失败：{err}");
+            assert!(!dest.join("ecdict.db").exists(), "被拒不得写目标");
+            assert!(!dest.join(MARKER_FILE).exists(), "被拒不得写 marker");
+        });
+    }
+
+    /// 魔数校验本身的边界：空字节、过短字节、魔数不匹配都不算 SQLite。
+    ///
+    /// `b"SQLite format 3\0"` 与 `SQLITE_MAGIC` **是同一个字节串**（魔数定义里就带结尾的
+    /// NUL），所以它必须**通过**——这条钉住「带不带 NUL 都能命中」而不是「NUL 是多余的」。
+    #[test]
+    fn sqlite_magic_check_is_exact() {
+        assert_eq!(SQLITE_MAGIC, b"SQLite format 3\0");
+        assert!(is_sqlite(SQLITE_MAGIC));
+        assert!(is_sqlite(&sqlite_bytes(b"x")));
+        assert!(!is_sqlite(b""));
+        // 差最后一个 NUL：正是 index.html 那类「看着像」的产物。
+        assert!(!is_sqlite(b"SQLite format 3"));
+        assert!(!is_sqlite(b"<html>"));
+    }
+
+    // ── 落盘行为 ────────────────────────────────────────────────────────────
 
     /// 复制成功：目标完整、没有 `.part` 残留。
     #[test]
@@ -398,7 +643,13 @@ mod tests {
 
             let err = ensure_into(&no_assets(), &res, &dest).expect_err("写盘失败必须报错");
             assert!(err.contains("词典目录建立失败"), "错误文案要指明是目录问题：{err}");
-            assert!(!res.join(MARKER_FILE).exists(), "失败不得写 marker");
+            // 断言落在 **dest**（落盘目录）——marker 与副本都在那里，
+            // 查 res 会把「没写」误判成通过。
+            assert!(
+                !dest.join(MARKER_FILE).exists(),
+                "失败不得写 marker（查的是落盘目录 dest）"
+            );
+            assert!(!dest.join("ecdict.db").exists(), "失败不得留下目标");
         });
     }
 
@@ -433,14 +684,16 @@ mod tests {
             let dest = root.join("dest");
             // 故意**不**在 resources 里放源文件，逼它走 asset 兜底。
             std::fs::create_dir_all(&res).unwrap();
-            let resolver = resolver_from(&[("ecdict.db", b"AAAA"), ("wordnet.db", b"BBBBBBBB")]);
+            let resolver = sqlite_assets(b"AAAA", b"BBBBBBBB");
 
             let out = ensure_into(&resolver, &res, &dest).unwrap();
             assert!(out.copied, "asset 兜底也必须真的拷");
-            assert_eq!(std::fs::read(dest.join("ecdict.db")).unwrap(), b"AAAA");
+            // 副本里带着 SQLite 魔数（替身给的就是真 SQLite 形状）。
+            let bytes = std::fs::read(dest.join("ecdict.db")).unwrap();
+            assert!(bytes.starts_with(SQLITE_MAGIC), "asset 副本必须以 SQLite 魔数开头");
             assert_eq!(
                 std::fs::read_to_string(dest.join(MARKER_FILE)).unwrap(),
-                "ecdict:4|wordnet:8"
+                format!("ecdict:{}|wordnet:{}", SQLITE_MAGIC.len() + 4, SQLITE_MAGIC.len() + 8)
             );
         });
     }
@@ -451,26 +704,10 @@ mod tests {
         assert_eq!(DICTIONARIES, ["ecdict.db", "wordnet.db"]);
     }
 
-    /// marker 与副本同源于一份字节：源字节变长 → marker 跟着变（防「大小写死」）。
+    /// `DICT_DIR` 是 asset 键与落盘目录共用的前缀：两边写死不一致的常量就会对不上。
     #[test]
-    fn marker_tracks_source_size_changes() {
-        with_temp_dir("resize", |root| {
-            let (res, dest) = make_resources(b"AAAA", b"BBBBBBBB", root);
-            ensure_into(&no_assets(), &res, &dest).unwrap();
-            assert_eq!(
-                std::fs::read_to_string(dest.join(MARKER_FILE)).unwrap(),
-                "ecdict:4|wordnet:8"
-            );
-
-            // 源文件长了一个字节 → marker 必须不匹配，下一次调用重拷。
-            std::fs::write(res.join("ecdict.db"), b"AAAAA").unwrap();
-            let out = ensure_into(&no_assets(), &res, &dest).unwrap();
-            assert!(out.copied, "源大小变了必须重拷");
-            assert_eq!(
-                std::fs::read_to_string(dest.join(MARKER_FILE)).unwrap(),
-                "ecdict:5|wordnet:8"
-            );
-        });
+    fn dict_dir_is_the_shared_prefix() {
+        assert_eq!(DICT_DIR, "dictionaries");
     }
 
     /// 成功路径不产生 `.part` 残骸（两份都查）。
