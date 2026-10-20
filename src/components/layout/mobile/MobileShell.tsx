@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useViewStore } from '../../../stores/viewStore'
 import WordWorkbench, { type WordWorkbenchHandle } from '../../word/WordWorkbench'
 import DictDetailPanel from '../../search/DictDetailPanel'
+import MobileSearchPage from '../../search/MobileSearchPage'
 import ReviewModule from '../../review/ReviewModule'
 import EmptyState from '../../ui/EmptyState'
 import MobileAppBar from './MobileAppBar'
@@ -122,16 +123,25 @@ export default function MobileShell() {
           <main data-find-root="review" className="flex-1 overflow-hidden" style={{ background: 'var(--color-canvas)' }}>
             <ReviewModule />
           </main>
+        ) : activeModule === 'search' ? (
+          /* 搜索模块（Task 7）：一级页面，自己出顶行（返回 + 输入 + 清除），
+             与桌面顶栏无关。词典详情与工作台同一层（`AppShell` 也是这一层），
+             故点建议 → `openDictFromSearch` → 这里渲染 `DictDetailPanel`；
+             详情页的返回（Task 8）经 `showSearchResults` 把视图切回搜索列表。
+             **不传 `variant`**：移动端详情形态由 Task 8 加，本任务保持桌面形态。 */
+          <main data-find-root="search" className="flex-1 overflow-hidden" style={{ background: 'var(--color-canvas)', minWidth: 0 }}>
+            {activeView === 'dict' && dictWord
+              ? <DictDetailPanel word={dictWord} />
+              : <MobileSearchPage />}
+          </main>
         ) : (
-          /* 搜索模块（Task 7 落 `MobileSearchPage`）与设置页（Task 9）先占位。
-             搜索模块在手机上不能渲染桌面 `WordWorkbench`：那会显示**来源模块**的词表，
-             与「搜索」这一格完全无关。 */
+          /* 设置页（Task 9）占位。 */
           <main
             data-find-root={activeModule}
             className="flex-1 overflow-auto"
             style={{ background: 'var(--color-canvas)', minWidth: 0 }}
           >
-            <EmptyState message={activeModule === 'search' ? '搜索模块即将上线' : '设置页即将上线'} />
+            <EmptyState message="设置页即将上线" />
           </main>
         )}
 

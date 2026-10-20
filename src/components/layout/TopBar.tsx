@@ -1,12 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import SearchSuggestions from '../search/SearchSuggestions'
-import { searchLemmas, searchChinese } from '../../services/searchService'
-import { isChineseQuery } from '../../lib/chineseSearch'
 import { useViewStore } from '../../stores/viewStore'
 import { useUpdaterStore } from '../../stores/updaterStore'
 import { useWordStore } from '../../stores/wordStore'
 import { useClickOutside } from '../../lib/useClickOutside'
+import { useSearchSuggestions } from '../../services/useSearchSuggestions'
+import { isChineseQuery } from '../../lib/chineseSearch'
 import { SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
 import { ACTIVITY_RAIL_WIDTH } from './ActivityRail'
 import DueBadge from './DueBadge'
@@ -34,13 +34,13 @@ export default function TopBar() {
   const appWindow = getCurrentWindow()
   const [isMaximized, setIsMaximized] = useState(false)
   const [query, setQuery] = useState('')
-  const [suggestions, setSuggestions] = useState<string[]>([])
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const [showSuggestions, setShowSuggestions] = useState(false)
   const [searchError, setSearchError] = useState(false)
-  const [zhGlosses, setZhGlosses] = useState<Record<string, string>>({})
   const [focused, setFocused] = useState(false)
-  const [isComposing, setIsComposing] = useState(false)
+  // 建议词、释义、输入法合成态、取数失败标志位都归这条 hook（与手机搜索页同一份，见其文件头）。
+  // 这里只留「下拉开合 / 键盘选中 / 焦点」这类纯界面状态。
+  const { suggestions, glosses: zhGlosses, isComposing, setComposing, failed } = useSearchSuggestions(query)
   const showDict = useViewStore(s => s.showDict)
   const showWorkbench = useViewStore(s => s.showWorkbench)
   const hasUpdate = useUpdaterStore(s => s.hasUpdateBadge)
@@ -49,7 +49,6 @@ export default function TopBar() {
   // 建议列表的模块标识读**词库索引**（v0.7.5 Task 13，工作区 ∪ 储藏库），
   // 不再拿当前模块的词表充数——那会把储藏库的词显示成未收录。
   const libraryIndex = useWordStore(s => s.libraryIndex)
-  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // 建议下拉点外关闭：用 document 级 pointerdown 监听（既有 useClickOutside 模式）。
   // 之前用全屏遮罩 onClick，但遮罩位于 data-tauri-drag-region 顶栏内，mousedown 被窗口拖拽吞掉、click 不触发，导致点空白不关闭。
@@ -72,50 +71,31 @@ export default function TopBar() {
 
   const toggleMaximize = () => { void appWindow.toggleMaximize() }
 
-  // 阶段一：防抖搜索建议（300ms）；CJK 输入分发 searchChinese，输入法合成期（isComposing）跳过搜索
-  useEffect(() => {
-    if (!query.trim()) {
-      setSuggestions([])
-      setShowSuggestions(false)
-      setZhGlosses({})
-      setSearchError(false)
-      return
-    }
-    if (isComposing) return  // 输入法合成中不搜索，compositionend 会触发本 effect 重跑
-    clearTimeout(timer.current)
-    timer.current = setTimeout(async () => {
-      try {
-        // 中文路径取 hits（单词 + 释义）；英文路径仅单词。分开取而非共用三元：
-        // TS 不会在 if(isChineseQuery) 内收窄 ChineseSearchHit[] | string[] 联合
-        let words: string[]
-        let glosses: Record<string, string>
-        if (isChineseQuery(query)) {
-          const hits = await searchChinese(query)
-          words = hits.map(h => h.word)
-          glosses = Object.fromEntries(hits.map(h => [h.word, h.translation] as const))
-        } else {
-          words = await searchLemmas(query)
-          glosses = {}
-        }
-        setSuggestions(words)
-        setZhGlosses(glosses)
-        setShowSuggestions(words.length > 0)
-        setSelectedIndex(-1)
-        setSearchError(false)
-      } catch (e) {
-        console.error('Search failed:', e)
-        setSearchError(true)
-      }
-    }, 300)
-    return () => clearTimeout(timer.current)
-  }, [query, isComposing])
-
   // 选中建议或回车 → 右侧区域切换为词典详情视图（D2：替换显示，非顶栏下方展开）
   const handleSelectWord = useCallback((word: string) => {
     setQuery(word)
     setShowSuggestions(false)
     showDict(word)
   }, [showDict])
+
+  // 取数结果 → 下拉开合 / 键盘选中 / 错误条。归并放在 `useEffect` 而不是渲染期：
+  // 清空输入框时也要顺带把下拉收掉，而那是同一次渲染里的 `suggestions` 变化，只有 effect
+  // 能覆盖到（渲染期 setState 会在每次按键时同步重挂顶栏，代价落在最热的输入路径上）。
+  //
+  // `searchError` 那半边**逐字保留抽 hook 前的实现**（`console.error` + `setSearchError(true)`）：
+  // 词典文件缺失时桌面要点亮错误条，这条路径本任务不改行为。副作用是失败时选中行不复位——
+  // 那是既有行为，一样不动。
+  useEffect(() => {
+    if (failed) { setSearchError(true); return }
+    if (suggestions.length === 0) {
+      setShowSuggestions(false)
+      setSearchError(false)
+      return
+    }
+    setShowSuggestions(true)
+    setSelectedIndex(-1)
+    setSearchError(false)
+  }, [suggestions, failed])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -210,8 +190,8 @@ export default function TopBar() {
               ref={inputRef}
               value={query}
               onChange={e => { setQuery(e.target.value); setSelectedIndex(-1) }}
-              onCompositionStart={() => setIsComposing(true)}
-              onCompositionEnd={() => setIsComposing(false)}
+              onCompositionStart={() => setComposing(true)}
+              onCompositionEnd={() => setComposing(false)}
               onFocus={() => { setFocused(true); if (suggestions.length > 0) setShowSuggestions(true) }}
               onBlur={() => setFocused(false)}
               onKeyDown={handleKeyDown}
