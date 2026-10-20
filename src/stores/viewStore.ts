@@ -51,12 +51,13 @@ export const useViewStore = create<ViewStore>((set, get) => ({
   setEditorMode: (on) => set({ editorMode: on }),
   // 移动搜索模块（Task 2）：记住来源，closeSearch 据此恢复。
   openSearch: () => {
-    const { activeModule, activeView, dictWord } = get()
-    // 已在搜索模块内不覆盖保存值，避免把来源洗成 search 本身。
-    const searchReturn: SearchReturn = activeModule === 'search'
-      ? { activeModule: 'workbench', activeView, dictWord }
-      : { activeModule, activeView, dictWord }
-    set({ activeModule: 'search', activeView: 'workbench', dictWord: null, searchReturn })
+    const { activeModule, activeView, dictWord, searchReturn } = get()
+    // 已在搜索模块内再次 openSearch：保留现有 searchReturn 不动（原始来源不丢），
+    // 仍把视图重置为搜索列表。
+    const nextReturn = activeModule === 'search' && searchReturn
+      ? searchReturn
+      : { activeModule: activeModule === 'search' ? 'workbench' : activeModule, activeView, dictWord }
+    set({ activeModule: 'search', activeView: 'workbench', dictWord: null, searchReturn: nextReturn })
   },
   closeSearch: () => {
     const { searchReturn } = get()

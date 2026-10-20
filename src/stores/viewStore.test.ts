@@ -109,4 +109,20 @@ describe('viewStore 双视图切换（D2）', () => {
     expect(useViewStore.getState().activeView).toBe('workbench')
     expect(useViewStore.getState().dictWord).toBeNull()
   })
+
+  // openSearch 不覆盖语义：搜索内再次 openSearch 保留原始来源
+  it('openSearch 在搜索内再次调用不覆盖来源', () => {
+    useViewStore.setState({ activeModule: 'settings', activeView: 'workbench', dictWord: null, searchReturn: null })
+    useViewStore.getState().openSearch()
+    useViewStore.getState().openSearch()
+    useViewStore.getState().closeSearch()
+    expect(useViewStore.getState().activeModule).toBe('settings')
+  })
+
+  // closeSearch 兜底：无 searchReturn 时回工作台
+  it('closeSearch 无保存值时回工作台', () => {
+    useViewStore.setState({ activeModule: 'search', activeView: 'workbench', dictWord: null, searchReturn: null })
+    useViewStore.getState().closeSearch()
+    expect(useViewStore.getState().activeModule).toBe('workbench')
+  })
 })
