@@ -17,6 +17,7 @@ describe('archiveMove（v0.7.5 Task 11：移入 / 移回入口共用文案）', 
   it('单条确认框：移入解释它离开词表与复习、可从储藏库找回', () => {
     expect(moveConfirmRequest('archive', 'abandon')).toEqual({
       title: '移入储藏库',
+      confirmLabel: '移入',
       message: '“abandon”将从工作台移入储藏库：不再出现在工作台词表，也不参与复习。可从左侧储藏库找回。',
     })
   })
@@ -24,6 +25,7 @@ describe('archiveMove（v0.7.5 Task 11：移入 / 移回入口共用文案）', 
   it('单条确认框：移回解释它重新参与复习', () => {
     expect(moveConfirmRequest('workspace', 'forsake')).toEqual({
       title: '移回工作台',
+      confirmLabel: '移回',
       message: '“forsake”将从储藏库移回工作台，并重新参与复习。',
     })
   })
@@ -31,10 +33,12 @@ describe('archiveMove（v0.7.5 Task 11：移入 / 移回入口共用文案）', 
   it('批量确认框：同一套解释，主语换成「选中的 N 个单词」', () => {
     expect(moveBatchConfirmRequest('archive', 3)).toEqual({
       title: '移入储藏库',
+      confirmLabel: '移入',
       message: '选中的 3 个单词将从工作台移入储藏库：不再出现在工作台词表，也不参与复习。可从左侧储藏库找回。',
     })
     expect(moveBatchConfirmRequest('workspace', 2)).toEqual({
       title: '移回工作台',
+      confirmLabel: '移回',
       message: '选中的 2 个单词将从储藏库移回工作台，并重新参与复习。',
     })
   })

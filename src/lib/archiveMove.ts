@@ -16,10 +16,15 @@ export function moveActionLabel(from: WordLocation): '移入储藏库' | '移回
   return from === 'archive' ? '移回工作台' : '移入储藏库'
 }
 
-/** 单个词的确认框请求体（`useUiStore.confirm` 的入参，非 alert）。 */
-export function moveConfirmRequest(to: WordLocation, lemma: string): { title: string; message: string } {
+/** 单个词的确认框请求体（`useUiStore.confirm` 的入参，非 alert）。
+ *  `confirmLabel` 必传：ConfirmDialog 的缺省肯定按钮是「删除」，移动不是删除。 */
+export function moveConfirmRequest(
+  to: WordLocation,
+  lemma: string,
+): { title: string; message: string; confirmLabel: string } {
   return {
     title: to === 'archive' ? '移入储藏库' : '移回工作台',
+    confirmLabel: to === 'archive' ? '移入' : '移回',
     message: to === 'archive'
       ? `“${lemma}”将从工作台移入储藏库：不再出现在工作台词表，也不参与复习。可从左侧储藏库找回。`
       : `“${lemma}”将从储藏库移回工作台，并重新参与复习。`,
@@ -27,9 +32,13 @@ export function moveConfirmRequest(to: WordLocation, lemma: string): { title: st
 }
 
 /** 批量条的确认框请求体：同一套解释，主语换成「选中的 N 个单词」。 */
-export function moveBatchConfirmRequest(to: WordLocation, count: number): { title: string; message: string } {
+export function moveBatchConfirmRequest(
+  to: WordLocation,
+  count: number,
+): { title: string; message: string; confirmLabel: string } {
   return {
     title: to === 'archive' ? '移入储藏库' : '移回工作台',
+    confirmLabel: to === 'archive' ? '移入' : '移回',
     message: to === 'archive'
       ? `选中的 ${count} 个单词将从工作台移入储藏库：不再出现在工作台词表，也不参与复习。可从左侧储藏库找回。`
       : `选中的 ${count} 个单词将从储藏库移回工作台，并重新参与复习。`,
