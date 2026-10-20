@@ -820,7 +820,18 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   )
 }
 
-export default function WordWorkbench() {
+interface Props {
+  /**
+   * 外壳形态（Android 手机外壳，Task 4）：`'mobile'` 时**不渲染内部 `WorkbenchNavBar`**——
+   * 手机顶栏动作由 `MobileAppBar` 承担，两份导航条会叠成两条。页签条、头带、正文与页级
+   * 「＋ 添加」一律保留，故手机与桌面看到的是同一份词条渲染。
+   *
+   * 缺省 `'desktop'`：桌面两个调用点（`AppShell`、`MobileShell` 之外）不传，行为逐字不变。
+   */
+  chrome?: 'desktop' | 'mobile'
+}
+
+export default function WordWorkbench({ chrome = 'desktop' }: Props) {
   const { words, selectedWordId, fieldValues, location, updateFieldValue, deleteWord, addFieldValue, deleteFieldValue, reorderFieldValues, libraryLocationOf, moveToArchive, moveToWorkspace } = useWordStore()
   const [defs, setDefs] = useState<FieldDefinition[]>([])
   const editorMode = useViewStore(s => s.editorMode)
@@ -1350,21 +1361,25 @@ export default function WordWorkbench() {
           另持 14px 内边距（WorkbenchNavBar.tsx 的 `padding:'0 14px'`）撑内容位置，条的
           内容因此仍居中不跳。
           复习区正解在 ReviewModule.tsx:152（sticky 块无水平内边距，ArenaNavBar 的线通栏）。 */}
-      <div style={{ position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
-                    background: 'var(--color-chrome)' }}>
-        <WorkbenchNavBar
-          region="workbench"
-          // 移入 / 移回（v0.7.5 Task 11）：导航条保持哑组件，模块与回调动词由这里传入。
-          location={location}
-          onMoveWord={() => { void handleMoveWord() }}
-          onDeleteWord={handleDelete}
-          // 编辑态的保存 / 取消（v0.7.4 任务 14）：`editing` 有值才出现。`dirty` 本版只作
-          // 将来的「未保存」提示，不据此禁用按钮（见 WorkbenchNavBar 的 prop 注释）。
-          editing={editingId ? { dirty: hasFieldChanges(editValue, entryValue) } : undefined}
-          onSaveEdit={handleSave}
-          onCancelEdit={() => setEditingId(null)}
-        />
-      </div>
+      {/* 手机外壳（Task 4）：`chrome="mobile"` 时整条不渲染——顶栏动作归 `MobileAppBar`（Task 5），
+          两条导航条叠在一起会让每个动作出现两次。其余外壳（桌面）逐字不变。 */}
+      {chrome === 'desktop' && (
+        <div style={{ position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
+                      background: 'var(--color-chrome)' }}>
+          <WorkbenchNavBar
+            region="workbench"
+            // 移入 / 移回（v0.7.5 Task 11）：导航条保持哑组件，模块与回调动词由这里传入。
+            location={location}
+            onMoveWord={() => { void handleMoveWord() }}
+            onDeleteWord={handleDelete}
+            // 编辑态的保存 / 取消（v0.7.4 任务 14）：`editing` 有值才出现。`dirty` 本版只作
+            // 将来的「未保存」提示，不据此禁用按钮（见 WorkbenchNavBar 的 prop 注释）。
+            editing={editingId ? { dirty: hasFieldChanges(editValue, entryValue) } : undefined}
+            onSaveEdit={handleSave}
+            onCancelEdit={() => setEditingId(null)}
+          />
+        </div>
+      )}
 
       {/* 内容列：保持居中；列宽与内边距取 lib/layout 的共享常量（ENTRY_BAND_WIDTH / ENTRY_COLUMN_PADDING） */}
       <div style={{ maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: ENTRY_COLUMN_PADDING }}>
