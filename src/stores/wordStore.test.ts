@@ -18,6 +18,7 @@ import { useWordStore } from './wordStore'
 import * as wordService from '../services/wordService'
 import * as fieldService from '../services/fieldService'
 import { useNavHistoryStore } from './navHistoryStore'
+import { useReviewOverlayStore } from './reviewOverlayStore'
 import { current } from '../lib/navHistory'
 
 describe('wordStore.mergeWordFields', () => {
@@ -143,9 +144,13 @@ describe('wordStore.moveToArchive / moveToWorkspace（v0.7.5 Task 11：移入 / 
   const abandon = { id: 'w1', lemma: 'abandon', normalizedLemma: 'abandon', language: 'en', location: 'workspace' as const, createdAt: 1, updatedAt: 1 }
   const forsake = { id: 'w2', lemma: 'forsake', normalizedLemma: 'forsake', language: 'en', location: 'archive' as const, createdAt: 1, updatedAt: 1 }
   const keep = { id: 'w3', lemma: 'keep', normalizedLemma: 'keep', language: 'en', location: 'workspace' as const, createdAt: 1, updatedAt: 1 }
+  let loadOverlay: () => Promise<void>
 
   beforeEach(() => {
     vi.clearAllMocks()
+    // 复习叠加层是装饰层：移动后应刷新（v0.7.5 修正），但不该让测试真的去读库。
+    loadOverlay = vi.fn().mockResolvedValue(undefined)
+    useReviewOverlayStore.setState({ loadOverlay })
     useWordStore.setState({
       words: [],
       fieldValues: [],
@@ -182,6 +187,7 @@ describe('wordStore.moveToArchive / moveToWorkspace（v0.7.5 Task 11：移入 / 
     expect(s.libraryLocationOf('abandon')).toBe('archive')   // 索引按全库重建
     expect(s.counts).toEqual({ total: 2, workspace: 1, archive: 1 })
     expect(wordService.getPreviews).toHaveBeenLastCalledWith('workspace')  // 重载的是当前模块
+    expect(loadOverlay).toHaveBeenCalled()                    // 复习叠加层跟着刷新（v0.7.5 修正）
   })
 
   it('移入非选中词：选中项与字段不动', async () => {
@@ -217,13 +223,14 @@ describe('wordStore.moveToArchive / moveToWorkspace（v0.7.5 Task 11：移入 / 
     expect(wordService.getPreviews).toHaveBeenLastCalledWith('archive')
   })
 
-  it('位置写入失败：不重载、不清选中', async () => {
+  it('位置写入失败：不重载、不清选中、不刷新叠加层', async () => {
     useWordStore.setState({ words: [abandon], selectedWordId: 'w1' })
     vi.mocked(wordService.setWordLocation).mockResolvedValue(false)
 
     await useWordStore.getState().moveToArchive('w1')
 
     expect(wordService.getPreviews).not.toHaveBeenCalled()
+    expect(loadOverlay).not.toHaveBeenCalled()
     expect(useWordStore.getState().selectedWordId).toBe('w1')
   })
 })
@@ -244,17 +251,17 @@ describe('wordStore.deleteWord 历史栈同步（v0.5.2 §6 自动切词）', ()
 
   it('删除当前词条 → 选中历史栈现在指向的邻居词条（栈与选中一致）', async () => {
     useWordStore.setState({ selectedWordId: 'c' })
-    nav().record('a'); nav().record('b'); nav().record('c')
+    nav().record('a', 'workspace'); nav().record('b', 'workspace'); nav().record('c', 'workspace')
 
     await useWordStore.getState().deleteWord('c')
 
     expect(useWordStore.getState().selectedWordId).toBe('b')
-    expect(current(useNavHistoryStore.getState().history)).toBe('b')
+    expect(current(useNavHistoryStore.getState().history)?.id).toBe('b')
   })
 
   it('历史栈为空 → 删除当前词条后回空态', async () => {
     useWordStore.setState({ selectedWordId: 'b' })
-    nav().record('b')
+    nav().record('b', 'workspace')
 
     await useWordStore.getState().deleteWord('b')
 
@@ -263,7 +270,7 @@ describe('wordStore.deleteWord 历史栈同步（v0.5.2 §6 自动切词）', ()
 
   it('删除非选中词条 → 选中项不动', async () => {
     useWordStore.setState({ selectedWordId: 'a' })
-    nav().record('a'); nav().record('b')
+    nav().record('a', 'workspace'); nav().record('b', 'workspace')
 
     await useWordStore.getState().deleteWord('b')
 

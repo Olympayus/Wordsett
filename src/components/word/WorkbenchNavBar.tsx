@@ -63,8 +63,8 @@ const navBtn = (disabled = false): CSSProperties => ({
 
 // 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区，吸顶。
 // 箭头是浏览器式前进 / 后退，走用户访问轨迹，不是词表顺序。
-// 形态（v0.7.2）：通栏细行——贴滚动容器上缘、无圆角、下缘一道细线，底取标题栏档。
-// 底色 v0.7.5 改取凹陷档（见下方 ②）。
+// 形态（v0.7.2）：通栏细行——贴滚动容器上缘、无圆角、下缘一道细线。
+// 底色 v0.7.5 改取凹陷档 `--color-surface-sunken`（与页签条同档，见下方 ②）。
 // 旧 V8 原型 .ed-toolbar 的「圆角描边浮条」已废（见下方 :84-94 的实现）。
 // 二轮两处修正：
 // ① **外层 wrapper 不可再垫水平内边距**——那道 borderBottom 画在本组件的盒内，wrapper
@@ -82,18 +82,32 @@ export default function WorkbenchNavBar({
   const editorMode = useViewStore(s => s.editorMode)
   const setEditorMode = useViewStore(s => s.setEditorMode)
   const history = useNavHistoryStore(s => s.history)
-  const selectWord = useWordStore(s => s.selectWord)
   // 「＋」分类下拉的开关（仅 dict 区用），以及那对按钮所在的容器——浮层的锚点
   // （v0.6.5 修订：浮层已是 fixed 落位，锚点由它现算。原来这里靠 position: relative
   //  让面板按容器下沿展开，那条契约已被 popoverPosition 取代）。
   const [pickerOpen, setPickerOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
 
-  // 导航切换不入栈（record:false），否则后退会立刻变成前进
-  const go = (dir: 'back' | 'forward') => {
+  // 历史项 → 词条**当前**所在模块（v0.7.5 修正）。已删除 / 已不在库返回 null，历史项随之丢弃；
+  // 移过模块的项拿到新位置，退回它时才不会切错数据集。
+  const locationOfHistoryId = (id: string): WordLocation | null =>
+    useWordStore.getState().libraryWords.find(w => w.id === id)?.location ?? null
+
+  // 导航切换不入栈（record:false），否则后退会立刻变成前进。
+  // 顺序与 `useLinkJump` 一致（硬要求）：先切模块 → 数据集不同则切数据集 → 最后选中词条。
+  // 反过来的话 `selectWord` 会在旧数据集里找目标；先选后换数据集则 `setLocation` 会把
+  // 刚选中的词清掉——跨模块后退就落进「空态里没有导航条」的死角（v0.7.5 修复的关键）。
+  const go = async (dir: 'back' | 'forward') => {
     const nav = useNavHistoryStore.getState()
-    const target = dir === 'back' ? nav.goBack() : nav.goForward()
-    if (target) void selectWord(target, { record: false })
+    const entry = dir === 'back'
+      ? nav.goBack(locationOfHistoryId)
+      : nav.goForward(locationOfHistoryId)
+    if (!entry) return
+    useViewStore.getState().showModule(entry.location === 'archive' ? 'archive' : 'workbench')
+    if (useWordStore.getState().location !== entry.location) {
+      await useWordStore.getState().setLocation(entry.location)
+    }
+    await useWordStore.getState().selectWord(entry.id, { record: false })
   }
 
   // V8 .nav-btn:hover：hover 起底色并转主色。
@@ -118,7 +132,8 @@ export default function WorkbenchNavBar({
   return (
     <div
       style={{
-        // 通栏细行（v0.7.2）：贴滚动容器上缘、无圆角、下缘一道细线，底取标题栏档。
+        // 通栏细行（v0.7.2）：贴滚动容器上缘、无圆角、下缘一道细线。
+        // 底色取凹陷档（v0.7.5 Task 18）——与下方页签条同一档面，两条合成连续的凹陷带。
         // 那条 borderBottom 在本组件盒内，故**左右内边距归 wrapper 管、这里只管内容**：
         // wrapper 通栏不垫（见文件头二轮 ①），这条线才顶得到屏幕左右边缘。
         position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
@@ -134,7 +149,7 @@ export default function WorkbenchNavBar({
         title={region === 'dict' ? '返回' : '上一个词条'}
         aria-label={region === 'dict' ? '返回' : '上一个词条'}
         disabled={region === 'workbench' && !canGoBack(history)}
-        onClick={() => region === 'dict' ? onBack?.() : go('back')}
+        onClick={() => region === 'dict' ? onBack?.() : void go('back')}
         onMouseEnter={hoverOn}
         onMouseLeave={hoverOff}
         style={navBtn(region === 'workbench' && !canGoBack(history))}
@@ -152,7 +167,7 @@ export default function WorkbenchNavBar({
           title="下一个词条"
           aria-label="下一个词条"
           disabled={!canGoForward(history)}
-          onClick={() => go('forward')}
+          onClick={() => void go('forward')}
           onMouseEnter={hoverOn}
           onMouseLeave={hoverOff}
           style={navBtn(!canGoForward(history))}

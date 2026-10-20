@@ -8,7 +8,8 @@ import { normalizeLinkTarget } from '../lib/links'
 import { buildLibraryIndex } from '../lib/collected'
 import { useCategoryStore } from './categoryStore'
 import { useNavHistoryStore } from './navHistoryStore'
-import { current } from '../lib/navHistory'
+import { useReviewOverlayStore } from './reviewOverlayStore'
+import { current, type NavEntry } from '../lib/navHistory'
 
 interface WordStore {
   words: WordWithPreview[]
@@ -63,7 +64,9 @@ interface WordStore {
  * 移入 / 移回的唯一实现（v0.7.5 Task 11）：只改位置，**复习卡与历史一律不动**
  * （Task 12 负责让它们不参与计算；删词才级联删）。
  * 成功后若移的正是当前选中词，回到空态——工作区不会停在一个已经离开本模块的词上。
- * 随后 `loadWords` 重载**当前模块**词表，并顺带重建索引与三档计数（`reloadLibraryIndex`）。
+ * 随后 `loadWords` 重载**当前模块**词表，并顺带重建索引与三档计数（`reloadLibraryIndex`）；
+ * 再刷新复习叠加层——储藏库词不参与复习读数与「复习到期」集合，不刷新的话侧栏与 mastery
+ * 芯片会继续按移动前的模块口径显示（v0.7.5 修正）。
  * 确认框由调用点弹（菜单 / 批量条 / 导航条），store 不做 UI。
  */
 async function moveWord(
@@ -76,6 +79,20 @@ async function moveWord(
   if (!ok) return
   if (get().selectedWordId === id) set({ selectedWordId: null, fieldValues: [] })
   await get().loadWords()
+  // 叠加层是装饰层：读失败（如测试环境的库未初始化）不该把一次成功的移动变成失败。
+  await useReviewOverlayStore.getState().loadOverlay().catch(() => {})
+}
+
+/**
+ * 删词后的自动切词（v0.5.2 §6）：历史指针指向的邻居可能已被移到**另一个模块**
+ * （v0.7.5 起历史项带 location）。只 `selectWord` 会在当前词表里找目标、落进空态，
+ * 故先按邻居的模块切数据集。返回是否成功选中。
+ */
+async function selectHistoryNeighbour(get: () => WordStore, entry: NavEntry | null): Promise<boolean> {
+  if (!entry) return false
+  if (get().location !== entry.location) await get().setLocation(entry.location)
+  await get().selectWord(entry.id)
+  return true
 }
 
 export const useWordStore = create<WordStore>((set, get) => ({
@@ -122,8 +139,9 @@ export const useWordStore = create<WordStore>((set, get) => ({
     // 避免字段列表先坍缩再重取导致滚动容器 scrollTop 被钳到顶部（跳顶）。
     if (id !== get().selectedWordId) {
       set({ selectedWordId: id, fieldValues: [] })
-      // 历史栈：仅记录非空的词条切换；箭头导航自身调用时传 record:false（v0.5.2 §6）
-      if (id && opts?.record !== false) useNavHistoryStore.getState().record(id)
+      // 历史栈：仅记录非空的词条切换；箭头导航自身调用时传 record:false（v0.5.2 §6）。
+      // 模块与 id 一起记（v0.7.5 修正）：跨模块「后退」要先切回目标所在的数据集。
+      if (id && opts?.record !== false) useNavHistoryStore.getState().record(id, get().location)
     }
     if (!id) return
     const values = await fieldService.getValues(id)
@@ -176,8 +194,7 @@ export const useWordStore = create<WordStore>((set, get) => ({
       // 删除当前词条后的自动切词（spec §6 入栈时机）：落到历史栈现在指向的邻居词条；
       // 空栈则维持原来的空态。非选中词条的删除不动选中项。
       const neighbour = current(useNavHistoryStore.getState().history)
-      if (neighbour) await get().selectWord(neighbour)
-      else set({ selectedWordId: null, fieldValues: [] })
+      if (!(await selectHistoryNeighbour(get, neighbour))) set({ selectedWordId: null, fieldValues: [] })
     }
     await get().loadWords()
   },
@@ -190,8 +207,7 @@ export const useWordStore = create<WordStore>((set, get) => ({
     for (const id of ids) useNavHistoryStore.getState().dropId(id)
     if (get().selectedWordId && ids.includes(get().selectedWordId!)) {
       const neighbour = current(useNavHistoryStore.getState().history)
-      if (neighbour) await get().selectWord(neighbour)
-      else set({ selectedWordId: null, fieldValues: [] })
+      if (!(await selectHistoryNeighbour(get, neighbour))) set({ selectedWordId: null, fieldValues: [] })
     }
     await get().loadWords()
   },
