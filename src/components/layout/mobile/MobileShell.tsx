@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useViewStore } from '../../../stores/viewStore'
 import WordWorkbench, { type WordWorkbenchHandle } from '../../word/WordWorkbench'
 import DictDetailPanel from '../../search/DictDetailPanel'
@@ -7,6 +7,7 @@ import EmptyState from '../../ui/EmptyState'
 import MobileAppBar from './MobileAppBar'
 import MobileTabBar from './MobileTabBar'
 import WordStrip from './WordStrip'
+import MobileDrawer from './MobileDrawer'
 import { useWordStore } from '../../../stores/wordStore'
 
 // 手机外壳（Task 4 立骨架，Task 5 填三块）。
@@ -59,9 +60,19 @@ export default function MobileShell() {
     if (useWordStore.getState().location !== target) void useWordStore.getState().setLocation(target)
   }, [activeModule])
 
-  // 抽屉（Task 6 的 `MobileDrawer`）：本版 `MobileDrawer` 尚未落地，故这里是**占位 no-op**——
-  // 顶栏那枚按钮仍在（布局与可及名已就位），接线留给 Task 6。
-  const openDrawer = () => {}
+  // 抽屉（Task 6 的 `MobileDrawer`）：开关是外壳自己的瞬时 state，只有词条页（工作台 / 储藏库）
+  // 有入口（顶栏那枚按钮只在那里出现）。抽屉**常挂**，关闭只是隐藏——滚动位置与选择模式
+  // 因此活过一次开合（spec §4.4）；工作台与储藏库各挂一份（见下方两处渲染），互不覆盖。
+  const [drawerOpen, setDrawerOpen] = useState(false)
+  const openDrawer = useCallback(() => setDrawerOpen(true), [])
+  const closeDrawer = useCallback(() => setDrawerOpen(false), [])
+
+  // 离开词条页（复习 / 设置）时顺手把抽屉收起来：那两页没有抽屉入口，留一个开着的抽屉
+  // 只会让「设置页看起来像被一块 86% 宽的面板压着」。抽屉自身保持挂载，滚动位置不受影响。
+  useEffect(() => {
+    if (activeModule === 'workbench' || activeModule === 'archive') return
+    setDrawerOpen(false)
+  }, [activeModule])
 
   return (
     <div className="h-screen flex flex-col" style={{ background: 'var(--color-canvas)' }}>
@@ -78,8 +89,12 @@ export default function MobileShell() {
       )}
 
       {/* 内容区：`data-find-root` 供 `FindBar` 定位当前模块的搜索根（与 `AppShell` 同名属性）。
-          高度由 `flex-1` + `minHeight: 0` 决定——不写死高度。 */}
-      <div className="flex-1 flex flex-col overflow-hidden" style={{ minHeight: 0 }}>
+          高度由 `flex-1` + `minHeight: 0` 决定——不写死高度。`relative` 是抽屉的定位上下文：
+          抽屉是 `absolute inset- 0`，锚在这一屏上（视口级 fixed 会与外壳的对齐分叉）。 */}
+      <div
+        className="flex-1 flex flex-col overflow-hidden relative"
+        style={{ minHeight: 0 }}
+      >
         {/* 词条条（spec §4.3 方案 B）：只在词条页出现；词库为空时它自己不渲染。 */}
         {(activeModule === 'workbench' || activeModule === 'archive') && <WordStrip />}
 
@@ -118,6 +133,18 @@ export default function MobileShell() {
           >
             <EmptyState message={activeModule === 'search' ? '搜索模块即将上线' : '设置页即将上线'} />
           </main>
+        )}
+
+        {/* 抽屉（Task 6，spec §4.4）：只挂载在词条页——顶栏那枚入口按钮也只在那里出现。
+            工作台与储藏库**各挂一份**：两份的 `WordList` 都是活的，切模块不会互相覆盖
+            （桌面侧栏在模块切换后丢滚动位置，这里按「各自保留」实现，见 `MobileDrawer` 文件头）。
+            每份一个 key：React 不会在两处之间复用同一个 `WordList` 实例（那会带着上一模块的
+            筛选 / 选中态）。 */}
+        {activeModule === 'workbench' && (
+          <MobileDrawer key="drawer-workbench" open={drawerOpen} onClose={closeDrawer} />
+        )}
+        {activeModule === 'archive' && (
+          <MobileDrawer key="drawer-archive" open={drawerOpen} onClose={closeDrawer} />
         )}
       </div>
 

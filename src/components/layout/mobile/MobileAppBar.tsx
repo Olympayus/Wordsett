@@ -35,8 +35,7 @@ const iconBtn = (disabled = false): CSSProperties => ({
 const MENU_ANCHOR_OFFSET = 8
 
 interface Props {
-  /** 打开左侧抽屉（Task 6 的 `MobileDrawer`）。本版 `MobileDrawer` 尚未落地，
-   *  故这里是**占位 no-op**：按钮仍在（顶栏布局与可及名已就位），接线留给 Task 6。 */
+  /** 打开左侧抽屉（Task 6 的 `MobileDrawer`，由 `MobileShell` 接线）。 */
   onOpenDrawer: () => void
   /** 有东西正在编辑时换成「取消 / 保存」——与桌面 `WorkbenchNavBar`
    *  的 `editing` prop 同一形状：有值才出现。 */
@@ -106,7 +105,9 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
         paddingTop: 'env(safe-area-inset-top)',
       }}
     >
-      <button type="button" title="词库" aria-label="词库" onClick={onOpenDrawer} style={iconBtn()}>
+      {/* 抽屉钮带 id：抽屉关闭时焦点还回这里（`MobileDrawer` 的 effect 按这个名字找）。
+          一个稳定的 id 比 ref 转发短——抽屉不必认识顶栏。 */}
+      <button type="button" id="mobile-drawer-open" title="词库" aria-label="词库" onClick={onOpenDrawer} style={iconBtn()}>
         <Icon name="layers" size={18} />
       </button>
       <button type="button" title="上一个词条" aria-label="上一个词条" disabled={!canBack} onClick={goBack} style={iconBtn(!canBack)}>

@@ -1,5 +1,6 @@
 import { useRef } from 'react'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useImperativeHandle, forwardRef } from 'react'
+import type { Ref } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useWordStore } from '../../stores/wordStore'
 import { useCategoryStore } from '../../stores/categoryStore'
@@ -57,17 +58,34 @@ const EMPTY_TEXT: Record<SmartViewKey, string> = {
   leech: '还没有达到阈值的顽固词',
 }
 
-export default function WordList({
+/**
+ * 手机抽屉（Task 6 的 `MobileDrawer`）要用的唯一动作：进入多选。
+ *
+ * 选择模式的状态（`selectMode` / `selected` / 锚点）**只存在于本组件体内**，
+ * 而抽屉标题右侧那枚「多选」icon 钮画在 `MobileDrawer` 里，故经 `ref` 交出。
+ * 交出的是「进入选择模式」这一半而不是「切换」：工具条上那颗也是单向进入
+ * （`onToggleSelectMode={() => setSelectMode(true)}`），退出一律走选中条上的「退出」。
+ */
+export interface WordListHandle {
+  toggleSelectMode: () => void
+}
+
+// `forwardRef` 只为了让手机抽屉拿到「进入多选」（见 `WordListHandle`）。
+// 桌面调用点（`AppShell`）不传 ref，行为逐字不变。
+const WordList = forwardRef(function WordList({
   collapsed,
   onToggleCollapse,
   mode,
   onToggleMode,
+  chrome = 'sidebar',
 }: {
   collapsed: boolean
   onToggleCollapse: () => void
   mode: SidebarMode
   onToggleMode: () => void
-}) {
+  /** 宿主形态：`'drawer'` 时工具条收掉三颗按钮（那两颗模式钮搬进抽屉标题，收起钮在抽屉里没有意义）。 */
+  chrome?: 'sidebar' | 'drawer'
+}, ref: Ref<WordListHandle>) {
   const { words, libraryWords, selectedWordId, selectWord, location, moveToArchive, moveToWorkspace } = useWordStore()
   const [selectMode, setSelectMode] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -257,6 +275,11 @@ export default function WordList({
   const exitSelect = useCallback(() => {
     setSelectMode(false); setSelected(new Set()); setAnchorKey(null); setBatchPopover(null)
   }, [])
+
+  // 与本组件内的 Esc 监听同一份出口：抽屉那枚「多选」钮只需进入，清空 / 退出仍归本组件。
+  useImperativeHandle(ref, () => ({
+    toggleSelectMode: () => setSelectMode(true),
+  }), [])
 
   useEffect(() => {
     if (!selectMode) return
@@ -504,6 +527,7 @@ export default function WordList({
         // 「清空后 Shift 点回去」变成只选一行。表格里清选区也不移动活动单元格，同一个道理。
         onClearAll={() => setSelected(new Set())}
         onExitSelect={exitSelect}
+        chrome={chrome}
       />
       {/* 储藏库没有智能视图（v0.7.5 Task 10）：整区不渲染，侧栏与工作台同一个组件。 */}
       {location !== 'archive' && (
@@ -584,7 +608,9 @@ export default function WordList({
       )}
     </div>
   )
-}
+})
+
+export default WordList
 
 /** 批量条上的一颗动作。收起态只留图标，标签进 title 与 aria-label。
  *  收起态内边距 3px（而非展开态的 10px）：四颗图标钮各 20px 宽（12 图标 + 6 内边距 + 2 描边），

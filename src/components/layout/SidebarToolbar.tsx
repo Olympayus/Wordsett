@@ -2,10 +2,32 @@ import { useRef } from 'react'
 import Icon from '../icons'
 import ClearButton from '../ui/ClearButton'
 
-/** 第一行里各控件的显隐规则。抽成纯函数是为了可测——node 环境测不到 DOM。 */
-export function toolbarSlots({ selectMode }: { collapsed: boolean; selectMode: boolean }): {
+/** 第一行里各控件的显隐规则。抽成纯函数是为了可测——node 环境测不到 DOM。
+ *  `chrome='drawer'`（Task 6 的 `MobileDrawer`）是第一行的**第三种**形态：那三颗按钮
+ *  在抽屉里另有出处（标题右侧的两枚同款 icon 钮，见 `MobileDrawer`），故第一行整段让位，
+ *  只留筛选框——分支条件与渲染分支是同一个来源（见下方三元）。
+ *
+ * 入参按 interface 取而不是逐个解构：`collapsed` 刻意**不参与判定**（v0.6.5 §4.1 的规矩，
+ *  见下方注释），但调用方照旧要传。 */
+export function toolbarSlots({ selectMode, chrome = 'sidebar' }: {
+  collapsed: boolean
+  selectMode: boolean
+  chrome?: 'sidebar' | 'drawer'
+}): {
   selectToggle: boolean; modeToggle: boolean; collapseToggle: boolean; filterInput: boolean
+  selectBar: boolean
 } {
+  // 抽屉模式：收起钮在抽屉里没有意义（抽屉的关闭由标题左侧那枚 × 与遮罩承担），
+  // 多选钮与模式钮搬进抽屉标题，故三个按钮位全 false、筛选框照旧。
+  if (chrome === 'drawer') {
+    return {
+      selectToggle: false,
+      modeToggle: false,
+      collapseToggle: false,
+      filterInput: true,
+      selectBar: selectMode,
+    }
+  }
   return {
     // 收起态**不**再关掉任何功能（v0.6.5 §4.1）：放不下交给宽度与换行，
     // 不再用 collapsed 这个布尔量去决定「能不能用」。collapsed 仍留在入参类型里
@@ -14,6 +36,7 @@ export function toolbarSlots({ selectMode }: { collapsed: boolean; selectMode: b
     modeToggle: !selectMode,
     collapseToggle: true,
     filterInput: true,
+    selectBar: selectMode,
   }
 }
 
@@ -31,6 +54,8 @@ interface Props {
    *  「筛一批 → 全选 → 发现选多了 → 清空 → 再 Shift 范围选」这条动线不用绕出模式再进来。 */
   onClearAll: () => void
   onExitSelect: () => void
+  /** 宿主形态：`'drawer'` 时第一行的三颗按钮让位（抽屉标题右侧另有同款两枚）。 */
+  chrome?: 'sidebar' | 'drawer'
 }
 
 const iconBtn = (on = false): React.CSSProperties => ({
@@ -67,15 +92,19 @@ const chip: React.CSSProperties = {
 export default function SidebarToolbar({
   collapsed, filter, onFilterChange, onToggleMode, onToggleCollapse,
   selectMode, onToggleSelectMode, selectedCount, onSelectAll, onClearAll, onExitSelect,
+  chrome,
 }: Props) {
-  const slots = toolbarSlots({ collapsed, selectMode })
+  const slots = toolbarSlots({ collapsed, selectMode, chrome })
   const inputRef = useRef<HTMLInputElement>(null)
   return (
     <div className="shrink-0" style={{ padding: '10px 10px 0' }}>
       {/* 第一行：控件。角色分工固定——左侧是「模式类」，右端是「窗口类」。
-          两个分支都按 slots 取，不要按 selectMode 取——分支条件与实际渲染的槽位
+          三个分支都按 slots 取，不要按 selectMode 取——分支条件与实际渲染的槽位
           必须是同一个来源，否则 slots 里的 collapseToggle: true 会变成一个
-          没有任何渲染消费它的常量，选择模式下收起钮也就此消失。 */}
+          没有任何渲染消费它的常量，选择模式下收起钮也就此消失。
+          抽屉模式（chrome='drawer'）三个槽位皆 false → 第一行整段不渲染：那两颗
+          模式钮在抽屉标题右侧另有一份（`MobileDrawer`），收起钮在抽屉里没有意义。 */}
+      {(slots.selectToggle || slots.selectBar) && (
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
         {slots.selectToggle ? (
           <>
@@ -122,6 +151,7 @@ export default function SidebarToolbar({
           )}
         </div>
       </div>
+      )}
 
       {/* 第二行：整宽筛选框。收起态也渲染——它不再是个图标。 */}
       {slots.filterInput && (
