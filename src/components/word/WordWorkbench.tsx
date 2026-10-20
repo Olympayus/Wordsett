@@ -1021,14 +1021,24 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   // 编辑态归本组件所有（`editingId` / `editValue` / `entryValue` 都在体内），而「取消 / 保存」
   // 在手机上画在顶栏（`MobileAppBar`）。plumbing 的两半由 `useImperativeHandle` 交给外壳
   // （`chrome='mobile'` 时才有 ref）——外壳只负责「谁在编辑」这个状态，**不复制**保存 / 取消
-  // 的逻辑。两个 handler 都是稳定的 useCallback 包装：外壳每渲染一次都会重挂这棵子树，
-  // 包装让子组件少一次重渲染。
+  // 的逻辑。
+  //
+  // **必须走 ref，不能靠闭包**：`useImperativeHandle` 的工厂只在这里建一次，`[]` 依赖会让它
+  // 永远拿着**首次渲染**那份 `handleSave`——而那份闭包里的 `editingId` 恒为 `null`，于是
+  // 手机顶栏的「保存」每次都撞上 `if (!editingId) return`，成了**永久空转的按钮**（用户按下
+  // 保存什么也不会发生，且没有任何报错）。`handleSave` 每个渲染都会重造（它读 `editingId` /
+  // `editValue` / `entryValue` 三件局部 state），故这里只把**最新那份**存进 ref，由 handle
+  // 间接调用。赋值写在渲染体里而不是 effect 里：effect 会晚一帧，那一帧里点保存仍会落空。
+  const handleSaveRef = useRef(handleSave)
+  handleSaveRef.current = handleSave
   useImperativeHandle(ref, () => ({
-    saveEdit: () => { void handleSave() },
+    saveEdit: () => { void handleSaveRef.current() },
     cancelEdit: () => setEditingId(null),
   }), [])
   // 桌面那对回调直接复用同一组：`WorkbenchNavBar` 的 `onSaveEdit` / `onCancelEdit` 语义逐字相同
-  // （桌面版此前是内联箭头函数，换成同一组稳定引用）。
+  // （桌面版此前是内联箭头函数，换成同一组稳定引用）。注意这两个**不是** useCallback——它们
+  // 每个渲染重造，稳定性由 `WorkbenchNavBar` 那侧不把它们放进依赖数组来保证（与 v0.7.4 前
+  // 的内联箭头函数等价）。
   const saveEdit = () => { void handleSave() }
   const cancelEdit = () => setEditingId(null)
 

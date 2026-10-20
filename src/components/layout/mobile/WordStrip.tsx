@@ -53,7 +53,9 @@ export default function WordStrip() {
 
   return (
     <div
-      role="list"
+      // 不加 `role="list"`：词条条的子项是**真按钮**，套 list/listitem 会把按钮的可及角色
+      // 改写成 listitem，读屏报出来的不再是「按钮、可激活」而是「列表项」——控件类型比
+      // 容器语义更要紧。容器只留一个可及名（`aria-label` 不依赖 role 也生效）。
       aria-label="词条"
       // 横向滚动：`minWidth: 0` 不可省——flex 子项的缺省 min-width 会让长词把外壳撑宽而不是滚动
       className="shrink-0 flex items-center overflow-x-auto"
@@ -71,8 +73,9 @@ export default function WordStrip() {
         <button
           key={w.id}
           type="button"
-          role="listitem"
-          aria-current={w.id === selectedWordId ? 'true' : undefined}
+          // 选中片取 `aria-current="page"`——与桌面 `ActivityRail` 的活动模块标记同一口径
+          // （`ActivityRail.tsx` 的五枚模块键就是这个写法），不另立一套值。
+          aria-current={w.id === selectedWordId ? 'page' : undefined}
           onClick={() => { void selectWord(w.id) }}
           style={{
             ...chipStyle(w.id === selectedWordId),

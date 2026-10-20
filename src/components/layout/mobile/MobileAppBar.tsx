@@ -50,9 +50,10 @@ interface Props {
  * - 返回 / 前进走 `useWorkbenchNavigation`——与桌面 `WorkbenchNavBar` 共用同一份
  *   「先切模块 → 再切数据集 → 最后选词」的实现（Task 5 抽出），两处入口顺序不可能分家。
  * - 「色条」开关是 `useViewStore.editorMode`（编者模式）的形态开关：`SquareButton` 的
- *   `size="nav" + pressed`，与桌面 `WorkbenchNavBar` 同一配方（含 `role="switch"` + `aria-checked`
- *   与品牌蓝浅一阶底）。高度保持 `size="nav"` 自带的 22px，与 32px 的箭头键并排时居中对齐
- *   ——本仓既有做法是**同排控件各自等高**，而 22px 与 32px 混排会读成两种控件。
+ *   `pressed` 配方与桌面 `WorkbenchNavBar` 同一套（含 `role="switch"` + `aria-checked`
+ *   与品牌蓝浅一阶底），尺寸取 `size="touch"`——`SquareButton` 为手机外壳开的触屏档，
+ *   与 `nav` 同形、只把高度从 22 提到 32（spec §10）。于是它与左右两枚 32px 箭头键
+ *   逐像素等高，右端簇读起来是同一排控件。
  * - ⋯ 里两件动作与桌面工作台**同一批调用**：移动复用 `lib/archiveMove` 的文案与
  *   `useWordStore` 的 `moveToArchive` / `moveToWorkspace`，删除复用 `useWordStore.deleteWord`
  *   与同一句确认文案（`WordWorkbench.handleDelete` 的逐字副本——两处都在「当前选中词」上操作，
@@ -98,11 +99,12 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
     <header
       className="shrink-0 flex items-center"
       style={{
-        height: `${BAR_HEIGHT}px`, gap: 2, padding: '0 8px',
+        // **高度含安全区**：与底栏同一条理由——`box-sizing: border-box` 下 `height` 是含内边距
+        // 的尺寸，把 `env(safe-area-inset-top)` 写进 `paddingTop` 会把内容盒从 52px 压小、
+        // 让 52px 的控件溢出顶栏、压到状态栏（挖孔 / 刘海）上。加进 `height` 则内容盒仍是 52px。
+        height: `calc(${BAR_HEIGHT}px + env(safe-area-inset-top))`, gap: 2, padding: '0 8px',
         background: 'var(--color-chrome)',
         borderBottom: '1px solid var(--color-border)',
-        // 状态栏（挖孔屏 / 刘海）之下：安全区内边距只加在顶栏与底栏上，内容区不再叠加
-        paddingTop: 'env(safe-area-inset-top)',
       }}
     >
       {/* 抽屉钮带 id：抽屉关闭时焦点还回这里（`MobileDrawer` 的 effect 按这个名字找）。
@@ -136,20 +138,23 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
           <>
             {/* 编辑态（Plan 2 的行内编辑）：与桌面 `WorkbenchNavBar` 同一约定——右端整簇换成
                 「取消 / 保存」，色条开关与 ⋯ 都让位（编辑中不该还能切形态开关或删除词条）。
-                `SquareButton size="nav"` 的配方，与色条开关同形，形状语言不另起一套。 */}
-            <SquareButton size="nav" tone="canvas" onClick={() => onCancelEdit?.()}>
+                `size="touch"` 是 `SquareButton` 为手机外壳新开的触屏档：与 `nav` 同形，
+                只把高度提到 32（spec §10 的「沿用 size="nav" 配方，手机把高度调到约 32dp」）。
+                桌面那对仍是 `nav` 的 22px，两档互不牵动。 */}
+            <SquareButton size="touch" tone="canvas" onClick={() => onCancelEdit?.()}>
               取消
             </SquareButton>
-            <SquareButton size="nav" tone="canvas" onClick={() => onSaveEdit?.()}>
+            <SquareButton size="touch" tone="canvas" onClick={() => onSaveEdit?.()}>
               保存
             </SquareButton>
           </>
         ) : (
           <>
             {/* 编者模式（「色条」）：形态开关，开 = 品牌蓝浅一阶 + 深字。`SquareButton` 的
-                `pressed` 配方与桌面 `WorkbenchNavBar` 逐字相同（`role="switch"` + `aria-checked`）。 */}
+                `pressed` 配方与桌面 `WorkbenchNavBar` 同一套（`role="switch"` + `aria-checked`），
+                高度同样走 `touch` 档——与左右两枚 32px 箭头键逐像素等高，右端簇才不歪。 */}
             <SquareButton
-              size="nav"
+              size="touch"
               tone="canvas"
               pressed={editorMode}
               role="switch"

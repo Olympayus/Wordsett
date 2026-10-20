@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
-import { NAV_CONTROL_HEIGHT } from '../../lib/layout'
+import { NAV_CONTROL_HEIGHT, NAV_TOUCH_CONTROL_HEIGHT } from '../../lib/layout'
 
 // 方块按钮统一样式（v0.5.3 §4.1 第 16 条重做；配色在 v0.6.1 收尾后按用户选定换过一轮）。
 // 配色全部收进项目既有色板：默认态用暖中性底的深一阶，编者模式的生效态用品牌蓝的浅一阶；
@@ -98,6 +98,17 @@ export const BUTTON_SIZE_NAV: CSSProperties = { minWidth: 0, height: `${NAV_CONT
     按钮与基底等高才不会在同一行里显得小一号。 */
 export const BUTTON_SIZE_ROW: CSSProperties = { minWidth: 0, padding: '6px 12px' }
 
+/**
+ * 触屏尺寸（Task 5 手机外壳）：与 `nav` 同形（无最小宽、竖向内边距 0、flex 居中），只把高度
+ * 从 22 提到 **32**——spec §10 的「编辑态『保存 / 取消』：沿用 `SquareButton size="nav"`，
+ * 手机把高度调到约 32dp」。它与 `nav` 的差别只有高度，形状语言一致。
+ *
+ * 为什么不直接给 `nav` 加高度：`nav` 的 22px 是**桌面导航条的既有几何**（`NAV_CONTROL_HEIGHT`
+ * 与同排箭头图标键逐像素等高，v0.7.2 定下），改它会牵动 `WorkbenchNavBar` / `ArenaNavBar` 的
+ * 整排高度。故新增一档而不是改旧的一档——移动端只在这副外壳上用 `touch`。
+ */
+export const BUTTON_SIZE_TOUCH: CSSProperties = { minWidth: 0, height: `${NAV_TOUCH_CONTROL_HEIGHT}px`, padding: '0 12px' }
+
 /** 禁用态：灰底 + 半透明，与项目内既有 disabled 观感一致 */
 export const BUTTON_DISABLED: CSSProperties = {
   background: 'var(--color-border-strong)',
@@ -106,7 +117,7 @@ export const BUTTON_DISABLED: CSSProperties = {
   opacity: 0.55,
 }
 
-export type ButtonSize = 'default' | 'nav' | 'row'
+export type ButtonSize = 'default' | 'nav' | 'touch' | 'row'
 
 /** 按钮底色的两套取值：画布套 / 白底套。判据见 `Props.tone` 的注释。 */
 export type ButtonTone = 'canvas' | 'surface'
@@ -205,6 +216,7 @@ export default function SquareButton({ children, onClick, disabled, title, press
         ...(minWidth !== undefined ? { minWidth } : null),
         ...(grow ? { flex: '1 1 0', minWidth: 0 } : null),
         ...(size === 'nav' ? BUTTON_SIZE_NAV : null),
+        ...(size === 'touch' ? BUTTON_SIZE_TOUCH : null),
         ...(size === 'row' ? BUTTON_SIZE_ROW : null),
         ...(disabled ? BUTTON_DISABLED : null),
         ...(background !== null ? { background } : null),

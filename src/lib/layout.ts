@@ -39,6 +39,18 @@ export const NAV_HEIGHT = 32
 /** 导航条里控件的高度（按钮、图标键逐像素等高，右端才不会看着歪） */
 export const NAV_CONTROL_HEIGHT = 22
 
+/**
+ * 触屏档的控件高度（Android 手机外壳，Task 5）：32。
+ *
+ * 与 `NAV_CONTROL_HEIGHT` 分开而不是改它：后者是**桌面导航条的既有几何**（与同排箭头图标键
+ * 逐像素等高，v0.7.2 定下），牵动 `WorkbenchNavBar` / `ArenaNavBar` 的整排高度。spec §10 要的是
+ * 「沿用 `SquareButton size="nav"` 的配方，手机把高度调到约 32dp」——即**同形、只换高度**，
+ * 故这里给一个触屏档常量，由 `SquareButton` 的 `size="touch"` 消费。
+ * 与 `NAV_HEIGHT` 同值不是巧合：手机顶栏高 52、底栏高 62，32 是这条产品线里「触屏控件」的
+ * 那一档，与桌面 22 各自成体系。
+ */
+export const NAV_TOUCH_CONTROL_HEIGHT = 32
+
 /** 头带里字段行之间的行距（词根 → 词根之后的字段行 …）。两页共用，先前是散在五处的裸 7px。
  *
  * **v0.7.3 尾段起已无消费点**：头带末行改由 `ENTRY_BAND_FOOT_GAP` 统一给上间距——工作区的词根行进

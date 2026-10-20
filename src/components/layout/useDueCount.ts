@@ -10,9 +10,15 @@ const IS_ANDROID = /Android/i.test(navigator.userAgent)
 /**
  * 今日到期数 + 托盘上报（Task 5 从 `DueBadge.tsx` 抽出的取数与轮询）。
  *
- * 两个消费点：桌面标题栏的 `DueBadge`（`showDueBadge` 关掉时它不渲染，但托盘数字照报）
- * 与手机底栏的复习格徽标（无 `showDueBadge` 开关，恒显）。取数口径与刷新时机在两个消费点
- * 之间必须一致，故整段原样搬过来、一处实现。
+ * 两个消费点：桌面标题栏的 `DueBadge`（它自己按 `showDueBadge` 决定显不显，见下）与手机底栏
+ * 的复习格徽标（**恒显**）。取数口径与刷新时机在两个消费点之间必须一致，故整段原样搬过来、
+ * 一处实现。
+ *
+ * **hook 只取数、不管显隐**：桌面那侧的闸是 `showDueBadge`（设置项「标题栏显示待复习数量」），
+ * 手机那侧**没有这道闸**——手机上不存在「标题栏」，这个设置项在 Android 设置页里也不出现。
+ * 门控若留在本 hook 里，手机端的徽标就会被桌面那个开关绑住（关掉它就永远不显示），
+ * 而 spec §4.1 要求底栏复习格带徽标。故显隐一律交给消费点（`DueBadge` 的 `dueChipModel`
+ * 本来就在判 `show`），本 hook 无条件把数报出来。
  *
  * 取数：与控制台空闲态那个「n 张待复习」**同一个数**——两边都读 getStrategyCounts().today
  * （getOverview().total 就是它），故必然同值。每分钟轮询一次。
@@ -43,7 +49,6 @@ const IS_ANDROID = /Android/i.test(navigator.userAgent)
  * 外加每次窗口 show）。判据与 `lib/usePlatform.ts` 逐字一致。
  */
 export function useDueCount(): number {
-  const show = useSettingsStore(s => s.review.showDueBadge)
   const activeModule = useViewStore(s => s.activeModule)
   const [count, setCount] = useState(0)
 
@@ -52,7 +57,14 @@ export function useDueCount(): number {
     const refresh = async () => {
       const { review } = useSettingsStore.getState()
       const n = (await getStrategyCounts({ ...REVIEW_DEFAULTS, ...review })).today
-      if (alive && show) setCount(n)
+      // **无条件置数**：这个数有两个消费点，而它们的显隐判据**各自不同**——桌面标题栏
+      // `DueBadge` 由 `showDueBadge` 闸（`dueChipModel(count, show)` 自己判），手机底栏徽标
+      // **恒显**（手机上没有「标题栏显示待复习数量」这个设置，那道闸在手机上没有意义）。
+      // 门控若留在 hook 里，手机端一旦把 `showDueBadge` 关掉（或它恰好是关的），徽标就永远
+      // 不出现——而 spec §4.1 要求底栏复习格「带到期数徽标」。故 hook 只负责**取数**，
+      // 显隐一律交给消费点：桌面那侧的 `showDueBadge` 行为逐字不变（`dueChipModel` 早就在判），
+      // 手机这侧因此恒显。
+      if (alive) setCount(n)
       // 托盘上报：只在非 Android 执行（Android 没有 `update_tray_badge` 这个命令）。
       if (alive && !IS_ANDROID) {
         const { invoke } = await import('@tauri-apps/api/core')
@@ -71,7 +83,7 @@ export function useDueCount(): number {
       clearInterval(timer)
       void unlisten.then(f => f())
     }
-  }, [show, activeModule])
+  }, [activeModule])
 
   return count
 }

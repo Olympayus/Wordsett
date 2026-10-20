@@ -21,9 +21,25 @@ import { useDueCount } from '../useDueCount'
 
 /** 底栏高度（spec §4.1：约 62dp）。不含手势条——手势条由 `paddingBottom` 的安全区另加。 */
 const BAR_HEIGHT = 62
-/** 凸起的搜索圆钮：直径与凸出栏面的高度。 */
-const FAB_SIZE = 46
-const FAB_RISE = 6
+
+/**
+ * 凸起的搜索圆钮（尺寸与位置照预览页 `all-pages-02.html:111-112` 的 `.fab`）：
+ * 直径 52、向上凸出栏面 **17**、外圈 5px 的 `--color-chrome` 环，圆心落在栏面上缘。
+ *
+ * 那圈 5px 环不是装饰：圆钮的底色取 `--color-surface`（比栏面 `--color-chrome` 浅），
+ * 没有环它会在栏面上「陷」进去而不是「凸」出来——环把圆钮与栏面之间的那一圈填成栏面同色，
+ * 于是圆钮看起来是从栏里长出来的（预览页的 `.fab` 正是 `border: 5px solid var(--chrome)`）。
+ *
+ * 环用 `border` 画。Tailwind preflight 的 `box-sizing: border-box` 让 `width/height` 成为
+ * **含环**尺寸（内容盒因此是 52 − 2×5 = 42px）——预览页同样是 `border-box` + `width:52px`，
+ * 两处逐字一致。
+ *
+ * 凸起量 17 不是随手取的数：半径 26 的圆，`marginTop: -17` 让圆心与栏顶对齐，于是上半个圆
+ * 在栏顶之上、下半个陷进栏里并被环盖住。与预览页的 `top:-17px` 同源。
+ */
+const FAB_SIZE = 52
+const FAB_RISE = 17
+const FAB_RING = 5
 
 /** 普通格：图标 + 下方小字。命中区 44dp 由格子自身高度保证（62px 栏 + 12px 上下内边距）。 */
 const cellStyle = (on: boolean): CSSProperties => ({
@@ -51,14 +67,23 @@ const badgeStyle: CSSProperties = {
   fontVariantNumeric: 'tabular-nums',
 }
 
-/** 凸起的搜索圆钮：暖中性面（`surface-raised`）+ 发丝边 + 浮层阴影。 */
+/**
+ * 凸起的搜索圆钮：暖中性面（`surface-raised`）+ 5px 栏面同色环 + 浮层阴影。
+ *
+ * 圆心落在**栏面上缘**（`marginTop: -FAB_RISE`）：半径 26 的圆上半个在栏顶之上、下半个陷进栏里，
+ * 陷进去的那半被 5px 环盖住（环与栏面同色），于是圆钮读作「从栏面里长出来」。
+ * 上一版写 `marginTop: -6` 时圆心在栏顶**之下** 20px，圆钮整个躺在栏内、上方还留着一段死区，
+ * 凸起效果出不来——这正是本项要修的。
+ *
+ * 阴影取 `--shadow-overlay`（全站唯一的浮层阴影），不新造色值。
+ */
 const fabStyle: CSSProperties = {
   width: `${FAB_SIZE}px`, height: `${FAB_SIZE}px`, flexShrink: 0,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  // 探出栏面：栏高 62，圆钮 46，向上抬 6px 后圆钮顶缘在栏顶之上 6px
   marginTop: -FAB_RISE,
   borderRadius: '50%',
-  border: '1px solid var(--color-hairline)',
+  // 环与栏面同色（`--color-chrome`）：圆钮压在栏上时，环把两者的缝填掉
+  border: `${FAB_RING}px solid var(--color-chrome)`,
   background: 'var(--color-surface-raised)',
   boxShadow: 'var(--shadow-overlay)',
   color: 'var(--color-text-primary)',
@@ -84,11 +109,14 @@ export default function MobileTabBar() {
       aria-label="模块"
       className="shrink-0 flex items-stretch"
       style={{
-        height: `${BAR_HEIGHT}px`,
+        // **高度含安全区**：`height` 里加上 `env(safe-area-inset-bottom)`，而不是用
+        // `paddingBottom`。Tailwind preflight 的 `box-sizing: border-box` 让固定 `height`
+        // 成为**含内边距**的尺寸——写 `height: 62px` 再叠 `paddingBottom: 20px`，内容盒
+        // 只剩 42px，而格子的 `height: 62px` 照旧，于是格子溢出、压在手势条上（spec §10
+        // 明确要求「底栏不压手势条」）。加进 `height` 里则内容盒仍是完整的 62px。
+        height: `calc(${BAR_HEIGHT}px + env(safe-area-inset-bottom))`,
         background: 'var(--color-chrome)',
         borderTop: '1px solid var(--color-border)',
-        // 手势条（Android 手势导航）之上：底栏高度不含它，故这里补上
-        paddingBottom: 'env(safe-area-inset-bottom)',
         // 让搜索圆钮探出栏顶（spec §4.1 的「居中凸起」）
         overflow: 'visible',
       }}
