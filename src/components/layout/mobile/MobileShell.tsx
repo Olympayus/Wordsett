@@ -127,14 +127,13 @@ export default function MobileShell() {
           </main>
         ) : activeModule === 'search' ? (
           /* 搜索模块（Task 7）：一级页面，自己出顶行（返回 + 输入 + 清除），
-             与桌面顶栏无关。词典详情与工作台同一层（`AppShell` 也是这一层），
-             故点建议 → `openDictFromSearch` → 这里渲染 `DictDetailPanel`；
-             详情页的返回（Task 8）经 `showSearchResults` 把视图切回搜索列表。
-             `variant="mobile"`（Task 8）：移动端详情形态——底部动作条，不渲染桌面导航条。 */
+             与桌面顶栏无关。词典详情与工作台同一层（`AppShell` 也是这一层）。
+             **MobileSearchPage 始终挂载**：它的 `query` 是局部 state，卸载即清零，
+             返回后查询与建议词会全丢（spec §4.5）。详情态由页面自己整页 `display:none` 藏起来，
+             详情面板照原样在上层渲染（Task 8 的 `variant="mobile"`）。 */
           <main data-find-root="search" className="flex-1 overflow-hidden" style={{ background: 'var(--color-canvas)', minWidth: 0 }}>
-            {activeView === 'dict' && dictWord
-              ? <DictDetailPanel word={dictWord} variant="mobile" />
-              : <MobileSearchPage />}
+            <MobileSearchPage />
+            {activeView === 'dict' && dictWord && <DictDetailPanel word={dictWord} variant="mobile" />}
           </main>
         ) : (
           /* 设置页（Task 9）占位。 */

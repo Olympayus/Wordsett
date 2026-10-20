@@ -17,18 +17,23 @@ import ClearButton from '../ui/ClearButton'
  * - **无表单**：`<input>` 不包 `<form>`，Enter / 键盘「搜索」键不会触发表单提交（也就没有整页刷新）。
  * - 列表行由 `lib/mobileSearch.ts` 的 `searchRows` 算（纯函数，`mobileSearch.test.ts` 钉住）：
  *   词面 + 中文释义（中文查询路径才有）+ 已收录标识，**不分组、不加「词典」标记**。
- * - 点行走 `openDictFromSearch(lemma)`：保持 search 模块、切词典详情视图，返回键（Task 8 的
- *   移动端详情）经 `showSearchResults` 回到本页。
+ * - 点行走 `openDictFromSearch(lemma)`：保持 search 模块、切词典详情视图。
+ *   **详情态下本页仍挂载**（整页 `display:none`），故查询与建议词一条不丢——`query` 是本页的
+ *   局部 state，卸载即清零。返回走顶行那枚返回键 / Task 8 底部动作条的返回键（都归
+ *   `showSearchResults`），回到本页时输入框里还是刚才的查询。
  * - 建议取数走 `useSearchSuggestions`——与桌面顶栏 `TopBar` **同一份**（300ms 防抖 / 中文分流 /
  *   输入法合成期守卫），两个界面不可能分家。
  * - 软键盘：内容区是 `flex: 1 + minHeight: 0`，列表在键盘弹起（视口收缩）时跟着缩短而不是被
  *   盖住；左右内边距走 `safe-area-inset-*`，刘海 / 挖孔屏下不贴边。
  *
+ * 详情态下本页整页 `display:none`（见 `MobileShell`：搜索模块里页面**始终挂载**），
+ * 顶行那枚返回键因此在两态有不同去向（见 `back`）。
+ *
  * 视觉只取既有 token；蓝只用于「当前 / 激活」这类状态，本页没有任何蓝。触屏上不做 hover 底色
  * （手机没有 hover，那套只服务桌面）：行的反馈是点按本身，与底栏 / 词条条同一判断。
  */
 
-/** 顶行高度（spec §4.1 的顶栏 52dp）。不含状态栏——安全区另加。 */
+/** 顶行视觉高度（spec §4.1 的顶栏 52dp）。**不含**状态栏——安全区由 `paddingTop` 另加。 */
 const BAR_HEIGHT = 52
 /** 输入框高度：与手机顶栏控件同为 32px（Task 5 的 CONTROL），命中区由整行高度保证。 */
 const INPUT_HEIGHT = 32
@@ -51,6 +56,8 @@ export default function MobileSearchPage() {
   const openDictFromSearch = useViewStore(s => s.openDictFromSearch)
   const showSearchResults = useViewStore(s => s.showSearchResults)
   const libraryIndex = useWordStore(s => s.libraryIndex)
+  // 详情态（`activeView === 'dict'`）：本页**不卸载**，只整页隐藏——查询与建议词必须活过一次往返。
+  const detailOpen = useViewStore(s => s.activeView === 'dict')
 
   const [query, setQuery] = useState('')
   const { suggestions, glosses, isComposing, setComposing } = useSearchSuggestions(query)
@@ -58,16 +65,26 @@ export default function MobileSearchPage() {
 
   // 进页面即聚焦（软键盘随页面一起弹出，用户直接就能打字）。挂载一次即可：
   // 放在 effect 里而不是 autoFocus 属性——后者在模块切换复用这个组件时不一定重触发。
-  useEffect(() => { inputRef.current?.focus() }, [])
+  // **只在列表态聚焦**：详情态下详情面板占满内容区（本页虽挂着但整页 `display:none`），
+  // 那时把焦点塞进一个不可见的输入框，软键盘会凭空弹出来盖住详情。
+  useEffect(() => {
+    if (useViewStore.getState().activeView === 'dict') return
+    inputRef.current?.focus()
+  }, [detailOpen])
 
-  // 从词典详情返回搜索列表（Task 8 的移动端详情顶栏那枚返回键走这里）。
-  // 与 `DictDetailPanel` 的 Esc 返回同一约定：window 级、模块对得上才接管，
-  // 这样搜索 → 词典 → 搜索结果这条链上的 Esc 不会误关整个搜索模块。
+  // Esc → 回搜索列表（本页的返回键语义，Task 8 的移动端详情底部动作条那枚返回键走同一条 action）。
+  //
+  // 与 `DictDetailPanel` 那条 window 级 Esc **只生效一条**：详情态由详情面板负责
+  // （`variant==='mobile'` 时它在 `activeModule==='search'` 下主动让位；Task 8 另把它的返回键
+  // 接到 `showSearchResults`），本页这条因此**只在列表态**兜底——那时详情面板没挂载，
+  // 另一条监听也不存在，两条在任何时刻都不会同时改变视图。
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (useViewStore.getState().activeModule !== 'search') return
-      if (useViewStore.getState().activeView === 'dict') showSearchResults()
+      const { activeModule, activeView } = useViewStore.getState()
+      if (activeModule !== 'search') return
+      if (activeView === 'dict') return
+      showSearchResults()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
@@ -78,26 +95,44 @@ export default function MobileSearchPage() {
   // 清除：清空输入并把焦点还给输入框（与桌面顶栏的 ClearButton 同一行为）。
   const clearQuery = useCallback(() => { setQuery(''); inputRef.current?.focus() }, [])
 
+  // 顶行那枚返回：详情态回**搜索列表**（查询与建议词都在，本页没被卸载），否则才离开搜索模块。
+  // 没有这一条的话，详情态下页面整页 `display:none`、用户看到的是详情面板，点它等于「关闭搜索」——
+  // 与「返回」的字面意思相反。
+  const back = useCallback(() => {
+    if (useViewStore.getState().activeView === 'dict') showSearchResults()
+    else closeSearch()
+  }, [showSearchResults, closeSearch])
+
   return (
     <div
       className="h-full flex flex-col"
       style={{
         background: 'var(--color-canvas)',
+        // 详情态**不卸载**（查询与建议词必须活过一次往返），只整页隐藏：
+        // `display:none` 与详情面板的 `h-full` 因此完全不争布局，两者也不会互相盖住。
+        ...(detailOpen ? { display: 'none' } : {}),
         // 左右安全区：刘海 / 挖孔屏下输入框与列表不贴屏幕边缘
         paddingLeft: 'env(safe-area-inset-left)',
         paddingRight: 'env(safe-area-inset-right)',
       }}
     >
-      {/* 顶行：返回 + 输入 + 清除（无表单，Enter 不提交） */}
+      {/* 顶行：返回 + 输入 + 清除（无表单，Enter 不提交）。
+          **顶部安全区在本页补**：搜索模块不渲染 `MobileAppBar`（它只服务词条页），
+          故顶栏那行 `paddingTop` 的安全区由这里出。总高因此是 `52px + env(safe-area-inset-top)`。 */}
       <div
         className="shrink-0 flex items-center"
         style={{
+          // 安全区是**额外**高度（状态栏 / 刘海之下），可见条面仍是 52dp。
+          // 用 `boxSizing: 'content-box'`：Tailwind preflight 对 `*` 设的是 border-box，
+          // 那时把 `calc(52px + env(…))` 写进 `height` 会先扣掉 padding 再算，条面就不是 52 了。
+          boxSizing: 'content-box',
           height: `${BAR_HEIGHT}px`, gap: 8, padding: '0 8px',
+          paddingTop: 'env(safe-area-inset-top)',
           background: 'var(--color-chrome)',
           borderBottom: '1px solid var(--color-border)',
         }}
       >
-        <button type="button" title="返回" aria-label="返回" onClick={closeSearch} style={iconBtn}>
+        <button type="button" title="返回" aria-label="返回" onClick={back} style={iconBtn}>
           <Icon name="arrow-left" size={18} />
         </button>
 
