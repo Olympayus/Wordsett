@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { mastery, retrievability, elapsedDaysSince, masteryTier, strengthScore, familiarityTier, displayTier, NEW_CARD_RNOW, defaultRatingFor, weakestStability } from './mastery'
+import { mastery, retrievability, elapsedDaysSince, masteryTier, strengthScore, familiarityTier, familiarityFromValue, displayTier, NEW_CARD_RNOW, defaultRatingFor, weakestStability } from './mastery'
 
 const MS_PER_DAY = 86_400_000
 
@@ -96,6 +96,19 @@ describe('记忆强度 6 档', () => {
     expect(familiarityTier(1)).toBe(1)
     expect(familiarityTier(2)).toBe(2)
     expect(familiarityTier(3)).toBe(3)
+  })
+
+  it('familiarityFromValue 从字段值还原三档并钳到 1–3（归档词没有 overlay 时的回落）', () => {
+    expect(familiarityFromValue('1')).toBe(1)
+    expect(familiarityFromValue('2')).toBe(2)
+    expect(familiarityFromValue('3')).toBe(3)
+    expect(familiarityFromValue(' 2 ')).toBe(2)   // 落库值是文本，允许两侧空白
+    expect(familiarityFromValue('0')).toBe(1)     // 低于下界
+    expect(familiarityFromValue('9')).toBe(3)     // 高于上界
+    expect(familiarityFromValue(undefined)).toBe(1)
+    expect(familiarityFromValue(null)).toBe(1)
+    expect(familiarityFromValue('')).toBe(1)
+    expect(familiarityFromValue('abc')).toBe(1)
   })
 })
 

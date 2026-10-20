@@ -28,7 +28,16 @@ export interface SenseGroup {
  * 一个正文度量）。列的内容宽 852 = 900 − 2×24 本就小于 900，故这个上限实际取不到，正文等于
  * 列的内容宽。默认值留着是为了 `SenseFlow` 单独使用时仍有一个合理上限，**不代表两页的现状**。
  */
-export default function SenseFlow({ groups, measure = ENTRY_MEASURE }: { groups: SenseGroup[]; measure?: number }) {
+export default function SenseFlow({ groups, measure = ENTRY_MEASURE, headRule = 2 }: {
+  groups: SenseGroup[]
+  measure?: number
+  /**
+   * 标准 run-in 头那条横线的粗细（px）。返回页是 2px（v0.7.5 标题分割线）；工作区平铺
+   * 标签页与返回页共用这个 `pos` 分支，但它那一侧的横线仍是 1px（v0.7.5 修正——2px 的
+   * 需求只针对返回页标题）。`head` 自绘分支不读它，调用方自己画线。
+   */
+  headRule?: number
+}) {
   return (
     <div style={{ maxWidth: `${measure}px`, paddingTop: '4px' }}>
       {groups.map((g, i) => (
@@ -44,7 +53,7 @@ export default function SenseFlow({ groups, measure = ENTRY_MEASURE }: { groups:
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', paddingLeft: '11px', lineHeight: '27px', marginTop: i === 0 ? '4px' : '16px' }}>
               <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '16px', fontWeight: 600 }}>{g.pos}</span>
               {g.counts && <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{g.counts}</span>}
-              <span style={{ flex: 1, borderTop: '2px solid var(--color-border)', transform: 'translateY(-3px)' }} />
+              <span style={{ flex: 1, borderTop: `${headRule}px solid var(--color-border)`, transform: 'translateY(-3px)' }} />
             </div>
           )}
           {g.items}

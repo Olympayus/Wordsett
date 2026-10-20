@@ -397,7 +397,9 @@ export default function DictDetailCard({
           {isPos
             ? <span className="stat-num" style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{`中 ${z.cn} · 英 ${z.en}`}</span>
             : hasChildren && <span className="stat-num" style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{node.children.length}</span>}
-          <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />
+          {/* v0.7.5 任务 17：返回页标题分割线 1px → 2px。本页的头是自绘的（不是 SenseFlow
+              的标准 pos 分支），故粗细在这里；工作区平铺标签页仍传 headRule=1。 */}
+          <span style={{ flex: 1, borderTop: '2px solid var(--color-border)', transform: 'translateY(-3px)' }} />
           {/* 无子级的顶层节点会走 `items` 兜底被渲染成一行，行尾槽（`endSlot`）已经给它
               一枚勾选框；这里再画一枚就是同一个 key 两枚框。故头里的勾选框只在有子级时出现。 */}
           {hasChildren && selectionCheckbox(node, headTitle)}

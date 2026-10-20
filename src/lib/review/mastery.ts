@@ -67,6 +67,20 @@ export function displayTier(input: { stability: number | null; familiarity: Init
   return masteryTier(input.stability)
 }
 
+/**
+ * 从词条的 `initial_familiarity` 字段值（字符串）还原三档熟悉度，钳到 1–3。
+ *
+ * 工作区的复习叠加层自带 `familiarity`，但叠加层只覆盖**参与复习的工作区词**；
+ * 储藏库词被 `foldWordReadings` 过滤掉，`overlay` 里没有条目。此时显示的档位只能回落到
+ * 词条自己存的字段值——否则所有归档词都会显示成「陌生」，与收录时选的那一档无关。
+ * 缺字段 / 非法值一律按 1（与库层 `fam === 2 || fam === 3 ? fam : 1` 同一判据）。
+ */
+export function familiarityFromValue(raw: string | null | undefined): InitialFamiliarity {
+  const n = Number(raw)
+  if (!Number.isFinite(n)) return 1
+  return Math.min(3, Math.max(1, Math.round(n))) as InitialFamiliarity
+}
+
 function clamp01(x: number): number {
   return Math.min(1, Math.max(0, x))
 }

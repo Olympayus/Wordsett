@@ -48,11 +48,11 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { isLeech, leechTooltip } from '../../lib/review/leech'
 import { measureTextWidth, MEASURE_STYLE, MEASURE_INPUT_CLASS, MEASURE_MIN_WIDTH, measureMarkSlot } from '../../lib/measureText'
 import { editKeyDown } from '../../lib/editKeyDown'
-import { linkableField, validateLinks, linkErrorText, type LinkToken } from '../../lib/links'
+import { linkableField, stripLinks, validateLinks, linkErrorText, type LinkToken } from '../../lib/links'
 import { useLinkJump } from '../../lib/linkJump'
 import { isWordInLibrary } from '../../lib/ensureWord'
 import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
-import { displayTier } from '../../lib/review/mastery'
+import { familiarityFromValue, displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
 import { moveConfirmRequest, moveTarget } from '../../lib/archiveMove'
 import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_PHONETIC_GAP } from '../../lib/layout'
@@ -938,8 +938,9 @@ export default function WordWorkbench() {
       await useUiStore.getState().confirm({ title: '词性标签不能为空', message: '请为词性填写标签后再保存。', alertMode: true })
       return
     }
-    // 链接校验（v0.7.5 Task 2）：必须在「未改动早退」之前——没改的文本不必校验，
-    // 改过的文本一律校验；不合法则不落库、留在编辑态。
+    // 链接校验（v0.7.5 Task 2）：放在「未改动早退」**之后**——按 Enter 保存一段没改过的
+    // 文本时，旧链接里的失效目标与这次编辑无关，不该拦住关闭编辑框。改过的文本仍然一律校验。
+    if (editValue === entryValue) { setEditingId(null); return }  // 未真实修改：不置位
     const defKey = defKeyByFieldId.get(fv.fieldId) ?? ''
     if (linkableField(defKey)) {
       const errs = validateLinks(editValue, isWordInLibrary)
@@ -948,7 +949,6 @@ export default function WordWorkbench() {
         return
       }
     }
-    if (editValue === entryValue) { setEditingId(null); return }  // 未真实修改：不置位
     if (fv.source === 'user') {
       await updateFieldValue(fv.id, { value: editValue })  // 个人字段保持 personal
     } else {
@@ -1279,10 +1279,17 @@ export default function WordWorkbench() {
   // StrengthChip，否则「记忆强度」会印两遍。方块与浮层复用同一套共享件
   // （masteryBlocks / MASTERY_COLORS / displayTier / WordMasteryTooltip），与 StrengthChip 同源；
   // 本页只用「方块」这一半，带标签的整簇 StrengthChip 因此不再被引用。
-  const masteryTier = displayTier({ stability: overlay?.weakestStability ?? null, familiarity: overlay?.familiarity ?? 1 })
+  // 熟悉度回落（v0.7.5 修正）：工作区词的 overlay 自带 familiarity；储藏库词不参与复习、
+  // `foldWordReadings` 把它们过滤掉，overlay 里没有条目。此时读词条自己存的
+  // `initial_familiarity`（已加载的 fieldValues），否则归档词一律显示成「陌生」。
+  const fieldFamiliarity = familiarityFromValue(
+    fieldValues.find(fv => defKeyByFieldId.get(fv.fieldId) === 'initial_familiarity')?.value,
+  )
+  const familiarity = overlay?.familiarity ?? fieldFamiliarity
+  const masteryTier = displayTier({ stability: overlay?.weakestStability ?? null, familiarity })
   const mastery = masteryBlocks(masteryTier)
   const strengthNode = (
-    <Tooltip content={<WordMasteryTooltip wordId={selectedWord.id} weakestStability={overlay?.weakestStability ?? null} familiarity={overlay?.familiarity ?? 1} />}>
+    <Tooltip content={<WordMasteryTooltip wordId={selectedWord.id} weakestStability={overlay?.weakestStability ?? null} familiarity={familiarity} />}>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2.5, flexShrink: 0 }}>
         {Array.from({ length: mastery.total }, (_, i) => (
           <i key={i} style={{
@@ -1309,7 +1316,8 @@ export default function WordWorkbench() {
     const fv = findFieldValueById(activeDragId)
     const def = fv ? defs.find(d => d.id === fv.fieldId) : undefined
     if (!fv || !def) return null
-    const text = fv.value.trim() ? fv.value : def.name
+    // 副本显示的是「用户看到的文字」：链接标记在阅读态已隐藏，拖影里也不该露出 `[[ ]]`。
+    const text = fv.value.trim() ? stripLinks(fv.value) : def.name
     if (!text.trim()) return null
     const kind: 'example' | 'plain' = leafForm(def.key) === 'example' ? 'example' : 'plain'
     return { text, kind }
@@ -1502,10 +1510,13 @@ export default function WordWorkbench() {
           onDragCancel={handleDragCancel}
         >
           {/* v0.7.3 尾段 §4.1：上间距 8 → 4。与返回页（SenseFlow 的 paddingTop 4 + 首个头的 4）合起来，
-              「页签条下缘 → 首个词性头」两页都是 12px（先前是 26 与 34）。 */}
+              「页签条下缘 → 首个词性头」两页都是 12px（先前是 26 与 34）。
+              headRule={1}（v0.7.5 修正）：`SenseFlow` 的 pos 头分支与返回页共用；返回页的标题分割线
+              加粗到 2px 时，随它一起变粗的还有工作区平铺标签页（短语 / 词形变化 / 词源相关词 /
+              近义词辨析）的头。工作区这一侧维持 1px，2px 只属于返回页。 */}
           <div style={{ marginTop: '4px' }}>
             {flowGroups.length > 0
-              ? <SenseFlow groups={flowGroups} measure={ENTRY_BAND_WIDTH} />
+              ? <SenseFlow groups={flowGroups} measure={ENTRY_BAND_WIDTH} headRule={1} />
               : (
                 <div style={{ padding: '32px 0', textAlign: 'center', fontSize: 13, color: 'var(--color-text-tertiary)' }}>
                   该词条暂无内容，可通过下方「＋ 添加」添加词性/短语等标签页
