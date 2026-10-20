@@ -89,4 +89,24 @@ describe('viewStore 双视图切换（D2）', () => {
     expect(s.activeView).toBe('workbench')
     expect(s.dictWord).toBeNull()
   })
+
+  // 移动搜索模块（Task 2）：来源模块记住与恢复、词典详情进出
+  it('openSearch 记住来源模块，closeSearch 回到来源', () => {
+    useViewStore.setState({ activeModule: 'settings', activeView: 'workbench', dictWord: null, searchReturn: null })
+    useViewStore.getState().openSearch()
+    expect(useViewStore.getState().activeModule).toBe('search')
+    useViewStore.getState().closeSearch()
+    expect(useViewStore.getState().activeModule).toBe('settings')
+  })
+
+  it('openDictFromSearch 保持 search 模块，showSearchResults 回到列表', () => {
+    useViewStore.setState({ activeModule: 'search', activeView: 'workbench', dictWord: null })
+    useViewStore.getState().openDictFromSearch('anima')
+    expect(useViewStore.getState().activeModule).toBe('search')
+    expect(useViewStore.getState().activeView).toBe('dict')
+    expect(useViewStore.getState().dictWord).toBe('anima')
+    useViewStore.getState().showSearchResults()
+    expect(useViewStore.getState().activeView).toBe('workbench')
+    expect(useViewStore.getState().dictWord).toBeNull()
+  })
 })
