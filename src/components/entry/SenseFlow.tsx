@@ -44,7 +44,7 @@ export default function SenseFlow({ groups, measure = ENTRY_MEASURE }: { groups:
             <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', paddingLeft: '11px', lineHeight: '27px', marginTop: i === 0 ? '4px' : '16px' }}>
               <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '16px', fontWeight: 600 }}>{g.pos}</span>
               {g.counts && <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{g.counts}</span>}
-              <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />
+              <span style={{ flex: 1, borderTop: '2px solid var(--color-border)', transform: 'translateY(-3px)' }} />
             </div>
           )}
           {g.items}
