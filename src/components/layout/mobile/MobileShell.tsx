@@ -4,7 +4,7 @@ import WordWorkbench, { type WordWorkbenchHandle } from '../../word/WordWorkbenc
 import DictDetailPanel from '../../search/DictDetailPanel'
 import MobileSearchPage from '../../search/MobileSearchPage'
 import ReviewModule from '../../review/ReviewModule'
-import EmptyState from '../../ui/EmptyState'
+import SettingsPage from '../../settings/SettingsPage'
 import MobileAppBar from './MobileAppBar'
 import MobileTabBar from './MobileTabBar'
 import WordStrip from './WordStrip'
@@ -136,13 +136,11 @@ export default function MobileShell() {
             {activeView === 'dict' && dictWord && <DictDetailPanel word={dictWord} variant="mobile" />}
           </main>
         ) : (
-          /* 设置页（Task 9）占位。 */
-          <main
-            data-find-root={activeModule}
-            className="flex-1 overflow-auto"
-            style={{ background: 'var(--color-canvas)', minWidth: 0 }}
-          >
-            <EmptyState message="设置页即将上线" />
+          /* 设置模块（Task 9）：自己出「目录 → 子页」两态，故不渲染 `MobileAppBar`（它服务词条页）。
+             `variant="mobile"` 让 `SettingsPage` 走手机形态：目录行 + 子页返回键；
+             桌面双栏那套仍挂在 `AppShell` 下，两者共用同一份分区列表（`lib/mobileSettings.ts`）。 */
+          <main data-find-root="settings" className="flex-1 overflow-hidden" style={{ background: 'var(--color-canvas)', minWidth: 0 }}>
+            <SettingsPage variant="mobile" />
           </main>
         )}
 
