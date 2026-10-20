@@ -64,12 +64,16 @@ const navBtn = (disabled = false): CSSProperties => ({
 // 词条导航条（v0.5.2 §6）：编辑区顶部、词条内容区之外的独立功能区，吸顶。
 // 箭头是浏览器式前进 / 后退，走用户访问轨迹，不是词表顺序。
 // 形态（v0.7.2）：通栏细行——贴滚动容器上缘、无圆角、下缘一道细线，底取标题栏档。
+// 底色 v0.7.5 改取凹陷档（见下方 ②）。
 // 旧 V8 原型 .ed-toolbar 的「圆角描边浮条」已废（见下方 :84-94 的实现）。
 // 二轮两处修正：
 // ① **外层 wrapper 不可再垫水平内边距**——那道 borderBottom 画在本组件的盒内，wrapper
 //   垫多少、分割线左右就各短多少，「顶不到屏幕边缘」就是这么来的（修复前的成因）。
 //   故 WorkbenchNavBar 的左右内边距只留 14px（见下方 style 的 padding），wrapper 通栏不垫。
-// ② 底色取 **--color-chrome**（spec §1.1 的标题栏 / 活动栏档，用户指定）。
+// ② 底色取 **--color-surface-sunken**（v0.7.5 Task 18）：与下方页签条（TabBar）同一档面，
+//    导航条与页签条合成一条连续的凹陷带；原先取标题栏 / 活动栏档的 --color-chrome。
+//    **WordWorkbench.tsx 那个 sticky 包裹盒仍垫 --color-chrome，两处刻意不同**——包裹盒是
+//    滚上来的内容卡片（页签条、内容列）背后的底，卡片在其上按层浮起；垫 sunken 会让卡片与底同色。
 export default function WorkbenchNavBar({
   region, location, onMoveWord, onDeleteWord, onBack, onMergeAdd, mergeCount = 0, mergeDisabled = false,
   familiarity, onFamiliarityChange, libraryLocation = null, breadcrumb,
@@ -93,12 +97,10 @@ export default function WorkbenchNavBar({
   }
 
   // V8 .nav-btn:hover：hover 起底色并转主色。
-  // 底色取 **--color-surface-hover-recessed** 而非 --color-surface-hover（v0.7.2 二轮）：
-  // 导航条底色已由内容面改取 --color-chrome（#EEECE5, L* 93.375），而共享的
-  // --color-surface-hover（#F0F1EE, L* 94.996）压在 chrome 上只有 **1.62 L\***，
-  // 跨不过本仓 2 L* 的可读门槛——hover 等于看不见。--color-surface-hover-recessed
-  // （#FAF9F6, L* 97.925，离 chrome **4.55 L\***）正是 tokens.css 里为「凹陷面悬停」
-  // 定义的那一档，chrome 就是凹陷档之一（tokens.css 自己按 L* 93–96 归的组）。
+  // 导航条底色取 **--color-surface-sunken**（与它下方那条页签条同一档面），hover 的底色则取
+  // **--color-surface-hover-recessed** 而非 --color-surface-hover：后者压在 sunken 上跨不过本仓
+  // 2 L* 的可读门槛——hover 等于看不见。--color-surface-hover-recessed（#FAF9F6）正是 tokens.css
+  // 里为「凹陷面悬停」定义的那一档（tokens.css 自己按 L* 93–96 归的组，sunken 就在这组里）。
   // 这是**沿用既有 token**，没有新造色值（palette 归 Task 1、tokens.test.ts 钉着）。
   const hoverOn = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (e.currentTarget.disabled) return
@@ -122,7 +124,7 @@ export default function WorkbenchNavBar({
         position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
         minHeight: `${NAV_HEIGHT}px`, display: 'flex', alignItems: 'center', gap: '10px',
         padding: '0 14px',
-        background: 'var(--color-chrome)',
+        background: 'var(--color-surface-sunken)',
         borderBottom: '1px solid var(--color-border)',
         marginBottom: 0,
       }}
