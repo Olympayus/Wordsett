@@ -152,11 +152,15 @@ export function validateLinks(text: string, isInLibrary: (lemma: string) => bool
 /**
  * 不可链接的结构字段：这些字段的取值是词条自身的属性（词性、音标……），把它们链到别的词
  * 没有语义。用**排除集**而不是白名单——新增内置内容字段时默认就该可链接，不必回来补表。
+ *
+ * `word_root_item` 同属结构：头带把词根项渲染成原始文本（不走 `LinkedText`），若允许
+ * 写标记，保存会校验通过、正文却只显示一对裸括号——「能写不能看」比直接禁掉更糟。
  */
 const NON_LINKABLE_FIELD_KEYS: ReadonlySet<string> = new Set([
   'part_of_speech',
   'phonetic',
   'word_root',
+  'word_root_item',
   'initial_familiarity',
 ])
 

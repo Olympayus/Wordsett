@@ -78,7 +78,7 @@ describe('validateLinks', () => {
 describe('linkableField', () => {
   it('内容字段可链接', () => { expect(linkableField('synonym_discrimination')).toBe(true) })
   it('结构字段不可链接', () => {
-    for (const k of ['part_of_speech', 'phonetic', 'word_root', 'initial_familiarity']) {
+    for (const k of ['part_of_speech', 'phonetic', 'word_root', 'word_root_item', 'initial_familiarity']) {
       expect(linkableField(k)).toBe(false)
     }
   })

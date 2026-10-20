@@ -60,6 +60,15 @@ describe('applyImport 词条位置（v0.7.5 Task 15）', () => {
     expect(await locationOf('w1')).toBe('workspace')
   })
 
+  it('导入非法 location（手改 / 未知值）时落回 workspace，不写坏值', async () => {
+    vi.mocked(readTextFile).mockResolvedValue(snapshotJson([
+      { id: 'w4', lemma: 'bad-location', normalizedLemma: 'bad-location', language: 'en', location: 'trash', createdAt: 1, updatedAt: 1 },
+    ]))
+    const r = await applyImport('/edited-backup.json')
+    expect(r.ok).toBe(true)
+    expect(await locationOf('w4')).toBe('workspace')
+  })
+
   it('导出 → 导入往返保留储藏库词条', async () => {
     await adapter.execute(
       `INSERT INTO words (id, lemma, normalized_lemma, language, location, created_at, updated_at)

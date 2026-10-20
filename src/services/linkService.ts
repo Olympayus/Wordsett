@@ -1,6 +1,6 @@
 import { getDb } from '../db/connection'
 import {
-  aggregateBacklinks, linkTargets, normalizeLinkTarget,
+  aggregateBacklinks, linkTargets, normalizeLinkTarget, linkableField, stripLinks,
   type Backlink, type BacklinkRow, type LinkKind,
 } from '../lib/links'
 
@@ -18,10 +18,15 @@ import {
  * 各写一条 SQL 只会让「LIKE 条件」有两个出处。
  */
 const SQL_BACKLINK_CANDIDATES = `
-  SELECT fv.word_id AS wordId, w.lemma AS lemma, fd.name AS fieldName, fv.value AS value
+  SELECT fv.word_id AS wordId, w.lemma AS lemma,
+         fd.name AS fieldName, fd.key AS fieldKey,
+         pv.value AS parentValue, pfd.key AS parentFieldKey,
+         fv.value AS value
     FROM field_values fv
     JOIN words w ON w.id = fv.word_id
     JOIN field_definitions fd ON fd.id = fv.field_id
+    LEFT JOIN field_values pv ON pv.id = fv.parent_id
+    LEFT JOIN field_definitions pfd ON pfd.id = pv.field_id
    WHERE fv.value LIKE '%[[%' OR fv.value LIKE '%{{%'
 `
 
@@ -29,6 +34,10 @@ interface BacklinkCandidate {
   wordId: string
   lemma: string
   fieldName: string
+  fieldKey: string
+  /** 父行（辨析组）的值；非子项为 null。 */
+  parentValue: string | null
+  parentFieldKey: string | null
   value: string | null
 }
 
@@ -39,7 +48,11 @@ interface BacklinkCandidate {
  */
 async function scanLinkCandidates(): Promise<BacklinkCandidate[] | null> {
   try {
-    return await getDb().select<BacklinkCandidate[]>(SQL_BACKLINK_CANDIDATES)
+    const rows = await getDb().select<BacklinkCandidate[]>(SQL_BACKLINK_CANDIDATES)
+    // 结构字段（词性 / 音标 / 词根 / 词根项 / 初始熟悉度）不可链接：保存校验与渲染都不认
+    // 其中的标记，反链与设置页统计也必须用**同一个** `linkableField` 判据，否则用户
+    // 在词根里随手写的一对括号会凭空出现在反链脚注与「链接总条数」里。
+    return rows.filter(r => linkableField(r.fieldKey))
   } catch (e) {
     console.error('link scan failed:', e)
     return null
@@ -47,11 +60,33 @@ async function scanLinkCandidates(): Promise<BacklinkCandidate[] | null> {
 }
 
 /**
+ * 反链脚注里「字段」那一段的文案。
+ *
+ * 辨析组（`synonym_discrimination_group`）及其子项沿用 `rowTitle` 的规则：组行印**组描述**
+ * （组行自己的 value），子项印父组行的 value；`stripLinks` 与 `rowTitle` 同一处理（标题
+ * 是纯文本）。回落到 `field_definitions.name` 只在组描述为空时发生。
+ *
+ * 这不是装饰：按字段名印的话所有辨析组都叫「近义词辨析组」，两个不同组的同名目标会被
+ * `aggregateBacklinks` 以 `sourceWordId + fieldName` 聚成一行 `×N`，把「两组各引一次」
+ * 显示成「同组引两次」。
+ */
+function backlinkFieldLabel(row: BacklinkCandidate): string {
+  const groupValue = row.fieldKey === 'synonym_discrimination_group'
+    ? row.value
+    : row.parentFieldKey === 'synonym_discrimination_group'
+      ? row.parentValue
+      : null
+  const label = groupValue === null ? '' : stripLinks(groupValue).trim()
+  return label || row.fieldName
+}
+
+/**
  * 取全库中指向 `targetLemma` 的反链，按「来源词 × 字段」聚合。
  *
  * 同一条 value 里出现两次目标就算两行（`linkTargets` 不去重，这里按次 push）——
  * 「他在辨析里两次引用了这个词」与「只引用一次」在脚注上应显示为 `×2`。
- * 字段名取 `field_definitions.name`（用户看到的名字），不是渲染层的 `rowTitle`。
+ * 字段名一般取 `field_definitions.name`（用户看到的名字）；辨析组及其子项例外，走
+ * `backlinkFieldLabel` 取组描述（与渲染层 `rowTitle` 同一条规则）。
  */
 export async function getBacklinks(targetLemma: string): Promise<Backlink[]> {
   const candidates = await scanLinkCandidates()
@@ -62,7 +97,7 @@ export async function getBacklinks(targetLemma: string): Promise<Backlink[]> {
   for (const row of candidates) {
     for (const token of linkTargets(row.value ?? '')) {
       if (normalizeLinkTarget(token.target) === target) {
-        hits.push({ sourceWordId: row.wordId, sourceLemma: row.lemma, fieldName: row.fieldName })
+        hits.push({ sourceWordId: row.wordId, sourceLemma: row.lemma, fieldName: backlinkFieldLabel(row) })
       }
     }
   }

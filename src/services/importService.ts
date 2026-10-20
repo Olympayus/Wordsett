@@ -3,7 +3,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { readTextFile } from '@tauri-apps/plugin-fs'
 import { getDb } from '../db/connection'
 import {
-  decodeLibrary, planImport, type LibrarySnapshot, type ImportPlan,
+  decodeLibrary, planImport, sanitizeWordLocation, type LibrarySnapshot, type ImportPlan,
 } from '../lib/libraryCodec'
 
 const mapRows = (rows: Record<string, any>[], map: Record<string, string>): any[] =>
@@ -63,7 +63,8 @@ export async function applyImport(path: string): Promise<{ ok: boolean; error?: 
       )
     // 依赖顺序：words/categories/fieldDefinitions 先，fieldValues 次（父 id 需已存在），word_categories 最后
     // v0.7.5 Task 15：location 随词条写入；老快照没有该字段（FORMAT_VERSION 未变），回落 'workspace'。
-    for (const w of incoming.words) await upsertLww('words', ['id', 'lemma', 'normalized_lemma', 'language', 'location', 'created_at', 'updated_at'], [w.id, w.lemma, w.normalizedLemma, w.language, w.location ?? 'workspace', w.createdAt, w.updatedAt])
+    // v0.7.5 修正：location 只接受 workspace / archive，其余坏值一律落 workspace（sanitizeWordLocation）。
+    for (const w of incoming.words) await upsertLww('words', ['id', 'lemma', 'normalized_lemma', 'language', 'location', 'created_at', 'updated_at'], [w.id, w.lemma, w.normalizedLemma, w.language, sanitizeWordLocation(w.location), w.createdAt, w.updatedAt])
     for (const c of incoming.categories) await upsertLww('categories', ['id', 'name', 'color', 'description', 'is_default', 'created_at', 'updated_at'], [c.id, c.name, c.color, c.description, c.isDefault, c.createdAt, c.updatedAt])
     for (const d of incoming.fieldDefinitions) await upsertNewOnly('field_definitions', ['id', 'name', 'key', 'field_type', 'display_order', 'created_at'], [d.id, d.name, d.key, d.fieldType, d.displayOrder, d.createdAt])
     for (const fv of incoming.fieldValues) await upsertLww('field_values', ['id', 'word_id', 'field_id', 'value', 'source', 'edited', 'original_value', 'display_order', 'parent_id', 'created_at', 'updated_at'], [fv.id, fv.wordId, fv.fieldId, fv.value, fv.source, fv.edited, fv.originalValue, fv.displayOrder, fv.parentId, fv.createdAt, fv.updatedAt])

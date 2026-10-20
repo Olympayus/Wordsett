@@ -35,6 +35,17 @@ export interface LibrarySnapshot {
 
 export const FORMAT_VERSION = 1
 
+/**
+ * 导入时词条 `location` 的兜底（v0.7.5）：只认两个合法模块，其余一律落回 `'workspace'`。
+ *
+ * 老快照没有该栏（`undefined`）要回落；备份文件也可能被手改 / 来自未来版本，写进
+ * `'trash'` 之类的值会让 `WHERE location = ?` 的模块查询永远漏掉这一行——词条在界面上
+ * 凭空消失。校验放在写库前，坏值不落库。
+ */
+export function sanitizeWordLocation(value: unknown): WordLocation {
+  return value === 'archive' ? 'archive' : 'workspace'
+}
+
 export interface ImportPlan {
   newWords: number
   updatedWords: number

@@ -29,6 +29,11 @@ async function addValue(wordId: string, fieldId: string, value: string): Promise
   if (!r.ok) throw new Error('insertFieldValue failed')
 }
 
+async function addChildValue(wordId: string, fieldId: string, value: string, parentId: string): Promise<void> {
+  const r = await fieldsDb.insertFieldValue({ wordId, fieldId, value, source: 'ecdict', parentId })
+  if (!r.ok) throw new Error('insertFieldValue failed')
+}
+
 describe('getBacklinks 全库反链扫描', () => {
   it('返回指向目标的来源词与字段名，同格两次计 2、顺序按首次出现', async () => {
     const w1 = await addWord('abandon')
@@ -61,6 +66,47 @@ describe('getBacklinks 全库反链扫描', () => {
 
   it('无来源返回空数组', async () => {
     expect(await getBacklinks('nonexistent')).toEqual([])
+  })
+
+  it('辨析组与其子项印组描述（rowTitle 规则），两个不同的组不会聚成一行 ×N', async () => {
+    const w = await addWord('abandon')
+    // 两条不同描述的辨析组，各有一个子项引用同一目标。
+    const groupA = await fieldsDb.insertFieldValue({
+      wordId: w, fieldId: 'f_synonym_discrimination_group', value: '语域差异（正式 vs 口语）', source: 'user',
+    })
+    const groupB = await fieldsDb.insertFieldValue({
+      wordId: w, fieldId: 'f_synonym_discrimination_group', value: '搭配差异（abandon oneself to）', source: 'user',
+    })
+    if (!groupA.ok || !groupB.ok) throw new Error('group insert failed')
+    await addChildValue(w, 'f_synonym_discrimination_item', '[[forsake]] 偏书面', groupA.data.id)
+    await addChildValue(w, 'f_synonym_discrimination_item', '[[forsake]] 可接反身代词', groupB.data.id)
+
+    expect(await getBacklinks('forsake')).toEqual([
+      { sourceWordId: w, sourceLemma: 'abandon', fieldName: '语域差异（正式 vs 口语）', count: 1 },
+      { sourceWordId: w, sourceLemma: 'abandon', fieldName: '搭配差异（abandon oneself to）', count: 1 },
+    ])
+  })
+
+  it('组描述里的链接标记在字段名上剥掉（与 rowTitle 一致）', async () => {
+    const w = await addWord('abandon')
+    await addValue(w, 'f_synonym_discrimination_group', '[[forsake]] 与 abandon 的差异')
+
+    expect(await getBacklinks('forsake')).toEqual([
+      { sourceWordId: w, sourceLemma: 'abandon', fieldName: 'forsake 与 abandon 的差异', count: 1 },
+    ])
+  })
+
+  it('结构字段（词根 / 词根项）里的标记不进反链、不计入统计', async () => {
+    const w = await addWord('abandon')
+    await addValue(w, 'f_word_root', '[[forsake]] 同源')
+    await addValue(w, 'f_word_root_item', '{{forsake}}')
+    await addValue(w, 'f_chinese_definition', '放弃')
+
+    expect(await getBacklinks('forsake')).toEqual([])
+    expect(await getLinkStats()).toEqual({
+      dict: { wordCount: 0, linkCount: 0, rows: [] },
+      library: { wordCount: 0, linkCount: 0, rows: [] },
+    })
   })
 })
 

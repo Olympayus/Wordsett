@@ -42,8 +42,18 @@ export default function LinkedText({ value, fieldKey, isInLibrary, onJump }: {
         return (
           <span
             key={i}
+            // 键盘可达（v0.7.5 修正）：链接此前只有 onClick，Tab 走不到、回车 / 空格无效。
+            // role="link" 给屏幕阅读器一个可识别的身份；Space 的默认动作是滚动页面，必须挡掉。
+            role="link"
+            tabIndex={0}
             // 链接是独立动作：别让点击冒泡到外面那层「点击 / 双击进编辑」的触发器上。
             onClick={e => { e.stopPropagation(); onJump({ target: seg.target!, kind: seg.linkKind! }) }}
+            onKeyDown={e => {
+              if (e.key !== 'Enter' && e.key !== ' ') return
+              if (e.key === ' ') e.preventDefault()
+              e.stopPropagation()
+              onJump({ target: seg.target!, kind: seg.linkKind! })
+            }}
             onDoubleClick={e => e.stopPropagation()}
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-brand-soft)' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}

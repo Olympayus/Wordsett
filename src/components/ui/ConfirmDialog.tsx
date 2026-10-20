@@ -27,7 +27,9 @@ export default function ConfirmDialog() {
         <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: 8 }}>
           {req.title}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: 16 }}>
+        {/* pre-line（v0.7.5）：链接校验等多条错误用 `\n` 分行（linkErrorText），普通文本流
+            会把换行折成空格，几条提示挤成一行。保留换行、其余空白照常折叠。 */}
+        <div style={{ fontSize: 13, color: 'var(--color-text-secondary)', lineHeight: 1.7, marginBottom: 16, whiteSpace: 'pre-line' }}>
           {req.message}
         </div>
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>

@@ -10,8 +10,10 @@ import SectionHeading from './SectionHeading'
  *
  * 两个口径各一列：`{{ }}` 去词典、`[[ ]]` 去词库。统计与列表都只看**源词**
  * （谁写了这条链接）——用户明确决定的，不看被跳转的目标。因此点击行时直接把
- * 源词当作跳转目标交给 `useLinkJump`：`{{ }}` 列用 `kind: 'dict'`（在词典里打开
- * 这个源词），`[[ ]]` 列用 `kind: 'library'`（跳到它在工作区 / 储藏库里的页面）。
+ * 源词当作跳转目标交给 `useLinkJump`；**两列都用 `kind: 'library'`**（spec §1.8）：
+ * 源词一定是库内词条，与它写的是哪种标记无关。`{{ }}` 列若沿用字典 kind，点源词会
+ * 打开词典里**同名**的词典词而不是那条词条——两处都叫同一个词面时看起来像跳对了，
+ * 实际去的是另一个页面。
  *
  * 两个列表固定高度、各自滚动：链接条数随词库增长，交给内容撑高会把设置页整页
  * 拉长（见 `LINK_LIST_HEIGHT` 的注释）。
@@ -61,7 +63,7 @@ function StatRow({ row, kind, onJump }: {
       type="button"
       title={`${row.lemma}：${row.count} 条${label}`}
       aria-label={`${row.lemma}，${row.count} 条${label}`}
-      onClick={() => { void onJump({ target: row.lemma, kind }) }}
+      onClick={() => { void onJump({ target: row.lemma, kind: 'library' }) }}
       // 行悬停在 raised 面上：走凹陷档（--color-surface-hover 压上去只差 0.13 L*，
       // 看不出来），与 SearchSettings 里嵌套字段行的判据相同。
       onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
