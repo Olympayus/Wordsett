@@ -5,6 +5,7 @@ import WordTitleExtras from './WordTitleExtras'
 import SemanticNetwork from './SemanticNetwork'
 import TitleChips, { CollinsStars } from './TitleChips'
 import WorkbenchNavBar from '../word/WorkbenchNavBar'
+import MobileDictActionBar from './MobileDictActionBar'
 import EntryBand from '../entry/EntryBand'
 import SpeakButton from '../ui/SpeakButton'
 import { lookupTitleMeta, lookupWord } from '../../services/searchService'
@@ -14,6 +15,7 @@ import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
 import { libraryLocationIn } from '../../lib/collected'
+import { dictActionModel } from '../../lib/mobileDictActions'
 import { countAllDefinitions } from '../../lib/dictPlan'
 import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, TAB_ITEM_PADDING_X, TAB_STRIP_PADDING } from '../../lib/layout'
 import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
@@ -22,6 +24,14 @@ import type { DictionaryField } from '../../types/dictionary'
 
 interface Props {
   word: string
+  /**
+   * 详情形态（Task 8）：`'desktop'`（缺省）＝现有桌面返回页——顶部 `WorkbenchNavBar` 带
+   * 返回 / 面包屑 / 初始熟悉度 / 已选 / ＋ / 添加至…。
+   * `'mobile'`＝手机词典详情——**不渲染导航条**，返回 + 「词典 › 词」面包屑落在底部固定条
+   * （`MobileDictActionBar`）的顶面，初始熟悉度 / 已选 / ＋ / 添加至… 落在它的主面。
+   * 内容（`DictDetailCard` / 页签 / 语义网络）两态逐字相同。
+   */
+  variant?: 'desktop' | 'mobile'
 }
 
 // 页签样式：凸起页签（圆角顶、白底、压住下面那道 2px 线），色值走 token（借 word/TabBar 的视觉）。
@@ -54,7 +64,8 @@ const tabHoverOff = (active: boolean) => (e: React.MouseEvent<HTMLButtonElement>
 // 词典详情视图（D2）：替换右侧区域。导航条返回/Esc 回词编辑视图（Task 5 追加「添加成功回编辑视图」）。
 // 词典 | 语义网络 双 Tab；导航条右端「合并添加」聚合全源勾选字段一次合并后跳编辑页（需求 2b 后半）。
 // v0.7.2 §8.3：整页改用展示原语——头带（EntryBand）→ 凸起页签 → 正文流（SenseFlow）→ 一行细动作。
-export default function DictDetailPanel({ word }: Props) {
+// Task 8：加 `variant`。`'mobile'` 时顶部导航条整条不出，动作搬到底部固定条（`MobileDictActionBar`）。
+export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
   const [fields, setFields] = useState<DictionaryField[]>([])
   const [loading, setLoading] = useState(true)
   const [lookupError, setLookupError] = useState(false)
@@ -97,6 +108,19 @@ export default function DictDetailPanel({ word }: Props) {
 
   // Controller 裁定：仅标题信息区勾选（无卡片勾选）时合并按钮仍需可见
   const anySelected = selectionCount > 0 || stripInputs.length > 0
+  // 勾选总数（卡片 + 标题信息区）。桌面导航条与手机底部动作条共用这一个数，不各算一遍。
+  const mergeCount = selectionCount + stripInputs.length
+
+  // 底部动作条的模型（Task 8，仅 mobile 用）：在库判据 → mode / libraryLabel / 要不要问熟悉度。
+  // 桌面那份判据是两半（`anySelected` 与 `libraryLocation === 'archive'`），模型只收
+  // 「能不能合并」这一半（`selectedCount > 0`），archive 那一半仍由调用方并入 mergeDisabled。
+  const actionModel = dictActionModel(libraryLocation, mergeCount)
+  // 返回：mobile 的返回语义是「回来源页」——搜索模块回搜索结果列表，其余（工作台 / 储藏库）
+  // 回词编辑视图。与 `MobileSearchPage` 那条 Esc 链同一判据（模块对得上才接管）。
+  const handleMobileBack = () => {
+    if (useViewStore.getState().activeModule === 'search') useViewStore.getState().showSearchResults()
+    else showWorkbench()
+  }
 
   // 合并添加：聚合全源勾选字段 → 确保词条存在 → 一次合并 → 跳编辑页
   // 规格：addWord/mergeWordFields 任一失败 → 面板顶部错误提示，不跳转（错误在下次 lookup/attempt 时清除）
@@ -169,15 +193,24 @@ export default function DictDetailPanel({ word }: Props) {
     return () => { cancelled = true }
   }, [word])
 
-  // Esc 回词编辑视图（规格 §3 步骤 4）
+  // Esc 回词编辑视图（规格 §3 步骤 4）。
+  // Task 8（mobile）：搜索模块里的 Esc 归 `MobileSearchPage` 那条链（回搜索结果列表）——
+  // 那里按 `activeModule === 'search' && activeView === 'dict'` 接管；这里在同一判据下不重复接管。
+  // 桌面态的 Esc 逐字不变（模块无关，与改前一致）。
   useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') showWorkbench() }
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      if (variant === 'mobile' && useViewStore.getState().activeModule === 'search') return
+      showWorkbench()
+    }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [showWorkbench])
+  }, [showWorkbench, variant])
 
   return (
-    <div className="h-full overflow-y-auto" style={{ background: 'var(--color-surface)' }}>
+    // 外壳两态：`desktop` 是既有的纵向滚动容器；`mobile` 改成纵向 flex（Task 8）——
+    // 滚动区与底部动作条各占一段，条**不吸顶**、贴着视口下缘（见 `MobileDictActionBar`）。
+    <div className={variant === 'mobile' ? 'h-full flex flex-col' : 'h-full overflow-y-auto'} style={{ background: 'var(--color-surface)' }}>
       {/* 导航条（v0.5.3 §3.4）：与工作台同款同位置；左箭头返回工作台、右端合并添加。
           v0.6.5 §4.5 起初始熟悉度三键也收进右端（原先是页面底部的收录区），状态仍归本面板。
           v0.7.2 §8.3：返回页分支加一条面包屑（词典 › 词），不再有别的浮动装饰。
@@ -187,31 +220,52 @@ export default function DictDetailPanel({ word }: Props) {
           自己的 borderBottom 一并内缩，分割线因此左右各短 24px、顶不到屏幕边缘（用户原话：
           「分割线在左右两侧并没有顶到左边和右边，而是留空了一段」）。wrapper 通栏、NavBar
           自身另持 14px 内边距（WorkbenchNavBar.tsx 的 `padding:'0 14px'`），条内内容宽度不变、不横跳；
-          结构与复习区 ReviewModule.tsx:152 一致（sticky 块无水平内边距）。 */}
-      <div style={{
-        position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
-        background: 'var(--color-chrome)',
-      }}>
-        <WorkbenchNavBar
-          region="dict"
-          onBack={showWorkbench}
-          onMergeAdd={handleMergeAdd}
-          mergeCount={selectionCount + stripInputs.length}
-          // 储藏库的词不给添加（review 裁定 H）：它没有可见的工作台页面，合并只会把字段写进
-          // 一个用户看不见的词条；工作区词仍可合并——它在侧栏可见，这是 v0.6.5 起的能力。
-          mergeDisabled={!anySelected || libraryLocation === 'archive'}
-          familiarity={familiarity}
-          onFamiliarityChange={setFamiliarity}
-          libraryLocation={libraryLocation}
-          breadcrumb={<>词典 › <b style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>{word}</b></>}
-        />
-      </div>
+          结构与复习区 ReviewModule.tsx:152 一致（sticky 块无水平内边距）。
+          **Task 8（variant='mobile'）：整条不渲染**——返回 + 面包屑与右端那组动作一起搬进
+          底部的 `MobileDictActionBar`，本页只剩正文，与 `WordWorkbench` 的 `chrome="mobile"`
+          同一条判断（手机外壳不为动作再开一条导航条）。 */}
+      {variant === 'desktop' && (
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 'var(--z-sticky)',
+          background: 'var(--color-chrome)',
+        }}>
+          <WorkbenchNavBar
+            region="dict"
+            onBack={showWorkbench}
+            onMergeAdd={handleMergeAdd}
+            mergeCount={mergeCount}
+            // 储藏库的词不给添加（review 裁定 H）：它没有可见的工作台页面，合并只会把字段写进
+            // 一个用户看不见的词条；工作区词仍可合并——它在侧栏可见，这是 v0.6.5 起的能力。
+            mergeDisabled={!anySelected || libraryLocation === 'archive'}
+            familiarity={familiarity}
+            onFamiliarityChange={setFamiliarity}
+            libraryLocation={libraryLocation}
+            breadcrumb={<>词典 › <b style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>{word}</b></>}
+          />
+        </div>
+      )}
 
       {/* 内容列：保持居中；列宽与内边距取 lib/layout 的共享常量（ENTRY_BAND_WIDTH / ENTRY_COLUMN_PADDING）。
           v0.7.2 修复 3：导航条移出后本列不再需要 minHeight:'100%' / display:flex——那是为
           「列内首行是吸顶导航条」服务的，留着反而会让列比滚动区高出导航条那 32px（多出一条
-          无意义的滚动余量）。去掉后与工作区 WordWorkbench 的内容列逐字同形。 */}
-      <div style={{ maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: ENTRY_COLUMN_PADDING }}>
+          无意义的滚动余量）。去掉后与工作区 WordWorkbench 的内容列逐字同形。
+          Task 8（mobile）：本列自己是滚动区（`flex-1 + minHeight:0 + overflow-y-auto`），
+          并给底部固定条垫出一段下内距——否则最后一条释义被条盖住、滚不到。 */}
+      <div
+        className={variant === 'mobile' ? 'flex-1 overflow-y-auto' : undefined}
+        style={{
+          maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto',
+          ...(variant === 'mobile'
+            ? {
+                // mobile：左右收到 16px（内容列的 24px 在 390dp 竖屏上太占宽），
+                // 下内距垫出底部固定条的高度（顶面 34 + 主面 52 + 安全区）再多 8px 呼吸，
+                // 否则最后一条释义被条盖住、滚不到。
+                padding: '0 16px calc(86px + env(safe-area-inset-bottom) + 8px)',
+              }
+            : { padding: ENTRY_COLUMN_PADDING }),
+          minHeight: 0,
+        }}
+      >
         {/* 词条头带（v0.7.2 §8.3 + 修复 1 / 2 / 6；v0.7.3 徽标改走 rightCluster）。
             修复 1「星级应在单词右侧、徽标应在右上角」：EntryBand 原有槽位要么落在词头**之前**
             （savedMark），要么自带一句说明文字（v0.7.2 的 strength / leechCount），返回页两者都不量，
@@ -329,6 +383,23 @@ export default function DictDetailPanel({ word }: Props) {
           <SemanticNetwork word={word} onCountChange={setNetworkCount} />
         </div>
       </div>
+
+      {/* 底部固定动作条（Task 8，仅 mobile）：返回 + 面包屑 + 初始熟悉度 / 归属 + 已选 + ＋ + 添加至…。
+          桌面那组动作在顶部 `WorkbenchNavBar` 里，两态互斥（见上方导航条的 Task 8 注释）。
+          `mergeDisabled` 与桌面逐字同源（`!anySelected || libraryLocation === 'archive'`）——
+          储藏库的词没有可见的工作台页面，合并只会把字段写进一个用户看不见的词条。 */}
+      {variant === 'mobile' && (
+        <MobileDictActionBar
+          model={actionModel}
+          onBack={handleMobileBack}
+          word={word}
+          familiarity={familiarity}
+          onFamiliarityChange={setFamiliarity}
+          mergeCount={mergeCount}
+          mergeDisabled={!anySelected || libraryLocation === 'archive'}
+          onMergeAdd={handleMergeAdd}
+        />
+      )}
     </div>
   )
 }

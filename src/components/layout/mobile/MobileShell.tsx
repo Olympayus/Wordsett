@@ -106,9 +106,11 @@ export default function MobileShell() {
             style={{ background: 'var(--color-canvas)' }}
           >
             {/* 词典详情视图：手机端与工作台同一层（`AppShell` 也是这一层），
-                故手机外壳不复制 `WordList`——词条列表由 `MobileAppBar` 的抽屉承担（Task 6）。 */}
+                故手机外壳不复制 `WordList`——词条列表由 `MobileAppBar` 的抽屉承担（Task 6）。
+                Task 8：`variant="mobile"`——手机详情不渲染桌面导航条，返回 / 面包屑与
+                「初始熟悉度 / 已选 / ＋ / 添加至…」都在底部固定动作条上。 */}
             {activeView === 'dict' && dictWord
-              ? <DictDetailPanel word={dictWord} />
+              ? <DictDetailPanel word={dictWord} variant="mobile" />
               : (
                 <WordWorkbench
                   ref={workbenchRef}
@@ -128,10 +130,10 @@ export default function MobileShell() {
              与桌面顶栏无关。词典详情与工作台同一层（`AppShell` 也是这一层），
              故点建议 → `openDictFromSearch` → 这里渲染 `DictDetailPanel`；
              详情页的返回（Task 8）经 `showSearchResults` 把视图切回搜索列表。
-             **不传 `variant`**：移动端详情形态由 Task 8 加，本任务保持桌面形态。 */
+             `variant="mobile"`（Task 8）：移动端详情形态——底部动作条，不渲染桌面导航条。 */
           <main data-find-root="search" className="flex-1 overflow-hidden" style={{ background: 'var(--color-canvas)', minWidth: 0 }}>
             {activeView === 'dict' && dictWord
-              ? <DictDetailPanel word={dictWord} />
+              ? <DictDetailPanel word={dictWord} variant="mobile" />
               : <MobileSearchPage />}
           </main>
         ) : (
