@@ -1,4 +1,5 @@
 mod config;
+mod dictionaries;
 mod platform;
 mod tray;
 mod tts_player;
@@ -72,7 +73,9 @@ pub fn run() {
                 CloseAction::Exit => window.app_handle().exit(0),
             }
         })
-        .invoke_handler(tauri::generate_handler![dict_resource_path, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray])
+        // 词典落盘命令：Android 首启必需。桌面 resources 就地直读、永远命中，
+        // marker 不成立时复制会因源缺失而返回 Err，不改变桌面行为。
+        .invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
@@ -92,22 +95,32 @@ pub fn run() {
 /// 返回词典库绝对路径（剥离 Windows `\\?\` 动词前缀后）。
 /// 生产：resources 就地直读（resource_dir = exe 所在目录）。
 /// dev：resources 未注入 target/debug，回退 app_config_dir（由 build:dictionaries 填充）。
+/// Android：APK 里的 resources 不是普通文件、sqlite 打不开，故首启先落盘到
+/// app_data_dir 并由 `ensure_dictionaries` 填好，这里优先返回那份副本。
 #[tauri::command]
 fn dict_resource_path(app: tauri::AppHandle, name: String) -> Result<String, String> {
-    use tauri::path::BaseDirectory;
-
-    let resource_dir = match app.path().resource_dir() {
-        Ok(d) => d,
-        Err(e) => return Err(e.to_string()),
-    };
-    let resource = resource_dir.join(&name);
-    if resource.exists() {
-        return Ok(to_loadable_path(&resource));
+    #[cfg(target_os = "android")]
+    {
+        return dictionaries::android_dict_path(&app, &name);
     }
-    app.path()
-        .resolve(&name, BaseDirectory::AppConfig)
-        .map(|p| to_loadable_path(&p))
-        .map_err(|e| e.to_string())
+
+    #[cfg(not(target_os = "android"))]
+    {
+        use tauri::path::BaseDirectory;
+
+        let resource_dir = match app.path().resource_dir() {
+            Ok(d) => d,
+            Err(e) => return Err(e.to_string()),
+        };
+        let resource = resource_dir.join(&name);
+        if resource.exists() {
+            return Ok(to_loadable_path(&resource));
+        }
+        app.path()
+            .resolve(&name, BaseDirectory::AppConfig)
+            .map(|p| to_loadable_path(&p))
+            .map_err(|e| e.to_string())
+    }
 }
 
 /// 把路径转为可被 sqlx 解析的形态：剥离 Windows 扩展长度（动词）前缀 `\\?\`。
