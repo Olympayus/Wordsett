@@ -18,12 +18,15 @@ import type { DictActionModel } from '../../lib/mobileDictActions'
  * 任何一套判定，只是换了一处落位。
  *
  * 视觉分两层，为窄屏留出排布余地（390dp 竖屏是这台设备的实际宽度）：
- * - **顶面**（`CRUMB_HEIGHT` 34px）：返回 + 「词典 › 词」面包屑。面包屑用 `flex: 1` 吃掉中间余量
- *   并省略号收尾，与手机顶栏的标题同一条处理；右端一枚「添加至…」按钮。
- * - **主面**（`BAR_HEIGHT` 52px，拇指可达的那一层）：初始熟悉度三键 / 归属文案（左簇）+ 已选读数
- *   + 「＋」合并键（右端）。
+ * - **顶面**（`CRUMB_HEIGHT` 34px，**可选**）：返回 + 「词典 › 词」面包屑 + 右端「添加至…」。
+ *   只在**没有手机顶栏**的路径渲染——工作台 / 储藏库的词典详情与词条页共用 `MobileAppBar`；
+ *   搜索路径的返回 + 面包屑画在 `DictDetailPanel` 自己的顶栏里，这一面随之不渲染
+ *   （两条路径都只有一个返回键、一条面包屑）。
+ * - **主面**（`BAR_HEIGHT` 52px，拇指可达的那一层，**恒在**）：初始熟悉度三键 / 归属文案（左簇）
+ *   + 已选读数 + 「＋」合并键（右端）。顶面不渲染时，「添加至…」落回这一面的右端，
+ *   保证主按钮与「选分类后添加」在任何路径下都成对可达。
  *
- * 两层的高度合计 86px（+ 底部安全区）即滚动区要垫的下内距，`DictDetailPanel` 引的就是这两个数。
+ * 条高 = 顶面（可选）+ 主面，`DictDetailPanel` 按同一条算式给内容区垫下内距。
  *
  * - **不吸顶、不滚动**：条是 `position: fixed` 贴视口下缘（不是滚动区内的 sticky）。手机词典
  *   详情与底栏同时常显（spec §4.2「顶栏、词条条、底栏全部常显」，§4.2「键盘弹出时底栏让位给
@@ -59,10 +62,16 @@ const iconBtn: CSSProperties = {
 interface Props {
   /** 动作模型（`dictActionModel`）：决定问不问熟悉度、显示归属还是三键、能不能合并。 */
   model: DictActionModel
-  /** 返回（搜索 → 词典 → 搜索结果；工作台 → 词编辑视图）。 */
+  /** 返回（搜索 → 词典 → 搜索结果；工作台 / 储藏库 → 词编辑视图）。 */
   onBack: () => void
-  /** 面包屑里的词面（「词典 › 词」）。 */
-  word: string
+  /**
+   * 面包屑里的词面（「词典 › 词」）。
+   *
+   * **只在没有手机顶栏时传**（Task 8）：搜索路径的返回 + 面包屑画在 `DictDetailPanel` 自己的
+   * 顶栏里（spec §4.5），底条这一面只留动作；工作台 / 储藏库路径与词条页共用 `MobileAppBar`、
+   * 没有本面板的顶栏，故面包屑仍在底条顶面。两种路径**不会**出现两条面包屑。
+   */
+  word?: string
   /** 初始熟悉度（未收录时）：与桌面同一份状态，所有权仍在 `DictDetailPanel`。 */
   familiarity: InitialFamiliarityChoice
   onFamiliarityChange: (v: InitialFamiliarityChoice) => void
@@ -80,50 +89,55 @@ export default function MobileDictActionBar({
   // 分类下拉的开关与锚点（与桌面 `WorkbenchNavBar` 同一套：浮层 fixed 落位，锚点由它现算）
   const [pickerOpen, setPickerOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
+  // 主面右端的「添加至…」锚点（顶面不渲染时的那一枚）
+  const fallbackAnchorRef = useRef<HTMLDivElement>(null)
+  // 顶面（返回 + 面包屑）只在没有手机顶栏的路径渲染；搜索路径的这两件在 `DictDetailPanel` 的顶栏里
+  const showCrumbFace = Boolean(word)
+  const barHeight = (showCrumbFace ? CRUMB_HEIGHT : 0) + BAR_HEIGHT
 
   return (
     <div
       style={{
         position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 'var(--z-sticky)',
         // 高度含安全区（同 MobileTabBar）：手势条下沿不压内容
-        height: `calc(${CRUMB_HEIGHT + BAR_HEIGHT}px + env(safe-area-inset-bottom))`,
+        height: `calc(${barHeight}px + env(safe-area-inset-bottom))`,
         display: 'flex', flexDirection: 'column',
         padding: '0 12px env(safe-area-inset-bottom)', boxSizing: 'border-box',
         background: 'var(--color-chrome)',
         borderTop: '1px solid var(--color-border)',
       }}
     >
-      {/* 顶面：返回 + 「词典 › 词」面包屑（spec §4.5：「顶栏只留返回与『词典 › 词』面包屑」）。
-          **放在底条**而不是另开一条顶栏：手机词典详情与词条页共用 `MobileAppBar`，那里已经
-          承担了模块级的返回 / 前进 / 抽屉 / 色条；再叠一条 52px 顶栏会与它重复，也让「返回」
-          出现两次。面包屑因此贴着动作条左上，与返回键同一簇。 */}
-      <div
-        className="flex items-center"
-        style={{ height: `${CRUMB_HEIGHT}px`, gap: 8, borderBottom: '1px solid var(--color-border)' }}
-      >
-        <button type="button" title="返回" aria-label="返回" onClick={onBack} style={iconBtn}>
-          <Icon name="arrow-left" size={18} />
-        </button>
-        <span style={{
-          flex: '1 1 auto', minWidth: 0, fontSize: 12, color: 'var(--color-text-tertiary)',
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          词典 › <b style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>{word}</b>
-        </span>
-        {/* 「添加至…」：仍开 `CategoryPickerPopover`，文案与桌面逐字一致。放在顶面右端——
-            它是「选一个目的地再添加」的二级动作，与主面的「＋」分开一层，窄屏才排得下。 */}
-        <div ref={anchorRef}>
-          <SquareButton
-            size="touch"
-            tone="canvas"
-            aria-label="添加至指定分类"
-            disabled={mergeDisabled}
-            onClick={() => setPickerOpen(o => !o)}
-          >
-            添加至…
-          </SquareButton>
+      {/* 顶面：返回 + 「词典 › 词」面包屑。**只在没有手机顶栏的路径出现**——搜索路径的返回与
+          面包屑画在 `DictDetailPanel` 自己的顶栏里（见那里的注释），两条路径都不重复。 */}
+      {showCrumbFace && (
+        <div
+          className="flex items-center"
+          style={{ height: `${CRUMB_HEIGHT}px`, gap: 8, borderBottom: '1px solid var(--color-border)' }}
+        >
+          <button type="button" title="返回" aria-label="返回" onClick={onBack} style={iconBtn}>
+            <Icon name="arrow-left" size={18} />
+          </button>
+          <span style={{
+            flex: '1 1 auto', minWidth: 0, fontSize: 12, color: 'var(--color-text-tertiary)',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            词典 › <b style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>{word}</b>
+          </span>
+          {/* 「添加至…」：仍开 `CategoryPickerPopover`，文案与桌面逐字一致。放在顶面右端——
+              它是「选一个目的地再添加」的二级动作，与主面的「＋」分开一层，窄屏才排得下。 */}
+          <div ref={anchorRef}>
+            <SquareButton
+              size="touch"
+              tone="canvas"
+              aria-label="添加至指定分类"
+              disabled={mergeDisabled}
+              onClick={() => setPickerOpen(o => !o)}
+            >
+              添加至…
+            </SquareButton>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 主面：初始熟悉度 / 归属（左簇）+ 已选读数 + 「＋」合并键（右端） */}
       <div className="flex items-center" style={{ height: `${BAR_HEIGHT}px`, gap: 8, minHeight: 0 }}>
@@ -133,7 +147,8 @@ export default function MobileDictActionBar({
           {model.showFamiliarity ? (
             <>
               <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap', flexShrink: 0 }}>初始熟悉度</span>
-              <FamiliarityChoice value={familiarity} onChange={onFamiliarityChange} />
+              {/* `touch`（Task 8）：三键提到 44px 命中区（spec §10）。 */}
+              <FamiliarityChoice value={familiarity} onChange={onFamiliarityChange} touch />
             </>
           ) : (
             <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{model.libraryLabel}</span>
@@ -152,7 +167,7 @@ export default function MobileDictActionBar({
             `size="touch"` 是 `SquareButton` 为手机外壳开的触屏档（32px，与本条其余控件等高）。
             `marginLeft: auto` 由外层 span 承担——`SquareButton` 不透传 `style`，与仓库里其他
             需要推开的按钮同一做法（包一层、不侵入组件）。 */}
-        <span style={{ marginLeft: 'auto' }}>
+        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
           <Tooltip content={mergeCount > 0 ? `把已选的 ${mergeCount} 项添加进词条` : '先勾选要添加的词条'} width={260}>
             <SquareButton
               size="touch"
@@ -164,13 +179,28 @@ export default function MobileDictActionBar({
               <Icon name="plus" size={14} />
             </SquareButton>
           </Tooltip>
+          {/* 「添加至…」在**没有顶面**的路径（搜索）落回主面右端：顶面那格此时不渲染，
+              而这两个动作（主按钮 / 选分类后添加）在任何路径下都必须成对可达。 */}
+          {!showCrumbFace && (
+            <div ref={fallbackAnchorRef}>
+              <SquareButton
+                size="touch"
+                tone="canvas"
+                aria-label="添加至指定分类"
+                disabled={mergeDisabled}
+                onClick={() => setPickerOpen(o => !o)}
+              >
+                添加至…
+              </SquareButton>
+            </div>
+          )}
         </span>
       </div>
 
-      {/* 分类下拉：`fixed` 落位，锚点是顶面那枚「添加至…」的容器（见 popoverPosition 的契约）。
+      {/* 分类下拉：`fixed` 落位，锚点是「添加至…」自己（顶面或主面，见 popoverPosition 的契约）。
           朝上开（`placement="top"`）——锚点在视口下缘，向下没有空间。 */}
       {pickerOpen && (
-        <CategoryPickerPopover anchor={anchorRef.current} onClose={() => setPickerOpen(false)}
+        <CategoryPickerPopover anchor={(showCrumbFace ? anchorRef : fallbackAnchorRef).current} onClose={() => setPickerOpen(false)}
           placement="top"
           onPick={categoryId => { setPickerOpen(false); onMergeAdd(categoryId) }} />
       )}

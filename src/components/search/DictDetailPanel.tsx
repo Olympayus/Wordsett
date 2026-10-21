@@ -8,6 +8,7 @@ import WorkbenchNavBar from '../word/WorkbenchNavBar'
 import MobileDictActionBar from './MobileDictActionBar'
 import EntryBand from '../entry/EntryBand'
 import SpeakButton from '../ui/SpeakButton'
+import Icon from '../icons'
 import { lookupTitleMeta, lookupWord } from '../../services/searchService'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
@@ -59,6 +60,29 @@ const tabHoverOff = (active: boolean) => (e: React.MouseEvent<HTMLButtonElement>
   if (active) return
   e.currentTarget.style.background = 'transparent'
   e.currentTarget.style.color = 'var(--color-text-secondary)'
+}
+
+/**
+ * 手机词典详情顶栏的高度（Task 8）：52 —— 与 `MobileAppBar` 的 `BAR_HEIGHT` 同值，
+ * 两条顶栏因此读起来是同一档（搜索路径出本条，词条页出那条）。不含状态栏——安全区另加。
+ */
+const MOBILE_TOP_BAR_HEIGHT = 52
+
+/**
+ * 顶栏里图标键的高度：32 —— 与 `MobileAppBar` 的 `CONTROL` 同值。
+ * 安全区写进顶栏的 `height`（见上方 JSX 注释），故这里只管内容盒。
+ */
+const MOBILE_TOP_ICON = 32
+
+/** 无边框无底色的图标键（手机顶栏）：与 `MobileAppBar` 的 `iconBtn` 同形同尺寸。 */
+const mobileTopIconBtn: CSSProperties = {
+  width: `${MOBILE_TOP_ICON}px`, height: `${MOBILE_TOP_ICON}px`, flexShrink: 0,
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)',
+  cursor: 'pointer', color: 'var(--color-text-secondary)',
+  transition: 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
+  touchAction: 'manipulation',
+  WebkitTapHighlightColor: 'transparent',
 }
 
 // 词典详情视图（D2）：替换右侧区域。导航条返回/Esc 回词编辑视图（Task 5 追加「添加成功回编辑视图」）。
@@ -115,12 +139,18 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
   // 桌面那份判据是两半（`anySelected` 与 `libraryLocation === 'archive'`），模型只收
   // 「能不能合并」这一半（`selectedCount > 0`），archive 那一半仍由调用方并入 mergeDisabled。
   const actionModel = dictActionModel(libraryLocation, mergeCount)
-  // 返回：mobile 的返回语义是「回来源页」——搜索模块回搜索结果列表，其余（工作台 / 储藏库）
-  // 回词编辑视图。与 `MobileSearchPage` 那条 Esc 链同一判据（模块对得上才接管）。
+  // 返回：mobile 的返回语义是「回来源页」。判据与 `WordList.openWordView`（v0.7.5 Task 10）
+  // 逐字同源——储藏库**只切视图、不切模块**（照旧调 showWorkbench 会把模块一起拨回工作台，
+  // 用户在储藏库里点一下就被送走）；搜索模块回搜索结果列表。
   const handleMobileBack = () => {
-    if (useViewStore.getState().activeModule === 'search') useViewStore.getState().showSearchResults()
+    const module = useViewStore.getState().activeModule
+    if (module === 'search') useViewStore.getState().showSearchResults()
+    else if (module === 'archive') useViewStore.getState().showWorkbenchView()
     else showWorkbench()
   }
+  // 手机顶栏只在**搜索路径**出（Task 8）：搜索是一级页面、没有 `MobileAppBar`；工作台 /
+  // 储藏库的词典详情与词条页共用外壳那条顶栏，不叠第二条。
+  const isSearchPath = variant === 'mobile' && useViewStore(s => s.activeModule) === 'search'
 
   // 合并添加：聚合全源勾选字段 → 确保词条存在 → 一次合并 → 跳编辑页
   // 规格：addWord/mergeWordFields 任一失败 → 面板顶部错误提示，不跳转（错误在下次 lookup/attempt 时清除）
@@ -209,7 +239,8 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
 
   return (
     // 外壳两态：`desktop` 是既有的纵向滚动容器；`mobile` 改成纵向 flex（Task 8）——
-    // 滚动区与底部动作条各占一段，条**不吸顶**、贴着视口下缘（见 `MobileDictActionBar`）。
+    // 顶栏（可选）/ 滚动区 / 底部动作条各占一段，条**不吸顶**、贴着视口下缘
+    // （见 `MobileDictActionBar`）。
     <div className={variant === 'mobile' ? 'h-full flex flex-col' : 'h-full overflow-y-auto'} style={{ background: 'var(--color-surface)' }}>
       {/* 导航条（v0.5.3 §3.4）：与工作台同款同位置；左箭头返回工作台、右端合并添加。
           v0.6.5 §4.5 起初始熟悉度三键也收进右端（原先是页面底部的收录区），状态仍归本面板。
@@ -221,8 +252,8 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
           「分割线在左右两侧并没有顶到左边和右边，而是留空了一段」）。wrapper 通栏、NavBar
           自身另持 14px 内边距（WorkbenchNavBar.tsx 的 `padding:'0 14px'`），条内内容宽度不变、不横跳；
           结构与复习区 ReviewModule.tsx:152 一致（sticky 块无水平内边距）。
-          **Task 8（variant='mobile'）：整条不渲染**——返回 + 面包屑与右端那组动作一起搬进
-          底部的 `MobileDictActionBar`，本页只剩正文，与 `WordWorkbench` 的 `chrome="mobile"`
+          **Task 8（variant='mobile'）：整条不渲染**——返回 + 面包屑与右端那组动作搬进手机自己的
+          顶栏 / 底部动作条，本页只剩正文，与 `WordWorkbench` 的 `chrome="mobile"`
           同一条判断（手机外壳不为动作再开一条导航条）。 */}
       {variant === 'desktop' && (
         <div style={{
@@ -245,6 +276,41 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
         </div>
       )}
 
+      {/* 手机顶栏（Task 8，variant='mobile' 且 activeModule==='search' 时才渲染）：
+          返回 + 「词典 › 词」面包屑（spec §4.5「顶栏只留返回与『词典 › 词』面包屑」）。
+
+          **只在搜索路径出**：工作台 / 储藏库的词典详情与词条页共用 `MobileAppBar`（外壳那条），
+          那里已经有返回 / 前进 / 抽屉 / 色条，再叠一条会与它重复、也让「返回」出现两次。
+          搜索模块是**一级页面**、没有 MobileAppBar，故自己出这一条。
+
+          高度含顶部安全区（与 `MobileAppBar` 同一条理由：`box-sizing: border-box` 下把
+          `env(safe-area-inset-top)` 写进 `paddingTop` 会把内容盒从 52px 压小、让 52px 的控件
+          溢出顶栏压到状态栏上）。工作台 / 储藏库路径不出本条，安全区由 `MobileAppBar` 提供，
+          **不重复加**。 */}
+      {variant === 'mobile' && isSearchPath && (
+        <div
+          className="shrink-0 flex items-center"
+          style={{
+            height: `calc(${MOBILE_TOP_BAR_HEIGHT}px + env(safe-area-inset-top))`,
+            gap: 2, padding: '0 8px',
+            background: 'var(--color-chrome)',
+            borderBottom: '1px solid var(--color-border)',
+          }}
+        >
+          <button type="button" title="返回" aria-label="返回" onClick={handleMobileBack} style={mobileTopIconBtn}>
+            <Icon name="arrow-left" size={18} />
+          </button>
+          {/* 面包屑：`flex:1` 吃掉中间余量并省略号收尾（与 MobileAppBar 的标题同一条处理） */}
+          <span style={{
+            flex: '1 1 auto', minWidth: 0, margin: '0 2px', fontSize: 12,
+            color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap',
+            overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            词典 › <b style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>{word}</b>
+          </span>
+        </div>
+      )}
+
       {/* 内容列：保持居中；列宽与内边距取 lib/layout 的共享常量（ENTRY_BAND_WIDTH / ENTRY_COLUMN_PADDING）。
           v0.7.2 修复 3：导航条移出后本列不再需要 minHeight:'100%' / display:flex——那是为
           「列内首行是吸顶导航条」服务的，留着反而会让列比滚动区高出导航条那 32px（多出一条
@@ -258,9 +324,12 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
           ...(variant === 'mobile'
             ? {
                 // mobile：左右收到 16px（内容列的 24px 在 390dp 竖屏上太占宽），
-                // 下内距垫出底部固定条的高度（顶面 34 + 主面 52 + 安全区）再多 8px 呼吸，
-                // 否则最后一条释义被条盖住、滚不到。
-                padding: '0 16px calc(86px + env(safe-area-inset-bottom) + 8px)',
+                // 下内距垫出底部固定条的高度再多 8px 呼吸，否则最后一条释义被条盖住、滚不到。
+                // 底条高度两种路径不同（顶面 34 + 主面 52 = 86；搜索路径没有顶面，只有 52），
+                // 故按 isSearchPath 取——这正是 MobileDictActionBar 的 barHeight 算式。
+                padding: isSearchPath
+                  ? '0 16px calc(52px + env(safe-area-inset-bottom) + 8px)'
+                  : '0 16px calc(86px + env(safe-area-inset-bottom) + 8px)',
               }
             : { padding: ENTRY_COLUMN_PADDING }),
           minHeight: 0,
@@ -384,15 +453,18 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
         </div>
       </div>
 
-      {/* 底部固定动作条（Task 8，仅 mobile）：返回 + 面包屑 + 初始熟悉度 / 归属 + 已选 + ＋ + 添加至…。
+      {/* 底部固定动作条（Task 8，仅 mobile）：初始熟悉度 / 归属 + 已选 + ＋ + 添加至…。
           桌面那组动作在顶部 `WorkbenchNavBar` 里，两态互斥（见上方导航条的 Task 8 注释）。
           `mergeDisabled` 与桌面逐字同源（`!anySelected || libraryLocation === 'archive'`）——
-          储藏库的词没有可见的工作台页面，合并只会把字段写进一个用户看不见的词条。 */}
+          储藏库的词没有可见的工作台页面，合并只会把字段写进一个用户看不见的词条。
+
+          **`word` 只在非搜索路径传**：搜索路径的返回 + 面包屑画在上方那条手机顶栏里，
+          底条的顶面（返回 + 面包屑）随之不渲染，两条路径都不会出现两个返回键。 */}
       {variant === 'mobile' && (
         <MobileDictActionBar
           model={actionModel}
           onBack={handleMobileBack}
-          word={word}
+          word={isSearchPath ? undefined : word}
           familiarity={familiarity}
           onFamiliarityChange={setFamiliarity}
           mergeCount={mergeCount}
