@@ -16,6 +16,10 @@ import { canGoBack } from '../../../lib/navHistory'
 import { go } from '../../../lib/useWorkbenchNavigation'
 import { useNavHistoryStore } from '../../../stores/navHistoryStore'
 import { usePlatformClass } from '../../../lib/usePlatform'
+import { useUiStore } from '../../../stores/uiStore'
+import CategoryAssignModal from '../../word/CategoryAssignModal'
+import CategoryEditorModal from '../../word/CategoryEditorModal'
+import ConfirmDialog from '../../ui/ConfirmDialog'
 
 // 手机外壳（Task 4 立骨架，Task 5 填三块）。
 //
@@ -161,6 +165,11 @@ export default function MobileShell() {
   const platform = usePlatformClass()
   useEffect(() => { applyScreenOrientation(platform) }, [platform])
 
+  // 全局浮层（Task 11）：与 `AppShell` 同一套 store 状态（`assignWordId` / `editorTarget`），
+  // 少了它们手机上的分类分配与确认动作会「弹窗不出现、Promise 永不 resolve」。
+  // **不挂 `UpdateDialog`**：Android 不启用 updater（spec §9），版本检查只在关于页提示。
+  const { assignWordId, editorTarget, closeModals, openEditor } = useUiStore()
+
   return (
     <div className="h-screen flex flex-col" style={{ background: 'var(--color-canvas)' }}>
       {/* 顶栏：抽屉 / 返回前进 / 标题 / 色条开关 / ⋯（编辑态换成取消 / 保存）。
@@ -245,6 +254,24 @@ export default function MobileShell() {
 
       {/* 底栏：五格 + 中间凸起的搜索圆钮 + 复习到期徽标。 */}
       <MobileTabBar />
+
+      {/* 全局浮层（Task 11）：分类分配 / 新建分类 / 通用确认框。与 `AppShell` 的挂载方式一致，
+          用同一份 `useUiStore` 状态；`UpdateDialog` 刻意不挂（Android 禁用 updater）。 */}
+      <CategoryAssignModal
+        open={!!assignWordId}
+        wordId={assignWordId ?? ''}
+        onClose={closeModals}
+        onCreateNew={() => openEditor(null, assignWordId)}
+      />
+      {editorTarget && (
+        <CategoryEditorModal
+          open={!!editorTarget}
+          category={editorTarget.category}
+          wordId={editorTarget.wordId ?? ''}
+          onClose={closeModals}
+        />
+      )}
+      <ConfirmDialog />
     </div>
   )
 }
