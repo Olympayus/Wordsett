@@ -34,47 +34,55 @@ fn orientation_value(orientation: Option<&str>) -> i32 {
 
 /// 设置屏幕方向。
 ///
-/// `activity` 取自 `ndk_context::android_context()`——它是当前进程 `Activity` 的 `GlobalRef`
-/// （JNI 环境下恒可用，Tauri 的安卓端就是它起的），`JObject::from_raw` 直接转成 JNI 对象。
+/// `activity` 取自 `ndk_context::android_context()`——它是当前进程 `Activity` 的
+/// `GlobalRef`（JNI 环境下恒可用，Tauri 的安卓端就是它起的），`JObject::from_raw` 直接转成
+/// JNI 对象。
 ///
-/// JNI 的 `EnvExt` 方法返回 `jni::errors::Result`：调用失败会把 Java 异常翻成 `Err` 交给
-/// 调用点（不会把挂起的异常留在 VM 上），故这里的 `?` 同时承担了「清异常」这件事。
+/// 异常处理：Java 侧抛异常时 `call_method` 返回 `Err`——异常**不会**留在 VM 上，
+/// 故 `?` 这一下已经把异常清掉了。末尾那次 `exception_check` 是兜底：JNI 规范允许
+/// 「调用返回后仍有挂起异常」的状态存在，不查一次就把它带进下一次 JNI 调用。
 #[cfg(target_os = "android")]
 #[tauri::command]
 pub fn set_screen_orientation(
     _activity: tauri::AppHandle,
     orientation: Option<String>,
 ) -> Result<(), String> {
-    use jni::objects::JObject;
-    use jni::EnvExt;
+    use jni::objects::{JObject, JValue};
     use ndk_context::android_context;
 
     let global = android_context();
-    if global.context().is_null() {
+    // `context()` 是 `*mut c_void`（多数情况下就是 Activity，见 crate 文档）。
+    // 空指针即「拿不到 Activity」——静默放过（这条路径不该发生，但为它拦住启动不值得）。
+    let context_ptr = global.context();
+    if context_ptr.is_null() {
         return Ok(());
     }
 
-    let activity = unsafe { JObject::from_raw(global.context().as_ptr() as *mut _) };
-    let value = orientation_value(orientation.as_deref());
-    // 取一个短命 env：`jni` 的所有调用都要一个 `JNIEnv`。`get_env` 是 infallible 的
-    // （安卓上 VM 一定在），但签名仍返回 `Result`，故照旧 `?`。
-    let mut env = unsafe { jni::JavaVM::from_raw(global.vm_ptr() as *mut _) }
-        .map_err(|e| e.to_string())?
-        .get_env()
-        .map_err(|e| e.to_string())?;
+    // `vm()` 是 `*mut c_void`，`JavaVM::from_raw` 收 `*mut sys::JavaVM`——两者 ABI 都是指针。
+    let vm = unsafe { jni::JavaVM::from_raw(global.vm().cast()) }.map_err(|e| e.to_string())?;
+    // 本命令由 Tauri 派发：派发线程已经在 JVM 里，故用 `get_env` 而不是 `attach_current_thread`
+    // （后者会给一个 Rust 自己起的线程用，代价是每次调用都 attach/detach）。
+    let mut env = vm.get_env().map_err(|e| e.to_string())?;
 
     // 第一个参数 `self`：`setRequestedOrientation` 是实例方法，`(I)V` 收一个 int、不返回值。
-    // `with_env` 的返回值就是 `call_method` 的结果（JNI 的异常会被翻成 `Err` 交给调用点，
-    // 不会留在 VM 上），故调用后不必再手工 `exception_clear`。
-    env.with_env(|env| {
-        env.call_method(
-            activity,
-            "setRequestedOrientation",
-            "(I)V",
-            &[jni::objects::JValueGen::Int(value)],
-        )
-    })
-    .map_err(|e| e.to_string())
+    // `JObject::from_raw` 是 unsafe 的（它假定传进来的是活的 JNI 引用）——`context()` 给的
+    // GlobalRef 满足这条前提。
+    let activity = unsafe { JObject::from_raw(context_ptr.cast()) };
+    let value = orientation_value(orientation.as_deref());
+    env.call_method(
+        activity,
+        "setRequestedOrientation",
+        "(I)V",
+        &[JValue::Int(value)],
+    )
+    .map_err(|e| e.to_string())?;
+
+    // 走到这里说明调用返回了；兜底清一次挂起的异常（见上方注释）。
+    if env.exception_check().map_err(|e| e.to_string())? {
+        env.exception_clear().map_err(|e| e.to_string())?;
+        return Err("setRequestedOrientation 抛出异常".to_string());
+    }
+    Ok(())
 }
 
 /// 非安卓端：无操作。平板与桌面不锁方向（`orientationFor` 对桌面返回 `null`，前端也不会调）。
