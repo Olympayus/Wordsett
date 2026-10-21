@@ -21,8 +21,11 @@ function locationOfHistoryId(id: string): WordLocation | null {
  * 顺序与 `useLinkJump` 一致（硬要求）：先切模块 → 数据集不同则切数据集 → 最后选中词条。
  * 反过来的话 `selectWord` 会在旧数据集里找目标；先选后换数据集则 `setLocation` 会把
  * 刚选中的词清掉——跨模块后退就落进「空态里没有导航条」的死角（v0.7.5 修复的关键）。
+ *
+ * 模块级函数而不是 hook 内部：安卓返回键（Task 10）的 `popModule` 也要走同一个跳转，
+ * 而它没有组件上下文、拿不到 hook 的返回值。两处共用一份实现，顺序不可能分家。
  */
-async function go(dir: 'back' | 'forward'): Promise<void> {
+export async function go(dir: 'back' | 'forward'): Promise<void> {
   const nav = useNavHistoryStore.getState()
   const entry = dir === 'back'
     ? nav.goBack(locationOfHistoryId)

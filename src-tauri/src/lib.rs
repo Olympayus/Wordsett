@@ -1,5 +1,6 @@
 mod config;
 mod dictionaries;
+mod orientation;
 mod platform;
 mod tray;
 mod tts_player;
@@ -75,7 +76,7 @@ pub fn run() {
         })
         // 词典落盘命令：Android 首启必需。桌面 resources 就地直读、永远命中，
         // marker 不成立时复制会因源缺失而返回 Err，不改变桌面行为。
-        .invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray])
+        .invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation])
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
