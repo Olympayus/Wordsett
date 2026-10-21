@@ -72,23 +72,21 @@ export default function MobileSearchPage() {
     inputRef.current?.focus()
   }, [detailOpen])
 
-  // Esc → 回搜索列表（本页的返回键语义，Task 8 的移动端详情底部动作条那枚返回键走同一条 action）。
-  //
-  // 与 `DictDetailPanel` 那条 window 级 Esc **只生效一条**：详情态由详情面板负责
-  // （`variant==='mobile'` 时它在 `activeModule==='search'` 下主动让位；Task 8 另把它的返回键
-  // 接到 `showSearchResults`），本页这条因此**只在列表态**兜底——那时详情面板没挂载，
-  // 另一条监听也不存在，两条在任何时刻都不会同时改变视图。
+  // Esc 的两条 window 级监听**分工不重叠，且各管一态**：
+  // - 详情态（`activeView === 'dict'`）由**本页**负责 → `showSearchResults()` 回搜索列表。
+  //   `DictDetailPanel` 自己那条监听在 `variant==='mobile' && activeModule==='search'` 下**主动让位**
+  //   （它 `:203` 的守卫），故详情态只有本页这条会改视图，不会两条链双双返回成 no-op。
+  // - 列表态由**详情面板**负责（那时它没挂载、监听不存在），本页这条落到 `closeSearch()` 离开搜索模块。
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      const { activeModule, activeView } = useViewStore.getState()
-      if (activeModule !== 'search') return
-      if (activeView === 'dict') return
-      showSearchResults()
+      if (useViewStore.getState().activeModule !== 'search') return
+      if (useViewStore.getState().activeView === 'dict') showSearchResults()
+      else closeSearch()
     }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [showSearchResults])
+  }, [showSearchResults, closeSearch])
 
   const rows = searchRows(suggestions, libraryIndex, glosses)
 
