@@ -28,8 +28,9 @@ interface Props {
   /**
    * 详情形态（Task 8）：`'desktop'`（缺省）＝现有桌面返回页——顶部 `WorkbenchNavBar` 带
    * 返回 / 面包屑 / 初始熟悉度 / 已选 / ＋ / 添加至…。
-   * `'mobile'`＝手机词典详情——**不渲染导航条**，返回 + 「词典 › 词」面包屑落在底部固定条
-   * （`MobileDictActionBar`）的顶面，初始熟悉度 / 已选 / ＋ / 添加至… 落在它的主面。
+   * `'mobile'`＝手机词典详情——**不渲染导航条**。搜索路径自己出一条顶栏（返回 + 「词典 › 词」
+   * 面包屑）；工作台 / 储藏库路径没有本顶栏（与词条页共用 `MobileAppBar`），返回 + 面包屑落在
+   * 底部固定条（`MobileDictActionBar`）的顶面。初始熟悉度 / 已选 / ＋ / 添加至… 都在那条底栏上。
    * 内容（`DictDetailCard` / 页签 / 语义网络）两态逐字相同。
    */
   variant?: 'desktop' | 'mobile'
@@ -324,12 +325,9 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
           ...(variant === 'mobile'
             ? {
                 // mobile：左右收到 16px（内容列的 24px 在 390dp 竖屏上太占宽），
-                // 下内距垫出底部固定条的高度再多 8px 呼吸，否则最后一条释义被条盖住、滚不到。
-                // 底条高度两种路径不同（顶面 34 + 主面 52 = 86；搜索路径没有顶面，只有 52），
-                // 故按 isSearchPath 取——这正是 MobileDictActionBar 的 barHeight 算式。
-                padding: isSearchPath
-                  ? '0 16px calc(52px + env(safe-area-inset-bottom) + 8px)'
-                  : '0 16px calc(86px + env(safe-area-inset-bottom) + 8px)',
+                // 下内距垫出底部固定条的高度（顶面 34 + 主面 52 + 安全区）再多 8px 呼吸，
+                // 否则最后一条释义被条盖住、滚不到。两条路径的条高相同（顶面恒在），故不分叉。
+                padding: '0 16px calc(86px + env(safe-area-inset-bottom) + 8px)',
               }
             : { padding: ENTRY_COLUMN_PADDING }),
           minHeight: 0,
