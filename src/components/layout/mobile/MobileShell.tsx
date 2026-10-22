@@ -11,6 +11,7 @@ import WordStrip from './WordStrip'
 import MobileDrawer from './MobileDrawer'
 import { useWordStore } from '../../../stores/wordStore'
 import { backAction, type BackLayerKind } from '../../../lib/mobileBackStack'
+import type { SettingsSectionKey } from '../../../lib/mobileSettings'
 import { applyScreenOrientation, exitMobileApp, registerMobileBack } from '../../../lib/mobileBackButton'
 import { canGoBack } from '../../../lib/navHistory'
 import { go } from '../../../lib/useWorkbenchNavigation'
@@ -85,12 +86,22 @@ export default function MobileShell() {
     setDrawerOpen(false)
   }, [activeModule])
 
+  // 设置页的「目录 → 子页」状态抬到外壳（Task 10 修复）：返回键要能看见它，
+  // 否则在子页上按安卓返回会一路退到模块、甚至退出应用。`null` = 目录。
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionKey | null>(null)
+  useEffect(() => {
+    if (activeModule === 'settings') return
+    setSettingsSection(null)
+  }, [activeModule])
+
   // 返回栈里的两个「瞬时层」是外壳自己的 state（编辑态由 `WordWorkbench` 上报），
   // 而返回键的 handler 必须**永远读到最新值**（订阅只在挂载时发生一次），故经 ref 递进去。
   const editingRef = useRef(editing)
   useEffect(() => { editingRef.current = editing }, [editing])
   const drawerOpenRef = useRef(drawerOpen)
   useEffect(() => { drawerOpenRef.current = drawerOpen }, [drawerOpen])
+  const settingsSectionRef = useRef(settingsSection)
+  useEffect(() => { settingsSectionRef.current = settingsSection }, [settingsSection])
 
   // ── 安卓返回栈（Task 10）──────────────────────────────────────────────────────────────
   //
@@ -98,7 +109,7 @@ export default function MobileShell() {
   // 到达，而这条路径的代价是一次 store 读，远小于「栈与真实状态不同步」这种只在真机上出现的错。
   //
   // 优先级（高 → 低）：动作表 sheet（Plan 2，本版无来源）→ 编辑 → 抽屉 → 词典详情 → 搜索
-  // → 词条导航。栈顶在数组第 0 位（`backAction` 只看这一个）。
+  // → 设置子页 → 词条导航。栈顶在数组第 0 位（`backAction` 只看这一个）。
   //
   // 「词条导航」只在**词条页真的还有上一个词条**时才进栈：它在栈底时对应「返回上一词条」，
   // 与「返回上一页」是同一件事（顶栏那枚返回箭头就是它）。没有上一个词条时返回要往上走
@@ -112,12 +123,15 @@ export default function MobileShell() {
       // 词典详情优先于搜索：搜索模块里的详情态由详情面板渲染，`MobileSearchPage` 仍在下面挂着
       ...(view.activeView === 'dict' && view.dictWord ? ['dict' as const] : []),
       ...(view.activeModule === 'search' && view.activeView !== 'dict' ? ['search' as const] : []),
+      // 设置子页：只在设置模块、且真的进了某个分区子页时才算一层（目录态返回 = 退模块）
+      ...(view.activeModule === 'settings' && settingsSectionRef.current ? ['settings-sub' as const] : []),
       // 词条导航：只在词条页、且当前视图就是词条视图（详情态已在上一步被吃掉）时才算一层
       ...(wordPage && view.activeView === 'workbench'
         && canGoBack(useNavHistoryStore.getState().history) ? ['module' as const] : []),
     ]
 
-    switch (backAction(layers).type) {
+    const action = backAction(layers)
+    switch (action.type) {
       case 'cancelEdit':
         workbenchRef.current?.cancelEdit()
         return
@@ -131,6 +145,13 @@ export default function MobileShell() {
       case 'closeSearch':
         view.closeSearch()
         return
+      case 'closeSettingsSub':
+        setSettingsSection(null)
+        return
+      case 'closeSheet':
+        // 动作表（Plan 2）尚不存在：本版没有任何来源会把 `sheet` 压进栈，走到这里即空操作。
+        // 留着这个分支是为了让 `mobileBackStack` 的优先级表先就位，Plan 2 接上时只差一个 setState。
+        return
       case 'popModule':
         // 上一个词条的跳转顺序（先切模块 → 再切数据集 → 最后选词）在 `go` 里，与顶栏那枚
         // 返回箭头**同一个函数**——两条路走同一个实现，顺序不可能分家。
@@ -139,6 +160,12 @@ export default function MobileShell() {
       case 'exit':
         void exitMobileApp()
         return
+      default: {
+        // 穷尽性守卫：`backAction` 新增动作而这里没接时，这行会编译失败。
+        const unhandled: never = action
+        void unhandled
+        return
+      }
     }
   }, [])
 
@@ -202,8 +229,9 @@ export default function MobileShell() {
           >
             {/* 词典详情视图：手机端与工作台同一层（`AppShell` 也是这一层），
                 故手机外壳不复制 `WordList`——词条列表由 `MobileAppBar` 的抽屉承担（Task 6）。
-                Task 8：`variant="mobile"`——手机详情不渲染桌面导航条，返回 / 面包屑与
-                「初始熟悉度 / 已选 / ＋ / 添加至…」都在底部固定动作条上。 */}
+                Task 8：`variant="mobile"`——手机详情不渲染桌面导航条；返回 / 面包屑在搜索路径
+                由详情页自己的顶栏出，工作台 / 储藏库路径落在底部固定动作条的顶面，
+                「初始熟悉度 / 已选 / ＋ / 添加至…」都在那条底栏上。 */}
             {activeView === 'dict' && dictWord
               ? <DictDetailPanel word={dictWord} variant="mobile" />
               : (
@@ -235,7 +263,11 @@ export default function MobileShell() {
              `variant="mobile"` 让 `SettingsPage` 走手机形态：目录行 + 子页返回键；
              桌面双栏那套仍挂在 `AppShell` 下，两者共用同一份分区列表（`lib/mobileSettings.ts`）。 */
           <main data-find-root="settings" className="flex-1 overflow-hidden" style={{ background: 'var(--color-canvas)', minWidth: 0 }}>
-            <SettingsPage variant="mobile" />
+            <SettingsPage
+              variant="mobile"
+              mobileSection={settingsSection}
+              onMobileSectionChange={setSettingsSection}
+            />
           </main>
         )}
 

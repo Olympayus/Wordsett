@@ -43,7 +43,8 @@ tauri-plugin-single-instance = "2"
 windows = { version = "0.58", features = ["Win32_Media_Speech", "Win32_System_Com"] }
 
 # 屏幕方向（Task 10）：`set_screen_orientation` 在安卓上经 JNI 调 Activity.setRequestedOrientation。
-# 只在安卓端引入——桌面与平板不锁方向，这两个 crate 也不参与它们的依赖树。
+# 只在安卓端引入——桌面不锁方向，这个 crate 也不参与它的依赖树。
+# 不引 `ndk-context`：tao 0.35 从不初始化它（见 `orientation.rs` 文件头），Activity 走
+# `PlatformWebview::jni_handle()` 那条通道取。
 [target.'cfg(target_os = "android")'.dependencies]
 jni = "0.21"
-ndk-context = "0.1"

@@ -4,7 +4,8 @@
  * 「此刻按下返回该做什么」是**唯一**出处：`MobileShell` 只负责把当前的层集合按**栈顶在前的顺序**
  * 交给 `backAction`，自己不写任何 if/else 判断该关哪一层。这样加一层（或调一次优先级）只动这里。
  *
- * 层按优先级从高到低：动作表（sheet，Plan 2）→ 编辑 → 抽屉 → 词典详情 → 搜索 → 词条导航。
+ * 层按优先级从高到低：动作表（sheet，Plan 2）→ 编辑 → 抽屉 → 词典详情 → 搜索
+ * → 设置子页 → 词条导航。
  * 栈底的「词条导航」是**可选层**：它只在真的还有上一个词条时才进栈（否则返回会去关模块，
  * 那是另一件事，见 `MobileShell` 的 `layers`）。
  *
@@ -12,7 +13,7 @@
  * 故不需要也无法从函数内部知道栈有多深。
  */
 
-export type BackLayerKind = 'sheet' | 'edit' | 'drawer' | 'dict' | 'search' | 'module'
+export type BackLayerKind = 'sheet' | 'edit' | 'drawer' | 'dict' | 'search' | 'settings-sub' | 'module'
 
 export type BackAction =
   | { type: 'closeSheet' }
@@ -20,6 +21,8 @@ export type BackAction =
   | { type: 'closeDrawer' }
   | { type: 'closeDict' }
   | { type: 'closeSearch' }
+  /** 设置页的「目录 → 子页」：返回键先回目录，而不是直接把整个设置模块退掉。 */
+  | { type: 'closeSettingsSub' }
   | { type: 'popModule' }
   | { type: 'exit' }
 
@@ -30,6 +33,7 @@ const ACTION_FOR_LAYER: Record<BackLayerKind, BackAction> = {
   drawer: { type: 'closeDrawer' },
   dict: { type: 'closeDict' },
   search: { type: 'closeSearch' },
+  'settings-sub': { type: 'closeSettingsSub' },
   module: { type: 'popModule' },
 }
 

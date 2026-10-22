@@ -52,13 +52,28 @@ const mobileIconBtn: CSSProperties = {
 // 那一份，两套外壳不可能各说各话。
 interface Props {
   variant?: 'desktop' | 'mobile'
+  /**
+   * 手机形态的当前子页（受控用）。`undefined` = 组件自己管；`null` = 目录。
+   *
+   * 为什么要能受控：安卓返回键由外壳订阅（`MobileShell`），它必须知道「此刻有没有子页」
+   * 才能决定是按「回目录」还是退模块。子页状态若只住在组件里，返回键就看不见它，
+   * 在子页上按返回会一路退到模块甚至退出应用。
+   */
+  mobileSection?: SettingsSectionKey | null
+  onMobileSectionChange?: (section: SettingsSectionKey | null) => void
 }
 
-export default function SettingsPage({ variant = 'desktop' }: Props) {
+export default function SettingsPage({ variant = 'desktop', mobileSection: controlledSection, onMobileSectionChange }: Props) {
   const [active, setActive] = useState<SettingsSectionKey>('general')
-  // 手机外壳的目录态：`null` = 目录，有值 = 该分区的子页。
-  const [mobileSection, setMobileSection] = useState<SettingsSectionKey | null>(null)
+  // 手机外壳的目录态：`null` = 目录，有值 = 该分区的子页（受控时以 props 为准）。
+  const [ownSection, setOwnSection] = useState<SettingsSectionKey | null>(null)
   const mobile = variant === 'mobile'
+  const sectionControlled = controlledSection !== undefined
+  const mobileSection = sectionControlled ? controlledSection : ownSection
+  const setMobileSection = (next: SettingsSectionKey | null) => {
+    if (!sectionControlled) setOwnSection(next)
+    onMobileSectionChange?.(next)
+  }
 
   // 分区导航按平台过滤：手机外壳直接按形态（`visibleSettingsSections` 去掉 Android 的平台权限），
   // 桌面再叠加 `accessibility_status` 的 `supported`——「平台权限」是 macOS 独有的能力，
@@ -70,11 +85,15 @@ export default function SettingsPage({ variant = 'desktop' }: Props) {
   useEffect(() => {
     if (!mobile) return
     setActive('general')
-    setMobileSection(null)
-  }, [mobile])
+    if (!sectionControlled) setOwnSection(null)
+    // 受控时由外壳在离开设置模块时归零（见 `MobileShell`），这里不替它做。
+  }, [mobile, sectionControlled])
   useEffect(() => {
+    // `accessibility_status` 只在桌面形态有意义：手机目录已按形态滤掉「平台权限」
+    // （`visibleSettingsSections`），再发一次 IPC 只是白跑一趟。
+    if (mobile) return
     void invoke<{ supported: boolean }>('accessibility_status').then(s => setPlatformSupported(s.supported))
-  }, [])
+  }, [mobile])
   const sections: SettingsSection[] = mobile
     ? visibleSettingsSections(platform)
     : SETTINGS_SECTIONS.filter(s => s.key !== 'platform' || platformSupported)

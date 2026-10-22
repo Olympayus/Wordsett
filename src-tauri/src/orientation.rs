@@ -7,23 +7,29 @@
 //! 同一个命令（`setRequestedOrientation(UNSPECIFIED)`），而这个值**刻意不进 `tauri.conf.json`**——
 //! 平板形态与手机形态是同一套 APK，Manifest 里只能写死一个。
 //!
-//! 实现走 JNI 而不是 `tauri-plugin-screen-orientation`：后者会把插件自己的清单权限与构建步骤
-//! 一并带进来，而这里要的只是「拿到 Activity 再设一个 int」。
+//! 实现走 Tauri/wry 自己那条 JNI 通道，而不是 `ndk-context`：后者的 `android_context()` 依赖
+//! 有人在 `JNI_OnLoad` 时写入全局变量，而本仓库锁定的 tao 0.35 走的是 `ndk-glue`，**从不写**它
+//! （`ndk_context::android_context()` 会直接 panic）。wry 0.55 的 `PlatformWebview::jni_handle()`
+//! 是 Tauri 自己就在用的通道（`Webview::with_webview` 的文档示例即 `jni_handle().exec(...)`），
+//! 它在主循环线程上给出 `JNIEnv` 与 Activity，故不需要任何额外的初始化。
+//!
+//! `orientation_value` 刻意**不带 android cfg**：它是这条命令唯一的判据，宿主机（Windows 上的
+//! `cargo test`）要能直接跑它——安卓专用测试在本环境永远跑不起来，等于没有测试。
 
 /// `Activity.SCREEN_ORIENTATION_PORTRAIT` = 1、`SCREEN_ORIENTATION_LANDSCAPE` = 0，
 /// 「跟随系统」取 `SCREEN_ORIENTATION_UNSPECIFIED` = -1。
-#[cfg(target_os = "android")]
 const ACTIVITY_SCREEN_ORIENTATION_PORTRAIT: i32 = 1;
-#[cfg(target_os = "android")]
 const ACTIVITY_SCREEN_ORIENTATION_LANDSCAPE: i32 = 0;
-#[cfg(target_os = "android")]
 const ACTIVITY_SCREEN_ORIENTATION_UNSPECIFIED: i32 = -1;
+
+/// 等 JNI 回调返回的上限。方向锁定是启动路径上的一次性动作，卡住也不该把 IPC 线程永久占住。
+#[cfg(target_os = "android")]
+const JNI_CALL_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// `'portrait'` → 1、`'landscape'` → 0、其余（含 `null`）→ -1。
 ///
 /// 兜底是 `UNSPECIFIED` 而不是竖屏：平板形态与「不锁」都不该被悄悄锁成竖屏，
 /// 而认不出的值恰好就是「不锁」的语义。
-#[cfg(target_os = "android")]
 fn orientation_value(orientation: Option<&str>) -> i32 {
     match orientation {
         Some("portrait") => ACTIVITY_SCREEN_ORIENTATION_PORTRAIT,
@@ -34,65 +40,77 @@ fn orientation_value(orientation: Option<&str>) -> i32 {
 
 /// 设置屏幕方向。
 ///
-/// `activity` 取自 `ndk_context::android_context()`——它是当前进程 `Activity` 的
-/// `GlobalRef`（JNI 环境下恒可用，Tauri 的安卓端就是它起的），`JObject::from_raw` 直接转成
-/// JNI 对象。
+/// 两步：① `with_webview` 在主线程上取到 wry 的 `JniHandle`（它是一次性的 `Copy` 句柄，
+/// 可以带回 IPC 线程）；② 用 `exec` 把闭包送回**主循环线程**执行——**JNIEnv 不可跨线程**，
+/// 故不能在这一层直接拿。
 ///
-/// 异常处理：Java 侧抛异常时 `call_method` 返回 `Err`——异常**不会**留在 VM 上，
-/// 故 `?` 这一下已经把异常清掉了。末尾那次 `exception_check` 是兜底：JNI 规范允许
-/// 「调用返回后仍有挂起异常」的状态存在，不查一次就把它带进下一次 JNI 调用。
+/// `with_webview` 自己会等到主线程把闭包跑完，故 ① 的 `recv_timeout` 只是兜底；
+/// ② 的 `exec` 是异步投递，必须等回调把结果送回来（带 5 秒上限，失败即报错、不挂住调用方）。
 #[cfg(target_os = "android")]
 #[tauri::command]
 pub fn set_screen_orientation(
-    _activity: tauri::AppHandle,
+    app: tauri::AppHandle,
     orientation: Option<String>,
 ) -> Result<(), String> {
-    use jni::objects::{JObject, JValue};
-    use ndk_context::android_context;
+    use jni::objects::JValue;
+    use std::sync::mpsc;
+    use tauri::Manager;
 
-    let global = android_context();
-    // `context()` 是 `*mut c_void`（多数情况下就是 Activity，见 crate 文档）。
-    // 空指针即「拿不到 Activity」——静默放过（这条路径不该发生，但为它拦住启动不值得）。
-    let context_ptr = global.context();
-    if context_ptr.is_null() {
-        return Ok(());
-    }
+    let window = app
+        .get_webview_window("main")
+        .or_else(|| app.webview_windows().into_values().next())
+        .ok_or_else(|| "找不到可用的窗口".to_string())?;
 
-    // `vm()` 是 `*mut c_void`，`JavaVM::from_raw` 收 `*mut sys::JavaVM`——两者 ABI 都是指针。
-    let vm = unsafe { jni::JavaVM::from_raw(global.vm().cast()) }.map_err(|e| e.to_string())?;
-    // 本命令由 Tauri 派发：派发线程已经在 JVM 里，故用 `get_env` 而不是 `attach_current_thread`
-    // （后者会给一个 Rust 自己起的线程用，代价是每次调用都 attach/detach）。
-    let mut env = vm.get_env().map_err(|e| e.to_string())?;
+    let (handle_tx, handle_rx) = mpsc::channel();
+    window
+        .with_webview(move |webview| {
+            let _ = handle_tx.send(webview.jni_handle());
+        })
+        .map_err(|e| e.to_string())?;
+    let jni_handle = handle_rx
+        .recv_timeout(JNI_CALL_TIMEOUT)
+        .map_err(|_| "取 JNI 句柄超时".to_string())?;
 
-    // 第一个参数 `self`：`setRequestedOrientation` 是实例方法，`(I)V` 收一个 int、不返回值。
-    // `JObject::from_raw` 是 unsafe 的（它假定传进来的是活的 JNI 引用）——`context()` 给的
-    // GlobalRef 满足这条前提。
-    let activity = unsafe { JObject::from_raw(context_ptr.cast()) };
     let value = orientation_value(orientation.as_deref());
-    env.call_method(
-        activity,
-        "setRequestedOrientation",
-        "(I)V",
-        &[JValue::Int(value)],
-    )
-    .map_err(|e| e.to_string())?;
+    let (tx, rx) = mpsc::channel();
+    jni_handle.exec(move |env, activity, _webview| {
+        // 闭包返回 `()`，故用内层闭包包住 `?`：任何一步失败都只经 channel 交回，不 panic。
+        let result = (|| -> Result<(), String> {
+            // 进门先清一次挂起异常：上一次 JNI 调用留下的异常会让本次 `call_method` 直接拒绝执行。
+            if env.exception_check().map_err(|e| e.to_string())? {
+                env.exception_clear().map_err(|e| e.to_string())?;
+            }
+            env.call_method(
+                activity,
+                "setRequestedOrientation",
+                "(I)V",
+                &[JValue::Int(value)],
+            )
+            .map_err(|e| e.to_string())?;
+            if env.exception_check().map_err(|e| e.to_string())? {
+                // 异常必须在这里清掉：留在 VM 上的挂起异常会污染同一线程上的后续 JNI 调用。
+                env.exception_clear().map_err(|e| e.to_string())?;
+                return Err("setRequestedOrientation 抛出异常".to_string());
+            }
+            Ok(())
+        })();
+        let _ = tx.send(result);
+    });
 
-    // 走到这里说明调用返回了；兜底清一次挂起的异常（见上方注释）。
-    if env.exception_check().map_err(|e| e.to_string())? {
-        env.exception_clear().map_err(|e| e.to_string())?;
-        return Err("setRequestedOrientation 抛出异常".to_string());
+    match rx.recv_timeout(JNI_CALL_TIMEOUT) {
+        Ok(result) => result,
+        Err(_) => Err("设置屏幕方向超时".to_string()),
     }
-    Ok(())
 }
 
-/// 非安卓端：无操作。平板与桌面不锁方向（`orientationFor` 对桌面返回 `null`，前端也不会调）。
+/// 非安卓端：无操作。桌面不锁方向（`orientationFor` 对桌面返回 `null`，前端也不会调）。
 #[cfg(not(target_os = "android"))]
 #[tauri::command]
 pub fn set_screen_orientation() -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(all(test, target_os = "android"))]
+#[cfg(test)]
 mod tests {
     use super::orientation_value;
 
@@ -108,5 +126,6 @@ mod tests {
     fn null_and_unknown_mean_unspecified() {
         assert_eq!(orientation_value(None), -1);
         assert_eq!(orientation_value(Some("")), -1);
+        assert_eq!(orientation_value(Some("diagonal")), -1);
     }
 }
