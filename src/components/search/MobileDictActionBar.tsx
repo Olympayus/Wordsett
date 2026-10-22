@@ -19,9 +19,10 @@ import type { DictActionModel } from '../../lib/mobileDictActions'
  *
  * 视觉分两层（390dp 竖屏是这台设备的实际宽度，两层的分工就是为它留的）：
  * - **顶面**（`CRUMB_HEIGHT` 34px，**恒在**，只换内容）：
- *   - 工作台 / 储藏库：返回 + 「词典 › 词」面包屑 + 右端「添加至…」。
+ *   - 工作台 / 储藏库：返回 + 「词典 › 词」面包屑 + 「已选 N 项」+ 右端「添加至…」。
  *   - 搜索路径：**只**留「已选 N 项」+「添加至…」——返回与面包屑画在 `DictDetailPanel` 自己的
  *     顶栏里，底条不重复。
+ *   「已选 N 项」两条路径都在（spec §4.5 的动作条清单里它有名字），只是搜索路径下它排在最左。
  * - **主面**（`BAR_HEIGHT` 52px，拇指可达层）：初始熟悉度三键 / 归属文案（左簇）+「＋」合并键。
  *   「已选 N 项」刻意不在这里：390dp 上 278 + 40 + 122 + 8 ≈ 448 > 366，全堆主面会溢出。
  *
@@ -90,7 +91,7 @@ export default function MobileDictActionBar({
   const [pickerOpen, setPickerOpen] = useState(false)
   const anchorRef = useRef<HTMLDivElement>(null)
   // 顶面的内容随路径而变（这一面两条路径都有，故恒渲染、不条件渲染）：
-  // - 工作台 / 储藏库（`word` 有值）：返回 + 「词典 › 词」面包屑 + 「添加至…」
+  // - 工作台 / 储藏库（`word` 有值）：返回 + 「词典 › 词」面包屑 + 「已选 N 项」+ 「添加至…」
   // - 搜索路径（`word` 为 undefined）：**只**留「已选 N 项」+「添加至…」——返回与面包屑画在
   //   `DictDetailPanel` 自己的顶栏里（见那里的注释），底条不重复；而「已选」与「添加至…」
   //   必须挪出主面，否则主面在 390dp 上会被挤出屏幕（278 + 40 + 122 + 8 ≈ 448 > 366）。
@@ -115,7 +116,7 @@ export default function MobileDictActionBar({
         className="flex items-center"
         style={{ height: `${CRUMB_HEIGHT}px`, gap: 8, borderBottom: '1px solid var(--color-border)' }}
       >
-        {hasCrumb ? (
+        {hasCrumb && (
           <>
             <button type="button" title="返回" aria-label="返回" onClick={onBack} style={iconBtn}>
               <Icon name="arrow-left" size={18} />
@@ -127,17 +128,18 @@ export default function MobileDictActionBar({
               词典 › <b style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>{word}</b>
             </span>
           </>
-        ) : (
-          /* 搜索路径：面包屑让位给「已选 N 项」——它是勾选后的即时读数，与动作同面最好读 */
-          <span style={{
-            flex: '1 1 auto', minWidth: 0, fontSize: 11, color: 'var(--color-text-tertiary)',
-            whiteSpace: 'nowrap',
-          }}>
-            已选 <span className="stat-num">{mergeCount}</span> 项
-          </span>
         )}
+        {/* 「已选 N 项」：勾选后的即时读数，两条路径都在（spec §4.5 的动作条清单）。
+            搜索路径下它排最左、把右端顶给「添加至…」；词条页路径下它跟在面包屑后面，
+            面包屑吸收余量（`flex: 1 1 auto`），读数与动作键都不缩。 */}
+        <span style={{
+          flexShrink: 0, fontSize: 11, color: 'var(--color-text-tertiary)',
+          whiteSpace: 'nowrap', marginLeft: hasCrumb ? 4 : 0,
+        }}>
+          已选 <span className="stat-num">{mergeCount}</span> 项
+        </span>
         {/* 「添加至…」：仍开 `CategoryPickerPopover`，文案与桌面逐字一致。两条路径都在这一面。 */}
-        <div ref={anchorRef}>
+        <div ref={anchorRef} style={{ marginLeft: 'auto' }}>
           <SquareButton
             size="touch"
             tone="canvas"
@@ -150,7 +152,7 @@ export default function MobileDictActionBar({
         </div>
       </div>
 
-      {/* 主面：初始熟悉度 / 归属（左簇）+ 已选读数 + 「＋」合并键（右端） */}
+      {/* 主面：初始熟悉度 / 归属（左簇）+「＋」合并键（右端） */}
       <div className="flex items-center" style={{ height: `${BAR_HEIGHT}px`, gap: 8, minHeight: 0 }}>
         {/* 初始熟悉度三键：词不在库时出现；已在库则整组换成归属文案（`collectedLabel`）——
             与桌面 `WorkbenchNavBar` 逐字同一约定（三键与那句文案的宽度接近，切词时不左右跳）。 */}
@@ -170,7 +172,7 @@ export default function MobileDictActionBar({
             `size="touch"` 是 `SquareButton` 为手机外壳开的触屏档（32px）。
             `marginLeft: auto` 由外层 span 承担——`SquareButton` 不透传 `style`，与仓库里其他
             需要推开的按钮同一做法（包一层、不侵入组件）。
-            **「已选 N 项」不在这里**：它在顶面（搜索路径）或与面包屑同面（工作台 / 储藏库），
+            **「已选 N 项」不在这里**：它在顶面（两条路径都在，见上），
             主面只留左簇 + 「＋」——390dp 上 278 + 40 + 122 + 8 ≈ 448 > 366，全堆在主面会溢出。 */}
         <span style={{ marginLeft: 'auto', flexShrink: 0 }}>
           <Tooltip content={mergeCount > 0 ? `把已选的 ${mergeCount} 项添加进词条` : '先勾选要添加的词条'} width={260}>

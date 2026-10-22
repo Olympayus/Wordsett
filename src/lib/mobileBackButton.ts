@@ -40,7 +40,8 @@ export function applyScreenOrientation(platform: PlatformClass): void {
  * 用 `onBackButtonPress`（Tauri 的 `app` 插件）而不是自己 `listen('back-button')`：
  * 插件那层已经把事件名与 payload 定死，且**只在安卓上**存在，别处调用会 reject——那正是
  * 我们要的「非 Tauri 空操作」。
- */export async function registerMobileBack(handler: () => void): Promise<() => void> {
+ */
+export async function registerMobileBack(handler: () => void): Promise<() => void> {
   try {
     const listener = await onBackButtonPress(() => handler())
     // `PluginListener.unregister()` 只在自己所属的插件内退订，返回 Promise 以便失败可忽略。

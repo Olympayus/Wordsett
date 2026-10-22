@@ -139,8 +139,12 @@ export default function MobileShell() {
         setDrawerOpen(false)
         return
       case 'closeDict':
-        // 词典详情在词条页与搜索页的「关闭」是同一个动作：回词条视图、清掉 dictWord
-        view.showWorkbenchView()
+        // 词典详情的「关闭」按**当前模块**分两个入口，与面板自己的顶栏返回逐字同源：
+        // 搜索模块里回搜索结果列表（查询与建议词都还挂着），词条页回词编辑视图。
+        // 两个 action 今天实现相同（`expand` 的都是 `activeView:'workbench'` + 清 dictWord），
+        // 但名字分开写——将来任一侧变语义时，返回键不会跟着悄悄改道。
+        if (view.activeModule === 'search') view.showSearchResults()
+        else view.showWorkbenchView()
         return
       case 'closeSearch':
         view.closeSearch()
