@@ -194,8 +194,13 @@ export default function MobileShell() {
 
   // 全局浮层（Task 11）：与 `AppShell` 同一套 store 状态（`assignWordId` / `editorTarget`），
   // 少了它们手机上的分类分配与确认动作会「弹窗不出现、Promise 永不 resolve」。
-  // **不挂 `UpdateDialog`**：Android 不启用 updater（spec §9），版本检查只在关于页提示。
-  const { assignWordId, editorTarget, closeModals, openEditor } = useUiStore()
+  // **不挂 `UpdateDialog`**：Android 不启用 updater（spec §9），关于页只出手动安装说明。
+  // 逐项 selector 而不是整个 store：后者会让任何浮层状态变化都重渲整棵手机树
+  // （抽屉 + WordList + WordWorkbench + 底栏），手机的性能预算比桌面紧。
+  const assignWordId = useUiStore(s => s.assignWordId)
+  const editorTarget = useUiStore(s => s.editorTarget)
+  const closeModals = useUiStore(s => s.closeModals)
+  const openEditor = useUiStore(s => s.openEditor)
 
   return (
     <div className="h-screen flex flex-col" style={{ background: 'var(--color-canvas)' }}>
@@ -211,7 +216,8 @@ export default function MobileShell() {
         />
       )}
 
-      {/* 内容区：`data-find-root` 供 `FindBar` 定位当前模块的搜索根（与 `AppShell` 同名属性）。
+      {/* 内容区：`data-find-root` 与 `AppShell` 同名（标记当前模块的搜索根），手机上
+          `FindBar` 不挂载，故它今天只是与桌面同一套 DOM 契约的一部分，不驱动任何行为。
           高度由 `flex-1` + `minHeight: 0` 决定——不写死高度。`relative` 是抽屉的定位上下文：
           抽屉是 `absolute inset- 0`，锚在这一屏上（视口级 fixed 会与外壳的对齐分叉）。 */}
       <div
