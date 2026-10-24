@@ -151,7 +151,10 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
   }
   // 手机顶栏只在**搜索路径**出（Task 8）：搜索是一级页面、没有 `MobileAppBar`；工作台 /
   // 储藏库的词典详情与词条页共用外壳那条顶栏，不叠第二条。
-  const isSearchPath = variant === 'mobile' && useViewStore(s => s.activeModule) === 'search'
+  // 订阅无条件写在最外层：hook 不能放在 `variant === 'mobile' &&` 的短路里（两个调用点今天
+  // 都传字面量，但形态一旦可切换，条件 hook 就会炸）。
+  const activeModule = useViewStore(s => s.activeModule)
+  const isSearchPath = variant === 'mobile' && activeModule === 'search'
 
   // 合并添加：聚合全源勾选字段 → 确保词条存在 → 一次合并 → 跳编辑页
   // 规格：addWord/mergeWordFields 任一失败 → 面板顶部错误提示，不跳转（错误在下次 lookup/attempt 时清除）
@@ -227,11 +230,17 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
   // Esc 回词编辑视图（规格 §3 步骤 4）。
   // Task 8（mobile）：搜索模块里的 Esc 归 `MobileSearchPage` 那条链（回搜索结果列表）——
   // 那里按 `activeModule === 'search' && activeView === 'dict'` 接管；这里在同一判据下不重复接管。
+  // 手机上的其余模块走 `handleMobileBack` 的同一份判据：储藏库只切视图、不拨回工作台
+  // （Esc 与底部面包屑是同一页的两个返回入口，不能一个留模块、一个送走用户）。
   // 桌面态的 Esc 逐字不变（模块无关，与改前一致）。
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return
-      if (variant === 'mobile' && useViewStore.getState().activeModule === 'search') return
+      if (variant === 'mobile') {
+        const module = useViewStore.getState().activeModule
+        if (module === 'search') return
+        if (module === 'archive') { useViewStore.getState().showWorkbenchView(); return }
+      }
       showWorkbench()
     }
     window.addEventListener('keydown', onKeyDown)

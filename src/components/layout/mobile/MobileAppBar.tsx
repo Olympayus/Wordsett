@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useViewStore } from '../../../stores/viewStore'
 import { useWordStore } from '../../../stores/wordStore'
@@ -9,10 +9,13 @@ import { deleteWordConfirmRequest } from '../../../lib/wordActions'
 import Icon from '../../icons'
 import SquareButton from '../../ui/SquareButton'
 import ContextMenu, { type MenuItem } from '../../ui/ContextMenu'
+import { useMobilePopup } from '../../../lib/mobilePopups'
 
 /** 顶栏高度（spec §4.1：约 52dp）。不含状态栏——刘海 / 挖孔由 `paddingTop` 的安全区另加。 */
 const BAR_HEIGHT = 52
-/** 顶栏里控件的高度：桌面导航条的 22px 在手机上不够点，提到 32（spec §10 的 38–44dp 触摸适配）。 */
+/** 顶栏里控件的高度：桌面导航条的 22px 在手机上不够点，提到 32（比 28 大一档）。
+ *  离 spec §10 的 44dp 命中区还差一截——外扩透明命中区归 Plan 2（触摸编辑 / 命中区），
+ *  这一版先把控件本身与控件间距撑开。 */
 const CONTROL = 32
 
 /**
@@ -85,6 +88,17 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
       : location === 'archive' ? '储藏库' : '工作台'
   // ⋯ 菜单的锚点（`ContextMenu` 按点击处落位并钳进视口）
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
+  const closeMenu = useCallback(() => setMenu(null), [])
+  // 菜单开着时登记给外壳：安卓返回键先关菜单，而不是穿透出去换词 / 退出应用
+  // （`ContextMenu` 只听 window 的 Escape，而安卓返回不经 DOM）。
+  useMobilePopup(menu !== null, closeMenu)
+
+  // 详情态下收起返回 / 前进：`go` 只切模块 → 数据集 → 选中词，**不动 activeView**
+  // （`useWorkbenchNavigation`），所以在词典页按它会把模块与高亮悄悄换走、正文却留在原处
+  // ——与词片补 `showWorkbenchView` 之前是同一个 bug。详情页自己的返回在底部动作条的
+  // 面包屑上，历史导航在详情态没有清晰的语义，索性禁用而不是猜一个。
+  const historyBack = canBack && !dictOpen
+  const historyForward = canForward && !dictOpen
 
   // 两件动作：都先弹与桌面同一句确认，再走 `useWordStore` 的既有 action（不自己写 SQL）。
   const onMove = async () => {
@@ -125,10 +139,10 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
       <button type="button" id="mobile-drawer-open" title="词库" aria-label="词库" onClick={onOpenDrawer} style={iconBtn()}>
         <Icon name="layers" size={18} />
       </button>
-      <button type="button" title="上一个词条" aria-label="上一个词条" disabled={!canBack} onClick={goBack} style={iconBtn(!canBack)}>
+      <button type="button" title="上一个词条" aria-label="上一个词条" disabled={!historyBack} onClick={goBack} style={iconBtn(!historyBack)}>
         <Icon name="arrow-left" size={17} />
       </button>
-      <button type="button" title="下一个词条" aria-label="下一个词条" disabled={!canForward} onClick={goForward} style={iconBtn(!canForward)}>
+      <button type="button" title="下一个词条" aria-label="下一个词条" disabled={!historyForward} onClick={goForward} style={iconBtn(!historyForward)}>
         <Icon name="arrow-right" size={17} />
       </button>
 
@@ -198,7 +212,7 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
 
       {/* ⋯ 菜单：fixed 落位、点外 / Esc 自关（`ContextMenu` 自带），与桌面行尾 ⋯ 同一组件 */}
       {menu && selectedWord && !dictOpen && (
-        <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(null)} />
+        <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={closeMenu} />
       )}
     </header>
   )

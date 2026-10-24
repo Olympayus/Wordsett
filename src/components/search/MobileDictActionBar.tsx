@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import Icon from '../icons'
 import Tooltip from '../ui/Tooltip'
@@ -7,6 +7,7 @@ import CategoryPickerPopover from '../ui/CategoryPickerPopover'
 import FamiliarityChoice from './FamiliarityChoice'
 import type { InitialFamiliarityChoice } from '../../services/wordService'
 import type { DictActionModel } from '../../lib/mobileDictActions'
+import { useMobilePopup } from '../../lib/mobilePopups'
 
 /**
  * 手机词典详情页的底部动作条（Task 8，spec §4.5 / §6）。
@@ -89,6 +90,9 @@ export default function MobileDictActionBar({
 }: Props) {
   // 分类下拉的开关与锚点（与桌面 `WorkbenchNavBar` 同一套：浮层 fixed 落位，锚点由它现算）
   const [pickerOpen, setPickerOpen] = useState(false)
+  const closePicker = useCallback(() => setPickerOpen(false), [])
+  // 下拉开着时登记给外壳：安卓返回键先关下拉，而不是把整页词典详情关掉（多退一层）。
+  useMobilePopup(pickerOpen, closePicker)
   const anchorRef = useRef<HTMLDivElement>(null)
   // 顶面的内容随路径而变（这一面两条路径都有，故恒渲染、不条件渲染）：
   // - 工作台 / 储藏库（`word` 有值）：返回 + 「词典 › 词」面包屑 + 「已选 N 项」+ 「添加至…」
@@ -192,9 +196,9 @@ export default function MobileDictActionBar({
       {/* 分类下拉：`fixed` 落位，锚点是顶面那枚「添加至…」的容器（见 popoverPosition 的契约）。
           朝上开（`placement="top"`）——锚点在视口下缘，向下没有空间。 */}
       {pickerOpen && (
-        <CategoryPickerPopover anchor={anchorRef.current} onClose={() => setPickerOpen(false)}
+        <CategoryPickerPopover anchor={anchorRef.current} onClose={closePicker}
           placement="top"
-          onPick={categoryId => { setPickerOpen(false); onMergeAdd(categoryId) }} />
+          onPick={categoryId => { closePicker(); onMergeAdd(categoryId) }} />
       )}
     </div>
   )

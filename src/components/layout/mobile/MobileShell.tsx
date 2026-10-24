@@ -24,6 +24,7 @@ import { useUiStore } from '../../../stores/uiStore'
 import CategoryAssignModal from '../../word/CategoryAssignModal'
 import CategoryEditorModal from '../../word/CategoryEditorModal'
 import ConfirmDialog from '../../ui/ConfirmDialog'
+import { closeTopMobilePopup } from '../../../lib/mobilePopups'
 
 // 手机外壳（Task 4 立骨架，Task 5 填三块）。
 //
@@ -133,13 +134,20 @@ export default function MobileShell() {
       ui.closeModals()
       return
     }
+    // 自家浮层（⋯ 菜单 / 分类下拉）：它们的开关在组件局部、只监听 window 的 Escape，
+    // 而安卓返回不是 DOM 事件（`mobilePopups` 的模块注释）。不先问这一下，菜单开着
+    // 按返回会直接退出应用（层集合为空时），分类下拉开着则会把整页详情关掉。
+    if (closeTopMobilePopup()) return
     const view = useViewStore.getState()
     const wordPage = view.activeModule === 'workbench' || view.activeModule === 'archive'
     const layers: BackLayerKind[] = [
       ...(wordPage && editingRef.current ? ['edit' as const] : []),
       ...(wordPage && drawerOpenRef.current ? ['drawer' as const] : []),
-      // 词典详情优先于搜索：搜索模块里的详情态由详情面板渲染，`MobileSearchPage` 仍在下面挂着
-      ...(view.activeView === 'dict' && view.dictWord ? ['dict' as const] : []),
+      // 词典详情优先于搜索：搜索模块里的详情态由详情面板渲染，`MobileSearchPage` 仍在下面挂着。
+      // 详情只可能出现在词条页与搜索模块——按模块收口，免得将来别的模块带着 detail 状态进来时，
+      // 这一层会先「关」一个看不见的详情、把设置子页 / 复习层挤到下一次。
+      ...((wordPage || view.activeModule === 'search') && view.activeView === 'dict' && view.dictWord
+        ? ['dict' as const] : []),
       ...(view.activeModule === 'search' && view.activeView !== 'dict' ? ['search' as const] : []),
       // 复习会话：spec §5.5 第 7 条——答题中按返回要弹「继续复习 / 离开」，不能直接退出应用。
       // 判据与 `SessionGuard` 同源（`isSessionLive` 读同一个 store）；概览 / 结算态不算会话。
@@ -291,8 +299,16 @@ export default function MobileShell() {
           </main>
         ) : activeModule === 'review' ? (
           /* 复习模块：**原样复用桌面布局**（Plan 3 再改移动版），故不额外包内容根——
-             它的吸顶层（ArenaNavBar + 进度条）自带 `background` 与 `sticky`。 */
-          <main data-find-root="review" className="flex-1 overflow-hidden" style={{ background: 'var(--color-canvas)' }}>
+             它的吸顶层（ArenaNavBar + 进度条）自带 `background` 与 `sticky`。
+             `display: flex` 不可省：`ReviewModule` 的根是 `flex-1`，它靠父级是 flex 容器
+             才拿得到满高；`<main>` 缺省是块盒，`flex: 1` 无处生效，根节点缩成内容高，
+             内部 `overflow-auto` 的右栏因此永远不会出现滚动条、超出一屏的部分被这里
+             `overflow-hidden` 直接裁掉（手机上题目 / 解析一长就滚不到）。 */
+          <main
+            data-find-root="review"
+            className="flex-1 overflow-hidden"
+            style={{ background: 'var(--color-canvas)', display: 'flex', flexDirection: 'column', minHeight: 0 }}
+          >
             <ReviewModule />
           </main>
         ) : activeModule === 'search' ? (
@@ -319,15 +335,16 @@ export default function MobileShell() {
         )}
 
         {/* 抽屉（Task 6，spec §4.4）：只挂载在词条页——顶栏那枚入口按钮也只在那里出现。
-            工作台与储藏库**各挂一份**：两份的 `WordList` 都是活的，切模块不会互相覆盖
-            （桌面侧栏在模块切换后丢滚动位置，这里按「各自保留」实现，见 `MobileDrawer` 文件头）。
+            工作台与储藏库**同时挂载**（只有当前模块那份 `open`），切模块时另一份不卸载，
+            于是各自的 `WordList` 滚动位置互不覆盖（spec §4.4「工作台与储藏库各自独立」）。
+            代价是两份列表都在重渲；`open` 为假的那份整棵 `visibility: hidden` + `inert`。
             每份一个 key：React 不会在两处之间复用同一个 `WordList` 实例（那会带着上一模块的
             筛选 / 选中态）。 */}
-        {activeModule === 'workbench' && (
-          <MobileDrawer key="drawer-workbench" open={drawerOpen} onClose={closeDrawer} />
-        )}
-        {activeModule === 'archive' && (
-          <MobileDrawer key="drawer-archive" open={drawerOpen} onClose={closeDrawer} />
+        {(activeModule === 'workbench' || activeModule === 'archive') && (
+          <>
+            <MobileDrawer key="drawer-workbench" open={drawerOpen && activeModule === 'workbench'} onClose={closeDrawer} />
+            <MobileDrawer key="drawer-archive" open={drawerOpen && activeModule === 'archive'} onClose={closeDrawer} />
+          </>
         )}
       </div>
 

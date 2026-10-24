@@ -62,7 +62,15 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
   const [error, setError] = useState(false)
   // 每组是否展开显示全部（默认折叠，只显示前 9 个）；按组标签 key
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const showDict = useViewStore(s => s.showDict)
+  // 点胶囊重查该词。手机上这枚胶囊也在**搜索模块**的词典详情里出现，那时不能走 `showDict`：
+  // 它把 `activeModule` 拨回工作台（viewStore.ts），`MobileSearchPage` 随之卸载、查询与
+  // 建议词全丢，返回也回不到搜索结果列表（spec §4.5）。搜索模块里改走 `openDictFromSearch`，
+  // 模块不动、详情面板原地换词。
+  const openWord = (w: string) => {
+    const view = useViewStore.getState()
+    if (view.activeModule === 'search') view.openDictFromSearch(w)
+    else view.showDict(w)
+  }
   // 模块标识读**词库索引**（v0.7.5 Task 13，工作区 ∪ 储藏库），不读当前模块词表。
   const libraryIndex = useWordStore(s => s.libraryIndex)
 
@@ -113,7 +121,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
             <Tooltip content={`查询「${w}」`} width={220}>
               <button
                 type="button"
-                onClick={() => showDict(w)}
+                onClick={() => openWord(w)}
                 style={{
                   border: 'none', background: 'transparent', padding: 0, cursor: 'pointer',
                   fontSize: 13, color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
