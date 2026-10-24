@@ -52,3 +52,43 @@ export function backAction(layers: readonly BackLayerKind[]): BackAction {
   if (!top) return { type: 'exit' }
   return ACTION_FOR_LAYER[top] ?? { type: 'exit' }
 }
+
+/**
+ * 「此刻应该有哪些层」——`MobileShell` 组装层集合的判据本身（已抽成纯函数，便于单测）。
+ *
+ * 这里判的是**投影关系**而不是顺序：哪些模块会出现哪些层、详情层只在能看见它的模块里算
+ * （词条页与搜索），复习会话只在真的进行中才算。顺序与动作仍归 `ACTION_FOR_LAYER`；
+ * 两者分开时，「层收窄错」与「优先级排错」这两类问题各自能钉住。
+ */
+export interface BackLayerInput {
+  module: 'workbench' | 'archive' | 'search' | 'review' | 'settings'
+  view: 'workbench' | 'dict'
+  dictWord: string | null
+  /** 词条页正在编辑某个字段（`WordWorkbench` 上报）。 */
+  editing: boolean
+  drawerOpen: boolean
+  /** 设置页正在某个分区子页；`null` = 目录。 */
+  settingsSection: string | null
+  /** 词条导航历史里还有上一个词条。 */
+  canBack: boolean
+  /** 复习会话进行中（`isSessionLive`）。 */
+  reviewLive: boolean
+}
+
+/** 按优先级从高到低组装层集合（栈顶在前，交给 `backAction`）。 */
+export function backLayers(input: BackLayerInput): BackLayerKind[] {
+  const wordPage = input.module === 'workbench' || input.module === 'archive'
+  return [
+    ...(wordPage && input.editing ? ['edit' as const] : []),
+    ...(wordPage && input.drawerOpen ? ['drawer' as const] : []),
+    // 详情层只在能看见详情的模块里算：词条页与搜索。别的模块带着 detail 状态进来时
+    // （今天不可达）这一层会「关」一个看不见的页面，把下面的层挤到下一次。
+    ...((wordPage || input.module === 'search') && input.view === 'dict' && input.dictWord
+      ? ['dict' as const] : []),
+    ...(input.module === 'search' && input.view !== 'dict' ? ['search' as const] : []),
+    ...(input.module === 'review' && input.reviewLive ? ['review' as const] : []),
+    ...(input.module === 'settings' && input.settingsSection ? ['settings-sub' as const] : []),
+    // 词条导航只在词条视图里算：详情态已在上一步被吃掉，此时它是「关闭详情」，不是「换词」。
+    ...(wordPage && input.view === 'workbench' && input.canBack ? ['module' as const] : []),
+  ]
+}

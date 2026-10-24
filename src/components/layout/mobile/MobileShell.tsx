@@ -10,7 +10,7 @@ import MobileTabBar from './MobileTabBar'
 import WordStrip from './WordStrip'
 import MobileDrawer from './MobileDrawer'
 import { useWordStore } from '../../../stores/wordStore'
-import { backAction, type BackLayerKind } from '../../../lib/mobileBackStack'
+import { backAction, backLayers } from '../../../lib/mobileBackStack'
 import type { SettingsSectionKey } from '../../../lib/mobileSettings'
 import { applyScreenOrientation, exitMobileApp, registerMobileBack } from '../../../lib/mobileBackButton'
 import { canGoBack } from '../../../lib/navHistory'
@@ -139,27 +139,17 @@ export default function MobileShell() {
     // 按返回会直接退出应用（层集合为空时），分类下拉开着则会把整页详情关掉。
     if (closeTopMobilePopup()) return
     const view = useViewStore.getState()
-    const wordPage = view.activeModule === 'workbench' || view.activeModule === 'archive'
-    const layers: BackLayerKind[] = [
-      ...(wordPage && editingRef.current ? ['edit' as const] : []),
-      ...(wordPage && drawerOpenRef.current ? ['drawer' as const] : []),
-      // 词典详情优先于搜索：搜索模块里的详情态由详情面板渲染，`MobileSearchPage` 仍在下面挂着。
-      // 详情只可能出现在词条页与搜索模块——按模块收口，免得将来别的模块带着 detail 状态进来时，
-      // 这一层会先「关」一个看不见的详情、把设置子页 / 复习层挤到下一次。
-      ...((wordPage || view.activeModule === 'search') && view.activeView === 'dict' && view.dictWord
-        ? ['dict' as const] : []),
-      ...(view.activeModule === 'search' && view.activeView !== 'dict' ? ['search' as const] : []),
-      // 复习会话：spec §5.5 第 7 条——答题中按返回要弹「继续复习 / 离开」，不能直接退出应用。
-      // 判据与 `SessionGuard` 同源（`isSessionLive` 读同一个 store）；概览 / 结算态不算会话。
-      ...(view.activeModule === 'review'
-        && isSessionLive(useReviewSessionStore.getState().phase, useReviewSessionStore.getState().sessionStrategy)
-        ? ['review' as const] : []),
-      // 设置子页：只在设置模块、且真的进了某个分区子页时才算一层（目录态返回 = 退模块）
-      ...(view.activeModule === 'settings' && settingsSectionRef.current ? ['settings-sub' as const] : []),
-      // 词条导航：只在词条页、且当前视图就是词条视图（详情态已在上一步被吃掉）时才算一层
-      ...(wordPage && view.activeView === 'workbench'
-        && canGoBack(useNavHistoryStore.getState().history) ? ['module' as const] : []),
-    ]
+    // 「此刻有哪些层」的判据在 `backLayers`（纯函数，单测钉住组合）；这里只供当前状态。
+    const layers = backLayers({
+      module: view.activeModule,
+      view: view.activeView,
+      dictWord: view.dictWord,
+      editing: !!editingRef.current,
+      drawerOpen: drawerOpenRef.current,
+      settingsSection: settingsSectionRef.current,
+      canBack: canGoBack(useNavHistoryStore.getState().history),
+      reviewLive: isSessionLive(useReviewSessionStore.getState().phase, useReviewSessionStore.getState().sessionStrategy),
+    })
 
     const action = backAction(layers)
     switch (action.type) {
