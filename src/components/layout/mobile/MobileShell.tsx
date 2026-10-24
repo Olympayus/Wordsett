@@ -16,6 +16,9 @@ import { applyScreenOrientation, exitMobileApp, registerMobileBack } from '../..
 import { canGoBack } from '../../../lib/navHistory'
 import { go } from '../../../lib/useWorkbenchNavigation'
 import { useNavHistoryStore } from '../../../stores/navHistoryStore'
+import { useReviewSessionStore } from '../../../stores/reviewSessionStore'
+import { answeredCount } from '../../../lib/review/nav'
+import { isSessionLive, leaveMessage } from '../../../lib/review/sessionGuard'
 import { usePlatformClass } from '../../../lib/usePlatform'
 import { useUiStore } from '../../../stores/uiStore'
 import CategoryAssignModal from '../../word/CategoryAssignModal'
@@ -109,12 +112,27 @@ export default function MobileShell() {
   // 到达，而这条路径的代价是一次 store 读，远小于「栈与真实状态不同步」这种只在真机上出现的错。
   //
   // 优先级（高 → 低）：动作表 sheet（Plan 2，本版无来源）→ 编辑 → 抽屉 → 词典详情 → 搜索
-  // → 设置子页 → 词条导航。栈顶在数组第 0 位（`backAction` 只看这一个）。
+  // → 复习会话 → 设置子页 → 词条导航。栈顶在数组第 0 位（`backAction` 只看这一个）。
   //
   // 「词条导航」只在**词条页真的还有上一个词条**时才进栈：它在栈底时对应「返回上一词条」，
   // 与「返回上一页」是同一件事（顶栏那枚返回箭头就是它）。没有上一个词条时返回要往上走
   // （关抽屉 / 退编辑 / 关详情 / 退搜索），那时它不在栈里。
   const backHandler = useCallback(() => {
+    // 确认框压在最上面：返回键先「取消」它，不穿透到下面的层。
+    // 不这么做的话，抽屉开着时弹删除确认，按返回会把**抽屉**关掉而弹窗还在，用户要点两次。
+    // `dismissable: false` 的确认（桌面的关窗弹窗）不接返回——那两个按钮都是肯定动作，
+    // 系统返回没有安全的默认值，吞掉比瞎猜好。
+    const pending = useUiStore.getState().confirmReq
+    if (pending) {
+      if (pending.dismissable !== false) useUiStore.getState().resolveConfirm(false)
+      return
+    }
+    // 分类分配 / 新建分类这两个弹窗同理：返回键先关它们，不穿透到抽屉 / 模块。
+    const ui = useUiStore.getState()
+    if (ui.assignWordId || ui.editorTarget) {
+      ui.closeModals()
+      return
+    }
     const view = useViewStore.getState()
     const wordPage = view.activeModule === 'workbench' || view.activeModule === 'archive'
     const layers: BackLayerKind[] = [
@@ -123,6 +141,11 @@ export default function MobileShell() {
       // 词典详情优先于搜索：搜索模块里的详情态由详情面板渲染，`MobileSearchPage` 仍在下面挂着
       ...(view.activeView === 'dict' && view.dictWord ? ['dict' as const] : []),
       ...(view.activeModule === 'search' && view.activeView !== 'dict' ? ['search' as const] : []),
+      // 复习会话：spec §5.5 第 7 条——答题中按返回要弹「继续复习 / 离开」，不能直接退出应用。
+      // 判据与 `SessionGuard` 同源（`isSessionLive` 读同一个 store）；概览 / 结算态不算会话。
+      ...(view.activeModule === 'review'
+        && isSessionLive(useReviewSessionStore.getState().phase, useReviewSessionStore.getState().sessionStrategy)
+        ? ['review' as const] : []),
       // 设置子页：只在设置模块、且真的进了某个分区子页时才算一层（目录态返回 = 退模块）
       ...(view.activeModule === 'settings' && settingsSectionRef.current ? ['settings-sub' as const] : []),
       // 词条导航：只在词条页、且当前视图就是词条视图（详情态已在上一步被吃掉）时才算一层
@@ -152,6 +175,20 @@ export default function MobileShell() {
       case 'closeSettingsSub':
         setSettingsSection(null)
         return
+      case 'leaveReview': {
+        // 与 `SessionGuard` 同一条确认文案（`leaveMessage`）与同一个 store：桌面点别的模块时
+        // 是它拦的，安卓返回键走这里——两条入口对同一个动作给同一句承诺。
+        // 确认后：结束本轮并回工作台（返回键没有「原本想去哪」的意图，工作台是应用的主页）。
+        const session = useReviewSessionStore.getState()
+        const answered = answeredCount(session.answered)
+        const message = leaveMessage(answered, session.queue.length - answered)
+        void useUiStore.getState().confirm({ ...message, danger: true }).then(ok => {
+          if (!ok) return
+          useReviewSessionStore.getState().reset()
+          useViewStore.getState().showWorkbench()
+        })
+        return
+      }
       case 'closeSheet':
         // 动作表（Plan 2）尚不存在：本版没有任何来源会把 `sheet` 压进栈，走到这里即空操作。
         // 留着这个分支是为了让 `mobileBackStack` 的优先级表先就位，Plan 2 接上时只差一个 setState。

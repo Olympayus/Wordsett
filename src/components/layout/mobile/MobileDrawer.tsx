@@ -73,8 +73,14 @@ export default function MobileDrawer({ open, onClose }: Props) {
   // 关闭时把焦点还给顶栏那枚抽屉钮——抽屉整体 `visibility: hidden`，留在里面的焦点
   // 会跟着一起看不见（键盘用户会掉进一个「屏幕上有焦点却看不见」的状态）。
   // 打开时不抢焦点：抢了会让软键盘 / 页面滚动的既有行为变样，而 × 与遮罩都已可点。
+  //
+  // `wasOpen` 是必须的：抽屉**常挂**，挂载那一刻 `open` 就是 false，没有这道门的话
+  // 启动时会把焦点抢到抽屉钮上（那时用户还没开过抽屉），两份抽屉各抢一次。
+  const wasOpen = useRef(false)
   useEffect(() => {
-    if (open) return
+    if (open) { wasOpen.current = true; return }
+    if (!wasOpen.current) return
+    wasOpen.current = false
     document.getElementById('mobile-drawer-open')?.focus()
   }, [open])
 

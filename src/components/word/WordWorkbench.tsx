@@ -946,6 +946,13 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     onEditStateChange(next)
   }, [onEditStateChange, editingId, editValue, entryValue])
 
+  // 卸载时把编辑态报回 null：详情态会**替换**掉本组件（`ViewStore.activeView === 'dict'`），
+  // 若编辑中恰好跳到详情页，外壳那份 `editing` 会停在最后上报的值——顶栏继续画「取消 / 保存」，
+  // 而 `ref` 已随卸载失效，两个键都成了空操作，色条与 ⋯ 也被一起藏掉。
+  // 只挂在卸载上（独立 effect、依赖是稳定回调），不放进上面那个 effect 的 cleanup——
+  // 那条 cleanup 每次依赖变化都会跑，会把「正在编辑」误报成 null。
+  useEffect(() => () => { onEditStateChange?.(null) }, [onEditStateChange])
+
   // 内联编辑点外关闭：点击编辑行外部且未改动时退出编辑（有改动保持，供继续编辑/保存）
   useEffect(() => {
     if (!editingId) return

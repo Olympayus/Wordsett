@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { stripWindow } from '../../../lib/mobileWordStrip'
 import { useWordStore } from '../../../stores/wordStore'
+import { useViewStore } from '../../../stores/viewStore'
 
 /** 词条条一次画几枚词片（任务书 Step 4 指定 5）。 */
 const STRIP_SIZE = 5
@@ -44,6 +45,10 @@ export default function WordStrip() {
   const words = useWordStore(s => s.words)
   const selectedWordId = useWordStore(s => s.selectedWordId)
   const selectWord = useWordStore(s => s.selectWord)
+  // 正在读词典详情时点词片，要**回到词条页**再看那个词——与 `WordList` 的行点击同一个动作
+  // （`selectWord` + `showWorkbenchView`，只切视图、不动模块）。少了这一步，词典页会留在原处：
+  // 词片的高亮挪到了新词，正文还是旧的那条，按返回才「跳」到新词，读起来像点错了。
+  const showWorkbenchView = useViewStore(s => s.showWorkbenchView)
 
   const activeIndex = Math.max(0, words.findIndex(w => w.id === selectedWordId))
   const { items } = stripWindow(words, activeIndex, STRIP_SIZE)
@@ -76,7 +81,7 @@ export default function WordStrip() {
           // 选中片取 `aria-current="page"`——与桌面 `ActivityRail` 的活动模块标记同一口径
           // （`ActivityRail.tsx` 的五枚模块键就是这个写法），不另立一套值。
           aria-current={w.id === selectedWordId ? 'page' : undefined}
-          onClick={() => { void selectWord(w.id) }}
+          onClick={() => { void selectWord(w.id); showWorkbenchView() }}
           style={{
             ...chipStyle(w.id === selectedWordId),
             fontFamily: 'var(--font-sans)',

@@ -2,10 +2,18 @@ mod config;
 mod dictionaries;
 mod orientation;
 mod platform;
+// 托盘是桌面专属：`tauri::tray` / `tauri::menu` 在 Tauri 里就是 `#[cfg(all(desktop, …))]`，
+// Android 上这两个模块根本不存在（tauri-2.11.5 src/lib.rs:102-114），整模块必须一起门掉，
+// 否则手机端 `cargo build` 在 `use tauri::tray::…` 处直接失败。
+// 手机外壳用 `destroy()` 退出，不走「关窗 → 最小化到托盘」那条分流。
+#[cfg(desktop)]
 mod tray;
 mod tts_player;
 
-use tauri::{Emitter, Manager};
+use tauri::Manager;
+#[cfg(desktop)]
+use tauri::Emitter;
+#[cfg(desktop)]
 use tray::{close_action, CloseAction};
 use tts_player::{list_english_voices, speak, tts_english_voice_available};
 
@@ -24,7 +32,7 @@ pub fn run() {
         show_main_window(app);
     }));
 
-    builder
+    let builder = builder
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
@@ -40,44 +48,62 @@ pub fn run() {
                 .map_err(|e| e.to_string())?;
             config::init(&dir);
 
-            app.manage(tray::TrayState::default());
-            // 托盘建立失败不该拦住启动：常驻开关强制视为关，前端会显示提示条。
-            if config::bool_at(&config::get(), "window.close_to_tray", true) {
-                if let Err(e) = tray::init(app.handle()) {
-                    eprintln!("[tray] 托盘建立失败，本次不常驻：{e}");
-                    let _ = config::set_patch(serde_json::json!({
-                        "window": { "close_to_tray": false }
-                    }));
+            // 托盘只在桌面存在（见文件头 `mod tray` 的注释）。手机上没有托盘，
+            // 也就没有「关窗 → 最小化到托盘」这条分流可言。
+            #[cfg(desktop)]
+            {
+                app.manage(tray::TrayState::default());
+                // 托盘建立失败不该拦住启动：常驻开关强制视为关，前端会显示提示条。
+                if config::bool_at(&config::get(), "window.close_to_tray", true) {
+                    if let Err(e) = tray::init(app.handle()) {
+                        eprintln!("[tray] 托盘建立失败，本次不常驻：{e}");
+                        let _ = config::set_patch(serde_json::json!({
+                            "window": { "close_to_tray": false }
+                        }));
+                    }
                 }
             }
             Ok(())
-        })
-        .on_window_event(|window, event| {
-            if window.label() != "main" {
-                return;
-            }
-            let tauri::WindowEvent::CloseRequested { api, .. } = event else { return };
+        });
 
-            let cfg = config::get();
-            let action = close_action(
-                config::bool_at(&cfg, "window.close_dialog_seen", false),
-                config::bool_at(&cfg, "window.close_to_tray", true),
-            );
+    // 关窗分流只服务「常驻托盘」：手机外壳用 `destroy()` 退出（`mobileBackButton.ts`），
+    // 根本不走 CloseRequested；在这条路径上挂一个「隐藏窗口」的处理只会把应用藏没。
+    #[cfg(desktop)]
+    let builder = builder.on_window_event(|window, event| {
+        if window.label() != "main" {
+            return;
+        }
+        let tauri::WindowEvent::CloseRequested { api, .. } = event else { return };
 
-            // 三条去向都要 prevent_close：Ask 要让窗口活到前端弹完窗，
-            // Hide 要的是「藏起来」不是「关掉」，Exit 由我们显式 exit
-            // （放行 close 也会退出，但那条路会再触发一次 CloseRequested，绕一圈）。
-            api.prevent_close();
-            match action {
-                CloseAction::Ask => { let _ = window.emit("close-requested", ()); }
-                CloseAction::Hide => hide_main_window(window.app_handle()),
-                CloseAction::Exit => window.app_handle().exit(0),
-            }
-        })
-        // 词典落盘命令：Android 首启必需。桌面 resources 就地直读、永远命中，
-        // marker 不成立时复制会因源缺失而返回 Err，不改变桌面行为。
-        .invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation])
-        .build(tauri::generate_context!())
+        let cfg = config::get();
+        let action = close_action(
+            config::bool_at(&cfg, "window.close_dialog_seen", false),
+            config::bool_at(&cfg, "window.close_to_tray", true),
+        );
+
+        // 三条去向都要 prevent_close：Ask 要让窗口活到前端弹完窗，
+        // Hide 要的是「藏起来」不是「关掉」，Exit 由我们显式 exit
+        // （放行 close 也会退出，但那条路会再触发一次 CloseRequested，绕一圈）。
+        api.prevent_close();
+        match action {
+            CloseAction::Ask => { let _ = window.emit("close-requested", ()); }
+            CloseAction::Hide => hide_main_window(window.app_handle()),
+            CloseAction::Exit => window.app_handle().exit(0),
+        }
+    });
+
+    // 命令表按平台分两份：托盘那三条命令在 Android 上既没有模块也没有调用点
+    // （`update_tray_badge` 被 `useDueCount` 的 UA 判据挡掉），不能出现在手机端的
+    // `generate_handler!` 里——`tray` 模块在手机上根本不存在。
+    // **加/删命令时两份都要改**；桌面那份是超集。
+    // 词典落盘命令：Android 首启必需。桌面 resources 就地直读、永远命中，
+    // marker 不成立时复制会因源缺失而返回 Err，不改变桌面行为。
+    #[cfg(desktop)]
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation]);
+    #[cfg(not(desktop))]
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation]);
+
+    builder.build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
             // macOS：hide 之后点 Dock 图标 / Cmd+Tab 要能唤回主窗（00 §5）。
@@ -145,6 +171,9 @@ fn to_loadable_path(path: &std::path::Path) -> String {
 /// 幂等：窗口已可见时重复调用只多做一次 set_focus，不报错。
 /// `unminimize` 要在 `show` **之前**——最小化的窗口只 `show` 不会还原，
 /// 看起来像「点了没反应」（Review Focus 5）。
+///
+/// 只编译在桌面：调用点（单实例、macOS Reopen、关窗到托盘）全是桌面路径。
+#[cfg(desktop)]
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.unminimize();
@@ -158,6 +187,9 @@ fn show_main_window(app: &tauri::AppHandle) {
 ///
 /// 补刷的必要性：窗口一旦不可见，webview 的 60s 轮询可能被系统节流，
 /// 数字会停在隐藏前那一刻。show / hide 两个方向都发同一个事件，前端收到即重算。
+///
+/// 只编译在桌面：唯一调用点是「关窗到托盘」（手机端没有托盘，见文件头 `mod tray`）。
+#[cfg(desktop)]
 fn hide_main_window(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.hide();

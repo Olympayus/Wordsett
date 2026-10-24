@@ -70,6 +70,19 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
   const { canBack, canForward, goBack, goForward } = useWorkbenchNavigation()
 
   const selectedWord = words.find(w => w.id === selectedWordId)
+  // 详情态（工作台 / 储藏库里的词典页）：标题要跟**正在读的那页**走，`⋯` 则要收起来。
+  // 两者都必须这样：`showDict` 只换视图与 dictWord，不动侧栏选中项——从 `{{链接}}` 跳进来的
+  // 词典词可能**不是**当前选中词，照旧画选中词的标题会张冠李戴，而 `⋯` 的删除 / 移库
+  // 会作用在选中词上（用户看到的是一页词、删掉的却是另一个）。删除 / 移库在详情页没有入口，
+  // 桌面返回页也没有——要操作那个词，先在侧栏里选中它。
+  const activeView = useViewStore(s => s.activeView)
+  const dictWord = useViewStore(s => s.dictWord)
+  const dictOpen = activeView === 'dict' && !!dictWord
+  const title = dictOpen
+    ? dictWord
+    : selectedWord
+      ? selectedWord.lemma
+      : location === 'archive' ? '储藏库' : '工作台'
   // ⋯ 菜单的锚点（`ContextMenu` 按点击处落位并钳进视口）
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
 
@@ -129,7 +142,7 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}
       >
-        {selectedWord ? selectedWord.lemma : location === 'archive' ? '储藏库' : '工作台'}
+        {title}
       </div>
 
       {/* 右端簇 */}
@@ -166,8 +179,9 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
               色条
             </SquareButton>
             {/* ⋯ 里两件动作：移入 / 移出储藏库、删除词条（与桌面工作台同一批调用，见组件头注释）。
-                没有选中词时整枚不出——移动与删除都没有宾语。 */}
-            {selectedWord && (
+                没有选中词时整枚不出——移动与删除都没有宾语；详情态下也不出——见上方 `dictOpen`
+                的注释（那时内容不是选中词的页面）。 */}
+            {selectedWord && !dictOpen && (
               <button
                 type="button"
                 title="更多操作"
@@ -183,7 +197,7 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
       </div>
 
       {/* ⋯ 菜单：fixed 落位、点外 / Esc 自关（`ContextMenu` 自带），与桌面行尾 ⋯ 同一组件 */}
-      {menu && selectedWord && (
+      {menu && selectedWord && !dictOpen && (
         <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={() => setMenu(null)} />
       )}
     </header>
