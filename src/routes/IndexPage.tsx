@@ -24,12 +24,13 @@ export default function IndexPage() {
     loadOverlay()
   }, [loadWords, loadCategories, loadWordCategoryMap, loadOverlay])
 
-  // 桌面与平板都走 `AppShell`（平板是桌面外壳缩小一档，不是第三套界面）；
-  // 只有手机换外壳，并先过词典首启 gate（APK 内词典须先复制到应用数据目录）。
-  if (usesMobileShell(platform)) {
+  // 桌面直接挂 `AppShell`；Android（手机与平板）都要先过词典首启 gate——APK 内的词典是
+  // asset，不是可读的普通文件，必须先复制到应用数据目录。平板今天复用 `AppShell`，
+  // 但少了这层 gate 它连词典库都打不开（`resource_dir()` 在 Android 上不是真实目录）。
+  if (platform !== 'desktop') {
     return (
       <MobileBootstrapGate>
-        <MobileShell />
+        {usesMobileShell(platform) ? <MobileShell /> : <AppShell />}
       </MobileBootstrapGate>
     )
   }

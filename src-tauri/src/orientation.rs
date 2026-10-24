@@ -110,6 +110,68 @@ pub fn set_screen_orientation() -> Result<(), String> {
     Ok(())
 }
 
+/// 退出应用（返回栈空时按返回）。
+///
+/// 手机上**不能**只调前端 `getCurrentWindow().destroy()`：tao 0.35 的 Android `Window`
+/// 没有 Drop、也没有任何地方调 `Activity.finish()`，`destroy()` 只是把 wry 的
+/// `window_wrapper.inner` 置空——Activity 停在原处、界面冻在最后一帧，用户以为返回键失灵。
+/// 故走与方向锁定同一条 JNI 通道，在 Activity 所在的 UI 线程上调 `finish()`。
+///
+/// 结构与 `set_screen_orientation` 逐段相同（`with_webview` 取 `JniHandle` 再 `exec`），
+/// 刻意不抽公共函数：两段都只能在真机上验，分开写时各自与已验证的那份对照，比一个
+/// 未被设备验证过的抽象更安全。
+#[cfg(target_os = "android")]
+#[tauri::command]
+pub fn exit_app(app: tauri::AppHandle) -> Result<(), String> {
+    use std::sync::mpsc;
+    use tauri::Manager;
+
+    let window = app
+        .get_webview_window("main")
+        .or_else(|| app.webview_windows().into_values().next())
+        .ok_or_else(|| "找不到可用的窗口".to_string())?;
+
+    let (handle_tx, handle_rx) = mpsc::channel();
+    window
+        .with_webview(move |webview| {
+            let _ = handle_tx.send(webview.jni_handle());
+        })
+        .map_err(|e| e.to_string())?;
+    let jni_handle = handle_rx
+        .recv_timeout(JNI_CALL_TIMEOUT)
+        .map_err(|_| "取 JNI 句柄超时".to_string())?;
+
+    let (tx, rx) = mpsc::channel();
+    jni_handle.exec(move |env, activity, _webview| {
+        let result = (|| -> Result<(), String> {
+            if env.exception_check().map_err(|e| e.to_string())? {
+                env.exception_clear().map_err(|e| e.to_string())?;
+            }
+            env.call_method(activity, "finish", "()V", &[])
+                .map_err(|e| e.to_string())?;
+            if env.exception_check().map_err(|e| e.to_string())? {
+                env.exception_clear().map_err(|e| e.to_string())?;
+                return Err("Activity.finish 抛出异常".to_string());
+            }
+            Ok(())
+        })();
+        let _ = tx.send(result);
+    });
+
+    match rx.recv_timeout(JNI_CALL_TIMEOUT) {
+        Ok(result) => result,
+        Err(_) => Err("退出应用超时".to_string()),
+    }
+}
+
+/// 非安卓端：直接退出进程。手机外壳只在 Android 上挂载，桌面走不到这条命令。
+#[cfg(not(target_os = "android"))]
+#[tauri::command]
+pub fn exit_app(app: tauri::AppHandle) -> Result<(), String> {
+    app.exit(0);
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::orientation_value;

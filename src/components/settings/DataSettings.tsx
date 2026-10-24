@@ -12,7 +12,16 @@ import SquareButton from '../ui/SquareButton'
 // 原为 raw 600（≈ --weight-semibold），这里一并提到 --weight-bold，与 SearchSettings / SidebarSettings 的小标题一致。
 const SECTION_TITLE: React.CSSProperties = { fontSize: 'var(--text-base)', fontWeight: 'var(--weight-bold)', color: 'var(--color-text-primary)' }
 
-export default function DataSettings() {
+/**
+ * 数据（导出 / 导入 / 数据目录）。
+ *
+ * `variant="mobile"`（Task 11）：隐藏「浏览」按钮——它调 `open_data_dir` →
+ * `tauri-plugin-opener` 的 `reveal_item_in_dir`，而后者在 Android 上恒返回
+ * `UnsupportedPlatform`（opener-2.5.5/src/reveal_item_in_dir.rs:35），点了只会弹一行
+ * 「打开数据目录失败」。手机上也没有「在文件管理器里选中」这个动作可言。
+ * 导出 / 导入两条路在手机上是有意义的（走 SAF），照旧保留。
+ */
+export default function DataSettings({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile' }) {
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<string>('')
   const [error, setError] = useState<string>('')
@@ -74,14 +83,18 @@ export default function DataSettings() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
       {/* 本地数据存储位置（v0.5.3 §4.1 第 14 条）：首行，黑色字体，附浏览按钮。
           浏览按钮用 SquareButton 的 row 尺寸（不限最小宽），紧跟文字其后。
-          中间不留 flex:1 撑开占位——那会把按钮推到行尾，与「跟随其后」的意图相反。 */}
-      <div style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
-      }}>
-        <span>本地数据存储位置</span>
-        <SquareButton tone="surface" size="row" onClick={() => { void handleBrowse() }} title="在系统文件管理器中打开数据目录并选中 wordsett.db">浏览</SquareButton>
-      </div>
+          中间不留 flex:1 撑开占位——那会把按钮推到行尾，与「跟随其后」的意图相反。
+          手机形态整行不渲染：没有「在文件管理器里选中」这个动作，留一行只有标签的
+          文字反而让人以为哪里能点（见组件头注释）。 */}
+      {variant === 'desktop' && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
+        }}>
+          <span>本地数据存储位置</span>
+          <SquareButton tone="surface" size="row" onClick={() => { void handleBrowse() }} title="在系统文件管理器中打开数据目录并选中 wordsett.db">浏览</SquareButton>
+        </div>
+      )}
       {/* 三档词数（v0.7.5 Task 15）：紧贴「本地数据存储位置」的下一行，三个数各套 .stat-num。
           间距由本行 marginBottom 承担（原先在存储位置行上），与下方「导出词库」的总间距不变。 */}
       <div style={{ fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', marginBottom: 12 }}>

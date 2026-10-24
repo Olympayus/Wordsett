@@ -121,13 +121,26 @@ fn fs_metadata_len(resource_dir: &Path, name: &str) -> Option<u64> {
 /// 期望 marker 串：按 `DICTIONARIES` 顺序取各源字节大小拼成
 /// `ecdict:99008512|wordnet:40898560`。
 ///
+/// **编译期量好的常量优先**（`build.rs` 从 `public/dictionaries` 的元数据生成，
+/// 与打包进 resources / APK asset 的是同一批文件）：Android 的 `resource_dir()` 不是
+/// 真实目录，运行时量大小只能整份解压 asset，而这一步在比较 marker **之前**执行——
+/// 等于每次冷启动都把两个库读进内存一遍（≈140MB，brotli 解压 + 两份 Vec）。
+///
+/// 常量缺失（新克隆还没跑 `build:dictionaries` 就编译）时退回运行时量：
 /// 大小**优先**取自 `resource_dir()/name` 的 `metadata().len()`——是真实文件就**不读内容**，
 /// 首启因此不会把两份几十 MB 的库读进内存两遍；只有元数据拿不到（文件不可读 /
 /// 不是普通文件）才降级用 asset 字节算长度。两条路径的大小都与随后落盘的内容一致。
+///
+/// 单测不取常量（`cfg!(test)`）：测试用的是内存替身，尺寸与真实文件无关。
 fn expected_marker(
     resolver: &impl Fn(&str) -> Option<Vec<u8>>,
     resource_dir: &Path,
 ) -> Result<String, String> {
+    if !cfg!(test) {
+        if let Some(baked) = option_env!("WORDSETT_DICT_MARKER") {
+            return Ok(baked.to_string());
+        }
+    }
     let mut parts = Vec::with_capacity(DICTIONARIES.len());
     for name in DICTIONARIES {
         // marker 记的是**词典名**（去掉 `.db`）与字节大小，形状 `ecdict:99008512`。

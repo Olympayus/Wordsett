@@ -141,7 +141,7 @@ export default function SettingsPage({ variant = 'desktop', mobileSection: contr
           {/* 手机形态不出「检查更新」（Android 无签名更新器），改出手动安装说明——见 AboutSettings。 */}
           <AboutSettings variant="mobile" />
           <div style={{ marginTop: '24px' }}><SectionHeading>数据</SectionHeading></div>
-          <DataSettings />
+          <DataSettings variant="mobile" />
         </>
       )}
     </>

@@ -52,19 +52,29 @@ export async function registerMobileBack(handler: () => void): Promise<() => voi
 }
 
 /**
- * 返回栈空了：关掉窗口。
+ * 返回栈空了：退出应用。
  *
- * 用 `destroy()` 而不是 `close()`：`close()` 会先触发 `CloseRequested`，而仓库的关窗分流
- * 默认「最小化到托盘」（`config::bool_at(..., "window.close_to_tray", true)`）——手机上没有
- * 托盘，那条路会留下一个看不见的常驻进程，用户再也唤不回这个窗口。`destroy()` 是直接关掉。
+ * 走 Rust 的 `exit_app`（Android 上是 JNI `Activity.finish()`），**不是**前端的
+ * `destroy()`：tao 0.35 的 Android 窗口没有 Drop 实现，`destroy()` 只把 wry 的内部
+ * 窗口置空——Activity 不结束，界面冻在最后一帧，用户看着像返回键失灵。桌面不挂
+ * `MobileShell`，这条路径在桌面上不可达。
  *
- * 手机上没有「重启应用」这条路（`plugin-process` 的 `relaunch()` 在安卓上不支持），故此处
- * 不引它。桌面不挂 `MobileShell`，这条路径在桌面上不可达。
+ * 不用 `close()`：它会先触发 `CloseRequested`，而仓库的关窗分流默认「最小化到托盘」
+ * （`config::bool_at(..., "window.close_to_tray", true)`）——手机上没有托盘，那条路会
+ * 留下一个看不见的常驻进程。手机也没有「重启应用」（`plugin-process` 的 `relaunch()`
+ * 在安卓上不支持），故此处不引它。
+ *
+ * `exit_app` 失败（非 Tauri 环境 / 极端情况）时退回 `destroy()`，至少别让返回键毫无反应。
  */
 export async function exitMobileApp(): Promise<void> {
   try {
-    await getCurrentWindow().destroy()
+    await invoke('exit_app')
   } catch (e) {
-    console.error('[mobile] 退出失败：', e)
+    console.error('[mobile] exit_app 失败，回退为销毁窗口：', e)
+    try {
+      await getCurrentWindow().destroy()
+    } catch (e2) {
+      console.error('[mobile] 退出失败：', e2)
+    }
   }
 }

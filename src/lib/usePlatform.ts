@@ -9,11 +9,17 @@ import { resolvePlatform, type PlatformClass, type PlatformEnv } from './platfor
  * resize 回调若各写一遍 `resolvePlatform({…})`，漏一个字段就会让某个平台静默落错档。
  */
 function currentEnv(): PlatformEnv {
+  // 断点按**设备最小宽度**判（spec §3.2 的 smallestScreenWidthDp），不用 `innerWidth`：
+  // 手机横屏时 `innerWidth` 约 800，会把一台手机判成平板、挂上桌面外壳；而方向锁只在
+  // 手机外壳里执行，于是横屏冷启动的手机永远回不到竖屏。`screen` 的两边长取小，旋转不变
+  // （`screen` 读不到时退回视口，行为与旧实现一致）。
+  const sw = window.screen?.width || window.innerWidth
+  const sh = window.screen?.height || window.innerHeight
   return {
     isTauri: '__TAURI_INTERNALS__' in window,
     isAndroid: /Android/i.test(navigator.userAgent),
-    width: window.innerWidth,
-    height: window.innerHeight,
+    width: Math.min(sw, sh),
+    height: Math.max(sw, sh),
   }
 }
 
@@ -23,9 +29,9 @@ function currentEnv(): PlatformEnv {
  * 初值走惰性 `useState`：脚本加载时就要读一次 UA 与视口，晚一帧（effect 里）再读会让
  * 首帧按错误的形态渲染一次。`IndexPage` 据此决定挂 `MobileShell` 还是 `AppShell`。
  *
- * 只监听 `resize`：Android 上旋转、分屏、键盘弹出都会改视口宽度，而**手机形态是宽度驱动**的
- * （见 `lib/platform.ts` 的 600px 断点）——同一台手机从竖屏转横屏可能越过断点，此时该整树
- * 换外壳，而不是把两套外壳同时挂在 DOM 里。
+ * 监听 `resize` 只为「设备最小宽度真的变了」的场合（分屏、自由窗口、外接屏）：
+ * 断点读的是 `screen` 两边取小，**旋转不会越过断点**——一台手机不会因为横过来就被
+ * 换成桌面外壳（旧实现用 `innerWidth`，横屏冷启动就会这样）。
  */
 export function usePlatformClass(): PlatformClass {
   const [p, setP] = useState<PlatformClass>(() => resolvePlatform(currentEnv()))

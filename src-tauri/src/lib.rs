@@ -8,6 +8,15 @@ mod platform;
 // 手机外壳用 `destroy()` 退出，不走「关窗 → 最小化到托盘」那条分流。
 #[cfg(desktop)]
 mod tray;
+// TTS 按平台换实现：桌面用系统引擎（Windows SAPI5 回退 / macOS 原生），手机挂占位。
+// 纯换模块而不动命令表——`tts_stub.rs` 导出同名命令与同名数据结构，`generate_handler!`
+// 的两份列表因此逐字相同。手机为什么编不了 `tts`：它的 Android 后端要 `rs/tts/Bridge`
+// 与 `ndk_context` 初始化，本仓库锁定的 tao 0.35 两样都没有，`Tts::default()` 会 panic
+// 并 abort 进程（前端在所有平台启动时都会探测一次 TTS）。Plan 3 接 Android TTS。
+#[cfg(not(mobile))]
+mod tts_player;
+#[cfg(mobile)]
+#[path = "tts_stub.rs"]
 mod tts_player;
 
 use tauri::Manager;
@@ -99,9 +108,9 @@ pub fn run() {
     // 词典落盘命令：Android 首启必需。桌面 resources 就地直读、永远命中，
     // marker 不成立时复制会因源缺失而返回 Err，不改变桌面行为。
     #[cfg(desktop)]
-    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation]);
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app]);
     #[cfg(not(desktop))]
-    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation]);
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation, orientation::exit_app]);
 
     builder.build(tauri::generate_context!())
         .expect("error while building tauri application")
