@@ -42,8 +42,9 @@ npm run tauri dev
 
 ## 版本发布 Release
 
-> 完整发布流程（版本号、签名打包、GitHub Release、macOS、常见坑）已迁移为技能：**release-workflow**（`.claude/skills/release-workflow/SKILL.md`，本地文件）。发布时调用该技能，按其步骤执行。
+> 完整发布流程已迁移为技能：**release-workflow**（`.claude/skills/release-workflow/SKILL.md`，本地文件）。发布时调用该技能，按其步骤执行。
 > **git 边界**：add / commit 可自行执行；**本地 merge、push 与 `gh release`（公开发布）必须由用户亲自执行**。
+> 桌面端与移动端版本号保持一致，仅双端均增加新功能或改进旧功能时提升版本号
 
 ---
 
