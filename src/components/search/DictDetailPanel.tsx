@@ -18,7 +18,7 @@ import { ensureWord, isWordInLibrary } from '../../lib/ensureWord'
 import { libraryLocationIn } from '../../lib/collected'
 import { dictActionModel } from '../../lib/mobileDictActions'
 import { countAllDefinitions } from '../../lib/dictPlan'
-import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, TAB_ITEM_PADDING_X, TAB_STRIP_PADDING } from '../../lib/layout'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING_X, TAB_ITEM_PADDING_X } from '../../lib/layout'
 import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
 import type { TitleMeta } from '../../providers/titleMeta'
 import type { DictionaryField } from '../../types/dictionary'
@@ -331,14 +331,13 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
         className={variant === 'mobile' ? 'flex-1 overflow-y-auto' : undefined}
         style={{
           maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto',
+          // **左右内边距不再落在本容器上**：它由头带 / 正文各自的内层 wrapper 持有
+          // （手机 16px、桌面 24px），页签条带因此能整条铺满容器宽度、贯穿整个横向范围。
+          // 下内距照旧：手机垫出底部固定条的高度（顶面 34 + 主面 52 + 安全区）再多 8px 呼吸；
+          // 桌面是原 ENTRY_COLUMN_PADDING 的下内距 40px。
           ...(variant === 'mobile'
-            ? {
-                // mobile：左右收到 16px（内容列的 24px 在 390dp 竖屏上太占宽），
-                // 下内距垫出底部固定条的高度（顶面 34 + 主面 52 + 安全区）再多 8px 呼吸，
-                // 否则最后一条释义被条盖住、滚不到。两条路径的条高相同（顶面恒在），故不分叉。
-                padding: '0 16px calc(86px + env(safe-area-inset-bottom) + 8px)',
-              }
-            : { padding: ENTRY_COLUMN_PADDING }),
+            ? { padding: '0 0 calc(86px + env(safe-area-inset-bottom) + 8px)' }
+            : { padding: '0 0 40px' }),
           minHeight: 0,
         }}
       >
@@ -357,6 +356,9 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
             修复 6「标题与 tab 之间去掉分割线」：头带经 `rule={false}` 不再出自己那道 1px 线，
             此后上下两块只剩页签条自己那道 2px 线——正合用户「直接用 tab 作分割线」。
             音标 / 词根由 WordTitleExtras 交出（可单独勾选合并，勾选框保留）。 */}
+        {/* 头带外层：左右内边距（手机 16 / 桌面 24）。页签条带**不在**这个 wrapper 里，
+            故能整条通栏；本 wrapper 与下方正文 wrapper 共用同一份内边距，内容左缘仍对齐。 */}
+        <div style={{ padding: variant === 'mobile' ? '0 16px' : `0 ${ENTRY_COLUMN_PADDING_X}px` }}>
         <EntryBand
           headword={word}
           speak={false}
@@ -370,6 +372,7 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
           rightCluster={<TitleChips meta={meta} />}
           rows={<WordTitleExtras key={word} meta={meta} onInputsChange={setStripInputs} />}
         />
+        </div>
 
         {/* Tab 栏：词典 | 语义网络（凸起页签；语义网络徽章为 relatedWords 真实计数）。
             条面底 = --color-surface-sunken：**刻意偏离设计稿**——设计稿 .tabs 用 --paper（showcase-v2:172），
@@ -379,13 +382,30 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
             v0.7.2 修复 4 / 8：「共 N 条释义」计数移进「词典」页签内（页签右端、在页签的框里），
             「全部收起 / 全部展开」移到页签条最右端——与设计稿 .tabs 的 `.sp` + `.act`
             （showcase-v2:818-821：词典 / 语义网络 / 弹簧 / 全部收起）同序。 */}
-        {/* 内边距取 layout.ts 的 TAB_STRIP_PADDING（v0.7.3 尾段 §4.1 / D18）：条面 24px 对齐内容列左缘，
-            与工作区 TabBar 共用一份。
-            **marginTop 已删净（P13(a)）**：先前那条 marginTop:12 把「头带 → 页签条」推到 20px（头带自己的
-            8px 下内距 + 12），工作区同处是 22px（8 + 14）；删净后两页都只剩头带那 8px 下内距。
-            **marginBottom 16 → 4（本任务 Step 4）**：与 SenseFlow 的 paddingTop 4 + 首个词性头 4 合起来，
-            「页签条下缘 → 首个词性头」本页 12px（先前 34px），与工作区（外层 4 + 4 + 4）一致。 */}
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: TAB_STRIP_PADDING, background: 'var(--color-surface-sunken)', borderBottom: '2px solid var(--color-border-strong)', marginBottom: 4 }}>
+        {/* 左右内边距现由「页签滚动区」（左）与「全部收起」（右）各自持有：桌面仍是 24px
+            对齐内容列左缘；**marginTop 已删净（P13(a)）**，两页都只剩头带那 8px 下内距；
+            **marginBottom 16 → 4（本任务 Step 4）**：与 SenseFlow 的 paddingTop 4 + 首个词性头 4
+            合起来「页签条下缘 → 首个词性头」本页 12px，与工作区一致。 */}
+        {/* 条面：本组件现在是**整条通栏**——左右内边距已从头带 / 正文的 wrapper 里出，
+            这里直接铺满容器宽度（手机与桌面皆然，桌面容器本身是 900px 居中的内容列）。
+            页签区在条内横向滚动（用户裁定；与工作区 TabBar 同一套做法）。
+            2px 底线同样画成 `inset` 内阴影：活动页签的底色把它盖住，滚动容器也不为它留独立边。 */}
+        <div style={{
+          display: 'flex', alignItems: 'flex-end',
+          background: 'var(--color-surface-sunken)',
+          boxShadow: 'inset 0 -2px 0 var(--color-border-strong)',
+          marginBottom: 4,
+          // 桌面：与头带 / 正文同一份左右内边距（条面宽度 852、左缘对齐，几何逐字不变）。
+          // 手机：不给外边距，条面铺满内容区宽度（通栏）。
+          ...(variant === 'mobile' ? null : { marginLeft: ENTRY_COLUMN_PADDING_X, marginRight: ENTRY_COLUMN_PADDING_X }),
+        }}>
+          <div style={{
+            flex: '1 1 auto', minWidth: 0,
+            display: 'flex', alignItems: 'flex-end', gap: 3,
+            padding: variant === 'mobile' ? '4px 0 0 16px' : `4px 0 0 ${ENTRY_COLUMN_PADDING_X}px`,
+            overflowX: 'auto', overflowY: 'hidden',
+            touchAction: 'pan-x', WebkitOverflowScrolling: 'touch',
+          }}>
           <button type="button" onClick={() => setTab('dict')} style={tabStyle(tab === 'dict')}
             onMouseEnter={tabHoverOn(tab === 'dict')} onMouseLeave={tabHoverOff(tab === 'dict')}>
             词典
@@ -405,8 +425,10 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
               {networkCount}
             </span>
           </button>
-          {/* 弹簧（设计稿 .tabs .sp）把右端动作推到条的最右 */}
-          <span style={{ flex: 1 }} />
+          </div>
+          {/* 右端动作不随页签滚动：页签滚动区自身吃满余量，所以这里不再需要设计稿的
+              「弹簧」`.sp`——再加一个 flex:1 的占位反而会与滚动区抢宽度，
+              把「全部收起」从右缘推开。 */}
           {collapseState.hasContainers && (
             <button
               type="button"
@@ -415,6 +437,8 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
               onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
               style={{
                 // 设计稿 .tabs .act（showcase-v2:177）：11.5px / 三级字色 / padding:0 8px 6px
+                flexShrink: 0,
+                marginRight: variant === 'mobile' ? 16 : ENTRY_COLUMN_PADDING_X,
                 fontSize: 11.5, fontFamily: 'var(--font-sans)', color: 'var(--color-text-tertiary)',
                 padding: '0 8px 6px', border: 'none', background: 'transparent', cursor: 'pointer',
               }}
@@ -422,6 +446,8 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
           )}
         </div>
 
+        {/* 正文外层：与头带同一份左右内边距（页签条带通栏，不在其中）。 */}
+        <div style={{ padding: variant === 'mobile' ? '0 16px' : `0 ${ENTRY_COLUMN_PADDING_X}px` }}>
         {/* 双 Tab 常驻挂载，display 切换隐藏而非卸载，保证卡片勾选跨 Tab 切换保留（Task 4 裁定） */}
         <div style={{ display: tab === 'dict' ? 'block' : 'none' }}>
           {loading ? (
@@ -457,6 +483,7 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
 
         <div style={{ display: tab === 'network' ? 'block' : 'none' }}>
           <SemanticNetwork word={word} onCountChange={setNetworkCount} />
+        </div>
         </div>
       </div>
 

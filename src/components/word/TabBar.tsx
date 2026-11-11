@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { TabKey } from '../../lib/tabs'
 import { TAB_GROUPS } from '../../lib/tabs'
-import { TAB_ITEM_PADDING_X, TAB_STRIP_PADDING } from '../../lib/layout'
+import { ENTRY_COLUMN_PADDING_X, TAB_ITEM_PADDING_X } from '../../lib/layout'
 import ContextMenu from '../ui/ContextMenu'
 import Icon from '../icons'
 
@@ -34,11 +34,25 @@ export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, o
     // 而 --paper = #F9F8F5 正是我们的 --color-canvas；两页（此处与词典返回页 DictDetailPanel）都走 sunken。
     // 分支基线时 sunken 是更暗的一档（#EFECE5），条面确实凹陷，v0.7.2 的新档位只是压缩了这一步、
     // 未撤销意图——勿改回 canvas，否则白页签落白页、hover 的凹陷值（TAB_HOVER_BG）也失去依据。
-    // 内边距取 layout.ts 的 TAB_STRIP_PADDING（v0.7.3 尾段 §4.1 / D18）：条面 24px 对齐内容列左缘，
-    // 与返回页共用一份。条面**不持 marginTop**（P13(a)）——先前那条 marginTop:14 把「头带 → 页签条」
-    // 的距离推到 22px（头带自己的 8px 下内距 + 14），返回页则是 20px（12+8）；删净后两页都只留
-    // 头带那 8px 下内距。
-    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: TAB_STRIP_PADDING, background: 'var(--color-surface-sunken)', borderBottom: '2px solid var(--color-border-strong)', position: 'relative' }}>
+    // 左右内边距由滚动区与「＋」各自持有（左 24 在滚动区 padding、右 24 在「＋」的 marginRight）：
+    // 条面本身不再持左右内边距，调用方**决定条面铺多宽**——手机外壳把本组件放在内容列**之外**
+    // （条面因此贯穿整个横向范围），桌面仍放在内容列里（宽度与内容列一致，内容左缘仍是 24px 那条线）。
+    // 2px 底线画成 `inset` 内阴影而不是 border：内阴影落在内容区最后 2px 上，活动页签的底色
+    // 把它盖住（「页签压住分割线」的既有观感），横向滚动容器也不会为它留出一条独立的边。
+    <div style={{
+      display: 'flex', alignItems: 'flex-end', position: 'relative',
+      background: 'var(--color-surface-sunken)',
+      boxShadow: 'inset 0 -2px 0 var(--color-border-strong)',
+    }}>
+      {/* 页签滚动区：页签多到一屏放不下时左右滑动（用户裁定）。「＋」在滚动区之外常驻右端，
+          不随页签一起滚走；分区不改变桌面几何——滚动区右缘原本就截止在「＋」之前。 */}
+      <div style={{
+        flex: '1 1 auto', minWidth: 0,
+        display: 'flex', alignItems: 'flex-end', gap: 3,
+        padding: `4px 0 0 ${ENTRY_COLUMN_PADDING_X}px`,
+        overflowX: 'auto', overflowY: 'hidden',
+        touchAction: 'pan-x', WebkitOverflowScrolling: 'touch',
+      }}>
       {tabs.map(t => {
         const active = t === activeTab
         return (
@@ -84,8 +98,9 @@ export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, o
           </span>
         )
       })}
+      </div>
 
-      <div style={{ position: 'relative', marginLeft: 8, marginBottom: 5 }}>
+      <div style={{ position: 'relative', marginLeft: 8, marginBottom: 5, marginRight: ENTRY_COLUMN_PADDING_X, flexShrink: 0 }}>
         <button
           type="button" title="添加标签页" aria-label="添加标签页"
           onClick={() => setAddOpen(v => !v)}

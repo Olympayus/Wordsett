@@ -84,7 +84,7 @@ export default function MobileShell() {
   const closeDrawer = useCallback(() => setDrawerOpen(false), [])
 
   // 离开词条页（复习 / 设置）时顺手把抽屉收起来：那两页没有抽屉入口，留一个开着的抽屉
-  // 只会让「设置页看起来像被一块 86% 宽的面板压着」。抽屉自身保持挂载，滚动位置不受影响。
+  // 只会让「设置页看起来像被一块整屏词库面板压着」。抽屉自身保持挂载，滚动位置不受影响。
   useEffect(() => {
     if (activeModule === 'workbench' || activeModule === 'archive') return
     setDrawerOpen(false)
@@ -242,8 +242,8 @@ export default function MobileShell() {
   const openEditor = useUiStore(s => s.openEditor)
 
   return (
-    <div className="h-screen flex flex-col" style={{ background: 'var(--color-canvas)' }}>
-      {/* 顶栏：抽屉 / 返回前进 / 标题 / 色条开关 / ⋯（编辑态换成取消 / 保存）。
+    <div className="h-screen flex flex-col" style={{ background: 'var(--color-canvas)', position: 'relative' }}>
+      {/* 顶栏：抽屉 / 返回前进 / 标题 / 编者开关 / ⋯（编辑态换成取消 / 保存）。
           只在词条页（工作台 / 储藏库）出现：搜索、复习、设置是各自的一级页面，
           顶部由各自的页面自己负责（spec §4.1「其余页面按各自导航需要出一枚返回与面包屑」）。 */}
       {(activeModule === 'workbench' || activeModule === 'archive') && (
@@ -257,10 +257,9 @@ export default function MobileShell() {
 
       {/* 内容区：`data-find-root` 与 `AppShell` 同名（标记当前模块的搜索根），手机上
           `FindBar` 不挂载，故它今天只是与桌面同一套 DOM 契约的一部分，不驱动任何行为。
-          高度由 `flex-1` + `minHeight: 0` 决定——不写死高度。`relative` 是抽屉的定位上下文：
-          抽屉是 `absolute inset- 0`，锚在这一屏上（视口级 fixed 会与外壳的对齐分叉）。 */}
+          高度由 `flex-1` + `minHeight: 0` 决定——不写死高度。 */}
       <div
-        className="flex-1 flex flex-col overflow-hidden relative"
+        className="flex-1 flex flex-col overflow-hidden"
         style={{ minHeight: 0 }}
       >
         {/* 词条条（spec §4.3 方案 B）：只在词条页出现；词库为空时它自己不渲染。 */}
@@ -324,21 +323,24 @@ export default function MobileShell() {
           </main>
         )}
 
-        {/* 抽屉（Task 6，spec §4.4）：只挂载在词条页——顶栏那枚入口按钮也只在那里出现。
-            工作台与储藏库**同时挂载**（只有当前模块那份 `open`），切模块时另一份不卸载，
-            于是各自的 `WordList` 滚动位置互不覆盖（spec §4.4「工作台与储藏库各自独立」）。
-            代价是两份列表都在重渲；`open` 为假的那份整棵 `visibility: hidden` + `inert`。
-            每份一个 key：React 不会在两处之间复用同一个 `WordList` 实例（那会带着上一模块的
-            筛选 / 选中态）。 */}
-        {(activeModule === 'workbench' || activeModule === 'archive') && (
-          <>
-            <MobileDrawer key="drawer-workbench" open={drawerOpen && activeModule === 'workbench'} onClose={closeDrawer} />
-            <MobileDrawer key="drawer-archive" open={drawerOpen && activeModule === 'archive'} onClose={closeDrawer} />
-          </>
-        )}
       </div>
 
-      {/* 底栏：五格 + 中间凸起的搜索圆钮 + 复习到期徽标。 */}
+      {/* 抽屉（Task 6，spec §4.4；用户裁定改为**整块屏幕**）：挂在**外壳根**上而不是内容区里，
+          故 `absolute inset-0` 覆盖顶栏 / 内容 / 底栏整屏（根节点因此带 `position: relative`）。
+          只挂载在词条页——顶栏那枚入口按钮也只在那里出现。
+          工作台与储藏库**同时挂载**（只有当前模块那份 `open`），切模块时另一份不卸载，
+          于是各自的 `WordList` 滚动位置互不覆盖（spec §4.4「工作台与储藏库各自独立」）。
+          代价是两份列表都在重渲；`open` 为假的那份整棵 `visibility: hidden` + `inert`。
+          每份一个 key：React 不会在两处之间复用同一个 `WordList` 实例（那会带着上一模块的
+          筛选 / 选中态）。 */}
+      {(activeModule === 'workbench' || activeModule === 'archive') && (
+        <>
+          <MobileDrawer key="drawer-workbench" open={drawerOpen && activeModule === 'workbench'} onClose={closeDrawer} />
+          <MobileDrawer key="drawer-archive" open={drawerOpen && activeModule === 'archive'} onClose={closeDrawer} />
+        </>
+      )}
+
+      {/* 底栏：五格 + 中间的搜索圆钮 + 复习到期徽标。 */}
       <MobileTabBar />
 
       {/* 全局浮层（Task 11）：分类分配 / 新建分类 / 通用确认框。与 `AppShell` 的挂载方式一致，

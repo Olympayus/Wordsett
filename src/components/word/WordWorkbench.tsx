@@ -56,7 +56,7 @@ import { familiarityFromValue, displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
 import { moveConfirmRequest, moveTarget } from '../../lib/archiveMove'
 import { deleteWordConfirmRequest } from '../../lib/wordActions'
-import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING, ENTRY_PHONETIC_GAP } from '../../lib/layout'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING_X, ENTRY_PHONETIC_GAP } from '../../lib/layout'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
 /**
@@ -965,6 +965,22 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     return () => window.removeEventListener('pointerdown', onPointerDown)
   }, [editingId, editValue, entryValue])
 
+  // ── 手机外壳的保存 / 取消（Task 5）──────────────────────────────────────────────
+  // **这两个 hook 必须在下面的空态早退之前**：`if (!selectedWord) return <EmptyState/>` 会在
+  // 空态少走一段渲染体，若把它们留在早退之后，从空态切到选中词的那一次渲染 hook 数就变了
+  // （少 2 个 → 多 2 个），React 直接抛生产错误 #310（Rendered more hooks than during the
+  // previous render），真机上表现为整页「出了点问题」。hook 的位置必须与渲染分支无关。
+  //
+  // 工厂里只做**转发**：`handleSave` 每个渲染重造（它读 `editingId` / `editValue` / `entryValue`
+  // 三件局部 state），那个函数定义在早退之后，故经 ref 取最新一份——`useImperativeHandle` 的
+  // 工厂只在挂载时建一次，直接闭包住首次渲染的 `handleSave` 会让手机顶栏的「保存」永远撞上
+  // `if (!editingId) return`，成了永久空转的按钮。
+  const handleSaveRef = useRef<() => Promise<void>>(async () => {})
+  useImperativeHandle(ref, () => ({
+    saveEdit: () => { void handleSaveRef.current() },
+    cancelEdit: () => setEditingId(null),
+  }), [])
+
   if (!selectedWord) {
     return (
       <div className="h-full flex items-center justify-center">
@@ -1025,23 +1041,10 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   }
 
   // ── 手机外壳的保存 / 取消（Task 5）──────────────────────────────────────────────
-  // 编辑态归本组件所有（`editingId` / `editValue` / `entryValue` 都在体内），而「取消 / 保存」
-  // 在手机上画在顶栏（`MobileAppBar`）。plumbing 的两半由 `useImperativeHandle` 交给外壳
-  // （`chrome='mobile'` 时才有 ref）——外壳只负责「谁在编辑」这个状态，**不复制**保存 / 取消
-  // 的逻辑。
-  //
-  // **必须走 ref，不能靠闭包**：`useImperativeHandle` 的工厂只在这里建一次，`[]` 依赖会让它
-  // 永远拿着**首次渲染**那份 `handleSave`——而那份闭包里的 `editingId` 恒为 `null`，于是
-  // 手机顶栏的「保存」每次都撞上 `if (!editingId) return`，成了**永久空转的按钮**（用户按下
-  // 保存什么也不会发生，且没有任何报错）。`handleSave` 每个渲染都会重造（它读 `editingId` /
-  // `editValue` / `entryValue` 三件局部 state），故这里只把**最新那份**存进 ref，由 handle
-  // 间接调用。赋值写在渲染体里而不是 effect 里：effect 会晚一帧，那一帧里点保存仍会落空。
-  const handleSaveRef = useRef(handleSave)
+  // 两个 hook 本身已在上面（空态早退之前）声明，原因见那处注释。这里只把**最新一份**
+  // `handleSave` 存进 ref：赋值写在渲染体里而不是 effect 里——effect 会晚一帧，
+  // 那一帧里点保存仍会落空。
   handleSaveRef.current = handleSave
-  useImperativeHandle(ref, () => ({
-    saveEdit: () => { void handleSaveRef.current() },
-    cancelEdit: () => setEditingId(null),
-  }), [])
   // 桌面那对回调直接复用同一组：`WorkbenchNavBar` 的 `onSaveEdit` / `onCancelEdit` 语义逐字相同
   // （桌面版此前是内联箭头函数，换成同一组稳定引用）。注意这两个**不是** useCallback——它们
   // 每个渲染重造，稳定性由 `WorkbenchNavBar` 那侧不把它们放进依赖数组来保证（与 v0.7.4 前
@@ -1454,8 +1457,10 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
         </div>
       )}
 
-      {/* 内容列：保持居中；列宽与内边距取 lib/layout 的共享常量（ENTRY_BAND_WIDTH / ENTRY_COLUMN_PADDING） */}
-      <div style={{ maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: ENTRY_COLUMN_PADDING }}>
+      {/* 内容列（上半：词条头带）：保持居中；列宽与左右内边距取 lib/layout 的共享常量。
+          页签条带在手机外壳下移出内容列（见下方），故内容列拆成上下两段——
+          上段只包头带，下段从页签条之后接正文并带上原有的 40px 底距。 */}
+      <div style={{ maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: `0 ${ENTRY_COLUMN_PADDING_X}px` }}>
 
         {/* 词条头带（v0.7.3）：词头 + 喇叭一行，分类胶囊走头带行右端 rightCluster；
             音标走 rows（末行），词根走 footLeft——与最后一行右端 bottomRight（顽固词 + 记忆强度）
@@ -1576,7 +1581,17 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
           }
         />
 
-        {/* 标签页条带（Task 3 TabBar）：标题区之下、内容区之上。编者模式页签右端现出 ×（删标签页）。 */}
+        {/* 标签页条带（Task 3 TabBar）：标题区之下、内容区之上。编者模式页签右端现出 ×（删标签页）。
+            手机外壳（Task 4）：条面放在内容列**之外**、**贯穿整个横向范围**——页签区在条内
+            横向滚动，「＋」常驻右端（用户裁定）。桌面仍包进 900px 内容列，几何逐字不变。 */}
+      </div>
+      <div style={{
+        maxWidth: chrome === 'mobile' ? undefined : `${ENTRY_BAND_WIDTH}px`,
+        margin: '0 auto',
+        // 桌面：与内容列同一份左右内边距（条面宽度 852、左缘与正文对齐，几何逐字不变）。
+        // 手机：不给内边距，条面铺满视口宽度（通栏）。
+        ...(chrome === 'mobile' ? null : { padding: `0 ${ENTRY_COLUMN_PADDING_X}px` }),
+      }}>
         <TabBar
           tabs={tabs}
           activeTab={effectiveTab ?? 'main'}
@@ -1586,6 +1601,11 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
           onDeleteTab={handleDeleteTab}
           editorMode={editorMode}
         />
+      </div>
+
+      {/* 内容列（下半：正文流 → 反链 → 页级「＋ 添加」）：与上段同一度量与左右内边距；
+          底距 40px 仍留在这一段（`ENTRY_COLUMN_PADDING` 的原值）。 */}
+      <div style={{ maxWidth: `${ENTRY_BAND_WIDTH}px`, margin: '0 auto', padding: `0 ${ENTRY_COLUMN_PADDING_X}px 40px` }}>
 
         {/* 字段列表：一条正文流（SenseFlow）。组内行由 FieldCard 产出 FlowRow。
             v0.7.2 修复 3：显式给 measure = ENTRY_BAND_WIDTH，与返回页（DictDetailCard）同值同理由

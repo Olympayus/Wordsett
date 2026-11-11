@@ -7,24 +7,29 @@ interface Props {
 interface State {
   hasError: boolean
   error: Error | null
+  /** 出错时的组件栈（React 交给 `componentDidCatch` 的 `info.componentStack`）。
+   *  真机上没法开控制台，而「是哪个组件触发的」正是修复错误最需要的一条信息，
+   *  故一并展示在「错误详情」里（收起态，不打扰普通用户）。 */
+  componentStack: string | null
 }
 
 export default class ErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
     super(props)
-    this.state = { hasError: false, error: null }
+    this.state = { hasError: false, error: null, componentStack: null }
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return { hasError: true, error }
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('[ErrorBoundary]', error, info.componentStack)
+    this.setState({ componentStack: info.componentStack ?? null })
   }
 
   handleRetry = () => {
-    this.setState({ hasError: false, error: null })
+    this.setState({ hasError: false, error: null, componentStack: null })
   }
 
   handleRestart = () => {
@@ -123,6 +128,12 @@ export default class ErrorBoundary extends Component<Props, State> {
                   wordBreak: 'break-all',
                 }}>
                   {this.state.error.message}
+                  {this.state.componentStack && (
+                    <>
+                      {'\n\n组件栈：\n'}
+                      {this.state.componentStack}
+                    </>
+                  )}
                 </pre>
               </details>
             )}

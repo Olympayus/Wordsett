@@ -48,11 +48,11 @@ interface Props {
 }
 
 /**
- * 手机顶栏（Task 5，spec §4.1）：抽屉、返回 / 前进、标题、「色条」开关、⋯。
+ * 手机顶栏（Task 5，spec §4.1）：抽屉、返回 / 前进、标题、「编者」开关、⋯。
  *
  * - 返回 / 前进走 `useWorkbenchNavigation`——与桌面 `WorkbenchNavBar` 共用同一份
  *   「先切模块 → 再切数据集 → 最后选词」的实现（Task 5 抽出），两处入口顺序不可能分家。
- * - 「色条」开关是 `useViewStore.editorMode`（编者模式）的形态开关：`SquareButton` 的
+ * - 「编者」开关是 `useViewStore.editorMode`（编者模式）的形态开关：`SquareButton` 的
  *   `pressed` 配方与桌面 `WorkbenchNavBar` 同一套（含 `role="switch"` + `aria-checked`
  *   与品牌蓝浅一阶底），尺寸取 `size="touch"`——`SquareButton` 为手机外壳开的触屏档，
  *   与 `nav` 同形、只把高度从 22 提到 32（spec §10）。于是它与左右两枚 32px 箭头键
@@ -164,7 +164,7 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
         {editing ? (
           <>
             {/* 编辑态（Plan 2 的行内编辑）：与桌面 `WorkbenchNavBar` 同一约定——右端整簇换成
-                「取消 / 保存」，色条开关与 ⋯ 都让位（编辑中不该还能切形态开关或删除词条）。
+                「取消 / 保存」，编者开关与 ⋯ 都让位（编辑中不该还能切形态开关或删除词条）。
                 `size="touch"` 是 `SquareButton` 为手机外壳新开的触屏档：与 `nav` 同形，
                 只把高度提到 32（spec §10 的「沿用 size="nav" 配方，手机把高度调到约 32dp」）。
                 桌面那对仍是 `nav` 的 22px，两档互不牵动。 */}
@@ -177,7 +177,7 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
           </>
         ) : (
           <>
-            {/* 编者模式（「色条」）：形态开关，开 = 品牌蓝浅一阶 + 深字。`SquareButton` 的
+            {/* 编者模式（「编者」）：形态开关，开 = 品牌蓝浅一阶 + 深字。`SquareButton` 的
                 `pressed` 配方与桌面 `WorkbenchNavBar` 同一套（`role="switch"` + `aria-checked`），
                 高度同样走 `touch` 档——与左右两枚 32px 箭头键逐像素等高，右端簇才不歪。 */}
             <SquareButton
@@ -186,11 +186,11 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
               pressed={editorMode}
               role="switch"
               aria-checked={editorMode}
-              aria-label="色条"
-              title="色条"
+              aria-label="编者"
+              title="编者"
               onClick={() => setEditorMode(!editorMode)}
             >
-              色条
+              编者
             </SquareButton>
             {/* ⋯ 里两件动作：移入 / 移出储藏库、删除词条（与桌面工作台同一批调用，见组件头注释）。
                 没有选中词时整枚不出——移动与删除都没有宾语；详情态下也不出——见上方 `dictOpen`

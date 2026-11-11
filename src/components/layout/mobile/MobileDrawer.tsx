@@ -6,13 +6,14 @@ import WordList, { type WordListHandle } from '../WordList'
 import SidebarFooter from '../SidebarFooter'
 
 /**
- * 手机抽屉（Task 6，spec §4.4）：从左覆盖约 **86%** 宽、右侧留遮罩；点遮罩或标题左侧的 × 关闭。
+ * 手机抽屉（Task 6，spec §4.4；用户裁定改为**整屏**）：从左覆盖**整块屏幕**（外壳根，
+ * 含顶栏与底栏），不再留右侧遮罩条——点左上角那枚抽屉钮即进入一整块词库页面，× / Esc 关闭。
  *
  * 内容与桌面侧栏**同构**：筛选框、智能视图、分组词表、底部单词总数，全部由 `WordList`
  * 原样承担（本仓不复制正文渲染的同一条规矩，在这里同样成立——抽屉里那份列表与桌面侧栏是
  * **同一个组件**，只是 `chrome="drawer"`）。桌面侧栏的三颗工具按钮（多选 / 模式切换 / 收起）
  * 在抽屉里各有出处：多选与模式切换搬进标题右侧（桌面同款 icon 钮），收起钮没有意义
- * （抽屉的关闭由 × 与遮罩承担），故 `toolbarSlots` 在 `chrome='drawer'` 下把三颗全关掉。
+ * （抽屉的关闭由 × 承担），故 `toolbarSlots` 在 `chrome='drawer'` 下把三颗全关掉。
  *
  * 抽屉**保持挂载**，关闭时用 `visibility` / `opacity` / `pointer-events` 隐藏——
  * 卸载会让 `WordList` 的滚动容器重建，滚动位置归零（spec §4.4「抽屉关闭再打开保留滚动位置」）。
@@ -22,12 +23,12 @@ import SidebarFooter from '../SidebarFooter'
  * 抽屉**只挂载在词条页**（工作台 / 储藏库）：复习 / 搜索 / 设置是各自的一级页面，
  * 顶栏（以及那枚入口按钮）本来也不在那里出现。
  *
- * 层级取 `--z-modal`：与确认弹窗同档，但浮层阴影（`--shadow-overlay`）仍然成立；
+ * 层级取 `--z-modal`：与确认弹窗同档，压在顶栏 / 内容 / 底栏之上（整屏覆盖，不再需要右侧描边与投影）；
  * `FindBar` 在 `--z-toast` 之上，抽屉打开时它照旧压得住（现状不变）。
  */
 
-/** 抽屉宽度（spec §4.4：从左覆盖约 86%）。 */
-const DRAWER_WIDTH = '86%'
+/** 抽屉宽度：整屏（用户裁定，原为「覆盖约 86%、右侧留遮罩」）。 */
+const DRAWER_WIDTH = '100%'
 /** 标题行的左右内边距：与底栏 / 顶栏同一档（8px），标题不贴边。 */
 const TITLE_GUTTER = 8
 
@@ -124,24 +125,9 @@ export default function MobileDrawer({ open, onClose }: Props) {
         display: 'flex',
       }}
     >
-      {/* 遮罩：占满抽屉右侧的那 14%，也兜住抽屉本身之外的整屏（spec §4.4「点遮罩关闭」）。
-          **没有可及名、也不进 Tab 序列**（`aria-hidden` + `tabIndex={-1}`）：点它等于关闭，
-          而「关闭」已由标题那枚带 aria-label 的 × 承载——再给遮罩一个名字，读屏用户会在
-          对话框里读到两个「关闭」。点遮罩关闭是**鼠标 / 触摸**的便利，不是键盘路径。 */}
-      <button
-        type="button"
-        aria-hidden="true"
-        tabIndex={-1}
-        onClick={onClose}
-        style={{
-          flex: '1 1 auto', minWidth: 0, border: 'none', padding: 0, cursor: 'pointer',
-          background: 'var(--color-scrim)',
-          touchAction: 'manipulation',
-          WebkitTapHighlightColor: 'transparent',
-        }}
-      />
-
-      {/* 抽屉面板：86% 宽（按父级宽度算，父级即外壳那一屏）。 */}
+      {/* 抽屉面板：整屏宽（按父级宽度算，父级即外壳根——铺满顶栏 / 内容 / 底栏）。
+          **不再有遮罩**：面板铺满内容区后，遮罩条没有可点面积，留着只是一段死元素；
+          关闭走标题那枚 × 与 Esc（安卓返回键由 `MobileShell` 的返回栈接管）。 */}
       <div
         className="flex flex-col overflow-hidden"
         style={{
@@ -149,15 +135,15 @@ export default function MobileDrawer({ open, onClose }: Props) {
           flexShrink: 0,
           // 与桌面侧栏同档面（--color-surface-sunken，索引栏）
           background: 'var(--color-surface-sunken)',
-          borderRight: '1px solid var(--color-border)',
-          boxShadow: 'var(--shadow-overlay)',
         }}
       >
         {/* 标题行：× ／「词库」／ 多选 ／ 模式切换。标题右侧不放 ⋯——桌面没有对应条目，不新造菜单（spec §4.4）。 */}
         <div
           className="shrink-0 flex items-center"
           style={{
-            height: '52px', gap: 2, padding: `0 ${TITLE_GUTTER}px`,
+            // 高度含顶部安全区（与 `MobileAppBar` 同一条理由）：抽屉现在是**整屏**，
+            // 顶行直接压在状态栏下，不把安全区算进高度就会被刘海 / 挖孔盖住。
+            height: `calc(52px + env(safe-area-inset-top))`, gap: 2, padding: `0 ${TITLE_GUTTER}px`,
             background: 'var(--color-chrome)',
             borderBottom: '1px solid var(--color-border)',
           }}

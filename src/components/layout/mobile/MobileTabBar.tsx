@@ -8,9 +8,9 @@ import { useDueCount } from '../useDueCount'
  * 手机底栏（Task 5，spec §4.1）：五格常显，顺序与图标照 `MOBILE_TABS`（Task 2）——
  * 与桌面活动栏（`ActivityRail`）的五格一一对应，同一个模块在两个外壳上长一样。
  *
- * 中间那格是搜索，做成**凸起的圆钮**：暖中性面 + 发丝边 + 阴影，靠尺寸与位置表达主入口，
- * 不用品牌蓝（spec §10：普通按钮一律暖中性，蓝只给状态）。圆钮向上凸出栏面 6px，
- * 由父级 `overflow: visible` 让它真的探出去（外壳的根是纵向 flex，不裁子项）。
+ * 中间那格是搜索，做成**圆形钮**：暖中性面 + 发丝边 + 阴影，靠尺寸与形状表达主入口，
+ * 不用品牌蓝（spec §10：普通按钮一律暖中性，蓝只给状态）。圆钮**完整收在栏面内**
+ * （用户裁定：不再向上凸起），纵向居中于底栏。
  *
  * 复习格的到期徽标读 `useDueCount()`——与桌面标题栏 `DueBadge`、复习控制台**同一个数**
  * （同一份取数 / 轮询实现，见 `useDueCount.ts`）。徽标为 0 时不出（不出「0 张」占位）。
@@ -23,22 +23,16 @@ import { useDueCount } from '../useDueCount'
 const BAR_HEIGHT = 62
 
 /**
- * 凸起的搜索圆钮（尺寸与位置照预览页 `all-pages-02.html:111-112` 的 `.fab`）：
- * 直径 52、向上凸出栏面 **17**、外圈 5px 的 `--color-chrome` 环，圆心落在栏面上缘。
- *
- * 那圈 5px 环不是装饰：圆钮的底色取 `--color-surface`（比栏面 `--color-chrome` 浅），
- * 没有环它会在栏面上「陷」进去而不是「凸」出来——环把圆钮与栏面之间的那一圈填成栏面同色，
- * 于是圆钮看起来是从栏里长出来的（预览页的 `.fab` 正是 `border: 5px solid var(--chrome)`）。
+ * 搜索圆钮（用户裁定：**不再凸起**，完整形状收在底栏内）：直径 52、纵向居中于 62px 的栏面，
+ * 外圈 5px 的 `--color-chrome` 环保留（圆钮与栏面之间的那一圈仍是栏面同色，圆钮读作嵌在栏里）。
  *
  * 环用 `border` 画。Tailwind preflight 的 `box-sizing: border-box` 让 `width/height` 成为
- * **含环**尺寸（内容盒因此是 52 − 2×5 = 42px）——预览页同样是 `border-box` + `width:52px`，
- * 两处逐字一致。
+ * **含环**尺寸（内容盒因此是 52 − 2×5 = 42px）——预览页同样是 `border-box` + `width:52px`。
  *
- * 凸起量 17 不是随手取的数：半径 26 的圆，`marginTop: -17` 让圆心与栏顶对齐，于是上半个圆
- * 在栏顶之上、下半个陷进栏里并被环盖住。与预览页的 `top:-17px` 同源。
+ * 上一版靠 `marginTop: -17`（半径 26，圆心落在栏面上缘）让圆钮探出栏顶 6px；
+ * 现在改为 `alignSelf: 'center'`，圆心回到栏面中轴，上下各留 (62 − 52) / 2 = 5px。
  */
 const FAB_SIZE = 52
-const FAB_RISE = 17
 const FAB_RING = 5
 
 /** 普通格：图标 + 下方小字。命中区 44dp 由格子自身高度保证（62px 栏 + 12px 上下内边距）。 */
@@ -68,19 +62,18 @@ const badgeStyle: CSSProperties = {
 }
 
 /**
- * 凸起的搜索圆钮：暖中性面（`surface-raised`）+ 5px 栏面同色环 + 浮层阴影。
+ * 底栏中轴上的搜索圆钮：暖中性面（`surface-raised`）+ 5px 栏面同色环 + 浮层阴影。
  *
- * 圆心落在**栏面上缘**（`marginTop: -FAB_RISE`）：半径 26 的圆上半个在栏顶之上、下半个陷进栏里，
- * 陷进去的那半被 5px 环盖住（环与栏面同色），于是圆钮读作「从栏面里长出来」。
- * 上一版写 `marginTop: -6` 时圆心在栏顶**之下** 20px，圆钮整个躺在栏内、上方还留着一段死区，
- * 凸起效果出不来——这正是本项要修的。
+ * `alignSelf: 'center'` 让 52px 的圆在 62px 的栏面里纵向居中（父级 `items-stretch` 会把
+ * 不写高度的子项拉满，故这里必须显式居中）。**不写负 marginTop**：上一版靠它向上凸出
+ * 17px，用户裁定改为完整形状收在底栏内。
  *
  * 阴影取 `--shadow-overlay`（全站唯一的浮层阴影），不新造色值。
  */
 const fabStyle: CSSProperties = {
   width: `${FAB_SIZE}px`, height: `${FAB_SIZE}px`, flexShrink: 0,
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  marginTop: -FAB_RISE,
+  alignSelf: 'center',
   borderRadius: '50%',
   // 环与栏面同色（`--color-chrome`）：圆钮压在栏上时，环把两者的缝填掉
   border: `${FAB_RING}px solid var(--color-chrome)`,
@@ -117,7 +110,7 @@ export default function MobileTabBar() {
         height: `calc(${BAR_HEIGHT}px + env(safe-area-inset-bottom))`,
         background: 'var(--color-chrome)',
         borderTop: '1px solid var(--color-border)',
-        // 让搜索圆钮探出栏顶（spec §4.1 的「居中凸起」）
+        // 圆钮已不凸起，`overflow: visible` 保留为壳层的既有约定（外壳是纵向 flex，不裁子项）
         overflow: 'visible',
       }}
     >

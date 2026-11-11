@@ -234,8 +234,13 @@ describe('工作区改用原语（源码级守卫）', () => {
 //  最终评审修复（编辑态卸载上报 +9 行，落在 `handleAddField` 之前）：下半六处命中行整体下移，
 //  两处旧的 1089 / 1093 已不再命中，重算为
 //  1087 / 1096 / 1100 / 1143 / 1346 / 1537（由守卫失败输出回填）。
+//  手机端打磨（本轮）：内容列拆成上下两段、页签条带在手机外壳下移出内容列——
+//  拆列注释由 1 行扩成 3 行（+2），落在尾段命中行之上。
+//  #310 修复（本轮）：`useRef` / `useImperativeHandle` 两个 hook 提到空态早退之前
+//  （净 +3 行），下段六处命中行整体下移 3，重算为
+//  1090 / 1099 / 1103 / 1146 / 1349 / 1542（由守卫失败输出回填）。
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [303, 304, 312, 318, 339, 340, 1087, 1096, 1100, 1143, 1346, 1537], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['WordWorkbench.tsx', [303, 304, 312, 318, 339, 340, 1090, 1099, 1103, 1146, 1349, 1542], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
   ['DictDetailCard.tsx', [102, 193, 257, 386], '可见性过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 
@@ -259,5 +264,29 @@ describe('两页共用 leafForm（v0.7.3 尾段 §1.3）', () => {
         `${name} 存在 allow-list 之外的裸 key 判断（「哪个键长什么样」只能问 leafForm）`,
       ).toEqual([])
     }
+  })
+})
+
+// React #310（2026-11-11 真机复现）：`WordWorkbench` 的空态早退
+// `if (!selectedWord) return <EmptyState/>` 一度把 `useRef` / `useImperativeHandle` 挡在后面——
+// 空态渲染少两个 hook、选中词后 hook 数变多，React 直接抛 "Rendered more hooks than during
+// the previous render"，手机端表现为整页「出了点问题」。hook 的位置必须与渲染分支无关，
+// 这条守卫钉住「早退在所有 hook 之后」。
+describe('hook 顺序（React #310 守卫）', () => {
+  it('空态早退必须在全部 hook 之后', () => {
+    const src = readFileSync(new URL('./WordWorkbench.tsx', import.meta.url), 'utf8')
+    const lines = src.split('\n')
+    // 只认代码行：注释里会提到 hook 名字（比如解释这条守卫的地方），不能算调用
+    const isCode = (l: string) => {
+      const t = l.trim()
+      return t.length > 0 && !t.startsWith('//') && !t.startsWith('*') && !t.startsWith('/*')
+    }
+    // `use[A-Z]…(` / `use[A-Z]…<` —— `useWordStore.getState()` 这类 store 读法不匹配（后面是 `.`）
+    const hookRe = /\buse[A-Z][A-Za-z0-9_]*\s*[<(]/
+    const lastHookLine = lines.reduce((acc, l, i) => (isCode(l) && hookRe.test(l) ? i + 1 : acc), 0)
+    const earlyReturnLine = lines.findIndex(l => /^\s{2}if \(!selectedWord\)/.test(l)) + 1
+    expect(earlyReturnLine).toBeGreaterThan(0)
+    expect(earlyReturnLine, `WordWorkbench.tsx:${lastHookLine} 处仍有 hook 落在空态早退之后`)
+      .toBeGreaterThan(lastHookLine)
   })
 })
