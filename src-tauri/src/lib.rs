@@ -8,14 +8,21 @@ mod platform;
 // 手机外壳用 `destroy()` 退出，不走「关窗 → 最小化到托盘」那条分流。
 #[cfg(desktop)]
 mod tray;
-// TTS 按平台换实现：桌面用系统引擎（Windows SAPI5 回退 / macOS 原生），手机挂占位。
-// 纯换模块而不动命令表——`tts_stub.rs` 导出同名命令与同名数据结构，`generate_handler!`
-// 的两份列表因此逐字相同。手机为什么编不了 `tts`：它的 Android 后端要 `rs/tts/Bridge`
-// 与 `ndk_context` 初始化，本仓库锁定的 tao 0.35 两样都没有，`Tts::default()` 会 panic
-// 并 abort 进程（前端在所有平台启动时都会探测一次 TTS）。Plan 3 接 Android TTS。
+// TTS 桥的 JSON 解析（Task 13）。**永远参与编译**：安卓专属的 `tts_android.rs` 在宿主机上
+// 编不到，解析若跟着它一起 cfg 掉，这条跨语言契约在本环境就一条测试都跑不了。
+mod tts_bridge;
+// TTS 按平台换实现：桌面用系统引擎（Windows SAPI5 回退 / macOS 原生），Android 走
+// Kotlin 桥 + Rust 轮询，其余手机平台（iOS）仍是占位。纯换模块而不动命令表——
+// 三个 `.rs` 导出同名命令与同名数据结构，`generate_handler!` 的两份列表因此逐字相同。
+// 手机为什么编不了 `tts`：它的 Android 后端要 `rs/tts/Bridge` 与 `ndk_context` 初始化，
+// 本仓库锁定的 tao 0.35 两样都没有，`Tts::default()` 会 panic 并 abort 进程
+// （前端在所有平台启动时都会探测一次 TTS）。
 #[cfg(not(mobile))]
 mod tts_player;
-#[cfg(mobile)]
+#[cfg(all(mobile, target_os = "android"))]
+#[path = "tts_android.rs"]
+mod tts_player;
+#[cfg(all(mobile, not(target_os = "android")))]
 #[path = "tts_stub.rs"]
 mod tts_player;
 
