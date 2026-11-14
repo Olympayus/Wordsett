@@ -120,6 +120,40 @@ export function tabSheetItems(): SheetItem[] {
 }
 
 /**
+ * 行级「添加子项」的 grid 表（v0.7.7 fix Important 3，spec §3.9 不变量 5 / §3.3 grid）。
+ *
+ * 条目就是桌面 `AddMenu` 在行级列出的那一批——该容器 `ALLOWED_CHILD_KEYS` 允许的子字段，
+ * 文案逐字取字段名。调用点只做 `key → onPickAdd(containerFv, def)` 的映射。
+ */
+export function addChildSheetItems(defs: { id: string; name: string }[]): SheetItem[] {
+  return defs.map(d => ({ key: d.id, label: d.name }))
+}
+
+/** 页级添加表里「新建标签页」的 key 前缀；其余 key 是字段定义 id 或下面两个哨兵。 */
+export const SHEET_ADD_TAB_PREFIX = '__add_tab__:'
+/** 页级添加表的「添加词根」（桌面 `pageAddExtra` 的第二条）。 */
+export const SHEET_ADD_WORD_ROOT = '__add_word_root__'
+/** 页级添加表的「添加音标」（桌面 `pageAddExtra` 的第三条）。 */
+export const SHEET_ADD_PHONETIC = '__add_phonetic__'
+
+/**
+ * 页级「＋ 添加」的 grid 表：与桌面 `AddMenu` 的 `pageAddItems` + `pageAddExtra` 同一份选项、
+ * 同一批文案——本标签页可加项、缺失标签页、添加词根、添加音标。
+ * 桌面把后三类放在「新建标签页」小节里；grid 没有分节，顺序保持不变。
+ */
+export function pageAddSheetItems(a: {
+  fieldDefs: { id: string; name: string }[]
+  missingTabs: { key: string; label: string }[]
+}): SheetItem[] {
+  return [
+    ...a.fieldDefs.map(d => ({ key: d.id, label: d.name })),
+    ...a.missingTabs.map(t => ({ key: `${SHEET_ADD_TAB_PREFIX}${t.key}`, label: t.label })),
+    { key: SHEET_ADD_WORD_ROOT, label: '添加词根' },
+    { key: SHEET_ADD_PHONETIC, label: '添加音标' },
+  ]
+}
+
+/**
  * 顶栏 ⋯ 的表。首项是来源色开关（`sourceColorsOn` 即编者模式），
  * 移动与删除只在选中词时出现；没有选中词时只剩开关（Ruling 3）。
  */

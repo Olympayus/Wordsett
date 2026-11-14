@@ -65,15 +65,18 @@ export const useCategoryStore = create<CategoryStore>((set, get) => ({
     await get().loadWordCategoryMap()
   },
 
+  // 只刷新**当前选中词**的全局 `wordCategoryIds`（v0.7.7 fix Critical 2）：
+  // 抽屉 / 分类分配对非选中词操作时若也刷新，会把工作台头带的分类胶囊换成另一个词的。
+  // `wordCategoryMap` 仍每次都刷——它服务侧栏分组，与选中词无关。
   assignToWord: async (wordId, categoryId) => {
     await categoryService.assignCategoryToWord(wordId, categoryId)
-    await get().loadWordCategories(wordId)
+    if (wordId === useWordStore.getState().selectedWordId) await get().loadWordCategories(wordId)
     await get().loadWordCategoryMap()
   },
 
   removeFromWord: async (wordId, categoryId) => {
     await categoryService.unassignCategoryFromWord(wordId, categoryId)
-    await get().loadWordCategories(wordId)
+    if (wordId === useWordStore.getState().selectedWordId) await get().loadWordCategories(wordId)
     await get().loadWordCategoryMap()
   },
 

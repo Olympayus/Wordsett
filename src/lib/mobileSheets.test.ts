@@ -1,6 +1,6 @@
 // src/lib/mobileSheets.test.ts
 import { describe, it, expect } from 'vitest'
-import { rowSheetItems, unitSheetItems, drawerWordSheetItems, removeCategoryItems, categorySheetItems, tabSheetItems, appBarMenuItems, categoryAssignItems, SHEET_CREATE_CATEGORY } from './mobileSheets'
+import { rowSheetItems, unitSheetItems, drawerWordSheetItems, removeCategoryItems, categorySheetItems, tabSheetItems, appBarMenuItems, categoryAssignItems, SHEET_CREATE_CATEGORY, addChildSheetItems, pageAddSheetItems, SHEET_ADD_TAB_PREFIX, SHEET_ADD_WORD_ROOT, SHEET_ADD_PHONETIC } from './mobileSheets'
 
 describe('rowSheetItems', () => {
   it('叶子行：编辑 / 添加子项 / 删除（判据同桌面 menuItems）', () => {
@@ -84,5 +84,43 @@ describe('appBarMenuItems', () => {
   it('没有选中词时只出来源色开关', () => {
     expect(appBarMenuItems({ sourceColorsOn: false, moveLabel: '移入储藏库', hasWord: false }).map(i => i.label))
       .toEqual(['显示来源色'])
+  })
+})
+
+describe('addChildSheetItems', () => {
+  it('逐字取字段名，key 是字段定义 id（与桌面行级 AddMenu 的条目一致）', () => {
+    const items = addChildSheetItems([
+      { id: 'def-zh', name: '中文释义' },
+      { id: 'def-en', name: '英文释义' },
+    ])
+    expect(items.map(i => i.label)).toEqual(['中文释义', '英文释义'])
+    expect(items.map(i => i.key)).toEqual(['def-zh', 'def-en'])
+  })
+  it('没有可加子项时是空表', () => {
+    expect(addChildSheetItems([])).toEqual([])
+  })
+})
+
+describe('pageAddSheetItems', () => {
+  it('可加项 → 缺失标签页 → 添加词根 → 添加音标，文案与桌面 AddMenu 逐字相同', () => {
+    const items = pageAddSheetItems({
+      fieldDefs: [
+        { id: 'def-pos', name: '词性' },
+        { id: 'def-sup', name: '补充' },
+      ],
+      missingTabs: [
+        { key: 'phrase', label: '短语' },
+        { key: 'exchange', label: '词形变化' },
+      ],
+    })
+    expect(items.map(i => i.label)).toEqual(['词性', '补充', '短语', '词形变化', '添加词根', '添加音标'])
+    expect(items.map(i => i.key)).toEqual([
+      'def-pos', 'def-sup',
+      `${SHEET_ADD_TAB_PREFIX}phrase`, `${SHEET_ADD_TAB_PREFIX}exchange`,
+      SHEET_ADD_WORD_ROOT, SHEET_ADD_PHONETIC,
+    ])
+  })
+  it('没有缺失标签页时仍保留词根与音标两条（桌面 extra 恒在）', () => {
+    expect(pageAddSheetItems({ fieldDefs: [], missingTabs: [] }).map(i => i.label)).toEqual(['添加词根', '添加音标'])
   })
 })

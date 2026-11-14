@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useFocusTrap } from '../../lib/useFocusTrap'
 import { useCategoryStore } from '../../stores/categoryStore'
+import { getWordCategories } from '../../services/categoryService'
 import Icon from '../icons'
 import { Button } from '../ui/Button'
 import CheckBox from '../ui/CheckBox'
@@ -21,8 +22,21 @@ interface Props {
 }
 
 export default function CategoryAssignModal({ open, wordId, onClose, onCreateNew, variant = 'desktop' }: Props) {
-  const { categories, wordCategoryIds, assignToWord, removeFromWord } = useCategoryStore()
+  const { categories, assignToWord, removeFromWord } = useCategoryStore()
   const isMobile = variant === 'mobile'
+
+  // 勾选态必须是**本弹窗自己的 `wordId`** 的一份（v0.7.7 fix Critical 2）：全局
+  // `wordCategoryIds` 只描述工作台当前选中的词，抽屉里对非选中词打开本弹窗时它是另一个词的
+  // 状态——勾会画错，第一次切换也会按错的已属关系反向执行。打开 / 换词时重新拉取。
+  const [assignedIds, setAssignedIds] = useState<string[]>([])
+  useEffect(() => {
+    if (!open) return
+    let alive = true
+    void getWordCategories(wordId).then(cats => {
+      if (alive) setAssignedIds(cats.map(c => c.id))
+    })
+    return () => { alive = false }
+  }, [open, wordId])
 
   // Esc 关闭（§11 a11y 键盘可达）。手机端关表走底部「取消」或安卓返回键
   // （表自己经 `registerMobilePopup` 登记），不额外接 Esc。
@@ -40,13 +54,15 @@ export default function CategoryAssignModal({ open, wordId, onClose, onCreateNew
 
   if (!open) return null
 
-  const assigned = new Set(wordCategoryIds)
+  const assigned = new Set(assignedIds)
 
   const toggle = async (categoryId: string) => {
     if (assigned.has(categoryId)) {
       await removeFromWord(wordId, categoryId)
+      setAssignedIds(prev => prev.filter(id => id !== categoryId))
     } else {
       await assignToWord(wordId, categoryId)
+      setAssignedIds(prev => (prev.includes(categoryId) ? prev : [...prev, categoryId]))
     }
   }
 
@@ -55,7 +71,7 @@ export default function CategoryAssignModal({ open, wordId, onClose, onCreateNew
       <MobileActionSheet
         open
         title="选择分类"
-        items={categoryAssignItems(categories, wordCategoryIds)}
+        items={categoryAssignItems(categories, assignedIds)}
         onPick={key => {
           if (key === SHEET_CREATE_CATEGORY) {
             // 裁定 10：先关分配表，再走既有的新建分类入口（进 `CategoryEditorModal`）。

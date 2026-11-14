@@ -63,7 +63,7 @@ import { deleteWordConfirmRequest } from '../../lib/wordActions'
 import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING_X, ENTRY_PHONETIC_GAP, NAV_CONTROL_HEIGHT } from '../../lib/layout'
 import { mobileRowActionsVisible } from '../../lib/mobileRowActions'
 import { hitAreaStyle, TOUCH_LONG_PRESS_MS, TOUCH_SLOP_PX, TOUCH_TARGET_PX } from '../../lib/mobileHitArea'
-import { rowSheetItems, unitSheetItems, type SheetItem } from '../../lib/mobileSheets'
+import { rowSheetItems, unitSheetItems, addChildSheetItems, pageAddSheetItems, SHEET_ADD_TAB_PREFIX, SHEET_ADD_WORD_ROOT, SHEET_ADD_PHONETIC, type SheetItem } from '../../lib/mobileSheets'
 import { useTouchLongPress } from '../../lib/useTouchLongPress'
 import MobileActionSheet from '../layout/mobile/MobileActionSheet'
 import type { FieldDefinition, FieldValue } from '../../types/field'
@@ -141,6 +141,22 @@ interface InsertIndicator {
 
 // 「＋ 添加」菜单的打开状态：页级一处、行级一处（同一时刻至多一个）
 type AddMenuState = { target: 'page' } | { target: 'row'; id: string } | null
+
+/**
+ * 手机底部动作表的状态（v0.7.7 Task 5 / fix Important 3）。
+ * - `row` / `unit`：行菜单与单位表，list 形态；
+ * - `addChild`：行菜单「添加子项」的 grid 表，`containerId` 指向实际接收新子项的容器
+ *   （叶子行带可加子类时是父节点，与桌面 `FieldCard` 的 `containerFv` 同一判据）；
+ * - `pageAdd`：页级「＋ 添加」的 grid 表，无目标行（`id: null`，不触发目标高亮）。
+ */
+type MobileSheetState = {
+  kind: 'row' | 'unit' | 'addChild' | 'pageAdd'
+  id: string | null
+  title: string
+  items: SheetItem[]
+  mode?: 'list' | 'grid'
+  containerId?: string
+}
 
 interface FieldCardCtx {
   defs: FieldDefinition[]
@@ -1094,10 +1110,10 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   const [entryValue, setEntryValue] = useState('')  // 进入编辑时的值
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [addMenu, setAddMenu] = useState<AddMenuState>(null)
-  // 手机行级底部表的目标（v0.7.7 Task 5，spec §3.3）：`id` 同时驱动目标行的临时高亮
+  // 手机底部表的状态（v0.7.7 Task 5 / fix Important 3）：`id` 同时驱动目标行的临时高亮
   // （`sheet?.id`，见 FieldCard 的 isSheetTarget），`items` 由 lib/mobileSheets 的判据生成。
   // 桌面永远为 null——没有任何桌面路径会置位（长按与手机 `⋯` 都被 `touch` 门控）。
-  const [sheet, setSheet] = useState<{ id: string; title: string; items: SheetItem[] } | null>(null)
+  const [sheet, setSheet] = useState<MobileSheetState | null>(null)
   const [saved, setSaved] = useState(false)
   const [fadeIn, setFadeIn] = useState(true)
   const [insertIndicator, setInsertIndicator] = useState<InsertIndicator | null>(null)
@@ -1259,6 +1275,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     const def = defs.find(d => d.id === fv.fieldId)
     if (!def) return
     setSheet({
+      kind: 'row',
       id: fv.id,
       // 标题 = 被长按对象的文本（spec §3.3）：有正文取正文，容器类没有正文时退到字段名。
       // 链接标记在纯文本标题里没有意义，与 rowTitle 同口径先剥掉。
@@ -1282,9 +1299,38 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     const def = defs.find(d => d.id === unit.fieldId)
     const containerDef = defs.find(d => d.id === containerFv.fieldId)
     setSheet({
+      kind: 'unit',
       id: unit.id,
       title: unit.value.trim() ? stripLinks(unit.value) : (def?.name ?? containerDef?.name ?? ''),
       items: unitSheetItems(),
+    })
+  }
+
+  // ── 手机行级「添加子项」grid 表（v0.7.7 fix Important 3，spec §3.9 不变量 5 / §3.3）──
+  // 行菜单选「添加子项」后面临的是**同一批选项**，桌面用 AddMenu 弹层、手机必须走
+  // MobileActionSheet 的 grid 形态。容器判据与 FieldCard 的 `containerFv` 逐字相同：
+  // 容器行或有可加子类的行取自己，否则回落到父节点——叶子行（释义）的「添加子项」
+  // 实际加到父级词性窗格，桌面 AddMenu 也是这么做的。
+  // 目标 id 仍记被长按的那一行，保持目标行高亮不跳。
+  const openAddChildSheet = (fv: FieldValue) => {
+    const def = defs.find(d => d.id === fv.fieldId)
+    if (!def) return
+    const isContainer = CONTAINER_FIELD_KEYS.includes(def.key)
+    const rowHasAllowedChildren = (ALLOWED_CHILD_KEYS[def.key] ?? []).length > 0
+    const containerFv = isContainer || rowHasAllowedChildren
+      ? fv
+      : (fv.parentId ? findFieldValueById(fv.parentId) : undefined)
+    if (!containerFv) return
+    const containerDef = defs.find(d => d.id === containerFv.fieldId)
+    if (!containerDef) return
+    const childDefs = defs.filter(d => (ALLOWED_CHILD_KEYS[containerDef.key] ?? []).includes(d.key))
+    setSheet({
+      kind: 'addChild',
+      id: fv.id,
+      title: `加到「${containerDef.name}」`,
+      mode: 'grid',
+      containerId: containerFv.id,
+      items: addChildSheetItems(childDefs),
     })
   }
 
@@ -1574,18 +1620,44 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     onJump,
   }
 
-  // 底部表的 onPick 映射（v0.7.7 Task 5）：edit → 行内编辑、addChild → 行级「＋ 添加」菜单、
-  // delete → 删除确认。**每个分支都先清空 sheet state 再执行**——Task 3 的组件刻意不自动关，
-  // 调用点必须自己收；先清再执行也让「删除确认框 / 编辑态」不会叠在表底下。
-  // 动作本身复用 cardCtx 里的同一组回调，映射之外不另写一份行为。
+  // 底部表的 onPick 映射（v0.7.7 Task 5 / fix Important 3）：行菜单 edit → 行内编辑、
+  // addChild → **手机 grid 添加表**（不再回落到桌面 AddMenu 弹层）、delete → 删除确认；
+  // 添加表的 key 是字段定义 id / 标签页前缀 / 两个哨兵，统一映射回桌面同一批 handler。
+  // **每个分支都先清空 sheet state 再执行**——Task 3 的组件刻意不自动关，
+  // 调用点必须自己收；先清再执行也让「删除确认框 / 编辑态 / 下一张表」不叠在表底下。
   const handleSheetPick = (key: string) => {
     const target = sheet
     if (!target) return
     setSheet(null)
-    const fv = findFieldValueById(target.id)
+
+    if (target.kind === 'addChild') {
+      const def = defs.find(d => d.id === key)
+      const containerFv = target.containerId ? findFieldValueById(target.containerId) : undefined
+      if (def && containerFv) void handleAddChild(containerFv, def)
+      return
+    }
+
+    if (target.kind === 'pageAdd') {
+      if (key.startsWith(SHEET_ADD_TAB_PREFIX)) {
+        const tab = key.slice(SHEET_ADD_TAB_PREFIX.length) as TabKey
+        if (TAB_GROUPS[tab]) void handleAddTab(tab)
+        return
+      }
+      if (key === SHEET_ADD_WORD_ROOT) { void handleAddWordRoot(); return }
+      if (key === SHEET_ADD_PHONETIC) {
+        const d = defs.find(x => x.key === 'phonetic')
+        if (d) void handleAddField(d)
+        return
+      }
+      const def = defs.find(d => d.id === key)
+      if (def) void handleAddField(def)
+      return
+    }
+
+    const fv = target.id ? findFieldValueById(target.id) : undefined
     if (!fv) return
     if (key === 'edit') cardCtx.onStartEdit(fv)
-    else if (key === 'addChild') cardCtx.onToggleAddMenu(fv)
+    else if (key === 'addChild') openAddChildSheet(fv)
     else if (key === 'delete') void cardCtx.onDelete(fv)
   }
 
@@ -1645,9 +1717,10 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
       })
 
   // 页级「＋ 添加」菜单条目：本标签页全部可加项（沿用 addableLeafKeys 判据）+ 新建标签页 / 词根 / 音标
-  const pageAddItems: AddItem[] = effectiveTab
-    ? defs.filter(d => addableLeafKeys(effectiveTab).includes(d.key)).map(d => ({ key: d.id, label: d.name, onPick: () => handleAddField(d) }))
+  const pageAddFieldDefs = effectiveTab
+    ? defs.filter(d => addableLeafKeys(effectiveTab).includes(d.key))
     : []
+  const pageAddItems: AddItem[] = pageAddFieldDefs.map(d => ({ key: d.id, label: d.name, onPick: () => handleAddField(d) }))
   const missing = missingTabs(contentRoots, keyOfFv)
   const pageAddExtra = (
     <div style={{ borderTop: '1px solid var(--color-border)', marginTop: '5px', paddingTop: '5px' }}>
@@ -1669,6 +1742,22 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
       </button>
     </div>
   )
+
+  // 手机页级「＋ 添加」的 grid 表（v0.7.7 fix Important 3）：与桌面同一个入口按钮、
+  // 同一批选项（`pageAddSheetItems` 直接从 `pageAddFieldDefs` / `missing` 生成，文案同源），
+  // 只是形态换成 MobileActionSheet 的 grid。桌面仍走下面的 AddMenu 弹层。
+  const openPageAddSheet = () => {
+    setSheet({
+      kind: 'pageAdd',
+      id: null,
+      title: tabLabel ? `添加到「${tabLabel}」` : '添加',
+      mode: 'grid',
+      items: pageAddSheetItems({
+        fieldDefs: pageAddFieldDefs,
+        missingTabs: missing.map(t => ({ key: t, label: TAB_GROUPS[t].label })),
+      }),
+    })
+  }
 
   // 头带里的字段行（音标 / 词根）：与返回页同一形态。标签取 `lib/labelStyle.ts` 的
   // FIELD_LABEL_STYLE——44px 定宽列 / 10.5px / 600 / 字距 0.1em；墨色按两档规则走：
@@ -1983,7 +2072,12 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
         <div style={{ position: 'relative', maxWidth: `${ENTRY_BAND_WIDTH}px`, marginTop: '20px' }}>
           <button
             type="button"
-            onClick={() => setAddMenu(prev => prev?.target === 'page' ? null : { target: 'page' })}
+            onClick={() => {
+              // 手机（v0.7.7 fix Important 3）：页级添加同样走 grid 底部表；
+              // 桌面仍开原位 AddMenu 弹层，逐字不变。
+              if (touch) { openPageAddSheet(); return }
+              setAddMenu(prev => prev?.target === 'page' ? null : { target: 'page' })
+            }}
             style={{
               display: 'inline-flex', alignItems: 'center', gap: '6px',
               padding: '8px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
@@ -2012,6 +2106,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
         open={sheet !== null}
         title={sheet?.title}
         items={sheet?.items}
+        mode={sheet?.mode ?? 'list'}
         onPick={handleSheetPick}
         onCancel={() => setSheet(null)}
       />
