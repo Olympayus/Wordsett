@@ -21,7 +21,10 @@ import java.util.Locale
  * 这样生成的 `MainActivity` 保持零改动。
  *
  * `@Keep`：release 构建开了 R8（`isMinifyEnabled = true`），本类只被 JNI 的
- * `Class.forName` 按名字引用、Kotlin 侧没有任何调用点，不加会被整类裁掉/改名。
+ * `Class.forName` 按名字引用、Kotlin 侧没有任何调用点。注意 AGP 8.11 的默认规则
+ * **不认** androidx 版 Keep（只认 support 版），故 `proguard-rules.pro` 里另有一行
+ * `-keep @androidx.annotation.Keep class * {*;}`——两处缺一，release 包里就只剩
+ * 一个空类（debug 正常、正式包 TTS 静默失效）。
  */
 @Keep
 object TtsBridge {
