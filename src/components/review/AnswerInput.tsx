@@ -91,7 +91,7 @@ const NEUTRAL_BG = 'var(--color-surface)'
 const NEUTRAL_BORDER = 'var(--color-border)'
 
 export default function AnswerInput({
-  kind, options, target, letterHighlight, disabled, onSubmit, revealedInput,
+  kind, options, target, letterHighlight, disabled, onSubmit, revealedInput, mobile = false,
 }: {
   kind: InputKind
   options?: string[]
@@ -104,6 +104,11 @@ export default function AnswerInput({
    * 组件本身不因此停止响应点击——是否可点由调用方的 `disabled` 决定。
    */
   revealedInput?: string
+  /**
+   * 手机形态（v0.7.6 软键盘）：不自动聚焦，回车提交后主动收起软键盘。
+   * 桌面保持原行为——自动聚焦是有用的（进来即可打字），且桌面上没有软键盘要收。
+   */
+  mobile?: boolean
 }) {
   const [value, setValue] = useState('')
   const [picked, setPicked] = useState<string | null>(null)
@@ -242,11 +247,19 @@ export default function AnswerInput({
     <div className="flex flex-col gap-2">
       <div style={TYPED_INPUT_BOX}>
         <input
-          autoFocus
+          // 手机端不自动聚焦：进题就弹软键盘会盖掉题面与底部评分栏，用户多半要先读题。
+          autoFocus={!mobile}
           disabled={disabled}
           value={value}
           onChange={e => setValue(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter' && value.trim()) onSubmit(value.trim()) }}
+          // 手机端回车提交后主动收起软键盘：提交即揭示，接下来的动作（评分 / 下一题）
+          // 都在底栏与结果区，键盘留着只会遮住它们。
+          onKeyDown={e => {
+            if (e.key === 'Enter' && value.trim()) {
+              onSubmit(value.trim())
+              if (mobile) e.currentTarget.blur()
+            }
+          }}
           aria-label="键入答案"
           style={{
             width: '100%', whiteSpace: 'pre',

@@ -72,7 +72,7 @@ function PromptRow({ children }: { children: React.ReactNode }) {
 }
 
 export default function PromptCard({
-  dto, letterHighlight, disabled, onSubmit, onSkip, revealedInput,
+  dto, letterHighlight, disabled, onSubmit, onSkip, revealedInput, mobile = false,
 }: {
   dto: ReviewCardDTO
   letterHighlight: boolean
@@ -82,6 +82,8 @@ export default function PromptCard({
   onSkip: () => void
   /** 回看态：该卡已提交的作答原文，透传给 AnswerInput 复现判分着色 */
   revealedInput?: string
+  /** 手机形态（v0.7.6）：只改输入框的聚焦与回车收键盘，见 AnswerInput 的 `mobile` */
+  mobile?: boolean
 }) {
   const p = dto.prompt as Record<string, any>
   return (
@@ -171,6 +173,7 @@ export default function PromptCard({
         disabled={disabled}
         onSubmit={onSubmit}
         revealedInput={revealedInput}
+        mobile={mobile}
       />
     </section>
   )

@@ -19,6 +19,7 @@ import { useNavHistoryStore } from '../../../stores/navHistoryStore'
 import { useReviewSessionStore } from '../../../stores/reviewSessionStore'
 import { answeredCount } from '../../../lib/review/nav'
 import { isSessionLive, leaveMessage } from '../../../lib/review/sessionGuard'
+import { hideMobileTabBar } from '../../../lib/mobileTabBar'
 import { usePlatformClass } from '../../../lib/usePlatform'
 import { useUiStore } from '../../../stores/uiStore'
 import CategoryAssignModal from '../../word/CategoryAssignModal'
@@ -58,6 +59,11 @@ export default function MobileShell() {
   const activeModule = useViewStore(s => s.activeModule)
   const activeView = useViewStore(s => s.activeView)
   const dictWord = useViewStore(s => s.dictWord)
+  // 复习会话态（v0.7.6 沉浸态）：答题进行中收起底栏，判据在 `mobileTabBar`。
+  // 两个字段分开订阅：底栏显隐只跟它们走，答题中 `index` / `answered` / `queue` 的
+  // 每次变化都不该顺带重渲整棵手机外壳。
+  const reviewPhase = useReviewSessionStore(s => s.phase)
+  const reviewSessionStrategy = useReviewSessionStore(s => s.sessionStrategy)
   // 词条页的编辑态（由 `WordWorkbench` 上报，见上方 `EditState`）
   const [editing, setEditing] = useState<EditState | null>(null)
   // 保存 / 取消：编辑态归 `WordWorkbench` 所有（`editingId` / `editValue` 都在它体内），
@@ -340,8 +346,10 @@ export default function MobileShell() {
         </>
       )}
 
-      {/* 底栏：五格 + 中间的搜索圆钮 + 复习到期徽标。 */}
-      <MobileTabBar />
+      {/* 底栏：五格 + 中间的搜索圆钮 + 复习到期徽标。
+          v0.7.6 沉浸态：复习会话进行中整条收起（判据见 `hideMobileTabBar`）——
+          答题页自带一条随会话状态变化的底栏，两条同时出现会把答题区挤掉一截。 */}
+      {!hideMobileTabBar(activeModule, reviewPhase, reviewSessionStrategy) && <MobileTabBar />}
 
       {/* 全局浮层（Task 11）：分类分配 / 新建分类 / 通用确认框。与 `AppShell` 的挂载方式一致，
           用同一份 `useUiStore` 状态；`UpdateDialog` 刻意不挂（Android 禁用 updater）。 */}

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import PromptCard, { autoGrades, inputKindFor, typedTarget } from './PromptCard'
-import RatingBar from './RatingBar'
+import RatingBar, { RATING_OPTIONS } from './RatingBar'
 import ResultBlock from './ResultBlock'
 import EntrySnapshot from './EntrySnapshot'
 import SquareButton from '../ui/SquareButton'
@@ -12,6 +12,7 @@ import { compareTyped } from '../../lib/review/typed'
 import { currentAnswered, revealedInputFor } from '../../lib/review/nav'
 import { correctAnswerText } from '../../lib/review/roundStats'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
+import { answerBarMode, type AnswerBarMode } from '../../lib/review/answerBar'
 import { RESULT_BREAKPOINT, RESULT_CONTENT_WIDTH, NARROW_CONTENT_WIDTH, RESULT_HALF_WIDTH, resultGridColumns } from '../../lib/review/resultLayout'
 import { getWordContent } from '../../db/review'
 
@@ -52,10 +53,66 @@ function judgeAnswer(dto: ReviewCardDTO, input: string): boolean | null {
 }
 
 /**
+ * 手机答题底栏（v0.7.6 §3.5）。出哪一组控件完全由 `answerBarMode` 决定，
+ * 本组件不重新判断会话状态——那个判据在 `lib/review/answerBar`（有单测）。
+ *
+ * 设计上的四态在这里收成三态：未揭示（none）不渲染底栏；已揭示未评分（rate）
+ * 三颗等分键；已评分待推进与回看态共用 next 一态，只出一颗「下一题 / 查看结算」。
+ * 回看态因此**没有**评分键——看旧题不能重评，这条规则与桌面读的是同一个状态推导，
+ * 不是两套 UI 各写一遍。
+ *
+ * 键是原生 `<button>` + 内联样式而不是 `SquareButton`：底栏键是 54dp 的触摸目标，
+ * 与桌面方块键的 padding / 字号 / tone 体系不是一套，借用只会为了两处一致而改坏一处。
+ */
+function MobileAnswerBar({ mode, atTail, disabled, onRate, onAdvance }: {
+  mode: AnswerBarMode
+  atTail: boolean
+  disabled: boolean
+  onRate: (rating: number) => void
+  onAdvance: () => void
+}) {
+  if (mode === 'none') return null
+  const keyStyle: React.CSSProperties = {
+    flex: 1, height: 54, borderRadius: 8,
+    background: 'var(--color-surface)', border: '1px solid var(--color-hairline)',
+    color: 'var(--color-text-primary)', fontSize: 14, fontWeight: 600,
+    fontFamily: 'var(--font-sans)', cursor: disabled ? 'default' : 'pointer',
+  }
+  return (
+    <div style={{
+      background: 'var(--color-surface-sunken)',
+      borderTop: '1px solid var(--color-border)',
+      // 安全区加进 padding 而不是容器高度：底栏是流内最后一项，内容多高它就多高
+      padding: '10px 12px calc(10px + env(safe-area-inset-bottom))',
+      display: 'flex', gap: 8,
+    }}>
+      {mode === 'rate' ? RATING_OPTIONS.map(o => (
+        <button
+          key={o.rating}
+          type="button"
+          disabled={disabled}
+          onClick={() => onRate(o.rating)}
+          style={keyStyle}
+        >
+          {o.label} <span style={{ opacity: 0.5, fontSize: 11 }}>{o.key}</span>
+        </button>
+      )) : (
+        <button type="button" onClick={onAdvance} style={keyStyle}>
+          {atTail ? '查看结算' : '下一题'}
+        </button>
+      )}
+    </div>
+  )
+}
+
+/**
  * 答题态。三段：作答（红绿提示）→ 三键评分 → 结果区块停在屏上等「下一题」推进。
  * 局部 revealed 驱动「作答前 / 作答后」；store 的 phase 的 'rated' 驱动「已评分 / 待推进」。
+ *
+ * `mobile`（v0.7.6）：手机外壳传入，开启沉浸布局（外壳已收掉模块底栏）、本页自己的
+ * 状态底栏与软键盘行为。桌面不传，一切照旧。
  */
-export default function ReviewArena() {
+export default function ReviewArena({ mobile = false }: { mobile?: boolean }) {
   const answeredList = useReviewSessionStore(s => s.answered)
   const { queue, index, phase, answerCurrent, advance } = useReviewSessionStore()
   // 词级复习叠加层（连错 / stability）的重取入口，绑定在评分落库那一步（见 handleRate 末）
@@ -123,6 +180,17 @@ export default function ReviewArena() {
 
   // 回看态：从记账里回放当时的输入（spec §4.1）
   const pastEntry = answeredList.find(a => a.cardId === dto.cardId)
+
+  // 手机底栏该出哪一组控件：唯一判据在 answerBar（Task 4，已测），这里不重推状态。
+  const barMode = answerBarMode({ revealed, answeredNow, rated })
+
+  // 回看态那行「本题评分」：桌面在面板内、队尾换成「查看结算」按钮；手机端一律留在
+  // 面板内（推进键在底栏），两处共用同一份节点，免得文案分叉。
+  const pastRatingLine = (
+    <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+      本题评分：{RATING_LABELS[pastEntry?.rating ?? 0] ?? '—'}
+    </span>
+  )
 
   const handleSubmit = (input: string) => {
     setLastInput(input)
@@ -200,8 +268,11 @@ export default function ReviewArena() {
     // 但那是巧合不是保证——显式列出，免得将来某条路径只改 correct 时闭包读到旧值。
   }, [revealed, past, dto.cardId, lastInput, correct])
 
-  return (
-    <div data-arena-region className="flex flex-col gap-4 p-8" style={{ maxWidth: narrow ? NARROW_CONTENT_WIDTH : RESULT_CONTENT_WIDTH }}>
+  // 桌面与手机共用的题面网格：外层容器（内边距 / 限宽 / 滚动归属）与底栏是两端唯一的
+  // 差异，网格本身和 revealed 门控一个字都不分叉——分叉会让「手机漏了门控」这种泄题
+  // 只在一端发生。
+  const board = (
+    <>
       {/*
         整个答题页两栏（v0.6.3 打磨）：左栏＝题面 + 作答 + 三键 + 下一题，
         右栏＝完整词条并排、从揭示那一刻起从顶端就开始。
@@ -233,6 +304,7 @@ export default function ReviewArena() {
             revealedInput={revealedInputFor(revealed, lastInput, pastEntry?.input)}
             onSkip={() => void handleRate(1, '', true, null)}
             onSubmit={handleSubmit}
+            mobile={mobile}
           />
 
           {rateError && (
@@ -250,44 +322,50 @@ export default function ReviewArena() {
             // setLastSkipped 早已随换卡重置或更早已被该条覆盖，交给记账才是真的那次）；
             // 尚未记账 → 读本次评分的局部标记（刚评完那一帧，store 那条还不在 answeredList 里，
             // 而本组件读的正是 answeredList）。评分键与键盘不传第三个参数，两条都是 false。
-            <ResultBlock lastInput={lastInput} skipped={answeredNow ? pastEntry?.skipped : lastSkipped} correct={correct} answerText={correctAnswerText(dto)}>
-              {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
-              {!answeredNow && (
-                <RatingBar
-                  onRate={r => void handleRate(r, lastInput, false, correct)}
-                  disabled={rating}
-                  defaultRating={dto.sched.defaultRating}
-                />
+            <ResultBlock lastInput={lastInput} skipped={answeredNow ? pastEntry?.skipped : lastSkipped} correct={correct} answerText={correctAnswerText(dto)} stacked={mobile}>
+              {mobile ? (
+                // 手机端（v0.7.6）：评分键与推进键都搬到底栏，面板里只留回看态那行评分。
+                // 队尾也一样——桌面在那里换成的「查看结算」按钮，手机上由底栏承担。
+                past ? pastRatingLine : null
+              ) : (
+                <>
+                  {/* 三键：仅「已揭示且未作答」时出现。跳过即已评分，故跳过路径不出现三键（spec §2.4） */}
+                  {!answeredNow && (
+                    <RatingBar
+                      onRate={r => void handleRate(r, lastInput, false, correct)}
+                      disabled={rating}
+                      defaultRating={dto.sched.defaultRating}
+                    />
+                  )}
+                  {past ? (
+                    // 回看态：只读回放。一般位置向前靠导航条右箭头；但整轮已答完又翻回最后一题时
+                    // canGoForward 在队尾恒为 false（nav.test.ts 钉住「箭头不越界」），右箭头被灰掉，
+                    // 而「结束回合」按设计不出结算——那轮结算就彻底不可达了。补一颗尾部专属的
+                    // 「查看结算」：它调的正是 advance()，在队尾会把 phase 置成 'summary'。
+                    // 按钮与「下一题」同形同位（下一题本就是这一态的正常控件），两态互斥。
+                    // v0.7.2 起本页叫结算，两处按钮同名。
+                    atTail ? (
+                      // alignSelf 移到包裹的 <div> 上：SquareButton 是 inline-flex，
+                      // 在本组件的 flex-col 里默认会被拉满宽（见「下一题」处的同款说明）。
+                      // tone='surface'：外层这层 <div> 与 <div data-arena-region> 都不设底，
+                      // 最近一个设了底的祖先是 ReviewModule 的 <main>（--color-surface 纯白）。
+                      <div style={{ alignSelf: 'flex-start' }}>
+                        <SquareButton tone="surface" onClick={() => advance()}>查看结算</SquareButton>
+                      </div>
+                    ) : (
+                      pastRatingLine
+                    )
+                  ) : rated ? (
+                    <div style={{ alignSelf: 'flex-start' }}>
+                      {/* 队尾不再叫「下一题」——它没有下一题了（v0.7.2，Draft 第 2 条）。
+                          行为不变，仍是点一下才走：自动跳转会让最后一题的复盘来不及看。 */}
+                      <SquareButton tone="surface" onClick={() => advance()}>
+                        {atTail ? '查看结算' : '下一题'}
+                      </SquareButton>
+                    </div>
+                  ) : null}
+                </>
               )}
-              {past ? (
-                // 回看态：只读回放。一般位置向前靠导航条右箭头；但整轮已答完又翻回最后一题时
-                // canGoForward 在队尾恒为 false（nav.test.ts 钉住「箭头不越界」），右箭头被灰掉，
-                // 而「结束回合」按设计不出结算——那轮结算就彻底不可达了。补一颗尾部专属的
-                // 「查看结算」：它调的正是 advance()，在队尾会把 phase 置成 'summary'。
-                // 按钮与「下一题」同形同位（下一题本就是这一态的正常控件），两态互斥。
-                // v0.7.2 起本页叫结算，两处按钮同名。
-                atTail ? (
-                  // alignSelf 移到包裹的 <div> 上：SquareButton 是 inline-flex，
-                  // 在本组件的 flex-col 里默认会被拉满宽（见「下一题」处的同款说明）。
-                  // tone='surface'：外层这层 <div> 与 <div data-arena-region> 都不设底，
-                  // 最近一个设了底的祖先是 ReviewModule 的 <main>（--color-surface 纯白）。
-                  <div style={{ alignSelf: 'flex-start' }}>
-                    <SquareButton tone="surface" onClick={() => advance()}>查看结算</SquareButton>
-                  </div>
-                ) : (
-                  <span style={{ alignSelf: 'flex-start', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-                    本题评分：{RATING_LABELS[pastEntry?.rating ?? 0] ?? '—'}
-                  </span>
-                )
-              ) : rated ? (
-                <div style={{ alignSelf: 'flex-start' }}>
-                  {/* 队尾不再叫「下一题」——它没有下一题了（v0.7.2，Draft 第 2 条）。
-                      行为不变，仍是点一下才走：自动跳转会让最后一题的复盘来不及看。 */}
-                  <SquareButton tone="surface" onClick={() => advance()}>
-                    {atTail ? '查看结算' : '下一题'}
-                  </SquareButton>
-                </div>
-              ) : null}
             </ResultBlock>
           )}
         </div>
@@ -305,6 +383,36 @@ export default function ReviewArena() {
           />
         )}
       </div>
+    </>
+  )
+
+  // 桌面：一整块内边距 + 限宽，随页面滚动（滚动归 ReviewModule 的 <main>）。
+  if (!mobile) {
+    return (
+      <div data-arena-region className="flex flex-col gap-4 p-8" style={{ maxWidth: narrow ? NARROW_CONTENT_WIDTH : RESULT_CONTENT_WIDTH }}>
+        {board}
+      </div>
+    )
+  }
+
+  // 手机（v0.7.6 沉浸态）：外壳已收掉模块底栏，本页占满内容区——中间滚动的是题面 /
+  // 结果 / 词条，底栏固定在它下方、不随内容滚走。
+  // height:100% 与 minHeight:0 缺一不可：没有 minHeight 时 flex 子项的默认最小高度
+  // 是内容高，滚动区会被内容撑开、把底栏顶出屏幕。
+  return (
+    <div data-arena-region className="flex flex-col" style={{ height: '100%', minHeight: 0 }}>
+      <div style={{ flex: 1, overflowY: 'auto', padding: '18px 16px 24px' }}>
+        {board}
+      </div>
+      <MobileAnswerBar
+        mode={barMode}
+        atTail={atTail}
+        disabled={rating}
+        // 与桌面三键走同一个处理函数：判分结论在 handleSubmit 时已落进 correct，
+        // 这里只把它转交，不重算。
+        onRate={r => void handleRate(r, lastInput, false, correct)}
+        onAdvance={() => advance()}
+      />
     </div>
   )
 }
