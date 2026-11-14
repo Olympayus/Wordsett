@@ -995,7 +995,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               // 左缘 = 容器标题文字的左缘（v0.7.4 决定五 5.1）：标题在 11 + 手柄槽 10 + gap 4，
               // 故多列块要 `inset={25}`；默认的 11 会让第一个 `·` 凸到标题左边 14px。
               inset={LEAF_FLOW_INSET}
-              // 触摸分支（v0.7.7 Task 7）：手柄常挂 + 44px 命中层、`·` 可长按拖起、
+              // 触摸分支（v0.7.7 Task 7）：手柄常挂 + 44 高 × 22 宽命中层、`·` 可长按拖起、
               // 单位行尾槽整块不渲染（单位底部表已承载编辑 / 删除）。桌面不传时为 false。
               touch={touch}
               // 多单位块在分段里算「一行」：首末直接透传——段首/段末由块整体收口，

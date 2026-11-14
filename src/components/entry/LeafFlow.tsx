@@ -114,15 +114,19 @@ const UNIT_HANDLE: CSSProperties = {
 }
 
 /**
- * 手柄的触摸命中层（v0.7.7 Task 7）：44×44、绝对定位、不进排版流。
+ * 手柄的触摸命中层（v0.7.7 Task 7）：高 44px、绝对定位、不进排版流。
  *
  * 它是**按钮的 DOM 后代**（按钮因此加 `position: relative`）：擦到扩出来的任何一寸都等于
  * 按这枚按钮，拖拽监听仍只在原按钮上，不搬家（与 `RowMenu` / 行手柄同一做法）。
- * 几何：按钮宽 14 + 右间距 2 = wrapper 的 16px；`right: -2` 让命中层右缘停在单位左缘
- * （与可见手柄的 wrapper 右缘重合），44px 宽因此全部向左伸进栏距 / 容器左留白——
- * **绝不向右压住正文的长按区**。纵向以按钮高（行高）为中线上下各让，取 −10px。
+ *
+ * 几何（review Important 1 修复）：**高度取 44，宽度只取 22**。按钮宽 14 + 右间距 2 =
+ * wrapper 的 16px；`right: -2` 让命中层右缘停在单位左缘（与可见手柄的 wrapper 右缘重合）。
+ * 22px 宽 = wrapper 16 + 列距里紧邻的 6px——多列块的水平 `gap` 正是 22px，故命中层
+ * 恰好填满「前一单位正文右缘 → 本单位正文左缘」这条空带：**绝不越过本单位左缘压进前一格**
+ * （44px 宽会伸进前一单位正文 22px，长按那里会拖起后一个单位、双击也落在 aria-hidden 层上）。
+ * 触屏上单位行尾槽不渲染，这条带里没有别的可点件。纵向以按钮高（行高）为中线上下各让，取 −10px。
  */
-const UNIT_HANDLE_HIT: CSSProperties = { ...hitAreaStyle(), top: '-10px', right: '-2px' }
+const UNIT_HANDLE_HIT: CSSProperties = { ...hitAreaStyle(), top: '-10px', right: '-2px', width: '22px' }
 
 /**
  * 单位的格内容（两变体共用）：小点 + 正文 + 单位自己的行尾槽。
@@ -185,7 +189,7 @@ function UnitItemPlain({ it, touch }: { it: LeafFlowItem; touch: boolean }) {
  * 单位 span 只承接落点度量，不接管拖拽。
  *
  * v0.7.7 Task 7：触摸下没有 hover，手柄改为**常挂**（`hoveredId === id || touch`），并叠一枚
- * 44×44 命中层；`·` 本身也接同一份拖拽监听（见 `unitBody`），长按小点即可拖起该单位。
+ * 44px 高、22px 宽的命中层；`·` 本身也接同一份拖拽监听（见 `unitBody`），长按小点即可拖起该单位。
  */
 function UnitItemDraggable({ id, it, drag, touch }: {
   id: string; it: LeafFlowItem; drag: LeafFlowDrag; touch: boolean
@@ -254,7 +258,7 @@ export default function LeafFlow({ items, state = 'none', first = true, last = t
   /** 块的左内边距（v0.7.4 决定五 5.1）：默认 11（与 FlowRow 同一条正文流左缘）；
    *  返回页的内层容器传 41（= 11 + 18 编号槽 + 12 gap），与容器行标题对齐。 */
   inset?: number
-  /** 手机外壳（v0.7.7 Task 7）：手柄常挂 + 44px 命中层、`·` 可长按拖起、不挂单位行尾槽。
+  /** 手机外壳（v0.7.7 Task 7）：手柄常挂 + 44 高 × 22 宽命中层、`·` 可长按拖起、不挂单位行尾槽。
    *  缺省 false——桌面两个调用点不传，几何与交互逐字不变。 */
   touch?: boolean
 }) {
