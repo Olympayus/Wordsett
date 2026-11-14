@@ -15,9 +15,9 @@
  * 历史备注（不要误动）：
  *   1. `PhoneticArea` 的标签 span 与返回页 `WordTitleExtras` 的 `LABEL_COL` 取
  *      `BAND_LABEL_COLUMN` / `BAND_LABEL_GAP`；
- *   2. `WordWorkbench` 的 `LABEL_COLUMN_WIDTH`——**那是工作区正文行的标签列宽，
- *      是另一个量，不动**（正文行的字号分两级：一级 `--text-sm`、次级 `--text-xs`，
- *      换成写死一档的共享常量会把所有子级标签悄悄抬一档）。
+ *   2. `WordWorkbench` 的 `LABEL_COLUMN_WIDTH`——**那是工作区正文行的标签列宽（72px），
+ *      是另一个量，本常量不管它**；标签字形自 v0.7.6 起两级共用这份 C1 规格，
+ *      层级由缩进与固定列宽承担，不再靠字号分档。
  */
 
 import type { CSSProperties } from 'react'
