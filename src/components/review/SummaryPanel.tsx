@@ -7,6 +7,8 @@ import { jumpToWord } from '../../lib/review/jumpToWord'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
 import { getAbsent } from '../../services/reviewService'
 import { FIELD_LABEL_STYLE, LABEL_ON_THEME } from '../../lib/labelStyle'
+import type { ReviewCardDTO } from '../../services/reviewService'
+import type { AnsweredEntry } from '../../stores/reviewSessionStore'
 import {
   roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, answerDisplay, correctnessLabel, correctAnswerText,
 } from '../../lib/review/roundStats'
@@ -19,9 +21,19 @@ import {
  *
  * 「答错的词」清单已删——明细表的「正误」列覆盖了它。
  * 「暂无可出题内容」保留为明细表下方的链接行：它来自 getAbsent()，是「库里没进过队列
- * 的词」，不是本轮出过的题，塞不进逐题表。
+ * 的词」，不是本轮出过的词，塞不进逐题表。
+ *
+ * v0.7.6 加 `variant`：桌面仍是上面这套，手机形态整段交给下面的 `MobileSummary`
+ * （单列 / 2×2 统计卡 / 两张图 / 明细卡列表），两者共用本函数顶部的取数。
  */
-export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
+export default function SummaryPanel({ onRestart, variant = 'desktop' }: {
+  onRestart: () => void
+  /**
+   * 外壳形态（v0.7.6 §3.6）。缺省 `desktop`——`ReviewModule` 尚未接线，
+   * 现有调用点的行为与 Task 7 逐字节一致；手机外壳由后续任务传 `mobile`。
+   */
+  variant?: 'desktop' | 'mobile'
+}) {
   const { queue, answered } = useReviewSessionStore()
   const [absent, setAbsent] = useState<{ wordId: string; lemma: string }[]>([])
 
@@ -38,6 +50,20 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
   const accs = templateAccuracy(answered)
   const dist = ratingDistribution(answered)
   const series = ratingSeries(answered)
+
+  if (variant === 'mobile') {
+    return (
+      <MobileSummary
+        queue={queue}
+        answered={answered}
+        absent={absent}
+        summary={summary}
+        counts={counts}
+        series={series}
+        onRestart={onRestart}
+      />
+    )
+  }
 
   return (
     <div className="flex flex-col gap-5 p-8" style={{ maxWidth: '760px' }}>
@@ -138,6 +164,120 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
 }
 
 /**
+ * 手机结算页（v0.7.6 §3.6 手机段）：与桌面同数据、同顺序，只换呈现。
+ *
+ * 390dp 放不下六列表格，故逐题明细退成卡片堆叠；图表按 §3.6 手机段只留两张
+ * （本轮评分走势 + 本轮题型构成），「评分分布」「题型正确率」在手机上不渲染。
+ * 统计卡保留桌面那四档暖中性面（tone 顺序不变），图表卡用 sunken / chrome 交替，
+ * 与桌面白卡区分开。
+ *
+ * 所有可能变长的文字层都带 `minWidth: 0` + `overflowWrap`，栅格一律 `minmax(0, 1fr)`：
+ * 390dp 上不能出现横向滚动。
+ */
+function MobileSummary({ queue, answered, absent, summary, counts, series, onRestart }: {
+  queue: ReviewCardDTO[]
+  answered: AnsweredEntry[]
+  absent: { wordId: string; lemma: string }[]
+  summary: ReturnType<typeof roundSummary>
+  counts: ReturnType<typeof templateCounts>
+  series: number[]
+  onRestart: () => void
+}) {
+  return (
+    <div className="flex flex-col" style={{ padding: '16px 16px 24px', gap: 16 }}>
+      <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600 }}>本轮结算</h2>
+
+      <SectionTitle onTheme>统计</SectionTitle>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <Stat label="答题" value={String(summary.answeredCount)} unit="张" tone={1} />
+        <Stat label="正确" value={String(summary.correctCount)} unit={`/ ${summary.judgedCount} 张`} tone={2} />
+        <Stat label="正确率" value={summary.accuracy.replace('%', '')} unit={summary.accuracy === '—' ? '' : '%'} tone={3} />
+        <Stat label="跳过" value={String(summary.skippedCount)} unit="张" tone={4} />
+      </div>
+
+      <SectionTitle onTheme>图表</SectionTitle>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
+        <RoundCard background="var(--color-surface-sunken)" title="本轮评分走势" subtitle={`按答题顺序 · 均值 ${avg(series).toFixed(1)}`}>
+          <SeriesLine data={series} />
+        </RoundCard>
+        <RoundCard background="var(--color-chrome)" title="本轮题型构成" subtitle={counts.filter(c => c.count > 0).map(c => `${c.label} ${c.count}`).join(' · ') || '本轮没有题'}>
+          <StackedBars rows={counts.filter(c => c.count > 0).map(c => ({ label: c.label, n: c.count }))} />
+        </RoundCard>
+      </div>
+
+      <SectionTitle onTheme>逐题明细</SectionTitle>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}>
+        {queue.map(c => {
+          const entry = answered.find(a => a.cardId === c.cardId)
+          // 正误与桌面表同一个来源：entry.correct（客观结论），未作答 / 跳过落 null。
+          const ok = entry ? (entry.correct ?? null) : null
+          return (
+            <div key={c.cardId} style={{
+              minWidth: 0,
+              display: 'flex', flexDirection: 'column', gap: 4,
+              background: 'var(--color-surface-raised)',
+              border: '1px solid var(--color-border)',
+              // 左缘细条只在有结论时出现；null 保持普通 1px 边框，不画「无色条」。
+              borderLeft: ok === null ? undefined : `3px solid ${ok ? 'var(--color-success)' : 'var(--color-danger)'}`,
+              borderRadius: 'var(--radius-lg)',
+              padding: '10px 12px',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <button type="button" onClick={() => void jumpToWord(c.wordId)} style={{
+                  minWidth: 0, border: 'none', background: 'none', padding: 0, cursor: 'pointer',
+                  fontFamily: 'var(--font-serif)', fontSize: '14px', fontWeight: 600,
+                  color: 'var(--color-text-primary)', textAlign: 'left', overflowWrap: 'anywhere',
+                }}>
+                  {wordLabelFor(c)}
+                </button>
+                <span style={{
+                  flexShrink: 0, display: 'inline-flex', alignItems: 'center', height: 16, padding: '0 7px',
+                  borderRadius: 'var(--radius-full)', background: 'var(--color-chrome)',
+                  fontSize: '10.5px', color: 'var(--color-text-secondary)', whiteSpace: 'nowrap',
+                }}>
+                  {counts.find(x => x.template === c.template)?.label ?? c.template}
+                </span>
+                <span style={{
+                  marginLeft: 'auto', flexShrink: 0, paddingLeft: 6, fontSize: '12px', fontWeight: 600,
+                  color: ok === null ? 'var(--color-text-tertiary)' : ok ? 'var(--color-success)' : 'var(--color-danger)',
+                }}>
+                  {correctnessLabel(ok)}
+                </span>
+              </div>
+              <div style={{ minWidth: 0, fontSize: '12px', lineHeight: 1.6, color: 'var(--color-text-secondary)', overflowWrap: 'anywhere' }}>
+                你：{entry ? answerDisplay(entry) : '（未作答）'} · 答：{correctAnswerText(c)} · {entry ? RATING_LABELS[entry.rating] ?? '—' : '—'}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {absent.length > 0 && (
+        <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', overflowWrap: 'anywhere' }}>
+          另有 <b>{absent.length}</b> 个词条暂无可出题内容（缺释义 / 例句 / 音标）：
+          {absent.map((a, i) => (
+            <span key={a.wordId}>
+              {i > 0 && ' · '}
+              <button type="button" onClick={() => void jumpToWord(a.wordId)} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', font: 'inherit', color: 'var(--color-text-primary)', textDecoration: 'underline' }}>
+                {a.lemma}
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* 两枚出口等分、同形同位；容器定高 40，flex 的默认 `align-items: stretch` 把
+          按钮拉到 40px（SquareButton 自身没有 height，`touch` 档是 32px，这里不改共享组件）。
+          动作与桌面出口逐字相同：继续练走 onRestart，回工作台先 reset 再切模块。 */}
+      <div style={{ display: 'flex', alignItems: 'stretch', gap: 8, height: 40 }}>
+        <SquareButton tone="surface" grow onClick={onRestart}>继续练 → 自由练习</SquareButton>
+        <SquareButton tone="surface" grow onClick={() => { useReviewSessionStore.getState().reset(); useViewStore.getState().showModule('workbench') }}>回工作台</SquareButton>
+      </div>
+    </div>
+  )
+}
+
+/**
  * 题型正确率卡的补充文字。**没出的题型不出现**，而不是印 0%——
  * 0% 的意思是「出了但全错」（见 roundStats.templateAccuracy 的注释）。
  *
@@ -156,8 +296,12 @@ function avg(xs: number[]): number {
   return xs.length === 0 ? 0 : xs.reduce((a, b) => a + b, 0) / xs.length
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div style={{ ...FIELD_LABEL_STYLE }}>{children}</div>
+/**
+ * 结算分区标题（C1）。`onTheme` 给主题色面（手机画布）用次级墨——白面上才是 `--color-label`；
+ * 桌面的默认分支保持不变。
+ */
+function SectionTitle({ children, onTheme }: { children: React.ReactNode; onTheme?: boolean }) {
+  return <div style={onTheme ? LABEL_ON_THEME : FIELD_LABEL_STYLE}>{children}</div>
 }
 
 /**
@@ -184,9 +328,9 @@ function Stat({ label, value, unit, tone }: { label: string; value: string; unit
   )
 }
 
-function RoundCard({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+function RoundCard({ title, subtitle, children, background = 'var(--color-surface)' }: { title: string; subtitle: string; children: React.ReactNode; background?: string }) {
   return (
-    <div style={{ padding: '10px 12px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div style={{ padding: '10px 12px', background, border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{title}</div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 46 }}>{children}</div>
       <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.55 }}>{subtitle}</div>
