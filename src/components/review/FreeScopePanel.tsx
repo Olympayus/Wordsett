@@ -31,8 +31,8 @@ const MOBILE_SCOPE_ORDER: FreeScopeKind[] = ['category', 'weak', 'today', 'rando
  */
 const MOBILE_SCOPE_DESC: Record<FreeScopeKind, string> = {
   category: '按分类抽词，可多选',
-  weak: '连错 ≥2 的词',
-  today: '今天已练过的词',
+  weak: '连错达到阈值，或近 7 天答错',
+  today: '今天到期的队列',
   random: '工作台全部词条',
 }
 
@@ -164,7 +164,7 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
                   touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
                 }}
               >
-                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{FREE_SCOPE_LABEL[key]}</div>
+                <div style={{ fontSize: 13.5, fontWeight: on ? 600 : 400 }}>{FREE_SCOPE_LABEL[key]}</div>
                 <div style={{ marginTop: 4, fontSize: 11, lineHeight: 1.5, color: 'var(--color-text-secondary)' }}>
                   {MOBILE_SCOPE_DESC[key]}
                 </div>
