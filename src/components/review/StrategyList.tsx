@@ -37,7 +37,8 @@ export default function StrategyList({ strategies, active, onSelect, header, foo
               color: 'var(--color-text-primary)',
             }}
           >
-            <span style={{ fontSize: '13px', fontWeight: on ? 'var(--weight-semibold)' : 'var(--weight-regular)', fontFamily: 'var(--font-serif)' }}>{s.label}</span>
+            {/* 字体与工作区左侧栏（SmartViewList）同一套：无衬线 + --text-sm，激活时 600（v0.7.6） */}
+            <span style={{ fontSize: 'var(--text-sm)', fontWeight: on ? 'var(--weight-semibold)' : 'var(--weight-regular)', fontFamily: 'var(--font-sans)' }}>{s.label}</span>
           </button>
         )
       })}

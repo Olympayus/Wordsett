@@ -20,6 +20,14 @@ describe('sidebar 分组', () => {
     expect(groups[1].words.map(w => w.lemma)).toEqual(['apple'])
   })
 
+  it('groupByLetter 组内按字母序（大小写不敏感），且不改动入参数组', () => {
+    const words = [mk('1', 'cherry'), mk('2', 'cat'), mk('3', 'Calf'), mk('4', 'apple')]
+    const groups = groupByLetter(words)
+    expect(groups.find(g => g.letter === 'C')!.words.map(w => w.lemma)).toEqual(['Calf', 'cat', 'cherry'])
+    // filterBySmartView 的 'all' 分支返回 store 的 words 本体，分组不得原地排序
+    expect(words.map(w => w.lemma)).toEqual(['cherry', 'cat', 'Calf', 'apple'])
+  })
+
   it('groupByCategory 多分类单词在各分组引用、未分类在底部', () => {
     const words = [mk('w1', 'observe'), mk('w2', 'apple'), mk('w3', 'run')]
     const cats = [
