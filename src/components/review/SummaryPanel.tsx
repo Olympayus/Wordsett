@@ -68,44 +68,50 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
       </div>
 
       <SectionTitle>逐题明细</SectionTitle>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr>
-            {['单词', '题型', '你的作答', '正确答案', '正误', '记忆评分'].map(h => (
-              <th key={h} style={{ ...LABEL_ON_THEME, textAlign: 'left', padding: '0 8px 6px' }}>{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {queue.map(c => {
-            const entry = answered.find(a => a.cardId === c.cardId)
-            // 正误读客观结论 correct（v0.7.2），不再拿 rating ≥ 3 充当——否则「答对但选了模糊」
-            // 会被明细表判成错误，与头部「正确 n / 已判 n」的口径对不上。entry 可能为 undefined
-            // （未作答的卡这一行照渲染），那个分支仍落 null（显示「—」）。
-            const ok = entry ? (entry.correct ?? null) : null
-            return (
-              <tr key={c.cardId}>
-                <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: '12.5px' }}>
-                  <button type="button" onClick={() => void jumpToWord(c.wordId)} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', font: 'inherit', color: 'inherit' }}>
-                    {wordLabelFor(c)}
-                  </button>
-                </td>
-                <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12px', color: 'var(--color-text-secondary)' }}>{counts.find(x => x.template === c.template)?.label ?? c.template}</td>
-                <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12.5px' }}>{entry ? answerDisplay(entry) : '（未作答）'}</td>
-                {/* 「正确答案」直接由本行的 DTO（c）算出：c 就是这一行的 ReviewCardDTO，
-                    无需再回 queue 里按 cardId 找一遍（那会在未作答行上取到 undefined）。 */}
-                <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12.5px', color: 'var(--color-text-secondary)' }}>{correctAnswerText(c)}</td>
-                <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12px', fontWeight: 600, color: ok === null ? 'var(--color-text-tertiary)' : ok ? 'var(--color-success)' : 'var(--color-danger)' }}>
-                  {correctnessLabel(ok)}
-                </td>
-                <td style={{ padding: '6px 8px', borderTop: '1px solid var(--color-surface-sunken)', fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-                  {entry ? RATING_LABELS[entry.rating] ?? '—' : '—'}
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+      {/* 明细表整块坐进凹陷面（sunken）：列头因此回到主题色面上，`LABEL_ON_THEME` 的次级墨
+          正是这块底上的正确取色；表头下的强分隔线同时充当首行单元格的上边线。 */}
+      <div style={{ background: 'var(--color-surface-sunken)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '14px 16px 4px' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              {['单词', '题型', '你的作答', '正确答案', '正误', '记忆评分'].map(h => (
+                <th key={h} style={{ ...LABEL_ON_THEME, textAlign: 'left', padding: '0 8px', paddingBottom: 8, borderBottom: '1px solid var(--color-border-strong)' }}>{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {queue.map((c, i) => {
+              const entry = answered.find(a => a.cardId === c.cardId)
+              // 正误读客观结论 correct（v0.7.2），不再拿 rating ≥ 3 充当——否则「答对但选了模糊」
+              // 会被明细表判成错误，与头部「正确 n / 已判 n」的口径对不上。entry 可能为 undefined
+              // （未作答的卡这一行照渲染），那个分支仍落 null（显示「—」）。
+              const ok = entry ? (entry.correct ?? null) : null
+              // 首行不画上边线：表头下已有 border-strong 的强线，再叠一条会变成双线。
+              const borderTop = i === 0 ? 'none' : '1px solid var(--color-border)'
+              return (
+                <tr key={c.cardId}>
+                  <td style={{ padding: '7px 8px', borderTop, fontFamily: 'var(--font-serif)', fontWeight: 600, fontSize: '12.5px' }}>
+                    <button type="button" onClick={() => void jumpToWord(c.wordId)} style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', font: 'inherit', color: 'inherit' }}>
+                      {wordLabelFor(c)}
+                    </button>
+                  </td>
+                  <td style={{ padding: '7px 8px', borderTop, fontSize: '12px', color: 'var(--color-text-secondary)' }}>{counts.find(x => x.template === c.template)?.label ?? c.template}</td>
+                  <td style={{ padding: '7px 8px', borderTop, fontSize: '12.5px' }}>{entry ? answerDisplay(entry) : '（未作答）'}</td>
+                  {/* 「正确答案」直接由本行的 DTO（c）算出：c 就是这一行的 ReviewCardDTO，
+                      无需再回 queue 里按 cardId 找一遍（那会在未作答行上取到 undefined）。 */}
+                  <td style={{ padding: '7px 8px', borderTop, fontSize: '12.5px', color: 'var(--color-text-secondary)' }}>{correctAnswerText(c)}</td>
+                  <td style={{ padding: '7px 8px', borderTop, fontSize: '12px', fontWeight: 600, color: ok === null ? 'var(--color-text-tertiary)' : ok ? 'var(--color-success)' : 'var(--color-danger)' }}>
+                    {correctnessLabel(ok)}
+                  </td>
+                  <td style={{ padding: '7px 8px', borderTop, fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+                    {entry ? RATING_LABELS[entry.rating] ?? '—' : '—'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
 
       {absent.length > 0 && (
         <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
@@ -167,7 +173,7 @@ function Stat({ label, value, unit }: { label: string; value: string; unit: stri
 
 function RoundCard({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
   return (
-    <div style={{ padding: '10px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div style={{ padding: '10px 12px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', display: 'flex', flexDirection: 'column', gap: 6 }}>
       <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{title}</div>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 46 }}>{children}</div>
       <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', lineHeight: 1.55 }}>{subtitle}</div>
