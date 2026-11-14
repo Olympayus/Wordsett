@@ -1,6 +1,7 @@
+import { useEffect, useRef } from 'react'
 import type { CSSProperties, JSX } from 'react'
 import { SHEET_BACK, SHEET_CANCEL, type SheetItem } from '../../../lib/mobileSheets'
-import { useMobilePopup } from '../../../lib/mobilePopups'
+import { registerMobilePopup } from '../../../lib/mobilePopups'
 
 /**
  * 手机底部动作表（v0.7.7 Task 3，spec §3.3）：手机上**所有**「长按 / ⋯ 弹出的表」
@@ -11,7 +12,7 @@ import { useMobilePopup } from '../../../lib/mobilePopups'
  * 顶出屏幕，标题与取消仍钉在两端。无滑入动画——本仓动效只有底色一档（v0.7.2 §1.4）。
  *
  * 关闭路径三条，全部交给调用点：点遮罩 → `onCancel`；点取消 → `onCancel`；
- * 安卓返回键经 `useMobilePopup` 登记（`closeTopMobilePopup` 在 `backLayers` 之前消费）。
+ * 安卓返回键经 `registerMobilePopup` 登记（`closeTopMobilePopup` 在 `backLayers` 之前消费）。
  * **二级表复用同一个组件**：`onBack` 有值时底部变两格「‹ 返回 / 取消」，返回键也先走
  * `onBack` 回主表，而不是直接关掉整张表。
  *
@@ -130,9 +131,19 @@ interface Props {
 export default function MobileActionSheet({
   open, title, subtitle, items, mode = 'list', onPick, onCancel, onBack,
 }: Props): JSX.Element | null {
-  // 返回键登记：二级表先回主表，其余情况关表。`useMobilePopup` 内部用 ref 读 close，
-  // 所以这里传内联组合函数不会因重渲染反复注销 / 登记。
-  useMobilePopup(open, onBack ?? onCancel)
+  // 返回键登记**不能**直接用 `useMobilePopup(open, onBack ?? onCancel)`：它的登记 effect
+  // 只依赖 `[open]`，而主表 / 二级表是同一个实例、切换时 `open` 始终为 true。
+  // `closeTopMobilePopup` 是「先出栈再 close」，返回键把登记项 pop 掉后 effect 不会重跑，
+  // 于是第二次返回就穿透到 `backLayers`（表还开着，返回键却已对它不可见）。
+  // 故这里自己登记，依赖 `[open, hasBack]`：**层切换（二级 ↔ 主表）必须重新登记，
+  // 否则返回键只消费一次**。close 仍走 ref，避免内联函数导致每次渲染都注销再登记。
+  const hasBack = Boolean(onBack)
+  const closeRef = useRef(onBack ?? onCancel)
+  useEffect(() => { closeRef.current = onBack ?? onCancel })
+  useEffect(() => {
+    if (!open) return
+    return registerMobilePopup(() => closeRef.current())
+  }, [open, hasBack])
 
   // 表是瞬态浮层：关闭即卸载（没有需要保住的滚动位置），也就不必像抽屉那样常挂。
   if (!open) return null
