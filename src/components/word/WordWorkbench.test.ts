@@ -56,6 +56,20 @@ describe('工作区改用原语（源码级守卫）', () => {
     expect(withoutEndSlot).not.toMatch(/\?\s*\(?\s*<RowActions/)
   })
 
+  it('字段标签走进 C1（FIELD_LABEL_STYLE）：一级 / 二级不再分字号', () => {
+    // 标签字形只有一份出处，工作区行标签直接展开常量（v0.7.6 Task 2 扩围）：
+    // 层级由缩进与固定 72px 标签列承担，不再靠两级字号。
+    expect(src).toMatch(/import\s*\{[^}]*\bFIELD_LABEL_STYLE\b[^}]*\}\s*from\s*'[^']*labelStyle'/)
+    expect(src).toMatch(/\.\.\.FIELD_LABEL_STYLE/)
+    expect(src).not.toMatch(/fontSize:\s*isLevel1/)
+    expect(src).not.toMatch(/letterSpacing:\s*'0\.5px'/)
+    // 编辑框与标签同字形（进编辑不位移）：字体字段逐个取自常量，不另写一套字面量
+    expect(src).toMatch(/fontFamily:\s*FIELD_LABEL_STYLE\.fontFamily/)
+    expect(src).toMatch(/fontSize:\s*FIELD_LABEL_STYLE\.fontSize/)
+    expect(src).toMatch(/fontWeight:\s*FIELD_LABEL_STYLE\.fontWeight/)
+    expect(src).toMatch(/letterSpacing:\s*FIELD_LABEL_STYLE\.letterSpacing/)
+  })
+
   it('旧的卡片左条与三态徽章已删净（FIELD_LEFT_COLOR / fieldPaneLeftBar）', () => {
     expect(src).not.toMatch(/FIELD_LEFT_COLOR/)
     // 注释里可以提到它「取代了谁」，但不得再有它的定义 / 调用
@@ -239,8 +253,11 @@ describe('工作区改用原语（源码级守卫）', () => {
 //  #310 修复（本轮）：`useRef` / `useImperativeHandle` 两个 hook 提到空态早退之前
 //  （净 +3 行），下段六处命中行整体下移 3，重算为
 //  1090 / 1099 / 1103 / 1146 / 1349 / 1542（由守卫失败输出回填）。
+//  v0.7.6 Task 2（工作区标签改取 FIELD_LABEL_STYLE）：import +1、删 `isLevel1` −1（落在首段命中行
+//  之后）、编辑框 font 展开 +5、两处注释各 +1——首段 hits 净 +1，下段各自 +5 / +6，重算为
+//  304 / 305 / 312 / 318 / 339 / 340 / 1095 / 1104 / 1108 / 1151 / 1354 / 1548（由守卫失败输出回填）。
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [303, 304, 312, 318, 339, 340, 1090, 1099, 1103, 1146, 1349, 1542], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['WordWorkbench.tsx', [304, 305, 312, 318, 339, 340, 1095, 1104, 1108, 1151, 1354, 1548], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
   ['DictDetailCard.tsx', [102, 193, 257, 386], '可见性过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 

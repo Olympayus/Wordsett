@@ -10,8 +10,9 @@ import CheckBox from '../ui/CheckBox'
 
 interface Props { meta: TitleMeta | null; onInputsChange: (inputs: MergeFieldInput[]) => void }
 
-// 头带字段行的标签列（v0.7.2 建、v0.7.4 决定七 7.3 收）：字形取「中文释义(n)」那一套，
-// 定宽列 44px。与 PhoneticArea 共用 labelStyle.ts 的 FIELD_LABEL_STYLE / BAND_LABEL_COLUMN，
+// 头带字段行的标签列（v0.7.2 建、v0.7.4 决定七 7.3 收、v0.7.6 收进 C1）：字形取 C1
+// （10.5px / 600 / 字距 0.1em；白面用 `--color-label`，主题面用次级文字色），定宽列 44px。
+// 与 PhoneticArea 共用 labelStyle.ts 的 FIELD_LABEL_STYLE / BAND_LABEL_COLUMN，
 // 两页才守得住「同一列」。
 const LABEL_COL: CSSProperties = {
   ...FIELD_LABEL_STYLE, width: `${BAND_LABEL_COLUMN}px`, flex: 'none', paddingTop: '2px',

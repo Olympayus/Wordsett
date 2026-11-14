@@ -40,6 +40,7 @@ import EditableValue from '../entry/EditableValue'
 import LinkedText from '../entry/LinkedText'
 import { isLeafFlow } from '../../lib/leafFlow'
 import { leafForm, rowTitle } from '../../lib/fieldKind'
+import { FIELD_LABEL_STYLE } from '../../lib/labelStyle'
 import RowActions, { rowIconStyle } from '../entry/RowActions'
 import AddMenu, { menuItemStyle, menuItemHover, type AddItem } from '../entry/AddMenu'
 import { useCategoryStore } from '../../stores/categoryStore'
@@ -308,7 +309,6 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   // `isDragging` 就地判定——`focused = isEditing || isDragging`，不新增组件 state、不接 DndContext。
   // 只在**这一行**亮（父行不亮），蓝＝「正在编辑」的状态，符合蓝色收窄规则第 1 条。
   const isFocused = isEditing || isDragging
-  const isLevel1 = depth === 0
   const isPhonetic = def.key === 'phonetic'
   // 叶子走哪套排版由 lib/fieldKind 的 leafForm 唯一判定（与返回页同一函数）；
   // 表内键回落 'plain'（普通正文）。
@@ -559,9 +559,8 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           } : undefined}
           title={isGroupPane ? (editorMode ? '点击编辑辨析组标题' : '双击编辑辨析组标题') : undefined}
           style={{
+            ...FIELD_LABEL_STYLE,
             minWidth: LABEL_COLUMN_WIDTH, flexShrink: 0,
-            fontSize: isLevel1 ? 'var(--text-sm)' : 'var(--text-xs)',
-            fontWeight: 700, letterSpacing: '0.5px', color: 'var(--color-text-secondary)',
             cursor: isGroupPane ? 'pointer' : undefined,
           }}
         >
@@ -570,11 +569,17 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
             // v0.7.4 任务 14：行内不再有「保存 / 取消」（搬到导航条），故盒子不留 gap；
             // 宽度走**量宽**（R24 已由控制器推翻）：裸 `<input>` 取浏览器默认 `size=20`
             // （≈170px），比组描述长得多，进编辑那一刻整行要往右让出一截。字体取**本 span**
-            // 的字形（一级 `--text-sm` / 二级 `--text-xs`、700、字距 0.5px），与被替换的组描述一致。
+            // 的 C1 字形（FIELD_LABEL_STYLE：10.5px / 600 / 字距 0.1em），与被替换的组描述一致。
+            // 一级 / 二级不再分字号——层级由缩进与固定 72px 标签列承担，字形统一为 C1。
             <span style={{ display: 'inline-flex', alignItems: 'center' }}>
               <MeasuredInput
                 value={editValue}
-                font={{ fontSize: isLevel1 ? 'var(--text-sm)' : 'var(--text-xs)', fontWeight: 700, letterSpacing: '0.5px' }}
+                font={{
+                  fontFamily: FIELD_LABEL_STYLE.fontFamily,
+                  fontSize: FIELD_LABEL_STYLE.fontSize,
+                  fontWeight: FIELD_LABEL_STYLE.fontWeight,
+                  letterSpacing: FIELD_LABEL_STYLE.letterSpacing,
+                }}
                 onChange={onEditValueChange}
                 onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
               />
@@ -1354,9 +1359,10 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   )
 
   // 头带里的字段行（音标 / 词根）：与返回页同一形态。标签取 `lib/labelStyle.ts` 的
-  // FIELD_LABEL_STYLE——44px 定宽列 / 13px / 700 / 次级字色 / 0.5px 字距，与工作区正文的
-  // 「中文释义(n)」是同一套字形、也与返回页 WordTitleExtras 共用同一份常量（v0.7.4 决定七 7.3；
-  // 先前是 62px / 11.5px / 常规字重 / 三级字色，两页看着不是一列）。
+  // FIELD_LABEL_STYLE——44px 定宽列 / 10.5px / 600 / 字距 0.1em；墨色按两档规则走：
+  // 白面（surface）标签用 `--color-label`（本常量），主题色面用次级文字色（LABEL_ON_THEME），
+  // 与工作区正文的「中文释义(n)」是同一套字形、也与返回页 WordTitleExtras 共用同一份常量
+  // （v0.7.4 决定七 7.3；v0.7.6 收进 C1；先前是 62px / 11.5px / 常规字重 / 三级字色，两页看着不是一列）。
   // 各行 gap 同为 8px（BAND_LABEL_GAP），与返回页 WordTitleExtras 一致（v0.7.4 由 10 收到 8）。
   // （分类行 v0.7.3 起挪进头带行右端 rightCluster，不再是字段行。）
 

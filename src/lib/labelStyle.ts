@@ -5,7 +5,7 @@
  * 它靠松字距而不是更大的字号或更重的字重来显眼——标签是结构提示，不该和值抢注意力；
  * 0.1em 的疏排也让「音标」「词根」「中文释义(n)」这类短标签在视觉上自成一档。
  *
- * 两档只差墨色：白面（surface）上的标签取暖灰 `--color-label`（#7E6F5E / 深色 #B3A691），
+ * 两档只差墨色：白面（surface）上的标签取 `--color-label`（两套主题各有取值，见 tokens.css），
  * 主题色面（chrome / raised / sunken / canvas）上没有白面可依托，改用次级文字色，
  * 于是同一套字形出 `FIELD_LABEL_STYLE` 与 `LABEL_ON_THEME` 两份。
  *

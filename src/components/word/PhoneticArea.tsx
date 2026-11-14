@@ -261,9 +261,10 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
       onMouseEnter={() => setRowHover(true)}
       onMouseLeave={() => { setRowHover(false); setMenuOpenId(null); setChipHover(null) }}
     >
-      {/* 标签取「中文释义(n)」那一套字形（FIELD_LABEL_STYLE：粗体 / 一档小字 / 次级墨 / 字距 0.5px），
-          与返回页 WordTitleExtras 共用 labelStyle.ts 的列宽 44px 与行距 8px（v0.7.4 决定七 7.3）。
-          非 stacked（音标）行整行居中，标签 paddingTop 归 0 才能与 chip 对齐，故按 stacked 分档。 */}
+      {/* 标签取 C1 字形（FIELD_LABEL_STYLE：10.5px / 600 / 字距 0.1em；白面用 `--color-label`，
+          主题面用次级文字色），与返回页 WordTitleExtras 共用 labelStyle.ts 的列宽 44px 与行距 8px
+          （v0.7.4 决定七 7.3；v0.7.6 收进 C1）。非 stacked（音标）行整行居中，标签 paddingTop 归 0
+          才能与 chip 对齐，故按 stacked 分档。 */}
       <span style={{ ...FIELD_LABEL_STYLE, width: `${BAND_LABEL_COLUMN}px`, flexShrink: 0, paddingTop: stacked ? 2 : 0 }}>
         {label}
       </span>
