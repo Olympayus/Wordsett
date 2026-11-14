@@ -74,7 +74,7 @@ export default function ResultBlock({ lastInput, skipped, correct, answerText, c
   answerText: string
   /**
    * 手机端答案页把两张卡纵向堆叠（v0.7.6 §3.4）。缺省 false＝桌面并排。
-   * 桌面端本版没有调用点传它，留给后续的手机答案页任务接线。
+   * `ReviewArena` 手机态传 `stacked={mobile}`，桌面分支不传，两端各守自己的排布。
    */
   stacked?: boolean
   /**
@@ -108,8 +108,9 @@ export default function ResultBlock({ lastInput, skipped, correct, answerText, c
             {correctnessLabel(correct)}
           </span>
         </div>
-        {/* 列定义必须写 minmax(0, 1fr)：`1fr` 的隐含 min-width:auto 会让长中文释义把格子顶宽、
-            整块横向溢出。手机端改单列堆叠（stacked）。 */}
+        {/* 防溢出靠的是两张卡各自的 `minWidth: 0`：长中文释义因此能在格内折行，而不是
+            把格子顶宽。并排分支的 `minmax(0, 1fr)` 把轨道下限也定成 0，两条防线同源；
+            手机端单列只有一轨，裸写 `'1fr'` 就够，防溢出仍由卡片的 minWidth 负责。 */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: stacked ? '1fr' : 'repeat(2, minmax(0, 1fr))',

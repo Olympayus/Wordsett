@@ -48,8 +48,8 @@ export function autoGrades(template: ReviewCardDTO['template']): boolean {
 /**
  * 释义右侧的词性（v0.6.3 条目 3）。衬线斜体 + 次要色——它是释义的注，不是独立信息。
  *
- * 范围限定在**题面区**：结果区的完整词条快照（EntrySnapshot）有自己的词性窗格，
- * 那是词条的原貌，不套用题面的排版规则。
+ * 范围限定在**题面区**：结果区的完整词条快照（EntrySnapshot）按词条的 run-in 词性头
+ * 自行排版，那是词条的原貌，不套用题面的行内小字规则。
  * `cloze` 不适用——它的词性已由 clozeSentence 放进句子里；`listen` 不显示词性
  * （lemma 不得早渲染，词性会泄露答案）。
  */

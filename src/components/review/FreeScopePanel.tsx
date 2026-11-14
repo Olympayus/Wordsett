@@ -42,8 +42,8 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
   categories: { id: string; name: string; color: string }[]
   onStart: (scope: { kind: FreeScopeKind; categoryIds?: string[]; limit: number }) => void
   /**
-   * 外壳形态（v0.7.6 §3.8）。缺省 `desktop`——`ReviewModule` 尚未接线时，
-   * 现有调用点的行为逐字节不变；手机外壳由后续任务传 `mobile`。
+   * 外壳形态（v0.7.6 §3.8）。缺省 `desktop`；手机外壳由 `ReviewModule` 传 `mobile`，
+   * 桌面调用点不传，行为不变。
    */
   variant?: 'desktop' | 'mobile'
 }) {

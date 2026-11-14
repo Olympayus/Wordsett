@@ -44,8 +44,9 @@ export function groupByLetter(words: WordWithPreview[]): LetterGroup[] {
   return [...map.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
     // 组内也按字母序：此前保持入库顺序（同一首字母下实际是「添加顺序」）。
-    // 先复制再排——filterBySmartView 的 'all' 分支返回的是 store 的 words 本体，
-    // 原地 sort 会把侧栏顺序写回词库数组。大小写不敏感，同词不同大小写保持稳定序。
+    // 这里的 list 是上面循环现 push 出来的，本可原地排；复制一份是防御性的——将来若改成
+    // 直接消费 store 的 words 本体，原地 sort 就会把侧栏顺序写回词库数组。
+    // 大小写不敏感，同词不同大小写保持稳定序。
     .map(([letter, list]) => ({
       letter,
       words: [...list].sort((a, b) => a.lemma.localeCompare(b.lemma, undefined, { sensitivity: 'base' })),

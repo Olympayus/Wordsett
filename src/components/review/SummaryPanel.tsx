@@ -29,8 +29,8 @@ import {
 export default function SummaryPanel({ onRestart, variant = 'desktop' }: {
   onRestart: () => void
   /**
-   * 外壳形态（v0.7.6 §3.6）。缺省 `desktop`——`ReviewModule` 尚未接线，
-   * 现有调用点的行为与 Task 7 逐字节一致；手机外壳由后续任务传 `mobile`。
+   * 外壳形态（v0.7.6 §3.6）。缺省 `desktop`；手机外壳由 `ReviewModule` 传 `mobile`，
+   * 桌面调用点不传，保持原来的桌面结算页。
    */
   variant?: 'desktop' | 'mobile'
 }) {

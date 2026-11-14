@@ -72,8 +72,8 @@ export function answerDisplay(entry: { input: string; skipped?: boolean }): stri
 /**
  * 「正误」的说法（v0.6.3 条目 17）：错误写「错误」不写「不正确」。
  *
- * 抽出来是因为同一份文案有两处消费点——ResultBlock 的作答行与 SummaryPanel 的明细表列。
- * 两处各写一份时，「不正确」就是从这里漏出去的：改了明细表、忘了作答行。
+ * 抽出来是因为同一份文案有两处消费点——ResultBlock 头行的正误徽标与 SummaryPanel 的明细表列。
+ * 两处各写一份时，「不正确」就是从这里漏出去的：改了明细表、忘了徽标。
  */
 export function correctnessLabel(ok: boolean | null): string {
   return ok === null ? '—' : ok ? '正确' : '错误'

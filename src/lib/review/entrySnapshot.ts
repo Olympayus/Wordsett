@@ -8,7 +8,7 @@
  *
  * 边界：只收 `part_of_speech` 一个根——短语 / 词形变化 / 词源相关词 / 近义词辨析各自成页，
  * 不在此列。`main` 页的另一个根 `supplementary`（补充）本函数不收：它不带词性值，
- * 硬塞进 PosGroup 会渲染出一个空窗格。
+ * 硬塞进 PosGroup 会让快照印出一个空词性头（run-in 头没有词性可写，正文却挂在它下面）。
  *
  * 例句不只走 `example_sentence` 容器。真实数据里另有两种形状能直达 `example`：
  *   · `example` 直接挂英释义下——`mergeFields`（wordService.ts:51-61）不校验子键，

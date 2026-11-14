@@ -18,11 +18,11 @@ import { getWordContent } from '../../db/review'
 
 /**
  * 当前视口是否够宽（不窄于结果区断点）。
- * 用 matchMedia 而不是量 DOM：需要它的两处（内容区上限、ResultBlock 的并排下限）
- * 在同一个渲染里读同一个值，量 DOM 会有两帧不同步。
+ * 用 matchMedia 而不是量 DOM：它的两处消费者（内容区上限、题面网格的列数）都在
+ * 本组件的同一个渲染里读同一个值，量 DOM 会有两帧不同步。
  *
- * 它只管**下限**：够宽之后要不要真并排，还要看快照自己放不放得下半栏（ResultBlock 量）。
- * 「屏幕放得下」与「这个词条放得下」是两件事，用同一个布尔表达会丢掉后者。
+ * 它只管**下限**：够宽之后两栏各占内容区的一半，列定义仍由 resultLayout 给；
+ * 词条那一栏放不放得下不再另量——网格在这一层，屏幕够宽就是两栏。
  */
 function useNarrowResults(): boolean {
   const query = `(max-width: ${RESULT_BREAKPOINT - 1}px)`
@@ -77,7 +77,15 @@ function MobileAnswerBar({ mode, atTail, disabled, onRate, onAdvance }: {
     background: 'var(--color-surface)', border: '1px solid var(--color-hairline)',
     color: 'var(--color-text-primary)', fontSize: 14, fontWeight: 600,
     fontFamily: 'var(--font-sans)', cursor: disabled ? 'default' : 'pointer',
+    // 触屏行为与 SquareButton / 手机范围卡一致：禁双击缩放与系统点击高亮块，
+    // 否则每次评分都闪一块系统色。
+    touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
   }
+  // 评分落库期间三键看着没变，用户会以为没点上、再点一次。按 SquareButton 的禁用观感
+  // （强描边底 + 三级墨 + 0.55）压一档对比，全取既有 token，不新造色值。
+  const rateKeyStyle: React.CSSProperties = disabled
+    ? { ...keyStyle, background: 'var(--color-border-strong)', color: 'var(--color-text-tertiary)', opacity: 0.55 }
+    : keyStyle
   return (
     <div style={{
       background: 'var(--color-surface-sunken)',
@@ -91,10 +99,13 @@ function MobileAnswerBar({ mode, atTail, disabled, onRate, onAdvance }: {
           key={o.rating}
           type="button"
           disabled={disabled}
+          // 手机没有数字键，键面只印标签（spec §3.7「无 1/2/3 提示」）；
+          // 外接键盘的快捷键仍留给读屏：aria-keyshortcuts 不进入可见文字。
+          aria-keyshortcuts={o.key}
           onClick={() => onRate(o.rating)}
-          style={keyStyle}
+          style={rateKeyStyle}
         >
-          {o.label} <span style={{ opacity: 0.5, fontSize: 11 }}>{o.key}</span>
+          {o.label}
         </button>
       )) : (
         <button type="button" onClick={onAdvance} style={keyStyle}>

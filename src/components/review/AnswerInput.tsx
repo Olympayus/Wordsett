@@ -105,7 +105,7 @@ export default function AnswerInput({
    */
   revealedInput?: string
   /**
-   * 手机形态（v0.7.6 软键盘）：不自动聚焦，回车提交后主动收起软键盘。
+   * 手机形态（v0.7.6 软键盘）：不自动聚焦，提交（回车或「提交」键）后主动收起软键盘。
    * 桌面保持原行为——自动聚焦是有用的（进来即可打字），且桌面上没有软键盘要收。
    */
   mobile?: boolean
@@ -114,6 +114,7 @@ export default function AnswerInput({
   const [picked, setPicked] = useState<string | null>(null)
   const [hover, setHover] = useState<string | null>(null)
   const gridRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
   const [columns, setColumns] = useState<1 | 2>(2)
   /** 上次量列数时的容器宽度。RO 只认「宽度变了」才重量——理由见下面 ResizeObserver 处。 */
   const measuredWidthRef = useRef(-1)
@@ -243,22 +244,25 @@ export default function AnswerInput({
   // 覆盖层同样按 Array.from 渲染，两侧下标才能一一对应。
   const matches = letterHighlight && target ? letterMatches(value.trim(), target) : null
 
+  // 回车与「提交」按钮共用一个出口：手机端提交即揭示，接下来的动作（评分 / 下一题）
+  // 都在底栏与结果区，键盘留着只会遮住它们。两条路径都经过这里，不靠按钮自己记得收。
+  const submit = () => {
+    onSubmit(value.trim())
+    if (mobile) inputRef.current?.blur()
+  }
+
   return (
     <div className="flex flex-col gap-2">
       <div style={TYPED_INPUT_BOX}>
         <input
+          ref={inputRef}
           // 手机端不自动聚焦：进题就弹软键盘会盖掉题面与底部评分栏，用户多半要先读题。
           autoFocus={!mobile}
           disabled={disabled}
           value={value}
           onChange={e => setValue(e.target.value)}
-          // 手机端回车提交后主动收起软键盘：提交即揭示，接下来的动作（评分 / 下一题）
-          // 都在底栏与结果区，键盘留着只会遮住它们。
           onKeyDown={e => {
-            if (e.key === 'Enter' && value.trim()) {
-              onSubmit(value.trim())
-              if (mobile) e.currentTarget.blur()
-            }
+            if (e.key === 'Enter' && value.trim()) submit()
           }}
           aria-label="键入答案"
           style={{
@@ -281,7 +285,7 @@ export default function AnswerInput({
       {/* alignSelf 落在包裹用的 <div> 上而非按钮本身：SquareButton 是 inline-flex，
           放进上面这个 flex-col 里默认会被拉满宽（原来的原生 <button> 靠 alignSelf 躲过）。 */}
       <div style={{ alignSelf: 'flex-start' }}>
-        <SquareButton tone="surface" disabled={disabled || !value.trim()} onClick={() => onSubmit(value.trim())}>
+        <SquareButton tone="surface" disabled={disabled || !value.trim()} onClick={submit}>
           提交
         </SquareButton>
       </div>
