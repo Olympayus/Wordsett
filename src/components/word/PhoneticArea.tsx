@@ -1,10 +1,14 @@
 import { useState, useRef, useLayoutEffect } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, MouseEvent } from 'react'
 import type { FieldValue } from '../../types/field'
 import { formatPhonetic } from '../../lib/phonetic'
 import { fieldState, FIELD_STATE_BG } from '../../lib/fieldState'
 import { FIELD_LABEL_STYLE, BAND_LABEL_COLUMN, BAND_LABEL_GAP } from '../../lib/labelStyle'
 import { MEASURE_STYLE, MEASURE_MIN_WIDTH, measureTextWidth } from '../../lib/measureText'
+import { hitAreaStyle } from '../../lib/mobileHitArea'
+import { unitSheetItems } from '../../lib/mobileSheets'
+import { useTouchLongPress } from '../../lib/useTouchLongPress'
+import MobileActionSheet from '../layout/mobile/MobileActionSheet'
 import Icon from '../icons'
 
 interface PhoneticAreaProps {
@@ -24,6 +28,11 @@ interface PhoneticAreaProps {
   plain?: boolean
   /** true = 每个条目占一行（词根多条目用）；false = 同行换行排列（音标用） */
   stacked?: boolean
+  /**
+   * 手机外壳（v0.7.7 Task 9）：长按 chip 弹底部表（编辑 / 删除），故 hover 现形的
+   * 编辑 / 删除钮、行尾 ⋯ 与「＋」一律不渲染；命中区只纵向扩到 44。桌面不传，逐字不变。
+   */
+  touch?: boolean
 }
 
 const chipBase: CSSProperties = {
@@ -83,6 +92,7 @@ function ChipBody(props: {
   rowHover: boolean
   editValue: string
   menuOpenId: string | null
+  touch: boolean
   onEditValueChange: (v: string) => void
   onStartEdit: (fv: FieldValue) => void
   onSave: () => void
@@ -90,8 +100,9 @@ function ChipBody(props: {
   onDelete: (fv: FieldValue) => void
   onHover: (id: string | null) => void
   onMenu: (id: string | null) => void
+  onLongPress: (fv: FieldValue) => void
 }) {
-  const { fv, isEditing, hovered, displayFont, plain, editorMode, rowHover, editValue, menuOpenId } = props
+  const { fv, isEditing, hovered, displayFont, plain, editorMode, rowHover, editValue, menuOpenId, touch } = props
   // 量的是**编辑中的值**（`editValue`，不是 `fv.value`）——初始时它等于被替换那段文字，之后随输入
   // 增长；量 `fv.value` 的话整个编辑过程宽度一动不动（那是评审抓到的 bug）。音标模式显示的是
   // `formatPhonetic` 的产物（比 `fv.value` 宽：`[` `]` 等），也要照样格式化后再量。
@@ -99,10 +110,37 @@ function ChipBody(props: {
   const probeRef = useRef<HTMLSpanElement>(null)
   const [textWidth, setTextWidth] = useState(0)
   useLayoutEffect(() => { if (isEditing) setTextWidth(measureTextWidth(probeRef.current)) }, [isEditing, editValue])
+
+  // 长按 chip（v0.7.7 Task 9，spec §3.1）：每枚 chip 各挂一份 hook。`ChipBody` 本来就是
+  // 为装 hook 抽出来的组件（见上方注释），这里直接加一份即可，hook 数按 chip 数稳定。
+  // `disabled: !touch || isEditing` 是两条门：桌面完全惰性（右键系统菜单照旧）；编辑态
+  // 也不挂——输入框里的长按属于系统选词 / 输入法手势。
+  // 长按成立后浏览器仍会补发一次 click（触屏合成事件）——编辑模式下那一下会顺带进编辑，
+  // 故与 `TabButton` / `UnitActivation` 同一套一次性闸门：长按置位、紧随其后的一次 click
+  // 在捕获阶段吞掉，下一次 pointerdown 复位。
+  const swallowClickRef = useRef(false)
+  const { handlers: longPressHandlers } = useTouchLongPress(() => {
+    swallowClickRef.current = true
+    navigator.vibrate?.(10)
+    props.onLongPress(fv)
+  }, { disabled: !touch || isEditing })
+  const longPressProps = {
+    ...longPressHandlers,
+    onPointerDownCapture: () => { swallowClickRef.current = false },
+    onClickCapture: (e: MouseEvent<HTMLElement>) => {
+      if (!swallowClickRef.current) return
+      swallowClickRef.current = false
+      e.preventDefault()
+      e.stopPropagation()
+    },
+  }
   return (
     <span
       // 标记放在外层 span：让 WordWorkbench 的点外关闭经 closest() 覆盖拖选中的输入框
       data-field-edit={isEditing ? 'true' : undefined}
+      // 触摸手势挂在 chip 本体上（命中区覆盖层在正文 span 里，pointer 事件照样冒泡到这里）；
+      // 桌面不展开任何一份——DOM 与既有行为逐字不变。
+      {...(touch ? longPressProps : null)}
       style={{
         ...chipBase,
         ...displayFont,
@@ -141,8 +179,15 @@ function ChipBody(props: {
           onDoubleClick={() => !editorMode && props.onStartEdit(fv)}
           onKeyDown={e => { if (e.key === 'Enter') props.onStartEdit(fv) }}
           title={editorMode ? '点击编辑' : '双击编辑'}
-          style={{ cursor: 'pointer' }}
+          // 触摸下这里才是命中区的包含块（`position: relative`）：覆盖层挂在正文 span 内部，
+          // 点击 / 长按都照常冒泡到本 span 与 chip 本体。放在 chip 根上会盖住正文、把
+          // 「点击编辑」也一起挡住（绝对定位层压在非定位子元素之上）。
+          style={{ cursor: 'pointer', ...(touch ? { position: 'relative' as const } : null) }}
         >
+          {/* 触摸命中区（v0.7.7 Task 9）：**只纵向**扩到 44px，横向仍是正文自己的宽度——
+              绝不像默认 44×44 那样向两侧伸手压住相邻 chip（Review Focus 2）。绝对定位、
+              不进布局；不进编辑态（输入框要自己接指针）。 */}
+          {touch && <span aria-hidden="true" style={hitAreaStyle({ verticalOnly: true })} />}
           {plain ? fv.value : formatPhonetic(fv.value)}
         </span>
       )}
@@ -153,8 +198,12 @@ function ChipBody(props: {
 
           但**那一格位置不能跟着一起消失**：两态 chip 的宽度必须逐字相同，故编辑态摆一枚
           与操作簇同宽的惰性占位（不可见、不接指针、不进无障碍树）。占位之外不放任何可点
-          控件——行内再留 ✓/✕ 就等于让保存有两条路，与「导航条接管」的决定相抵。 */}
-      {isEditing ? (
+          控件——行内再留 ✓/✕ 就等于让保存有两条路，与「导航条接管」的决定相抵。
+
+          v0.7.7 Task 9：手机上整簇**条件不渲染**（不是 display:none）——编辑 / 删除 / ⋯
+          都已由长按底部表承担，chip 里不留任何常驻或隐形的控件；编辑态的 36px 占位也一并
+          撤掉，因为触摸下三种形态都没有这一格，宽度在形态之间仍然一致。 */}
+      {!touch && (isEditing ? (
         <span aria-hidden="true" style={{ width: ACTION_CLUSTER_WIDTH, flexShrink: 0, visibility: 'hidden', pointerEvents: 'none' }} />
       ) : editorMode ? (
         <span style={reveal(hovered)}>
@@ -191,7 +240,7 @@ function ChipBody(props: {
             </span>
           )}
         </span>
-      )}
+      ))}
     </span>
   )
 }
@@ -199,11 +248,14 @@ function ChipBody(props: {
 export default function PhoneticArea(props: PhoneticAreaProps) {
   const {
     values, editorMode, editingId, editValue, onEditValueChange, onStartEdit, onSave, onCancelEdit, onAdd, onDelete,
-    label = '音标', addLabel = '+ 添加音标', plain = false, stacked = false,
+    label = '音标', addLabel = '+ 添加音标', plain = false, stacked = false, touch = false,
   } = props
   const [rowHover, setRowHover] = useState(false)
   const [chipHover, setChipHover] = useState<string | null>(null)
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null)
+  // 手机长按底部表的目标 chip（v0.7.7 Task 9）。桌面没有置位路径；三条关闭路径
+  // （选编辑 / 选删除 / 取消或点遮罩）都要清掉它，`MobileActionSheet` 不自行关闭。
+  const [sheetFv, setSheetFv] = useState<FieldValue | null>(null)
 
   // 无值时也渲染标签与行外壳（v0.7.4：普通模式原先 return null，编者模式下同一行会突然
   // 长出来、把下方内容整体推下去；两态同高是本组件的前提）。值区为空。
@@ -223,6 +275,7 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
       rowHover={rowHover}
       editValue={editValue}
       menuOpenId={menuOpenId}
+      touch={touch}
       onEditValueChange={onEditValueChange}
       onStartEdit={onStartEdit}
       onSave={onSave}
@@ -230,14 +283,16 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
       onDelete={onDelete}
       onHover={setChipHover}
       onMenu={setMenuOpenId}
+      onLongPress={setSheetFv}
     />
   )
 
   // 添加控件（v0.5.2 修订）：两种模式都改为 hover 现形（原先编者模式常显，只有普通模式是 hover）。
   // v0.7.4 决定七 7.2：两模式同一枚 18px「＋」。编者模式那枚带字虚线 pill 与普通模式
   // 的加号形状不同、宽度差一倍，「打开编者模式整体压缩」（草稿第 9 条）里有它一份。
+  // v0.7.7 Task 9：手机上不渲染（不是藏起来）——触摸下没有 hover，白占一格且按不中。
   const addTitle = addLabel.replace(/^\+\s*/, '')
-  const addControl = (
+  const addControl = touch ? null : (
     <button type="button" title={addTitle} aria-label={addTitle} onClick={onAdd}
       style={{ ...iconBtn, ...reveal(rowHover) }}>
       <Icon name="plus" size={12} />
@@ -249,6 +304,10 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
   const lastIndex = values.length - 1
   const headValues = stacked ? values.slice(0, lastIndex) : values
   const tailValue = stacked ? values[lastIndex] : undefined
+
+  // 底部表标题 = 被长按 chip 的显示文本（与 chip 上看到的一致：音标走 formatPhonetic、
+  // 词根原样）；空值（正在编辑的那条）退到字段名。
+  const sheetTitle = sheetFv ? (plain ? sheetFv.value : formatPhonetic(sheetFv.value)) : ''
 
   return (
     <div
@@ -287,6 +346,26 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
           </span>
         ) : addControl}
       </div>
+
+      {/* 手机长按底部表（v0.7.7 Task 9）。条目模型与桌面单位行同一份 `unitSheetItems()`
+          （编辑 / 删除）；`onPick` 按 chip 自己解析——编辑走 `onStartEdit`、删除走 `onDelete`，
+          都是该 chip 原本就有的回调，不另写一套。**先清 state 再执行**：`MobileActionSheet`
+          不自行关闭，三个分支（编辑 / 删除 / 其它）都必须让表消失。桌面 `sheetFv` 恒为 null，
+          这里一个节点都不渲染。 */}
+      {sheetFv && (
+        <MobileActionSheet
+          open
+          title={sheetTitle.trim() ? sheetTitle : label}
+          items={unitSheetItems()}
+          onPick={key => {
+            const fv = sheetFv
+            setSheetFv(null)
+            if (key === 'edit') onStartEdit(fv)
+            else if (key === 'delete') onDelete(fv)
+          }}
+          onCancel={() => setSheetFv(null)}
+        />
+      )}
     </div>
   )
 }

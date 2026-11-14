@@ -1852,6 +1852,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
                 onAdd={() => handleAddField(defs.find(d => d.key === 'phonetic')!)}
                 onDelete={handleDeleteField}
                 label="音标"
+                touch={touch}
               />
             </div>
           }
@@ -1876,6 +1877,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
               addLabel="+ 添加词根"
               plain
               stacked
+              touch={touch}
             />
           }
           bottomRight={
