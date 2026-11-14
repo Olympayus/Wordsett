@@ -217,8 +217,9 @@ function MobileSummary({ queue, answered, absent, summary, counts, series, onRes
               display: 'flex', flexDirection: 'column', gap: 4,
               background: 'var(--color-surface-raised)',
               border: '1px solid var(--color-border)',
-              // 左缘细条只在有结论时出现；null 保持普通 1px 边框，不画「无色条」。
-              borderLeft: ok === null ? undefined : `3px solid ${ok ? 'var(--color-success)' : 'var(--color-danger)'}`,
+              // 左缘恒为 3px：无结论时用透明占位（不是「无色条」），否则有无结论的卡内容盒
+              // 差 2px、整列文字左缘参差；绿/红仍只在有结论时可见。
+              borderLeft: `3px solid ${ok === null ? 'transparent' : ok ? 'var(--color-success)' : 'var(--color-danger)'}`,
               borderRadius: 'var(--radius-lg)',
               padding: '10px 12px',
             }}>
