@@ -32,7 +32,8 @@ export default function StrategyList({ strategies, active, onSelect, header, foo
               textAlign: 'left', cursor: 'pointer',
               borderRadius: 'var(--radius-md)',
               padding: '8px 10px',
-              background: on ? 'var(--color-surface)' : 'transparent',
+              // 选中态跟随工作区侧栏：比未选中更深一档的面 + 描边 + 600，不用品牌蓝（v0.7.6）
+              background: on ? 'var(--color-chrome)' : 'var(--color-surface-sunken)',
               border: `1px solid ${on ? 'var(--color-border-strong)' : 'transparent'}`,
               color: 'var(--color-text-primary)',
             }}
