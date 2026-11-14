@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import StrategyList, { type StrategyMeta } from './StrategyList'
+import StrategyTabs from './StrategyTabs'
 import OverviewPanel from './OverviewPanel'
+import MobileOverview from './MobileOverview'
 import FreeScopePanel from './FreeScopePanel'
 import ReviewArena from './ReviewArena'
 import ArenaNavBar from './ArenaNavBar'
@@ -11,6 +13,8 @@ import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useUiStore } from '../../stores/uiStore'
+import { usePlatformClass } from '../../lib/usePlatform'
+import { usesMobileShell } from '../../lib/platform'
 import { getStrategyCounts, getOverview, getQueue, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import type { ReviewStrategy } from '../../lib/review/types'
 import { isSessionLive } from '../../lib/review/sessionGuard'
@@ -19,6 +23,10 @@ import { scopeLabel, correctCount, TEMPLATE_LABEL } from '../../lib/review/scope
 
 export default function ReviewModule() {
   const { strategy, sessionStrategy, phase, queue, answered, freeScope, index, setStrategy, startSession, setIndex, reset } = useReviewSessionStore()
+  // 手机判定走与外壳同一条纯函数（v0.7.6 §4）：手机外壳里本模块只在 android-phone 下挂载，
+  // 但判据仍由 usesMobileShell 给出——另写媒体查询就会与外壳各说各话。
+  const platform = usePlatformClass()
+  const mobile = usesMobileShell(platform)
   const reviewSettings = useSettingsStore(s => s.review)
   const categories = useCategoryStore(s => s.categories)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
@@ -115,6 +123,89 @@ export default function ReviewModule() {
       danger: true,
     })
     if (ok) reset()
+  }
+
+  // 手机分支（v0.7.6 §4）：不渲染 220px 左侧策略栏，改为标题行 + 分段控件 + 概览内容。
+  // 数据逻辑全部复用上面的推导（live / showOverview / summaryVisible …），这里只换布局——
+  // 两套分支各推一份「是否在会话里」，迟早会漂。
+  if (mobile) {
+    return (
+      <div className="flex flex-1 flex-col overflow-hidden" style={{ background: 'var(--color-surface)' }}>
+        {/* 守卫照旧挂载：手机上的策略分段控件同样带 data-session-guard，
+            会话进行中点另一个策略要在这里被拦下并询问（与桌面同一处判据）。 */}
+        <SessionGuard />
+        {/* 顶区：标题行 + 策略分段控件。待复习数取 overview.total——与 ReviewConsole
+            第一行同一个数（getOverview 把 getStrategyCounts 的 today 落进 total），
+            不另算一份，免得同一屏上两处口径各改各的。 */}
+        <div style={{ padding: '14px 16px 0' }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={{ fontFamily: 'var(--font-serif)', fontSize: 22, fontWeight: 600 }}>复习</span>
+            <span style={{ marginLeft: 'auto', flexShrink: 0, fontSize: 12, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+              今天 <span className="stat-num">{overview?.total ?? 0}</span> 张待复习
+            </span>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            <StrategyTabs strategies={strategies} active={strategy} onSelect={setStrategy} />
+          </div>
+        </div>
+
+        {/* 内容区。live 时**不滚动**：ReviewArena 手机形态的底栏靠 height:100% 钉底，
+            只有父级高度确定且不滚动，那条底栏才既不会掉到折叠线以下、也不会双滚动。
+            其余三态各自包一层滚动容器（flex:1 + overflowY:auto）。 */}
+        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+          {emptyNotice && (
+            <span style={{ display: 'block', flexShrink: 0, padding: '12px 16px 0', fontSize: '12px', color: 'var(--color-danger)' }}>{emptyNotice}</span>
+          )}
+          {live ? (
+            <>
+              {/* 导航块与桌面那一块逐项相同，但**不吸顶**：这一支整体不滚动，sticky 没有可吸的
+                  滚动祖先。块本身通栏，进度条因此与导航条同宽。 */}
+              <div style={{ flexShrink: 0, background: 'var(--color-surface)' }}>
+                <ArenaNavBar
+                  index={index}
+                  total={queue.length}
+                  canBack={canGoBack(index)}
+                  canForward={canGoForward(queue, answered, index)}
+                  onBack={() => setIndex(index - 1)}
+                  onForward={() => setIndex(index + 1)}
+                  onEnd={() => void handleEnd()}
+                />
+                <div style={{ height: '3px', background: 'var(--color-border)' }}>
+                  <div style={{ width: `${((index + 1) / queue.length) * 100}%`, height: '100%', background: 'var(--color-brand)' }} />
+                </div>
+              </div>
+              {/* 确定高度的宿主：minHeight:0 让这一格真的能缩到剩余空间，
+                  否则 flex 子项的默认最小高度是内容高，答题底栏会被顶出屏幕。 */}
+              <div style={{ flex: 1, minHeight: 0 }}>
+                <ReviewArena mobile />
+              </div>
+            </>
+          ) : (
+            <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+              {showOverview && strategy === 'free' && (
+                <FreeScopePanel
+                  variant="mobile"
+                  categories={categories.map(c => ({ id: c.id, name: c.name, color: c.color }))}
+                  onStart={handleFreeStart}
+                />
+              )}
+              {showOverview && strategy === 'today' && (
+                <MobileOverview
+                  overview={overview}
+                  weakCount={counts.weak}
+                  stats={overview?.stats ?? { masteryBuckets: [], dueByDay: [], recentRatings: [] }}
+                  canStart={(overview?.deliverable ?? 0) > 0}
+                  onStart={handleStart}
+                />
+              )}
+              {summaryVisible && (
+                <SummaryPanel variant="mobile" onRestart={() => { reset(); setStrategy('free') }} />
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    )
   }
 
   return (
