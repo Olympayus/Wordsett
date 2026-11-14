@@ -45,10 +45,10 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
 
       <SectionTitle>统计</SectionTitle>
       <div style={{ display: 'flex', gap: 10 }}>
-        <Stat label="答题" value={String(summary.answeredCount)} unit="张" />
-        <Stat label="正确" value={String(summary.correctCount)} unit={`/ ${summary.judgedCount} 张`} />
-        <Stat label="正确率" value={summary.accuracy.replace('%', '')} unit={summary.accuracy === '—' ? '' : '%'} />
-        <Stat label="跳过" value={String(summary.skippedCount)} unit="张" />
+        <Stat label="答题" value={String(summary.answeredCount)} unit="张" tone={1} />
+        <Stat label="正确" value={String(summary.correctCount)} unit={`/ ${summary.judgedCount} 张`} tone={2} />
+        <Stat label="正确率" value={summary.accuracy.replace('%', '')} unit={summary.accuracy === '—' ? '' : '%'} tone={3} />
+        <Stat label="跳过" value={String(summary.skippedCount)} unit="张" tone={4} />
       </div>
 
       <SectionTitle>图表</SectionTitle>
@@ -160,9 +160,22 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
   return <div style={{ ...FIELD_LABEL_STYLE }}>{children}</div>
 }
 
-function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
+/**
+ * 统计卡的四档暖中性面，顺序即规格 §3.6 / §3.1 的顺序（chrome / raised / sunken / canvas）。
+ * 四张卡刻意各取一档、与图表卡的白面拉开层次——不要「简化」成同一个底色。
+ */
+type StatTone = 1 | 2 | 3 | 4
+
+const STAT_TONES: Record<StatTone, string> = {
+  1: 'var(--color-chrome)',
+  2: 'var(--color-surface-raised)',
+  3: 'var(--color-surface-sunken)',
+  4: 'var(--color-canvas)',
+}
+
+function Stat({ label, value, unit, tone }: { label: string; value: string; unit: string; tone: StatTone }) {
   return (
-    <div style={{ flex: 1, padding: '10px 12px', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
+    <div style={{ flex: 1, padding: '10px 12px', background: STAT_TONES[tone], border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)' }}>
       <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{label}</div>
       <div style={{ fontSize: '22px', fontWeight: 600, fontFamily: 'var(--font-serif)', marginTop: 2 }}>
         {value}{unit && <span style={{ fontSize: '11px', fontWeight: 400, color: 'var(--color-text-secondary)', marginLeft: 3 }}>{unit}</span>}
