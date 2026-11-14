@@ -63,7 +63,7 @@ import { deleteWordConfirmRequest } from '../../lib/wordActions'
 import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING_X, ENTRY_PHONETIC_GAP, NAV_CONTROL_HEIGHT } from '../../lib/layout'
 import { mobileRowActionsVisible } from '../../lib/mobileRowActions'
 import { hitAreaStyle, TOUCH_LONG_PRESS_MS, TOUCH_SLOP_PX, TOUCH_TARGET_PX } from '../../lib/mobileHitArea'
-import { rowSheetItems, type SheetItem } from '../../lib/mobileSheets'
+import { rowSheetItems, unitSheetItems, type SheetItem } from '../../lib/mobileSheets'
 import { useTouchLongPress } from '../../lib/useTouchLongPress'
 import MobileActionSheet from '../layout/mobile/MobileActionSheet'
 import type { FieldDefinition, FieldValue } from '../../types/field'
@@ -152,6 +152,8 @@ interface FieldCardCtx {
   sheetTargetId: string | null
   /** 打开行级底部表（v0.7.7 Task 5）：长按正文文字区（含容器标题）与手机 `⋯` 共用这一处。 */
   onOpenRowSheet: (fv: FieldValue) => void
+  /** 打开流式单位的底部表（v0.7.7 Task 7）：长按单位正文，条目只有编辑 / 删除。 */
+  onOpenUnitSheet: (containerFv: FieldValue, unit: FieldValue) => void
   editingId: string | null
   editValue: string
   insertIndicator: InsertIndicator | null
@@ -248,6 +250,42 @@ const SHEET_TARGET_STYLE: CSSProperties = {
 }
 
 /**
+ * 流式单位的正文长按外壳（v0.7.7 Task 7，spec §3.4）。
+ *
+ * 单位在 `LeafFlow` 的 `items` 数组里逐个产出，而数组是在 `FieldCard` 的渲染体里 `.map` 出来的
+ * ——**hook 不能写在 map 回调里**。故把「一个单位的长按」收成这个小而独立的组件：每个单位
+ * 各自挂一份 `useTouchLongPress`，hook 数按单位数稳定，也与 `LeafFlow` 的哑组件边界无关
+ * （LeafFlow 只渲染传进来的 `content`，不持任何状态）。
+ *
+ * 只在手机外壳挂载（`touch` 为真）；桌面走原样的 `renderUnitContent`，不新增任何包裹节点。
+ * 手势与 `FieldCard` 正文那一份逐字同构：长按成立 → 震动 + 打开单位底部表；随后浏览器补发的
+ * 那一次点击由一次性闸门吞掉（单位正文里有链接，表刚开就把词跳走同样是 bug）。
+ * 编辑态不挂（调用点按正在编辑的单位 id 排除）：输入框里的长按属于系统选词 / 输入法。
+ */
+function UnitActivation({ onLongPress, children }: { onLongPress: () => void; children: ReactNode }) {
+  const swallowClickRef = useRef(false)
+  const { handlers } = useTouchLongPress(() => {
+    swallowClickRef.current = true
+    navigator.vibrate?.(10)
+    onLongPress()
+  })
+  return (
+    <span
+      {...handlers}
+      onPointerDownCapture={() => { swallowClickRef.current = false }}
+      onClickCapture={(e: React.MouseEvent<HTMLElement>) => {
+        if (!swallowClickRef.current) return
+        swallowClickRef.current = false
+        e.preventDefault()
+        e.stopPropagation()
+      }}
+    >
+      {children}
+    </span>
+  )
+}
+
+/**
  * 行尾「⋯」菜单（v0.7.2）：两枚 22px 方钮里的第二枚。`RowActions` 出两套形态——编者模式
  * （`mode="edit"`）是 `＋` 与垃圾桶、不出 `menu`；普通模式（`mode="view"`）只出这一个 `menu` 槽，
  * 故这里自带 `⋯` 触发器，点开走现成的 `ContextMenu`（fixed 落位，点外 / Esc 自关）。
@@ -337,7 +375,7 @@ function MeasuredInput({ value, font, mark, onChange, onKeyDown }: {
 // v0.7.3：行尾那枚 6px 方点（SourceMark）整个退场，来源只剩左缘那根条（SourceBar，由 FlowRow / LeafFlow 渲染）。
 function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false, barState, barFirst = true, barLast = true, inheritedUser = false, ...ctx }: FieldCardProps) {
   const {
-    defs, editorMode, touch, sheetTargetId, onOpenRowSheet, editingId, editValue, insertIndicator, activeDragId, addMenu,
+    defs, editorMode, touch, sheetTargetId, onOpenRowSheet, onOpenUnitSheet, editingId, editValue, insertIndicator, activeDragId, addMenu,
     onStartEdit, onEditValueChange, onSave, onCancelEdit, onDelete,
     onToggleAddMenu, onPickAdd, hoveredId, onHover, isInLibrary, onJump,
   } = ctx
@@ -818,7 +856,24 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
                 // v0.7.4 决定九：`–` 改**画**（DashMark），且**按词自己着色**——取该单位自己的
                 // `unitState`，不是所在容器的聚合态（两者可以不同）；普通模式恒三级色。
                 <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '14px', lineHeight: '23px', color: 'var(--ink-2)' }}>
-                  <span style={{ marginRight: '8px' }}><DashMark color={editorMode ? MARK_COLOR[unitState(fv, inheritedUser)] : 'var(--ink-3)'} /></span>
+                  {/* 例句的 `–`（v0.7.7 Task 7，spec §3.4）：触摸下它是本行的**拖拽激活点**——
+                      行自己的 `listeners` 展开在这个 span 上，长按横杠即可拖起该行。`pointerdown`
+                      在这里止住冒泡：外层正文 span 挂着行级长按（弹表），这一下不能让它计时；
+                      与行手柄那条 `onPointerDown` 拦截同一个理由。纵向命中层扩到 44px，横向仍贴
+                      横杠宽度（不压住正文）。桌面不展开监听、不加包裹层，几何逐字不变。 */}
+                  <span
+                    {...(touch ? listeners : null)}
+                    {...(touch
+                      ? { onPointerDown: (e: React.PointerEvent<HTMLSpanElement>) => { e.stopPropagation() } }
+                      : null)}
+                    style={{
+                      marginRight: '8px',
+                      ...(touch ? { position: 'relative' as const, touchAction: 'none' as const } : null),
+                    }}
+                  >
+                    <DashMark color={editorMode ? MARK_COLOR[unitState(fv, inheritedUser)] : 'var(--ink-3)'} />
+                    {touch && <span aria-hidden="true" style={hitAreaStyle({ verticalOnly: true })} />}
+                  </span>
                   <LinkedText value={fv.value} fieldKey={def.key} isInLibrary={isInLibrary} onJump={onJump} />
                 </span>
               ) : form === 'english-def' ? (
@@ -940,6 +995,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               // 左缘 = 容器标题文字的左缘（v0.7.4 决定五 5.1）：标题在 11 + 手柄槽 10 + gap 4，
               // 故多列块要 `inset={25}`；默认的 11 会让第一个 `·` 凸到标题左边 14px。
               inset={LEAF_FLOW_INSET}
+              // 触摸分支（v0.7.7 Task 7）：手柄常挂 + 44px 命中层、`·` 可长按拖起、
+              // 单位行尾槽整块不渲染（单位底部表已承载编辑 / 删除）。桌面不传时为 false。
+              touch={touch}
               // 多单位块在分段里算「一行」：首末直接透传——段首/段末由块整体收口，
               // 块前若还有容器行（first=false）则条向上接进那一行。
               first={barFirst}
@@ -954,7 +1012,12 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               }}
               items={(fv.children ?? []).map(ch => ({
                 id: ch.id,
-                content: renderUnitContent(ch),
+                // 单位正文的长按（v0.7.7 Task 7）：手机上包一层 `UnitActivation`——每个单位
+                // 一份 hook（不能写进 map），长按打开单位底部表。编辑态不挂（输入框归系统选词）；
+                // 桌面保持原样的 `renderUnitContent`，不新增包裹节点。
+                content: touch && editingId !== ch.id
+                  ? <UnitActivation onLongPress={() => onOpenUnitSheet(fv, ch)}>{renderUnitContent(ch)}</UnitActivation>
+                  : renderUnitContent(ch),
                 // 小点的颜色（v0.7.4 决定九）：编者模式下取**该单位自己的**来源态——
                 // `unitState` 已处理「容器是用户建的 → 整棵子树都算 personal」的继承优先，
                 // 故用户自己添加的容器里的词全是用户色。普通模式一律三级色：否则阅读视图
@@ -1198,6 +1261,22 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
         isGroupPane: def.key === 'synonym_discrimination_group',
         rowHasAllowedChildren: (ALLOWED_CHILD_KEYS[def.key] ?? []).length > 0,
       }),
+    })
+  }
+
+  // ── 手机单位底部表（v0.7.7 Task 7，spec §3.4）──────────────────────────────────
+  // 流式单位（近义词 / 词源相关词 / 词形变化等）没有 FieldCard，行级入口到不了它们，
+  // 故单位正文长按自开一张表。条目只有编辑 / 删除（`unitSheetItems`，D17 同一判据）；
+  // 表目标仍存进同一份 `sheet` state——`onPick` 按 id 在字段树里解析，单位也在这棵树里，
+  // 于是 `handleSheetPick` 的 edit / delete 映射天然复用单位自己的回调，不另写一套。
+  // `containerFv` 只用于标题兜底（单位正文为空时退到字段名），行为仍只看单位自己。
+  const openUnitSheet = (containerFv: FieldValue, unit: FieldValue) => {
+    const def = defs.find(d => d.id === unit.fieldId)
+    const containerDef = defs.find(d => d.id === containerFv.fieldId)
+    setSheet({
+      id: unit.id,
+      title: unit.value.trim() ? stripLinks(unit.value) : (def?.name ?? containerDef?.name ?? ''),
+      items: unitSheetItems(),
     })
   }
 
@@ -1464,6 +1543,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     // v0.7.7 Task 5：底部表的目标行高亮 + 打开入口（长按正文 / 容器标题、手机 ⋯ 共用）。
     sheetTargetId: sheet?.id ?? null,
     onOpenRowSheet: openRowSheet,
+    onOpenUnitSheet: openUnitSheet,
     editingId,
     editValue,
     insertIndicator,

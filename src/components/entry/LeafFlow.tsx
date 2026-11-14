@@ -1,6 +1,7 @@
 import { useCallback, type CSSProperties, type ReactNode } from 'react'
-import { useDraggable, useDroppable } from '@dnd-kit/core'
+import { useDraggable, useDroppable, type DraggableSyntheticListeners } from '@dnd-kit/core'
 import { ROW_LINE_HEIGHT, ROW_PADDING_Y } from '../../lib/layout'
+import { hitAreaStyle } from '../../lib/mobileHitArea'
 import { SourceBar } from './SourceMark'
 import { DotMark } from './Mark'
 import Icon from '../icons'
@@ -54,8 +55,8 @@ import type { FieldState } from '../../lib/fieldState'
  * 与 `FieldCard` 注册一行时同一约定），故 `lib/dragReorder` 的判定逻辑一行不改——落点解析
  * 只看 id，单位本就是 `parentId` 指向容器的 `FieldValue`，注册即刻可拖。手柄挂在单位左缘之外
  * （`right: 100%`）、**只在悬停的那一刻现形**；它是流外绝对定位元素，出现 / 消失不占位、
- * 不动任何词的位置与折行点。单位正文**不接管拖拽**（手柄是唯一的激活点），双击（普通）/
- * 单击（编者）进编辑仍归 `·` 之后的正文。
+ * 不动任何词的位置与折行点。单位正文**不接管拖拽**（手柄与 `·` 是仅有的两个激活点，后者
+ * v0.7.7 起供手机长按），双击（普通）/ 单击（编者）进编辑仍归 `·` 之后的正文。
  *
  * (b) **拖拽注册只在工作区**：`LeafFlow` 与返回页共用，而返回页 `DictDetailCard` **没有
  * `DndContext`**。`useDraggable` / `useDroppable` 在缺 `DndContext` 时其实**是惰性的**
@@ -112,13 +113,43 @@ const UNIT_HANDLE: CSSProperties = {
   cursor: 'grab', color: 'var(--color-text-tertiary)', touchAction: 'none',
 }
 
-/** 单位的格内容（两变体共用）：小点 + 正文 + 单位自己的行尾槽。 */
-function unitBody(it: LeafFlowItem) {
+/**
+ * 手柄的触摸命中层（v0.7.7 Task 7）：44×44、绝对定位、不进排版流。
+ *
+ * 它是**按钮的 DOM 后代**（按钮因此加 `position: relative`）：擦到扩出来的任何一寸都等于
+ * 按这枚按钮，拖拽监听仍只在原按钮上，不搬家（与 `RowMenu` / 行手柄同一做法）。
+ * 几何：按钮宽 14 + 右间距 2 = wrapper 的 16px；`right: -2` 让命中层右缘停在单位左缘
+ * （与可见手柄的 wrapper 右缘重合），44px 宽因此全部向左伸进栏距 / 容器左留白——
+ * **绝不向右压住正文的长按区**。纵向以按钮高（行高）为中线上下各让，取 −10px。
+ */
+const UNIT_HANDLE_HIT: CSSProperties = { ...hitAreaStyle(), top: '-10px', right: '-2px' }
+
+/**
+ * 单位的格内容（两变体共用）：小点 + 正文 + 单位自己的行尾槽。
+ *
+ * v0.7.7 Task 7（spec §3.4）：触摸下 `·` 本身是**拖拽激活点**——`dotListeners` 是
+ * `UnitItemDraggable` 自己 `useDraggable` 的那份监听（返回页的 `UnitItemPlain` 不传），
+ * 展开在小点外层 span 上；监听里没有任何本组件自己的点击行为，LeafFlow 仍是哑组件。
+ * 同一处再叠一枚纵向 44px 的命中层（横向仍贴小点宽度，不抢正文的长按），手指按得中。
+ *
+ * 手机不挂单位行尾槽：单位的长按底部表已经承载编辑 / 删除（spec §3.4），行尾那枚 `⋯`
+ * 会在每个词右边多出一枚常驻控件、把流式排版挤乱。`end` 因此整块不渲染。
+ */
+function unitBody(it: LeafFlowItem, opts: { touch: boolean; dotListeners?: DraggableSyntheticListeners }) {
   return (
     <>
-      <span style={{ marginRight: '6px' }}><DotMark color={it.markColor} /></span>
+      <span
+        {...(opts.touch ? opts.dotListeners ?? null : null)}
+        style={{
+          marginRight: '6px',
+          ...(opts.touch ? { position: 'relative' as const, touchAction: 'none' as const } : null),
+        }}
+      >
+        <DotMark color={it.markColor} />
+        {opts.touch && <span aria-hidden="true" style={hitAreaStyle({ verticalOnly: true })} />}
+      </span>
       {it.content}
-      {it.end && (
+      {!opts.touch && it.end && (
         <span style={{ position: 'absolute', left: '100%', top: 0, height: '100%',
                        width: '22px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{it.end}</span>
       )}
@@ -140,10 +171,10 @@ function unitDropLine(before: boolean) {
 }
 
 /** 返回页（无 `DndContext`）的单位：不注册拖拽、无手柄、无选中框。 */
-function UnitItemPlain({ it }: { it: LeafFlowItem }) {
+function UnitItemPlain({ it, touch }: { it: LeafFlowItem; touch: boolean }) {
   return (
     <span onMouseEnter={it.onEnter} onMouseLeave={it.onLeave} style={UNIT_SPAN}>
-      {unitBody(it)}
+      {unitBody(it, { touch })}
     </span>
   )
 }
@@ -152,8 +183,13 @@ function UnitItemPlain({ it }: { it: LeafFlowItem }) {
  * 工作区单位：自己注册拖拽 / 落点（`id` / `drop-${id}`，与 `FieldCard` 同一约定——两个 handler
  * 与 `lib/dragReorder` 因此一行不改）。手柄是**唯一**的拖拽激活点（`setActivatorNodeRef`），
  * 单位 span 只承接落点度量，不接管拖拽。
+ *
+ * v0.7.7 Task 7：触摸下没有 hover，手柄改为**常挂**（`hoveredId === id || touch`），并叠一枚
+ * 44×44 命中层；`·` 本身也接同一份拖拽监听（见 `unitBody`），长按小点即可拖起该单位。
  */
-function UnitItemDraggable({ id, it, drag }: { id: string; it: LeafFlowItem; drag: LeafFlowDrag }) {
+function UnitItemDraggable({ id, it, drag, touch }: {
+  id: string; it: LeafFlowItem; drag: LeafFlowDrag; touch: boolean
+}) {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef } = useDraggable({ id })
   const { setNodeRef: setDropRef } = useDroppable({ id: `drop-${id}` })
   // 两个 ref 合到同一个节点（与 FieldCard 同做法）。
@@ -179,8 +215,9 @@ function UnitItemDraggable({ id, it, drag }: { id: string; it: LeafFlowItem; dra
       }}
     >
       {ind && ind.overId === id && unitDropLine(ind.before)}
-      {/* 手柄只在悬停的那一刻现形——wrapper 是流外绝对定位元素，条件渲染安全（文件头已有的同款论证）。 */}
-      {drag.hoveredId === id && (
+      {/* 手柄：桌面只在悬停的那一刻现形（wrapper 是流外绝对定位元素，条件渲染安全）；
+          手机没有 hover，常挂——仍走同一个 16px wrapper，几何不占位。 */}
+      {(drag.hoveredId === id || touch) && (
         <span style={UNIT_HANDLE_WRAPPER}>
           <button
             type="button"
@@ -189,18 +226,23 @@ function UnitItemDraggable({ id, it, drag }: { id: string; it: LeafFlowItem; dra
             {...attributes}
             title="拖动排序"
             aria-label="拖动排序"
-            style={UNIT_HANDLE}
+            style={{
+              ...UNIT_HANDLE,
+              // 命中层的定位基准只在手机加；桌面样式对象逐字不变。
+              ...(touch ? { position: 'relative' as const } : null),
+            }}
           >
+            {touch && <span aria-hidden="true" style={UNIT_HANDLE_HIT} />}
             <Icon name="grip" size={10} />
           </button>
         </span>
       )}
-      {unitBody(it)}
+      {unitBody(it, { touch, dotListeners: listeners })}
     </span>
   )
 }
 
-export default function LeafFlow({ items, state = 'none', first = true, last = true, drag, inset = 11 }: {
+export default function LeafFlow({ items, state = 'none', first = true, last = true, drag, inset = 11, touch = false }: {
   items: LeafFlowItem[]
   state?: FieldState
   /** 整块是否是其所属段的**首块**（v0.7.4 决定八）：多单位块按一行参与分段。 */
@@ -212,6 +254,9 @@ export default function LeafFlow({ items, state = 'none', first = true, last = t
   /** 块的左内边距（v0.7.4 决定五 5.1）：默认 11（与 FlowRow 同一条正文流左缘）；
    *  返回页的内层容器传 41（= 11 + 18 编号槽 + 12 gap），与容器行标题对齐。 */
   inset?: number
+  /** 手机外壳（v0.7.7 Task 7）：手柄常挂 + 44px 命中层、`·` 可长按拖起、不挂单位行尾槽。
+   *  缺省 false——桌面两个调用点不传，几何与交互逐字不变。 */
+  touch?: boolean
 }) {
   return (
     <div style={{ position: 'relative', padding: `${ROW_PADDING_Y}px 0 ${ROW_PADDING_Y}px ${inset}px` }}>
@@ -219,8 +264,8 @@ export default function LeafFlow({ items, state = 'none', first = true, last = t
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 22px' }}>
         {items.map((it, i) =>
           drag && it.id
-            ? <UnitItemDraggable key={it.id} id={it.id} it={it} drag={drag} />
-            : <UnitItemPlain key={it.id ?? i} it={it} />,
+            ? <UnitItemDraggable key={it.id} id={it.id} it={it} drag={drag} touch={touch} />
+            : <UnitItemPlain key={it.id ?? i} it={it} touch={touch} />,
         )}
       </div>
     </div>
