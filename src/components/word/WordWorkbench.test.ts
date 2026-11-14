@@ -295,6 +295,26 @@ describe('两页共用 leafForm（v0.7.3 尾段 §1.3）', () => {
 // 空态渲染少两个 hook、选中词后 hook 数变多，React 直接抛 "Rendered more hooks than during
 // the previous render"，手机端表现为整页「出了点问题」。hook 的位置必须与渲染分支无关，
 // 这条守卫钉住「早退在所有 hook 之后」。
+// v0.7.7 Task 4 源码级守卫（spec §3.2 / §3.8）：手机单击不进编辑（四处入口），
+// 而双击在手机上不受 editorMode 影响。桌面侧仍由 editorMode 门控。
+describe('手机编辑手势（v0.7.7 Task 4 源码级守卫）', () => {
+  const src = readFileSync(new URL('./WordWorkbench.tsx', import.meta.url), 'utf8')
+  const editableValue = readFileSync(new URL('../entry/EditableValue.tsx', import.meta.url), 'utf8')
+
+  it('单击进编辑的四处入口都带 !touch 门（字段值 / 词性标签各一，辨析组标题一）', () => {
+    // 字段值与词性标签的形态完全相同（`editorMode && onStartEdit(fv)`），共两处；
+    // 辨析组标题的判据是 `isGroupPane && !isEditing`（它本来就没有 editorMode 门），共一处。
+    // 计数按真实代码写死：漏改任何一处都会让这条失败。
+    expect(src.match(/!touch && editorMode && onStartEdit\(fv\)/g) ?? []).toHaveLength(2)
+    expect(src.match(/!touch && isGroupPane && !isEditing/g) ?? []).toHaveLength(1)
+  })
+
+  it('流式单位（EditableValue）：单击受 !touch 门控，双击由 touch 旁路 editorMode', () => {
+    expect(editableValue.match(/!touch &&/g) ?? []).toHaveLength(1)
+    expect(editableValue).toMatch(/onDoubleClick=\{\(\) => \(touch \|\| !editorMode\) && onStartEdit\(\)\}/)
+  })
+})
+
 describe('hook 顺序（React #310 守卫）', () => {
   it('空态早退必须在全部 hook 之后', () => {
     const src = readFileSync(new URL('./WordWorkbench.tsx', import.meta.url), 'utf8')

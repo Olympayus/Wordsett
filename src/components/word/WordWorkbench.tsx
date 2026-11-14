@@ -682,7 +682,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
             )
           ) : (
             <span
-              onClick={() => editorMode && onStartEdit(fv)}
+              onClick={() => !touch && editorMode && onStartEdit(fv)}
               onDoubleClick={() => (touch || !editorMode) && onStartEdit(fv)}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStartEdit(fv) } }}
               role="button"
