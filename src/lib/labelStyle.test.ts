@@ -1,13 +1,20 @@
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { FIELD_LABEL_STYLE, BAND_LABEL_COLUMN, BAND_LABEL_GAP } from './labelStyle'
+import { FIELD_LABEL_STYLE, LABEL_ON_THEME, BAND_LABEL_COLUMN, BAND_LABEL_GAP } from './labelStyle'
 
-describe('字段标签（v0.7.4 决定七 7.3）', () => {
-  it('字形取「中文释义(n)」那一套：粗体 / 一档小字 / 次级墨 / 字距 0.5', () => {
+describe('字段标签（v0.7.6 C1 两档）', () => {
+  it('白面标签：C1 一档小字 / 半粗 / 0.1em / 标签墨', () => {
     expect(FIELD_LABEL_STYLE).toEqual({
-      fontSize: 'var(--text-sm)', fontWeight: 700, letterSpacing: '0.5px',
-      color: 'var(--color-text-secondary)',
+      fontFamily: 'var(--font-sans)',
+      fontSize: '10.5px',
+      fontWeight: 600,
+      letterSpacing: '0.1em',
+      color: 'var(--color-label)',
     })
+  })
+
+  it('主题底标签：同款字形，只把墨换成次级文字色', () => {
+    expect(LABEL_ON_THEME).toEqual({ ...FIELD_LABEL_STYLE, color: 'var(--color-text-secondary)' })
   })
 
   it('头带标签列与间距收到 44 / 8，两页共用', () => {

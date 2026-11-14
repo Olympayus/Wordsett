@@ -43,6 +43,11 @@ describe('tokens.css', () => {
     expect(new Set(inks).size).toBe(6)
   })
 
+  it('C1 标签墨：浅色 / 深色两块各一份（v0.7.6）', () => {
+    expect(css).toMatch(/--color-label:\s*#7E6F5E/)
+    expect(css).toMatch(/--color-label:\s*#B3A691/)
+  })
+
   it('token 名一个不少（Tailwind v4 同名叠写靠声明顺序，删名会静默回落）', () => {
     for (const n of [
       '--color-brand', '--color-brand-soft', '--color-brand-softer', '--color-accent',

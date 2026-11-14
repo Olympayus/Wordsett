@@ -24,6 +24,9 @@
   --color-text-primary: #1C1814;
   --color-text-secondary: #57514A;
   --color-text-tertiary: #767064;
+  /* C1 小标题的专用墨（v0.7.6）。白面上压得住 4.5:1，又比三级文字更暖，
+     让「音标 / 词根 / 中文释义」这类标签与界面灰区分开。深色块有各自的取值。 */
+  --color-label: #7E6F5E;
 
   /* 词条正文的墨阶（v0.7.3 尾段 §1.3）。与界面灰（--color-text-*）分开走一层名字：
      界面灰管导航 / 设置 / 按钮，墨阶管词条内容——日后想让例句再淡一档时，改这里不会牵动设置页。
@@ -210,6 +213,9 @@
   --color-text-primary: #D6D6D6;
   --color-text-secondary: #A4A4A4;
   --color-text-tertiary: #8E8E8E;
+
+  /* C1 标签墨：深底上按同一暖调抬亮，surface #2A2A2A 上 6.0:1 / chrome #191919 上 7.4:1 */
+  --color-label: #B3A691;
 
   --color-brand: #7FA5DA;
   --color-brand-soft: #2C3035;
