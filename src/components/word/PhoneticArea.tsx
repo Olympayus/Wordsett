@@ -175,10 +175,13 @@ function ChipBody(props: {
       ) : (
         <span
           role="button" tabIndex={0}
-          onClick={() => editorMode && props.onStartEdit(fv)}
-          onDoubleClick={() => !editorMode && props.onStartEdit(fv)}
+          // 单击 / 双击与桌面语义分家（v0.7.7 Task 9，spec §3.8 / §3.1）：手机上单击**维持现状**
+          // （不再一按就进编辑——编辑已由长按表的「编辑」承担），双击才进编辑。桌面逐字不变。
+          // 照抄 `EditableValue.tsx` 与 `WordWorkbench` 正文的既有写法；着色分支仍读裸 `editorMode`。
+          onClick={() => !touch && editorMode && props.onStartEdit(fv)}
+          onDoubleClick={() => (touch || !editorMode) && props.onStartEdit(fv)}
           onKeyDown={e => { if (e.key === 'Enter') props.onStartEdit(fv) }}
-          title={editorMode ? '点击编辑' : '双击编辑'}
+          title={touch || !editorMode ? '双击编辑' : '点击编辑'}
           // 触摸下这里才是命中区的包含块（`position: relative`）：覆盖层挂在正文 span 内部，
           // 点击 / 长按都照常冒泡到本 span 与 chip 本体。放在 chip 根上会盖住正文、把
           // 「点击编辑」也一起挡住（绝对定位层压在非定位子元素之上）。
