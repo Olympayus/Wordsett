@@ -10,11 +10,14 @@ import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import SidebarToolbar from './SidebarToolbar'
 import SmartViewList from './SmartViewList'
+import MobileActionSheet from './mobile/MobileActionSheet'
 import WordListItem from '../word/WordListItem'
 import ContextMenu, { type MenuItem } from '../ui/ContextMenu'
 import CategoryPickerPopover from '../ui/CategoryPickerPopover'
 import { vocabularySearch } from '../../lib/search'
 import { moveActionLabel, moveBatchConfirmRequest, moveConfirmRequest, moveTarget } from '../../lib/archiveMove'
+import { drawerWordSheetItems, categorySheetItems, type SheetItem } from '../../lib/mobileSheets'
+import { useTouchLongPress } from '../../lib/useTouchLongPress'
 import { groupByLetter, groupByCategory, SIDEBAR_ROW_HEIGHT, SIDEBAR_ROW_HEIGHT_COLLAPSED, type SidebarMode } from '../../lib/sidebar'
 import { rangeSelect, selectAll, pruneToRows, selectedWordIdsFromRows } from '../../lib/selection'
 import { SMART_VIEW_ORDER, filterBySmartView, sidebarViews, smartViewCount } from '../../lib/smartViews'
@@ -43,6 +46,19 @@ interface ItemRow {
   categories: Category[]
 }
 type Row = HeaderRow | ItemRow
+
+/**
+ * 抽屉底部表的状态机（v0.7.7 Task 11，spec §3.6）。
+ *
+ * - `word`：主表四项（添加到… / 从…中移除 / 移入·移回 / 删除单词）；
+ * - `remove`：二级表，与主表**同一个 `MobileActionSheet` 实例换内容**，`onBack` 回主表；
+ * - `category`：分类分组表头（编辑分类 / 删除分类）。
+ * 桌面（`chrome === 'sidebar'`）没有任何置位路径，故这段逻辑对桌面是死代码。
+ */
+type SheetState =
+  | { kind: 'word'; word: WordWithPreview }
+  | { kind: 'remove'; word: WordWithPreview }
+  | { kind: 'category'; cat: Category }
 
 /**
  * 空态文案（v0.6.5 §4.4「空态文案」）。键是视图，值只说**该视图的口径**：
@@ -157,6 +173,8 @@ const WordList = forwardRef(function WordList({
   const [menu, setMenu] = useState<null
     | { x: number; y: number; kind: 'word'; word: WordWithPreview }
     | { x: number; y: number; kind: 'category'; category: Category }>(null)
+  // 抽屉底部表（v0.7.7 Task 11）：桌面没有置位路径，恒为 null。
+  const [sheet, setSheet] = useState<SheetState | null>(null)
   const showWorkbench = useViewStore(s => s.showWorkbench)
   const showWorkbenchView = useViewStore(s => s.showWorkbenchView)
   const setEditorMode = useViewStore(s => s.setEditorMode)
@@ -170,10 +188,15 @@ const WordList = forwardRef(function WordList({
   const { deleteWord } = useWordStore()
   const { removeFromWord, deleteCategory } = useCategoryStore()
 
-  const wordMenuItems = (word: WordWithPreview): MenuItem[] => {
-    const cats = (wordCategoryMap[word.id] ?? [])
+  /** 一个词当前挂着的分类对象（全库来源 `wordCategoryMap`，顺序即分配顺序）。
+   *  桌面右键菜单的主表 / 二级表、抽屉底部表的主表 / 二级表共用这一份取法。 */
+  const wordCategories = (wordId: string): Category[] =>
+    (wordCategoryMap[wordId] ?? [])
       .map(id => categoryById.get(id))
       .filter((c): c is Category => Boolean(c))
+
+  const wordMenuItems = (word: WordWithPreview): MenuItem[] => {
+    const cats = wordCategories(word.id)
     return [
       { key: 'edit', label: '编辑', onSelect: () => { void selectWord(word.id); openWordView(); setEditorMode(true) } },
       { key: 'assign', label: '添加到…', onSelect: () => openAssign(word.id) },
@@ -422,8 +445,6 @@ const WordList = forwardRef(function WordList({
 
   const renderHeader = (row: HeaderRow) => {
     const isUncat = row.type === 'uncategorized'           // 未分类：纯标签，不可折叠
-    const isFolded = collapsedGroups.has(row.key)
-    const isCategoryCollapsedSidebar = collapsed && row.type === 'category'
     // 未分类标签（§4.3 mockup .uncategorized-label）：无 chevron、无点击、无数量
     if (isUncat) {
       return (
@@ -438,58 +459,24 @@ const WordList = forwardRef(function WordList({
         </div>
       )
     }
+    // 分类组头：长按是手机上打开「编辑分类 / 删除分类」的唯一入口（spec §3.6）。
+    // 字母组头没有分类，不挂长按。多选模式下长按同样不挂（与词行一致）。
+    const category = row.type === 'category' ? categoryById.get(row.key.replace(/^cat:/, '')) : undefined
     return (
-      <div
+      <GroupHeaderRow
         key={row.key}
-        onClick={() => activateGroup(row.key)}
-        onContextMenu={row.type === 'category' ? (e) => {
+        row={row}
+        collapsed={collapsed}
+        folded={collapsedGroups.has(row.key)}
+        onActivate={() => activateGroup(row.key)}
+        onContextMenu={category ? (e) => {
           e.preventDefault()
-          const c = categoryById.get(row.key.replace(/^cat:/, ''))
-          if (c) setMenu({ x: e.clientX, y: e.clientY, kind: 'category', category: c })
+          setMenu({ x: e.clientX, y: e.clientY, kind: 'category', category })
         } : undefined}
-        onKeyDown={e => {
-          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); activateGroup(row.key) }
-        }}
-        role="button"
-        tabIndex={0}
-        className="flex items-center cursor-pointer select-none"
-        style={{
-          gap: '6px',
-          padding: collapsed ? (row.type === 'category' ? '8px 6px' : '8px 12px 4px') : '8px 12px 4px',
-          transition: 'background-color var(--duration-fast) var(--ease-smooth)',
-          borderRadius: 'var(--radius-md)',
-        }}
-      >
-        {!isCategoryCollapsedSidebar && (
-          <span style={{
-            display: 'flex', transition: 'transform var(--duration-fast) var(--ease-smooth)',
-            transform: isFolded ? 'rotate(-90deg)' : undefined, color: 'var(--color-text-tertiary)', flexShrink: 0,
-          }}>
-            <Icon name="chevron" size={14} />
-          </span>
-        )}
-        {row.color && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: row.color, flexShrink: 0 }} />}
-        <span style={{
-          fontSize: collapsed ? (row.type === 'category' ? 'var(--text-xs)' : 'var(--text-sm)') : 'var(--text-sm)',
-          fontWeight: 'var(--weight-medium)', color: 'var(--color-text-primary)',
-          flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          {row.label}
-        </span>
-        {/* 分类表头分模块读数（v0.7.5 Task 14）：与分类管理同一句「工作区:m 储藏库:n」，
-            两个数字各自 .stat-num；字母组仍是一个总数。 */}
-        {row.type === 'category' && row.locationCounts ? (
-          <span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
-            {locationCountSegments(row.locationCounts.workspace, row.locationCounts.archive).map((seg, i) =>
-              seg.stat
-                ? <span key={i} className="stat-num" style={{ fontSize: 'var(--text-xs)' }}>{seg.text}</span>
-                : <span key={i} style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>{seg.text}</span>
-            )}
-          </span>
-        ) : (
-          <span className="stat-num" style={{ fontSize: 'var(--text-xs)' }}>{row.count}</span>
-        )}
-      </div>
+        onLongPress={chrome === 'drawer' && category && !selectMode
+          ? () => setSheet({ kind: 'category', cat: category })
+          : undefined}
+      />
     )
   }
 
@@ -507,8 +494,54 @@ const WordList = forwardRef(function WordList({
         onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: 'word', word: row.word }) }}
         selectionMode={selectMode}
         checked={selected.has(row.key)}
+        // 抽屉里长按弹底部表；多选模式由 `WordListItem` 内部把 hook 禁用。
+        onLongPress={chrome === 'drawer' ? () => setSheet({ kind: 'word', word: row.word }) : undefined}
       />
     )
+  }
+
+  // 抽屉底部表的动作映射（v0.7.7 Task 11，spec §3.6）：所有动作都复用桌面菜单里
+  // 已经实现好的那一份 `onSelect`——移动的确认框 / 方向、删除的提示、编辑分类的入口
+  // 都不在这里重写。唯一的重写是「从…中移除」的二级表内容（Ruling 6：key 用分类 id）。
+  const handleSheetPick = (key: string) => {
+    if (!sheet) return
+    if (sheet.kind === 'word') {
+      if (key === 'remove') { setSheet({ kind: 'remove', word: sheet.word }); return }
+      const action = wordMenuItems(sheet.word).find(i => i.key === key)
+      setSheet(null)
+      action?.onSelect?.()
+      return
+    }
+    if (sheet.kind === 'remove') {
+      const catId = key.startsWith('rm-') ? key.slice('rm-'.length) : null
+      setSheet(null)
+      if (catId) void removeFromWord(sheet.word.id, catId)
+      return
+    }
+    const action = categoryMenuItems(sheet.cat).find(i => i.key === key)
+    setSheet(null)
+    action?.onSelect?.()
+  }
+
+  // 当前表的标题与条目（同一实例换内容）。分类名可以重复，二级表因此以 `rm-${cat.id}`
+  // 为 key、label 才是名字——`removeCategoryItems(names)` 的按名作 key 在这里会撞。
+  let sheetTitle: string | undefined
+  let sheetItems: SheetItem[] = []
+  let sheetBack: (() => void) | undefined
+  if (sheet?.kind === 'word') {
+    sheetTitle = sheet.word.lemma
+    sheetItems = drawerWordSheetItems({
+      moveLabel: moveActionLabel(location),
+      categoryCount: wordCategories(sheet.word.id).length,
+    })
+  } else if (sheet?.kind === 'remove') {
+    const { word } = sheet
+    sheetTitle = word.lemma
+    sheetItems = wordCategories(word.id).map(c => ({ key: `rm-${c.id}`, label: c.name }))
+    sheetBack = () => setSheet({ kind: 'word', word })
+  } else if (sheet?.kind === 'category') {
+    sheetTitle = sheet.cat.name
+    sheetItems = categorySheetItems()
   }
 
   return (
@@ -606,11 +639,115 @@ const WordList = forwardRef(function WordList({
           onClose={() => setMenu(null)}
         />
       )}
+      {/* 抽屉底部表（v0.7.7 Task 11，spec §3.6）：主表与二级表是**同一个实例换内容**，
+          二级表带 `onBack`（底部变「‹ 返回 / 取消」，安卓返回键也先回主表）。
+          桌面 chrome 没有置位路径，`sheet` 恒为 null——这一段对桌面是死代码。 */}
+      {sheet && (
+        <MobileActionSheet
+          open
+          title={sheetTitle}
+          items={sheetItems}
+          onPick={handleSheetPick}
+          onCancel={() => setSheet(null)}
+          onBack={sheetBack}
+        />
+      )}
     </div>
   )
 })
 
 export default WordList
+
+/**
+ * 分组表头（字母组 / 分类组）。抽成组件只为一件事：分类组头要挂 `useTouchLongPress`
+ * （v0.7.7 Task 11），而表头是 `renderHeader` 在 map 里渲染的普通函数——hook 不能写在
+ * 那里（分组数量随筛选变化，hook 数会跟着变）。桌面 `onLongPress` 恒为 undefined，
+ * hook 惰性、DOM 与事件一个不增。
+ *
+ * 长按成立后浏览器补发的 click 用与 `WordListItem` / `TabBar` 同一套一次性闸门吞掉，
+ * 否则松手会顺带折叠 / 展开这一组。
+ */
+function GroupHeaderRow({ row, collapsed, folded, onActivate, onContextMenu, onLongPress }: {
+  row: HeaderRow
+  collapsed: boolean
+  folded: boolean
+  onActivate: () => void
+  onContextMenu?: (e: React.MouseEvent) => void
+  onLongPress?: () => void
+}) {
+  const swallowClickRef = useRef(false)
+  const { handlers } = useTouchLongPress(() => {
+    swallowClickRef.current = true
+    onLongPress?.()
+  }, { disabled: !onLongPress })
+  const pressHandlers = onLongPress ? {
+    onPointerDown: handlers.onPointerDown,
+    onPointerMove: handlers.onPointerMove,
+    onPointerUp: handlers.onPointerUp,
+    onPointerCancel: handlers.onPointerCancel,
+  } : {}
+  const isCategoryCollapsedSidebar = collapsed && row.type === 'category'
+  return (
+    <div
+      {...pressHandlers}
+      onPointerDownCapture={onLongPress ? () => { swallowClickRef.current = false } : undefined}
+      onClickCapture={onLongPress ? e => {
+        if (!swallowClickRef.current) return
+        swallowClickRef.current = false
+        e.preventDefault()
+        e.stopPropagation()
+      } : undefined}
+      onClick={onActivate}
+      // 抽屉里长按即菜单，不再叠一层桌面右键菜单（触屏合成的 contextmenu 也走这里）。
+      // 两者都没有时（桌面的字母组头）不挂处理器——与抽出组件之前的 DOM 逐字相同。
+      onContextMenu={onLongPress || onContextMenu
+        ? e => { e.preventDefault(); if (onLongPress) return; onContextMenu?.(e) }
+        : undefined}
+      onKeyDown={e => {
+        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onActivate() }
+      }}
+      role="button"
+      tabIndex={0}
+      className="flex items-center cursor-pointer select-none"
+      style={{
+        gap: '6px',
+        padding: collapsed ? (row.type === 'category' ? '8px 6px' : '8px 12px 4px') : '8px 12px 4px',
+        transition: 'background-color var(--duration-fast) var(--ease-smooth)',
+        borderRadius: 'var(--radius-md)',
+      }}
+    >
+      {!isCategoryCollapsedSidebar && (
+        <span style={{
+          display: 'flex', transition: 'transform var(--duration-fast) var(--ease-smooth)',
+          transform: folded ? 'rotate(-90deg)' : undefined, color: 'var(--color-text-tertiary)', flexShrink: 0,
+        }}>
+          <Icon name="chevron" size={14} />
+        </span>
+      )}
+      {row.color && <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: row.color, flexShrink: 0 }} />}
+      <span style={{
+        fontSize: collapsed ? (row.type === 'category' ? 'var(--text-xs)' : 'var(--text-sm)') : 'var(--text-sm)',
+        fontWeight: 'var(--weight-medium)', color: 'var(--color-text-primary)',
+        flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+      }}>
+        {row.label}
+      </span>
+      {/* 分类表头分模块读数（v0.7.5 Task 14）：与分类管理同一句「工作区:m 储藏库:n」，
+          两个数字各自 .stat-num；字母组仍是一个总数。 */}
+      {row.type === 'category' && row.locationCounts ? (
+        <span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+          {locationCountSegments(row.locationCounts.workspace, row.locationCounts.archive).map((seg, i) =>
+            seg.stat
+              ? <span key={i} className="stat-num" style={{ fontSize: 'var(--text-xs)' }}>{seg.text}</span>
+              : <span key={i} style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)' }}>{seg.text}</span>
+          )}
+        </span>
+      ) : (
+        <span className="stat-num" style={{ fontSize: 'var(--text-xs)' }}>{row.count}</span>
+      )}
+    </div>
+  )
+}
 
 /** 批量条上的一颗动作。收起态只留图标，标签进 title 与 aria-label。
  *  收起态内边距 3px（而非展开态的 10px）：四颗图标钮各 20px 宽（12 图标 + 6 内边距 + 2 描边），

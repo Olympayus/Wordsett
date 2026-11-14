@@ -3,6 +3,7 @@ import type { WordWithPreview } from '../../types/word'
 import type { Category } from '../../types/category'
 import { SIDEBAR_ROW_PADDING, type SidebarMode } from '../../lib/sidebar'
 import { formatPhonetic } from '../../lib/phonetic'
+import { useTouchLongPress } from '../../lib/useTouchLongPress'
 import { useReviewOverlayStore } from '../../stores/reviewOverlayStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { isLeech } from '../../lib/review/leech'
@@ -27,6 +28,11 @@ interface Props {
   onContextMenu?: (e: React.MouseEvent) => void
   selectionMode: boolean
   checked: boolean
+  /**
+   * 行内长按（v0.7.7 Task 11，仅抽屉）。缺省 = 不挂长按、hook 完全惰性——
+   * 桌面侧栏与抽屉多选模式下都是这个状态，右键菜单与点击行为逐字不变。
+   */
+  onLongPress?: () => void
 }
 
 function hexToRgb(hex: string): string {
@@ -35,9 +41,26 @@ function hexToRgb(hex: string): string {
   return `${r}, ${g}, ${b}`
 }
 
-export default function WordListItem({ word, categories, selected, collapsed, mode, onClick, onContextMenu, selectionMode, checked }: Props) {
+export default function WordListItem({ word, categories, selected, collapsed, mode, onClick, onContextMenu, selectionMode, checked, onLongPress }: Props) {
   const collapsedDots = categories.slice(0, 3)   // 收起态色圈限 3 个：匹配 COLLAPSED_CHROME_ALPHABET 的 3 色圈宽度（3×6 + 2×2 gap = 22px）
   const lineRef = useRef<HTMLDivElement>(null)
+
+  // 抽屉行长按（v0.7.7 Task 11）：组件本身就是「一行」，hook 每行一份、数量稳定。
+  // `disabled` 覆盖两件事：没有 onLongPress（桌面侧栏）与多选模式——后者里单击即勾选，
+  // 长按无意义（spec §3.6）。
+  const swallowClickRef = useRef(false)
+  const { handlers: longPressHandlers } = useTouchLongPress(() => {
+    swallowClickRef.current = true
+    onLongPress?.()
+  }, { disabled: !onLongPress || selectionMode })
+  // 只在真的挂了长按时把指针处理器摊到根节点上：桌面侧栏的 DOM 与事件一个不增。
+  // 不摊 `onContextMenu`——本行自己的那个始终 preventDefault，触屏系统菜单同样被拦。
+  const pressHandlers = onLongPress ? {
+    onPointerDown: longPressHandlers.onPointerDown,
+    onPointerMove: longPressHandlers.onPointerMove,
+    onPointerUp: longPressHandlers.onPointerUp,
+    onPointerCancel: longPressHandlers.onPointerCancel,
+  } : {}
   // 顽固词徽标数据（v0.6.4；出题依据 03 §3.2）。词表是虚拟滚动的，只按本行 wordId 查表，
   // 不发 IPC——与 categoryStore 的 wordCategoryMap 同一做法。
   // 收起态（collapsed）下**不渲染徽标**：那里只剩单词名与分类色圈，没有位置，塞进去会把行压变形。
@@ -72,8 +95,19 @@ export default function WordListItem({ word, categories, selected, collapsed, mo
       tabIndex={0}
       data-word-id={word.id}
       className="group"
+      {...pressHandlers}
+      // 长按成立后浏览器仍会补发一次 click（触屏合成事件）：不拦的话松手会顺带切词 / 勾选。
+      // 与 `TabBar` 的页签同一套一次性闸门；下一次 pointerdown 先复位。
+      onPointerDownCapture={onLongPress ? () => { swallowClickRef.current = false } : undefined}
+      onClickCapture={onLongPress ? e => {
+        if (!swallowClickRef.current) return
+        swallowClickRef.current = false
+        e.preventDefault()
+        e.stopPropagation()
+      } : undefined}
       onClick={onClick}
-      onContextMenu={e => { e.preventDefault(); onContextMenu?.(e) }}
+      // 抽屉里长按即菜单，不再叠一层桌面右键菜单（触屏合成的 contextmenu 也走这里）。
+      onContextMenu={e => { e.preventDefault(); if (onLongPress) return; onContextMenu?.(e) }}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick(e) } }}
       style={containerStyle}
       onMouseEnter={e => {
