@@ -131,7 +131,7 @@ export default function SettingsPage({ variant = 'desktop', mobileSection: contr
       )}
       {key === 'search' && <SearchSettings />}
       {key === 'review' && <ReviewSettings />}
-      {key === 'voice' && <VoiceSettings />}
+      {key === 'voice' && <VoiceSettings variant="mobile" />}
       {key === 'category' && <CategorySettings />}
       {key === 'links' && <LinkSettings />}
       {key === 'platform' && <PlatformSettings />}

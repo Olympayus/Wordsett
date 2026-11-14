@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { getConfig, setConfig } from '../../lib/config'
+import { subscribe, getProbe } from '../../lib/review/ttsGate'
 import NumberRow from './NumberRow'
 import SpeakButton from '../ui/SpeakButton'
 
@@ -32,8 +33,21 @@ function errText(e: unknown): string {
  * 改动**只写配置、不出声**：试听改由标题旁的喇叭按钮触发（2026-10-03 用户决定）。
  * 于是「音色被系统卸载」这条错误只可能在点喇叭时浮现——那正是一个用户主动动作，
  * 比原先「改一下就自动播」更容易把红字和它的起因联系起来。
+ *
+ * Task 14：手机形态（`variant="mobile"`）。Android 的 TTS 只到 locale 级，没有可枚举的
+ * 音色名，音色选择本就是空下拉——故手机不渲染 `<select>`，改一行「系统默认（在系统设置
+ * 中更换）」。系统语音探测失败时把 `probe.reason` 与一条系统设置指引摆出来，并把语速与
+ * 试听置灰：这两项在系统 TTS 不可用时改了也不会出声。`probe === null` 是启动瞬间的
+ * 「尚未探测」，按中性处理（不报警、不置灰），与 `ListenStatus` 的三态判据一致。
  */
-export default function VoiceSettings() {
+export default function VoiceSettings({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile' }) {
+  const mobile = variant === 'mobile'
+  // 与 ReviewSettings 同一来源：探测结果在启动时异步落地，必须订阅而不是读一次。
+  // 桌面形态不消费它（桌面行为保持不变），但 hooks 不能条件调用，故照常订阅。
+  const probe = useSyncExternalStore(subscribe, getProbe)
+  // 只有「探测完成且明确不可用」才置灰；null = 尚未探测，按中性处理。
+  const ttsUnavailable = probe !== null && !probe.available
+
   const [ready, setReady] = useState(false)
   const [voice, setVoice] = useState<string | null>(null)
   const [rate, setRate] = useState(1.0)
@@ -50,8 +64,10 @@ export default function VoiceSettings() {
     // `voice` 为 null 是**合法值**（「系统默认」），故「配置读回来了没有」另用一个 `ready`
     // 标记——拿 voice 当门会让「系统默认」这一档永不渲染。
     void getConfig().then(c => { setVoice(c.tts.voice); setRate(c.tts.rate); setReady(true) })
+    // 手机形态没有音色下拉，枚举结果无人消费；Android 侧本来也恒返回空表，省掉这趟 IPC。
+    if (mobile) return
     void invoke<VoiceInfo[]>('list_english_voices').then(setVoices).catch(() => setVoices([]))
-  }, [])
+  }, [mobile])
 
   const patch = (p: { voice?: string | null; rate?: number }) => {
     chain.current = chain.current.then(async () => {
@@ -88,35 +104,62 @@ export default function VoiceSettings() {
         <div style={SECTION_TITLE}>音色与语速</div>
         {/* 与标题同一轴；`tertiary` 在这里偏淡（标题是 `--text-base` 加粗的近黑），
             故用 secondary，靠 hover 的品牌色给出可点性。 */}
-        <SpeakButton text={SAMPLE_WORD} label="试听" size={16} tone="secondary" onPlay={preview} />
+        <SpeakButton
+          text={SAMPLE_WORD}
+          label="试听"
+          size={16}
+          tone="secondary"
+          onPlay={preview}
+          disabled={mobile && ttsUnavailable}
+        />
       </div>
+
+      {/* 手机：系统 TTS 只到 locale 级，没有可选音色；固定一行说明设置入口在系统里。 */}
+      {mobile && (
+        <div style={{ fontSize: '13px' }}>音色：系统默认（在系统设置中更换）</div>
+      )}
+
+      {/* 探测完成且不可用才报警；null（尚未探测）不显示任何东西。 */}
+      {mobile && ttsUnavailable && (
+        <div style={{
+          border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)',
+          background: 'var(--color-surface-raised)', padding: '10px 12px',
+          fontSize: '12px', lineHeight: 1.7, color: 'var(--color-text-secondary)',
+        }}>
+          <div>{probe?.reason ?? '系统语音不可用'}</div>
+          <div style={{ marginTop: 4 }}>系统设置 → 语言与输入 → 文字转语音</div>
+        </div>
+      )}
 
       {ready && (
         <>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: '13px' }}>朗读音色</div>
+          {!mobile && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '13px' }}>朗读音色</div>
+              </div>
+              <select
+                aria-label="朗读音色"
+                value={voice ?? ''}
+                onChange={e => patch({ voice: e.target.value || null })}
+                style={{
+                  width: 240, padding: '5px 8px', borderRadius: 'var(--radius-lg)',
+                  border: '1px solid var(--color-border-strong)', background: 'var(--color-surface)',
+                  fontSize: 13, fontFamily: 'var(--font-sans)', color: 'var(--color-text-primary)',
+                }}
+              >
+                <option value="">系统默认</option>
+                {voices.map(v => <option key={v.name} value={v.name}>{v.name}{v.language ? `（${v.language}）` : ''}</option>)}
+              </select>
             </div>
-            <select
-              aria-label="朗读音色"
-              value={voice ?? ''}
-              onChange={e => patch({ voice: e.target.value || null })}
-              style={{
-                width: 240, padding: '5px 8px', borderRadius: 'var(--radius-lg)',
-                border: '1px solid var(--color-border-strong)', background: 'var(--color-surface)',
-                fontSize: 13, fontFamily: 'var(--font-sans)', color: 'var(--color-text-primary)',
-              }}
-            >
-              <option value="">系统默认</option>
-              {voices.map(v => <option key={v.name} value={v.name}>{v.name}{v.language ? `（${v.language}）` : ''}</option>)}
-            </select>
-          </div>
+          )}
 
           <NumberRow
             label="朗读语速"
             value={rate}
             min={0.5} max={2.0} step={0.1}
             onChange={v => patch({ rate: v })}
+            disabled={mobile && ttsUnavailable}
           />
         </>
       )}
