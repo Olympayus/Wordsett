@@ -58,8 +58,8 @@ function SnapshotExample({ text }: { text: string }) {
  * 数值与 `SenseFlow` / `FlowRow` 对齐（改那边时对一眼这里），但不 import 它们。
  *
  * 它从**页面顶端**就开始（v0.6.3 打磨）：完整词条与题面并排、占右半页，摆位由
- * ReviewArena 的两栏网格负责。两轨都是 `minmax(0, 1fr)`、手机是单列，故本组件每层
- * 都带 `minWidth: 0`——长义项与长例句只换行，不会把列顶宽。
+ * ReviewArena 的两栏网格负责。两轨都是 `minmax(0, 1fr)`、手机是单列，故承载长文本的
+ * 每一层都带 `minWidth: 0`（词名 / 音标 / 义项 / 例句）——它们只换行，不会把列顶宽。
  */
 export default function EntrySnapshot({ wordId, lemma, phonetic }: {
   wordId: string
@@ -106,14 +106,17 @@ export default function EntrySnapshot({ wordId, lemma, phonetic }: {
                     border: 'none', background: 'none', padding: 0, cursor: 'pointer',
                     fontSize: '22px', fontWeight: 600, color: 'var(--color-text-primary)',
                     fontFamily: 'var(--font-serif)', textAlign: 'left', lineHeight: 1.25,
-                    overflowWrap: 'anywhere',
+                    whiteSpace: 'normal', overflowWrap: 'anywhere',
                   }}
                 >
                   {lemma}
                 </button>
               </h3>
               {phonetic && (
-                <span style={{ fontFamily: 'var(--font-phonetic)', fontSize: 15, color: 'var(--color-text-secondary)' }}>
+                <span style={{
+                  minWidth: 0, fontFamily: 'var(--font-phonetic)', fontSize: 15,
+                  color: 'var(--color-text-secondary)', overflowWrap: 'anywhere',
+                }}>
                   {formatPhonetic(phonetic)}
                 </span>
               )}
