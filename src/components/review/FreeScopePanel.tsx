@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import FreeScopeTabs from './FreeScopeTabs'
+import FreeScopeTabs, { SCOPE_TABS } from './FreeScopeTabs'
 import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
@@ -15,12 +15,30 @@ import { useWordStore } from '../../stores/wordStore'
 
 export type { FreeScopeKind } from '../../lib/review/types'
 
-export default function FreeScopePanel({ categories, onStart }: {
+/**
+ * 手机端范围卡片的一行说明（v0.7.6 §3.8）。
+ * 按范围 key 索引、不按标签文字索引：标签改了名，按文字找的说明会静默失配。
+ * 标题本身不用这张表，直接取 `SCOPE_TABS` 的 label（与页签、控制台同源）。
+ */
+const MOBILE_SCOPE_DESC: Record<FreeScopeKind, string> = {
+  category: '按分类抽词，可多选',
+  weak: '连错 ≥2 的词',
+  today: '今天已练过的词',
+  random: '工作台全部词条',
+}
+
+export default function FreeScopePanel({ categories, onStart, variant = 'desktop' }: {
   // color 一并带进来（v0.6.3 条目 6）：分类行的勾选框要按分类走色，
   // 写进 prop 类型而不是在面板里另取一份，是为了让别的调用点漏传时编译器先叫。
   categories: { id: string; name: string; color: string }[]
   onStart: (scope: { kind: FreeScopeKind; categoryIds?: string[]; limit: number }) => void
+  /**
+   * 外壳形态（v0.7.6 §3.8）。缺省 `desktop`——`ReviewModule` 尚未接线时，
+   * 现有调用点的行为逐字节不变；手机外壳由后续任务传 `mobile`。
+   */
+  variant?: 'desktop' | 'mobile'
 }) {
+  const mobile = variant === 'mobile'
   const reviewSettings = useSettingsStore(s => s.review)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
   // 词库总数：v0.7.5 Task 12 起是**工作区**词数，不是 `words.length`——
@@ -84,26 +102,84 @@ export default function FreeScopePanel({ categories, onStart }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- categories 的身份不稳定，用 categoryKey 代
   }, [kind, categoryKey, params.leechThreshold])
 
+  // 不计分提示：桌面上放在页签条右端，手机上跟着区块标题走——两种形态都保留同一条说明。
+  const infoTip = (
+    <Tooltip content="自由练习不计分，不影响各单词的掌握程度">
+      <span style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'default' }}>
+        <Icon name="info" size={14} />
+      </span>
+    </Tooltip>
+  )
+
+  // 「开始练习」只有一处定义：手机端外面多包一层 flex 让它撑满，桌面端保持原样的行内按钮。
+  const startButton = (
+    <SquareButton
+      tone="surface"
+      grow={mobile}
+      disabled={!canStartFreeScope(kind, categoryIds)}
+      onClick={() => onStart({
+        kind,
+        categoryIds: kind === 'category' ? categoryIds : undefined,
+        limit,
+      })}
+    >
+      开始练习
+    </SquareButton>
+  )
+
   return (
     <div className="flex flex-col" style={{ minHeight: '100%' }}>
-      <FreeScopeTabs
-        active={kind}
-        onSelect={setKind}
-        right={
-          <Tooltip content="自由练习不计分，不影响各单词的掌握程度">
-            <span style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'default' }}>
-              <Icon name="info" size={14} />
-            </span>
-          </Tooltip>
-        }
-      />
+      {mobile ? (
+        /* 手机（v0.7.6 §3.8）：页签条换成 2×2 卡片。标题取 SCOPE_TABS 的 label，
+           说明按 key 取 MOBILE_SCOPE_DESC——中文名不在本文件出现第二份。 */
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '14px 16px 0' }}>
+          <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 600, fontFamily: 'var(--font-serif)' }}>
+            选择练习范围
+            {infoTip}
+          </div>
+          {SCOPE_TABS.map(t => {
+            const on = t.key === kind
+            return (
+              <button
+                key={t.key}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setKind(t.key)}
+                style={{
+                  minWidth: 0, padding: 12, borderRadius: 8, textAlign: 'left', cursor: 'pointer',
+                  border: '1px solid transparent', fontFamily: 'var(--font-sans)', color: 'inherit',
+                  background: on ? 'var(--color-surface)' : 'var(--color-surface-sunken)',
+                  ...(on ? { borderColor: 'var(--color-border-strong)' } : null),
+                  transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
+                  touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+                }}
+              >
+                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{t.label}</div>
+                <div style={{ marginTop: 4, fontSize: 11, lineHeight: 1.5, color: 'var(--color-text-secondary)' }}>
+                  {MOBILE_SCOPE_DESC[t.key]}
+                </div>
+              </button>
+            )
+          })}
+        </div>
+      ) : (
+        <FreeScopeTabs active={kind} onSelect={setKind} right={infoTip} />
+      )}
 
-      <div className="flex flex-col items-start gap-5 p-8" style={{ maxWidth: '620px' }}>
+      <div
+        className="flex flex-col items-start gap-5 p-8"
+        style={mobile
+          ? { padding: '16px 16px 24px', maxWidth: 'none', width: '100%' }
+          : { maxWidth: '620px' }}
+      >
         {/* 标题随标签页变（v0.6.2 条目 17）：原来写死「自由练习」，
-            与上面的页签对不上。文案与 SCOPE_TABS / 控制台的「范围」同源。 */}
-        <h2 style={{ fontSize: '20px', fontWeight: 600, fontFamily: 'var(--font-serif)' }}>
-          {FREE_SCOPE_LABEL[kind]}
-        </h2>
+            与上面的页签对不上。文案与 SCOPE_TABS / 控制台的「范围」同源。
+            手机端由卡片表达当前范围，这行标题不再出现（v0.7.6 §3.8）。 */}
+        {!mobile && (
+          <h2 style={{ fontSize: '20px', fontWeight: 600, fontFamily: 'var(--font-serif)' }}>
+            {FREE_SCOPE_LABEL[kind]}
+          </h2>
+        )}
 
         {kind === 'weak' && (
           weak.length === 0 ? (
@@ -235,18 +311,9 @@ export default function FreeScopePanel({ categories, onStart }: {
 
         {/* 判据抽在 canStartFreeScope 里（Review Focus 3），组件只消费结果；
             禁用观感（灰底 + 0.55 不透明度 + default 光标）交给 SquareButton 自带的
-            BUTTON_DISABLED，不再在本处另写一份 opacity。 */}
-        <SquareButton
-          tone="surface"
-          disabled={!canStartFreeScope(kind, categoryIds)}
-          onClick={() => onStart({
-            kind,
-            categoryIds: kind === 'category' ? categoryIds : undefined,
-            limit,
-          })}
-        >
-          开始练习
-        </SquareButton>
+            BUTTON_DISABLED，不再在本处另写一份 opacity。
+            手机端（v0.7.6 §3.8）外包一层 flex、由 `grow` 撑满整行。 */}
+        {mobile ? <div style={{ display: 'flex', width: '100%' }}>{startButton}</div> : startButton}
       </div>
     </div>
   )
