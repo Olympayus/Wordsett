@@ -171,8 +171,10 @@ export default function SummaryPanel({ onRestart, variant = 'desktop' }: {
  * 统计卡保留桌面那四档暖中性面（tone 顺序不变），图表卡用 sunken / chrome 交替，
  * 与桌面白卡区分开。
  *
- * 所有可能变长的文字层都带 `minWidth: 0` + `overflowWrap`，栅格一律 `minmax(0, 1fr)`：
- * 390dp 上不能出现横向滚动。
+ * 图表与逐题明细的栅格用 `minmax(0, 1fr)`，明细卡与卡内两行文字带 `minWidth: 0` /
+ * `overflowWrap`，故长释义不会把卡片撑破。两处有意例外：统计卡是 brief 钉死的
+ * `'1fr 1fr'`（四格只放短数字，不存在长文撑宽的问题）；absent 块是普通块级文字流、
+ * 不在 flex/grid 里，常规换行已足够，不需要 `minWidth`。390dp 上因此不会横向滚动。
  */
 function MobileSummary({ queue, answered, absent, summary, counts, series, onRestart }: {
   queue: ReviewCardDTO[]
@@ -187,7 +189,7 @@ function MobileSummary({ queue, answered, absent, summary, counts, series, onRes
     <div className="flex flex-col" style={{ padding: '16px 16px 24px', gap: 16 }}>
       <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '22px', fontWeight: 600 }}>本轮结算</h2>
 
-      <SectionTitle onTheme>统计</SectionTitle>
+      <SectionTitle>统计</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Stat label="答题" value={String(summary.answeredCount)} unit="张" tone={1} />
         <Stat label="正确" value={String(summary.correctCount)} unit={`/ ${summary.judgedCount} 张`} tone={2} />
@@ -195,17 +197,18 @@ function MobileSummary({ queue, answered, absent, summary, counts, series, onRes
         <Stat label="跳过" value={String(summary.skippedCount)} unit="张" tone={4} />
       </div>
 
-      <SectionTitle onTheme>图表</SectionTitle>
+      <SectionTitle>图表</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 12 }}>
         <RoundCard background="var(--color-surface-sunken)" title="本轮评分走势" subtitle={`按答题顺序 · 均值 ${avg(series).toFixed(1)}`}>
-          <SeriesLine data={series} />
+          {/* 卡底就是 sunken，基线要换 `--color-border` 才看得见；桌面白卡仍用默认 sunken 线。 */}
+          <SeriesLine data={series} baseline="var(--color-border)" />
         </RoundCard>
         <RoundCard background="var(--color-chrome)" title="本轮题型构成" subtitle={counts.filter(c => c.count > 0).map(c => `${c.label} ${c.count}`).join(' · ') || '本轮没有题'}>
           <StackedBars rows={counts.filter(c => c.count > 0).map(c => ({ label: c.label, n: c.count }))} />
         </RoundCard>
       </div>
 
-      <SectionTitle onTheme>逐题明细</SectionTitle>
+      <SectionTitle>逐题明细</SectionTitle>
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 8 }}>
         {queue.map(c => {
           const entry = answered.find(a => a.cardId === c.cardId)
@@ -298,11 +301,11 @@ function avg(xs: number[]): number {
 }
 
 /**
- * 结算分区标题（C1）。`onTheme` 给主题色面（手机画布）用次级墨——白面上才是 `--color-label`；
- * 桌面的默认分支保持不变。
+ * 结算分区标题（C1）。两个分支都落在 `--color-surface`（白面）上——手机结算页也在
+ * `ReviewModule` 的白底 `<main>` 里，故统一取白面标签墨 `FIELD_LABEL_STYLE`。
  */
-function SectionTitle({ children, onTheme }: { children: React.ReactNode; onTheme?: boolean }) {
-  return <div style={onTheme ? LABEL_ON_THEME : FIELD_LABEL_STYLE}>{children}</div>
+function SectionTitle({ children }: { children: React.ReactNode }) {
+  return <div style={FIELD_LABEL_STYLE}>{children}</div>
 }
 
 /**
@@ -349,14 +352,14 @@ function RoundCard({ title, subtitle, children, background = 'var(--color-surfac
  * 钉在 2.5px，否则横向拉伸会把线也一起拉粗。
  * 纵轴仍是 1:1：viewBox 高与渲染高都是 H，只有 x 方向被拉伸，故 1..3 的三档间距不失真。
  */
-function SeriesLine({ data }: { data: number[] }) {
+function SeriesLine({ data, baseline = 'var(--color-surface-sunken)' }: { data: number[]; baseline?: string }) {
   if (data.length === 0) return <div style={{ fontSize: '12px', color: 'var(--color-text-tertiary)' }}>还没有作答</div>
   const W = 300, H = 46
   const step = data.length > 1 ? W / (data.length - 1) : W
   const pts = data.map((r, i) => `${i * step},${H - ((r - 1) / 2) * H}`).join(' ')
   return (
     <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" role="img" aria-label="本轮评分走势" style={{ display: 'block' }}>
-      <line x1="0" y1={H} x2={W} y2={H} stroke="var(--color-surface-sunken)" strokeWidth="1" />
+      <line x1="0" y1={H} x2={W} y2={H} stroke={baseline} strokeWidth="1" />
       <polyline points={pts} fill="none" stroke="var(--color-brand)" strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
     </svg>
   )
