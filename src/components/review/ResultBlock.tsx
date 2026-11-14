@@ -1,53 +1,67 @@
 import type { ReactNode } from 'react'
+import { FIELD_LABEL_STYLE, LABEL_ON_THEME } from '../../lib/labelStyle'
 import { answerDisplay, correctnessLabel } from '../../lib/review/roundStats'
 
 /**
- * 答题复盘块（v0.6.3 条目 4b / 13 / 17 重排；v0.6.4 条目 8；打磨：只管左栏，两栏网格已提到 ReviewArena）。
+ * 作答复盘面板（v0.7.6 §3.4 重设计）。
  *
- * 「下次到期」整块已删（条目 13）：它报的是这张卡**评完分之后**的排期，而本块渲染在评分键之前，
- * 于是按评分键之前显示的是 dto.sched.dueAt 或「评分后更新」、按完才变真值——一个
- * 「先占位再换真值」的闪动。到期信息的全局视图在复习首页的「明日压力」图里。
+ * 结构：一块凹陷面（`--color-surface-sunken`）里装两件事——头行（「作答复盘」标签 + 正误徽标）
+ * 与两张白面答案卡（你的作答 / 正确答案）。先前这里是三栏网格，第三栏「正误」自成一格；
+ * 现在它的信息上移到头行的徽标里，面板内不再有第二处印正误，故没有第三张卡。
  *
- * 「你的作答」行不再按题型门控（v0.6.4 条目 8）：先前揭示型题（english_def）整行不渲染
- * （那种题只有「揭示答案」键、作答原文恒为空，一味印「（未作答）」会被读成「我跳过了这题」）。
- * 现在揭示型题已改成键入型，英文释义也要键入，空串只剩两个来源——按了「跳过」，
- * 或没输入直接提交。文案由 `answerDisplay` 统一出，两处消费点（这里与小结明细表）共用一份，
- * 于是空串不再是需要藏起来的特例，「（跳过）」与「（未作答）」各自说清自己。
+ * 徽标**必须带可读文本**（正确 / 错误 / —）：颜色只是辅助，不能是唯一信号。
+ * 三档色全部由既有 success / danger token 经 `color-mix` 调出，与 `AnswerInput` 的选项
+ * 对错着色同源（同样是 16% / 14% 白底、70% / 75% 黑字），不引入新的色值。
  *
- * **本块现在只渲染左栏**（v0.6.3 打磨）：完整词条那份与题面并排、占右半页，
- * 由 ReviewArena 的网格统一摆（先前两栏做在本块内部，于是题面区的右半边一直是空的、
- * 词条被压在题面下面，看上去是「词条上方有大片空白」）。作答行与三键 / 下一题（children）
- * 仍按原来的顺序排在左栏里，宽度上限仍由左栏那一轨给。
+ * 「你的作答」的值仍由 `answerDisplay` 给出（v0.6.4 条目 8）：揭示型题改成键入型后，
+ * 空串只剩「按了跳过」与「没输入直接提交」两个来源，文案统一由那个函数说清，
+ * 本块不重新实现「（跳过）」/「（未作答）」。
  *
- * `dto` prop 随之删除（v0.6.4）：揭掉 `revealOnly` 那道门控后，本块再没有一处读它
- * （题面与词条快照都从 ReviewArena 走），留着就是一条永远为真的死 prop。
- *
- * v0.7.2 起本块是三栏，`correct` 来自记账里的客观结论而不是 rating。
+ * 正误仍读 `correct`（v0.7.2）：它来自记账里的客观结论，不是 rating——
+ * rating 只管排期，两者刻意解耦。
  */
 
 /**
- * 对错色 token 化（v0.7.2）：旧代码硬编码 `#5a8a6a` / `#c0705a`，改为主题变量。
- * `dim` 给未判定（`correct === null`）的「正误」栏用——跳过 / 回看未评时是「—」。
+ * 三档徽标的底色 / 描边 / 字色。未判定档（`correct === null`，跳过或回看无结论）
+ * 退回白面 + 普通描边 + 三级墨：它不该和对错抢眼。
  */
-const TONES = {
-  ok: { color: 'var(--color-success)', fontWeight: 600 },
-  no: { color: 'var(--color-danger)', fontWeight: 600 },
-  dim: { color: 'var(--color-text-tertiary)' },
+const VERDICT_STYLES = {
+  ok: {
+    background: 'color-mix(in srgb, var(--color-success) 16%, white)',
+    border: '1px solid var(--color-success)',
+    color: 'color-mix(in srgb, var(--color-success) 70%, black)',
+  },
+  no: {
+    background: 'color-mix(in srgb, var(--color-danger) 14%, white)',
+    border: '1px solid var(--color-danger)',
+    color: 'color-mix(in srgb, var(--color-danger) 75%, black)',
+  },
+  dim: {
+    background: 'var(--color-surface)',
+    border: '1px solid var(--color-border)',
+    color: 'var(--color-text-tertiary)',
+  },
 } as const
 
-/** 三栏共用的一格：标签 11px 在上、值 14px 在下，三栏因此共用一条标签基线。 */
-function Column({ label, tone, children }: { label: string; tone?: keyof typeof TONES; children: ReactNode }) {
+/** 一张白面答案卡：C1 标签在上、值在下。`minWidth: 0` 让长释义能在格内折行而不是顶宽。 */
+function AnswerCard({ label, value }: { label: string; value: string }) {
   return (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{label}</div>
-      <div style={{ fontSize: '14px', marginTop: '6px', lineHeight: 1.5, overflowWrap: 'anywhere', ...(tone ? TONES[tone] : {}) }}>
-        {children}
+    <div style={{
+      minWidth: 0,
+      background: 'var(--color-surface)',
+      border: '1px solid var(--color-border)',
+      borderRadius: 'var(--radius-md)',
+      padding: '10px 12px',
+    }}>
+      <div style={FIELD_LABEL_STYLE}>{label}</div>
+      <div style={{ fontSize: '14px', marginTop: '6px', lineHeight: 1.5, overflowWrap: 'anywhere' }}>
+        {value}
       </div>
     </div>
   )
 }
 
-export default function ResultBlock({ lastInput, skipped, correct, answerText, children }: {
+export default function ResultBlock({ lastInput, skipped, correct, answerText, children, stacked = false }: {
   lastInput: string
   /**
    * 本次（或回看到的）那次作答是否走了「跳过」（v0.6.4）。由 ReviewArena 传入：
@@ -56,22 +70,54 @@ export default function ResultBlock({ lastInput, skipped, correct, answerText, c
    */
   skipped?: boolean
   correct: boolean | null
-  /** 「正确答案」栏的文本，由调用方用 `correctAnswerText(dto)` 求出。 */
+  /** 「正确答案」卡片的文本，由调用方用 `correctAnswerText(dto)` 求出。 */
   answerText: string
   /**
-   * 排在「你的作答」之后的内容（三键 / 下一题 / 回看态那行）。
+   * 手机端答案页把两张卡纵向堆叠（v0.7.6 §3.4）。缺省 false＝桌面并排。
+   * 桌面端本版没有调用点传它，留给后续的手机答案页任务接线。
+   */
+  stacked?: boolean
+  /**
+   * 排在面板之后的内容（三键 / 下一题 / 回看态那行）。
    * 评分状态与 onRate 仍在 ReviewArena，这里只接收渲染结果。
    */
   children?: ReactNode
 }) {
+  const verdict = correct === null ? 'dim' : correct ? 'ok' : 'no'
   return (
     <section aria-label="答题复盘" className="flex flex-col gap-4">
-      {/* 列定义必须写 minmax(0, 1fr)：`1fr` 的隐含 min-width:auto 会让长中文释义把格子顶宽，
-          左栏（上限 550px）随之横向溢出（Review Focus 4）。 */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 'var(--space-4)' }}>
-        <Column label="你的作答">{answerDisplay({ input: lastInput, skipped })}</Column>
-        <Column label="正确答案">{answerText}</Column>
-        <Column label="正误" tone={correct === null ? 'dim' : correct ? 'ok' : 'no'}>{correctnessLabel(correct)}</Column>
+      <div style={{
+        background: 'var(--color-surface-sunken)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+        padding: '14px 16px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 10 }}>
+          <div style={LABEL_ON_THEME}>作答复盘</div>
+          <span style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            padding: '2px 10px',
+            borderRadius: 'var(--radius-full)',
+            fontSize: '11.5px',
+            fontWeight: 600,
+            lineHeight: 1.5,
+            whiteSpace: 'nowrap',
+            ...VERDICT_STYLES[verdict],
+          }}>
+            {correctnessLabel(correct)}
+          </span>
+        </div>
+        {/* 列定义必须写 minmax(0, 1fr)：`1fr` 的隐含 min-width:auto 会让长中文释义把格子顶宽、
+            整块横向溢出。手机端改单列堆叠（stacked）。 */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: stacked ? '1fr' : 'repeat(2, minmax(0, 1fr))',
+          gap: 8,
+        }}>
+          <AnswerCard label="你的作答" value={answerDisplay({ input: lastInput, skipped })} />
+          <AnswerCard label="正确答案" value={answerText} />
+        </div>
       </div>
       {children}
     </section>
