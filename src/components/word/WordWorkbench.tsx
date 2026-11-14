@@ -60,6 +60,9 @@ import { deleteWordConfirmRequest } from '../../lib/wordActions'
 import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING_X, ENTRY_PHONETIC_GAP, NAV_CONTROL_HEIGHT } from '../../lib/layout'
 import { mobileRowActionsVisible } from '../../lib/mobileRowActions'
 import { hitAreaStyle, TOUCH_TARGET_PX } from '../../lib/mobileHitArea'
+import { rowSheetItems, type SheetItem } from '../../lib/mobileSheets'
+import { useTouchLongPress } from '../../lib/useTouchLongPress'
+import MobileActionSheet from '../layout/mobile/MobileActionSheet'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
 /**
@@ -138,6 +141,10 @@ interface FieldCardCtx {
   /** 手机外壳（v0.7.7 Task 4）：`chrome === 'mobile'`。所有触摸分支只在它为真时生效，
    *  桌面逐像素不变（spec §6 不变量 1）。行尾簇的可见性读 `mobileRowActionsVisible`。 */
   touch: boolean
+  /** 底部表当前指向的节点 id（v0.7.7 Task 5，spec §3.1）：该行出临时高亮，关表即清。 */
+  sheetTargetId: string | null
+  /** 打开行级底部表（v0.7.7 Task 5）：长按正文文字区（含容器标题）与手机 `⋯` 共用这一处。 */
+  onOpenRowSheet: (fv: FieldValue) => void
   editingId: string | null
   editValue: string
   insertIndicator: InsertIndicator | null
@@ -219,6 +226,21 @@ function childLabelOverride(
 const TOUCH_HIT_OFFSET = -(TOUCH_TARGET_PX - NAV_CONTROL_HEIGHT) / 2
 
 /**
+ * 底部表指向的目标行的临时高亮（v0.7.7 Task 5，spec §3.1）。
+ *
+ * 与 `FlowRow` 的 `focused` 同一形态——内阴影描边 + 圆角 + 极浅品牌底；内阴影画在盒内侧、
+ * 不进布局，故表开 / 关的那一刻行内一个像素都不动。底色刻意取 `--color-brand-softer`
+ * （比 `focused` 的 `--color-brand-soft` 更浅一档）：`focused` 表示「正在编辑 / 拖动」，
+ * 这里只是「表指向哪一行」的临时标记，两者可能同时出现在不同的行上。
+ * 高亮的唯一依据是页面级的 `sheet.id`：长按成立即置位、关表即清，松手或取消后不留选中态。
+ */
+const SHEET_TARGET_STYLE: CSSProperties = {
+  boxShadow: 'inset 0 0 0 1px var(--color-brand)',
+  borderRadius: 'var(--radius-md)',
+  background: 'var(--color-brand-softer)',
+}
+
+/**
  * 行尾「⋯」菜单（v0.7.2）：两枚 22px 方钮里的第二枚。`RowActions` 出两套形态——编者模式
  * （`mode="edit"`）是 `＋` 与垃圾桶、不出 `menu`；普通模式（`mode="view"`）只出这一个 `menu` 槽，
  * 故这里自带 `⋯` 触发器，点开走现成的 `ContextMenu`（fixed 落位，点外 / Esc 自关）。
@@ -231,8 +253,11 @@ const TOUCH_HIT_OFFSET = -(TOUCH_TARGET_PX - NAV_CONTROL_HEIGHT) / 2
  * 它因此是按钮的 DOM 后代，点在任何一寸扩出来的区域上都是点这枚按钮——`onClick` 等监听
  * 仍只挂在原按钮上，覆盖层自己不带任何手势。覆盖层不传 `touch` 的调用点（单位行尾槽）
  * 不渲染，桌面逐像素不变。
+ *
+ * v0.7.7 Task 5（spec §3.2）：`onOpen` 有值时手机上**不再渲染桌面 `ContextMenu`**——点按
+ * 直接交给它（打开与长按同一张底部表）。桌面不传 `onOpen`，原 `ContextMenu` 路径逐字保留。
  */
-function RowMenu({ items, touch = false }: { items: MenuItem[]; touch?: boolean }) {
+function RowMenu({ items, touch = false, onOpen }: { items: MenuItem[]; touch?: boolean; onOpen?: () => void }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   return (
     <>
@@ -240,7 +265,10 @@ function RowMenu({ items, touch = false }: { items: MenuItem[]; touch?: boolean 
         type="button"
         title="更多操作"
         aria-label="更多操作"
-        onClick={e => setPos({ x: e.clientX, y: e.clientY })}
+        onClick={e => {
+          if (onOpen) { onOpen(); return }
+          setPos({ x: e.clientX, y: e.clientY })
+        }}
         style={touch ? { ...rowIconStyle, position: 'relative' } : rowIconStyle}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit' }}
@@ -252,7 +280,7 @@ function RowMenu({ items, touch = false }: { items: MenuItem[]; touch?: boolean 
         )}
         <Icon name="more" size={16} />
       </button>
-      {pos && <ContextMenu x={pos.x} y={pos.y} items={items} onClose={() => setPos(null)} />}
+      {!onOpen && pos && <ContextMenu x={pos.x} y={pos.y} items={items} onClose={() => setPos(null)} />}
     </>
   )
 }
@@ -302,7 +330,7 @@ function MeasuredInput({ value, font, mark, onChange, onKeyDown }: {
 // v0.7.3：行尾那枚 6px 方点（SourceMark）整个退场，来源只剩左缘那根条（SourceBar，由 FlowRow / LeafFlow 渲染）。
 function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false, barState, barFirst = true, barLast = true, inheritedUser = false, ...ctx }: FieldCardProps) {
   const {
-    defs, editorMode, touch, editingId, editValue, insertIndicator, activeDragId, addMenu,
+    defs, editorMode, touch, sheetTargetId, onOpenRowSheet, editingId, editValue, insertIndicator, activeDragId, addMenu,
     onStartEdit, onEditValueChange, onSave, onCancelEdit, onDelete,
     onToggleAddMenu, onPickAdd, hoveredId, onHover, isInLibrary, onJump,
   } = ctx
@@ -312,6 +340,33 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     setNodeRef(node)
     setDropRef(node)
   }, [setNodeRef, setDropRef])
+
+  // ── 手机长按正文（v0.7.7 Task 5，spec §3.1）─────────────────────────────────────
+  // 长按成立 → 目标行临时高亮（页面级 `sheet.id` 驱动）+ 10ms 震动 + 打开行级底部表。
+  // `disabled: !touch` 是桌面分支的唯一门：hook 完全惰性（不起计时器、不拦 contextmenu），
+  // 右键菜单与桌面既有行为逐字保留。hook 必须在 `if (!def) return null` **之前**调用，
+  // 否则定义尚未加载的那一帧会少走一个 hook（React #310 的同一条理由）。
+  //
+  // 长按后手指抬起时浏览器仍会补发一次 click（触屏合成事件）。若正文里有链接，那一下会在
+  // 表刚打开时把词跳走。故长按成立时置位一个一次性闸门，同一元素上的 click 捕获阶段把紧随
+  // 其后的那一次吞掉；下一次 pointerdown 先复位——正常点击（下一轮）不受影响。
+  const swallowClickRef = useRef(false)
+  const { handlers: longPressHandlers } = useTouchLongPress(() => {
+    swallowClickRef.current = true
+    // 不支持的 WebView（含部分桌面内嵌环境）没有 vibrate，可选调用即静默跳过。
+    navigator.vibrate?.(10)
+    onOpenRowSheet(fv)
+  }, { disabled: !touch })
+  const longPressProps = {
+    ...longPressHandlers,
+    onPointerDownCapture: () => { swallowClickRef.current = false },
+    onClickCapture: (e: React.MouseEvent<HTMLElement>) => {
+      if (!swallowClickRef.current) return
+      swallowClickRef.current = false
+      e.preventDefault()
+      e.stopPropagation()
+    },
+  }
 
   const def = defs.find(d => d.id === fv.fieldId)
   if (!def) return null
@@ -329,6 +384,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   // `isDragging` 就地判定——`focused = isEditing || isDragging`，不新增组件 state、不接 DndContext。
   // 只在**这一行**亮（父行不亮），蓝＝「正在编辑」的状态，符合蓝色收窄规则第 1 条。
   const isFocused = isEditing || isDragging
+  // 底部表打开期间目标行的临时高亮（v0.7.7 Task 5，spec §3.1）：依据是页面级的 `sheet.id`，
+  // 关表即清。与 `focused` 同一形态、底色更浅一档（见模块级的 SHEET_TARGET_STYLE）。
+  const isSheetTarget = sheetTargetId === fv.id
   const isPhonetic = def.key === 'phonetic'
   // 叶子走哪套排版由 lib/fieldKind 的 leafForm 唯一判定（与返回页同一函数）；
   // 表内键回落 'plain'（普通正文）。
@@ -535,6 +593,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
         </span>
       ) : isPosPane ? (
         <span
+          // v0.7.7 Task 5：容器标题也归长按菜单（spec §3.1「含容器标题」）——手机上它是与
+          // `⋯` 同一张表；桌面 hook 惰性，右键菜单与单击 / 双击编辑逐字不变。
+          {...longPressProps}
           onClick={() => !touch && editorMode && onStartEdit(fv)}
           onDoubleClick={() => (touch || !editorMode) && onStartEdit(fv)}
           role="button"
@@ -560,7 +621,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
             touch={touch}
             onAdd={() => onToggleAddMenu(fv)}
             onDelete={() => onDelete(fv)}
-            menu={<RowMenu items={menuItems} touch={touch} />}
+            menu={<RowMenu items={menuItems} touch={touch} onOpen={touch ? () => onOpenRowSheet(fv) : undefined} />}
           />
         )}
       </span>
@@ -573,6 +634,10 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     <>
       {labelText && (
         <span
+          // v0.7.7 Task 5：容器标题（近义词 / 补充 / 辨析组…）挂同一套长按——嵌套容器没有 `⋯`，
+          // 标题长按是它唯一的行菜单入口（spec §3.1 Review Focus 1）。非容器行的标签只是字段名，
+          // 不挂（正文文字区才是长按区）。编辑态（辨析组标题的输入框）不挂，见 `!isEditing`。
+          {...(isContainer && !isEditing ? longPressProps : {})}
           // 编辑态时整组手势让位：输入框是本 span 的 DOM 子节点。键盘的 `e.target !== e.currentTarget`
           // 守卫在编辑态尤其要紧——键是从输入框冒泡上来的，不拦住就会把「Enter」当成「进编辑」。
           // （点击那条让位是历史遗留：v0.7.4 任务 14 之前行内还有那对不阻断冒泡的「保存 / 取消」，
@@ -682,6 +747,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
             )
           ) : (
             <span
+              // 正文文字区的长按（v0.7.7 Task 5，spec §3.1）：打开本行的底部表。编辑态走上面
+              // 另一个分支（输入框），输入框内不挂长按——系统选词 / 输入法手势原样保留。
+              {...longPressProps}
               onClick={() => !touch && editorMode && onStartEdit(fv)}
               onDoubleClick={() => (touch || !editorMode) && onStartEdit(fv)}
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStartEdit(fv) } }}
@@ -752,8 +820,10 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
       )}
 
       {/* 行体：组的根容器走 run-in 头（groupHead）；其余行走 FlowRow
-          （来源条 / 义号 / 正文 / 行尾槽，行尾槽 = 来源标 + 操作簇，常驻占位）。 */}
-      <div style={{ position: 'relative' }}>
+          （来源条 / 义号 / 正文 / 行尾槽，行尾槽 = 来源标 + 操作簇，常驻占位）。
+          v0.7.7 Task 5：这一层恰好是**本行**（不含子行）的盒子——底部表打开时把目标行的
+          临时高亮挂在这里，子行不会被一起染上；内阴影 + 背景都不进布局，开 / 关零位移。 */}
+      <div style={{ position: 'relative', ...(isSheetTarget ? SHEET_TARGET_STYLE : null) }}>
         {asGroupHead ? groupHead : (
           <FlowRow
             no={no}
@@ -768,7 +838,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
                 touch={touch}
                 onAdd={() => onToggleAddMenu(fv)}
                 onDelete={() => onDelete(fv)}
-                menu={<RowMenu items={menuItems} touch={touch} />}
+                menu={<RowMenu items={menuItems} touch={touch} onOpen={touch ? () => onOpenRowSheet(fv) : undefined} />}
               />
             )}
           >
@@ -899,6 +969,10 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   const [entryValue, setEntryValue] = useState('')  // 进入编辑时的值
   const [hoveredId, setHoveredId] = useState<string | null>(null)
   const [addMenu, setAddMenu] = useState<AddMenuState>(null)
+  // 手机行级底部表的目标（v0.7.7 Task 5，spec §3.3）：`id` 同时驱动目标行的临时高亮
+  // （`sheet?.id`，见 FieldCard 的 isSheetTarget），`items` 由 lib/mobileSheets 的判据生成。
+  // 桌面永远为 null——没有任何桌面路径会置位（长按与手机 `⋯` 都被 `touch` 门控）。
+  const [sheet, setSheet] = useState<{ id: string; title: string; items: SheetItem[] } | null>(null)
   const [saved, setSaved] = useState(false)
   const [fadeIn, setFadeIn] = useState(true)
   const [insertIndicator, setInsertIndicator] = useState<InsertIndicator | null>(null)
@@ -1028,6 +1102,32 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     setEditingId(fv.id)
     setEditValue(fv.value || '')
     setEntryValue(fv.value || '')
+  }
+
+  // 行级「＋ 添加」菜单的开关：三处入口共用同一份判据——桌面行尾 ＋、桌面 ⋯ 菜单、
+  // 手机底部表的「添加子项」（v0.7.7 Task 5 起）。抽成具名函数，三处不可能各说各话。
+  const handleToggleAddMenu = (fv: FieldValue) =>
+    setAddMenu(prev => prev?.target === 'row' && prev.id === fv.id ? null : { target: 'row', id: fv.id })
+
+  // ── 手机行级底部表（v0.7.7 Task 5，spec §3.1 / §3.3）────────────────────────────
+  // 条目模型与文案的唯一出处是 lib/mobileSheets 的 `rowSheetItems`（与桌面 `menuItems`
+  // 同一份判据）；这里只做三件事：认出行、拼标题、存 state。打开表即置位 `sheet.id` →
+  // 目标行临时高亮；关表清空、不留选中态。桌面没有调用点（长按与 `⋯` 都被 `touch` 门控）。
+  const openRowSheet = (fv: FieldValue) => {
+    const def = defs.find(d => d.id === fv.fieldId)
+    if (!def) return
+    setSheet({
+      id: fv.id,
+      // 标题 = 被长按对象的文本（spec §3.3）：有正文取正文，容器类没有正文时退到字段名。
+      // 链接标记在纯文本标题里没有意义，与 rowTitle 同口径先剥掉。
+      title: fv.value.trim() ? stripLinks(fv.value) : def.name,
+      items: rowSheetItems({
+        isContainer: CONTAINER_FIELD_KEYS.includes(def.key),
+        isPosPane: def.key === 'part_of_speech',
+        isGroupPane: def.key === 'synonym_discrimination_group',
+        rowHasAllowedChildren: (ALLOWED_CHILD_KEYS[def.key] ?? []).length > 0,
+      }),
+    })
   }
 
   // Recursively find a FieldValue by its id within the tree (root values + nested children)
@@ -1287,6 +1387,9 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     editorMode,
     // v0.7.7 Task 4：触摸分支的唯一门（spec §6 不变量 1）。
     touch: chrome === 'mobile',
+    // v0.7.7 Task 5：底部表的目标行高亮 + 打开入口（长按正文 / 容器标题、手机 ⋯ 共用）。
+    sheetTargetId: sheet?.id ?? null,
+    onOpenRowSheet: openRowSheet,
     editingId,
     editValue,
     insertIndicator,
@@ -1297,7 +1400,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     onSave: handleSave,
     onCancelEdit: () => setEditingId(null),
     onDelete: handleDeleteField,
-    onToggleAddMenu: (fv) => setAddMenu(prev => prev?.target === 'row' && prev.id === fv.id ? null : { target: 'row', id: fv.id }),
+    onToggleAddMenu: handleToggleAddMenu,
     onPickAdd: handleAddChild,
     hoveredId,
     onHover: setHoveredId,
@@ -1307,6 +1410,21 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     // 点击去向（v0.7.5 Task 4）：工作区词条 / 词典词 / 失效提示由 `useLinkJump` 判定并执行，
     // 渲染层（`LinkedText`）仍然只把 token 交出来。
     onJump,
+  }
+
+  // 底部表的 onPick 映射（v0.7.7 Task 5）：edit → 行内编辑、addChild → 行级「＋ 添加」菜单、
+  // delete → 删除确认。**每个分支都先清空 sheet state 再执行**——Task 3 的组件刻意不自动关，
+  // 调用点必须自己收；先清再执行也让「删除确认框 / 编辑态」不会叠在表底下。
+  // 动作本身复用 cardCtx 里的同一组回调，映射之外不另写一份行为。
+  const handleSheetPick = (key: string) => {
+    const target = sheet
+    if (!target) return
+    setSheet(null)
+    const fv = findFieldValueById(target.id)
+    if (!fv) return
+    if (key === 'edit') cardCtx.onStartEdit(fv)
+    else if (key === 'addChild') cardCtx.onToggleAddMenu(fv)
+    else if (key === 'delete') void cardCtx.onDelete(fv)
   }
 
   const tabLabel = effectiveTab ? TAB_GROUPS[effectiveTab].label : ''
@@ -1711,6 +1829,17 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
           )}
         </div>
       </div>
+
+      {/* 行级底部动作表（v0.7.7 Task 5）：只有手机路径会置位 `sheet`；桌面恒为 null，
+          组件在 `open=false` 时返回 null，故桌面 DOM 与改动前一致。遮罩 / 取消 / 安卓返回键
+          三条关闭路径都由组件自己登记（registerMobilePopup），这里只负责清 state。 */}
+      <MobileActionSheet
+        open={sheet !== null}
+        title={sheet?.title}
+        items={sheet?.items}
+        onPick={handleSheetPick}
+        onCancel={() => setSheet(null)}
+      />
     </div>
   )
 })

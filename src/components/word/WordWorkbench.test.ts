@@ -262,8 +262,17 @@ describe('工作区改用原语（源码级守卫）', () => {
 //  （0）、groupHead 条件渲染（+2），使下半六处再 +10（合计 +30 附近）。十二处命中行重算为
 //  324 / 325 / 332 / 338 / 359 / 360 / 1125 / 1134 / 1138 / 1181 / 1386 / 1580
 //  （行号由守卫失败输出回填，未手算）。
+//  v0.7.7 Task 5（长按正文 → 行级底部表）：顶部三个 import（+3）、`SHEET_TARGET_STYLE` 常量
+//  （+15）、RowMenu 的 `onOpen` 与注释（+9）、`FieldCardCtx` 两个字段（+4）、FieldCard 的长按
+//  hook 与 click 闸门（+26）、`isSheetTarget`（+3）、三处展开 `longPressProps`（+7）、行体 div
+//  的高亮（+3）、`sheet` state（+4）、`handleToggleAddMenu` / `openRowSheet`（+28）、
+//  `handleSheetPick`（+13）、底部表 JSX（+13）。前段命中行整体下移；**新增两处**裸 key 判断
+//  （`openRowSheet` 里喂给 `rowSheetItems` 的 isPosPane / isGroupPane，属「编辑 / 添加子项」
+//  可行性判据，与桌面 `menuItems` 同源）。十四处命中行重算为
+//  379 / 380 / 390 / 396 / 417 / 418 / 1126 / 1127 / 1225 / 1234 / 1238 / 1281 / 1504 / 1698
+//  （行号由守卫失败输出回填，未手算）。
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [324, 325, 332, 338, 359, 360, 1125, 1134, 1138, 1181, 1386, 1580], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 布局分流（不问渲染形状）'],
+  ['WordWorkbench.tsx', [379, 380, 390, 396, 417, 418, 1126, 1127, 1225, 1234, 1238, 1281, 1504, 1698], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 表条目可行性 / 布局分流（不问渲染形状）'],
   ['DictDetailCard.tsx', [102, 193, 257, 386], '可见性过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 
