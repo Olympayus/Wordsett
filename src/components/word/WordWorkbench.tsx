@@ -607,7 +607,16 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           {fv.value}
         </span>
       ) : (
-        <span style={headLabelStyle}>{def.name}</span>
+        <span
+          // v0.7.7 Task 5 review Important 1：顶层**非词性**容器（补充…）走 groupHead，不渲染
+          // content 的标签 span，也没有正文值 span——标题是它唯一的长按入口。空「补充」容器
+          // 不满足 `depth===0 && hasChildren`、不渲染 `⋯`，若标题也不挂长按，手机上将完全
+          // 无法删除 / 添加子项。只挂标题 span（不挂整个 groupHead：会与手柄拖拽、⋯ 点击重叠）。
+          {...(isContainer && !isEditing ? longPressProps : {})}
+          style={headLabelStyle}
+        >
+          {def.name}
+        </span>
       )}
       {!isEditing && headCounts !== undefined && (
         <span className="stat-num" style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{headCounts}</span>
