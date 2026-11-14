@@ -2,9 +2,12 @@ import { useState, useEffect, useCallback, useLayoutEffect, useImperativeHandle,
 import {
   DndContext,
   DragOverlay,
+  TouchSensor,
   pointerWithin,
   useDraggable,
   useDroppable,
+  useSensor,
+  useSensors,
   type DragStartEvent,
   type DragOverEvent,
   type DragEndEvent,
@@ -59,7 +62,7 @@ import { moveConfirmRequest, moveTarget } from '../../lib/archiveMove'
 import { deleteWordConfirmRequest } from '../../lib/wordActions'
 import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING_X, ENTRY_PHONETIC_GAP, NAV_CONTROL_HEIGHT } from '../../lib/layout'
 import { mobileRowActionsVisible } from '../../lib/mobileRowActions'
-import { hitAreaStyle, TOUCH_TARGET_PX } from '../../lib/mobileHitArea'
+import { hitAreaStyle, TOUCH_LONG_PRESS_MS, TOUCH_SLOP_PX, TOUCH_TARGET_PX } from '../../lib/mobileHitArea'
 import { rowSheetItems, type SheetItem } from '../../lib/mobileSheets'
 import { useTouchLongPress } from '../../lib/useTouchLongPress'
 import MobileActionSheet from '../layout/mobile/MobileActionSheet'
@@ -86,6 +89,10 @@ export function rowSourceState(editorMode: boolean, isPosPane: boolean, fv: Fiel
 const GUTTER_WIDTH = 10
 /** 行内 gutter 与内容之间的 gap（FieldCard 的 content wrapper 用它）。 */
 const GUTTER_GAP = 4
+/** 手柄按钮的高度（FieldCard 的 grip）：44dp 命中层要以它为中心上下各让一半。 */
+const GRIP_HEIGHT = 14
+/** run-in 头（groupHead）里手柄与标题之间的 gap：命中层右缘按它收回正文起点前 1px。 */
+const GROUP_HEAD_GAP = 10
 
 /** 多列块（LeafFlow）的左缘 = 所属容器**标题文字**的左缘（v0.7.4 决定五 5.1）。
  *  容器行走的是 FlowRow：左内边距 11 + 手柄槽 10 + 行内 gap 4，标题文字因此落在 25px。
@@ -451,6 +458,36 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   const draggingStyle = isDragging ? { opacity: 0.35, background: 'var(--color-brand-softer)' } : null
 
   // 拖拽手柄（左端 gutter）：FlowRow 行与 run-in 头共用。宽度固定 10px，手柄显隐不改变文字区宽度 → 零重排。
+  //
+  // 触摸命中层（v0.7.7 Task 6，spec §3.4 / Review Focus 2）：手机上拖拽靠长按手柄，而可见手柄只有
+  // 10×14，手指按不中，故在 `touch` 时补一层绝对定位覆盖层。它与 `RowMenu` 的 44×44 同一做法——
+  // 挂在**按钮内部**（按钮因此加 `position: relative`）：覆盖层是按钮的 DOM 后代，拖拽 listeners
+  // 仍只在原按钮上，按在扩出来的任何一寸都等于按这枚按钮，监听不搬家。
+  //
+  // 横向几何：`left: -12` 越过手柄槽进到行的左留白；右缘停在**正文起点前 1px**——手柄与正文之间
+  // 只隔一个 flex gap（FlowRow 行 4px / run-in 头 10px），故 `right` 取「−(gap − 1)」，绝不压住
+  // 正文的长按区。`GUTTER_WIDTH` 不动，正文可用宽度与折行点逐像素不变。
+  // **宽度必须显式交还 left/right**：left / right / width 三者同时给定时 CSS 视作 over-constrained、
+  // LTR 下忽略 `right`，`hitAreaStyle()` 的 44px 宽会直接盖住正文长按区。
+  // `visibility` / `pointerEvents` 必须显式写回：可见件由 `reveal(showsButtons)` 控显隐，手机无 hover
+  // 时按钮是 `visibility: hidden` + `pointer-events: none`，覆盖层要跳出继承态才收得到手指
+  //（两者都能由子元素覆写，事件仍沿 DOM 冒泡回按钮上的 listeners）。
+  const gripContentGap = asGroupHead ? GROUP_HEAD_GAP : GUTTER_GAP
+  const gripHitArea = touch ? (
+    <span
+      aria-hidden="true"
+      style={{
+        ...hitAreaStyle(),
+        top: `${-(TOUCH_TARGET_PX - GRIP_HEIGHT) / 2}px`,
+        left: '-12px',
+        right: `${-(gripContentGap - 1)}px`,
+        width: 'auto',
+        visibility: 'visible',
+        pointerEvents: 'auto',
+        touchAction: 'none',
+      }}
+    />
+  ) : null
   const grip = (
     <span style={{ width: GUTTER_WIDTH, flexShrink: 0, alignSelf: 'center', display: 'inline-flex', alignItems: 'center' }}>
       <button
@@ -458,15 +495,23 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
         ref={setActivatorNodeRef}
         {...listeners}
         {...attributes}
+        // 手机上截住 `pointerdown` 的冒泡（v0.7.7 Task 6，spec §3.4）：手柄不在正文长按区里，
+        // 这一下绝不能让文字区的 `useTouchLongPress` 看到（那会误弹行菜单）。dnd-kit 的
+        // TouchSensor 激活器挂在 `onTouchStart` 上，不受影响；桌面 PointerSensor 的
+        // `onPointerDown` 在 `listeners` 里，此分支只在 `touch` 时存在，桌面事件链逐字不变。
+        {...(touch ? { onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => { e.stopPropagation() } } : null)}
         title="拖动排序"
         aria-label="拖动排序"
         style={{
-          width: '10px', height: '14px', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: '10px', height: `${GRIP_HEIGHT}px`, display: 'flex', alignItems: 'center', justifyContent: 'center',
           border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
           cursor: isDragging ? 'grabbing' : 'grab', color: 'var(--color-text-tertiary)',
           flexShrink: 0, alignSelf: 'center', touchAction: 'none', ...reveal(showsButtons),
+          // 覆盖层的定位基准只在手机加；桌面样式对象逐字不变。
+          ...(touch ? { position: 'relative' as const } : null),
         }}
       >
+        {gripHitArea}
         <Icon name="grip" size={10} />
       </button>
     </span>
@@ -576,7 +621,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     ? `中文 ${zhCount} · 英文 ${enCount}`
     : (hasChildren ? String(posChildren.length) : undefined)
   const groupHead = (
-    <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', padding: '2px 0 2px 11px', lineHeight: '27px' }}>
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: `${GROUP_HEAD_GAP}px`, padding: '2px 0 2px 11px', lineHeight: '27px' }}>
       {grip}
       {isPosPane && isEditing ? (
         // v0.7.4 任务 14：行内不再有「保存 / 取消」（搬到导航条），盒子也不留 gap。
@@ -998,6 +1043,23 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   // 链接点击（v0.7.5 Task 4）：去向判定与跳转都在 hook 里，三处 `LinkedText` 共用这一份。
   const onJump = useLinkJump()
 
+  // ── 手机触摸拖拽（v0.7.7 Task 6，spec §3.4）─────────────────────────────────────
+  // 触摸分支的唯一门。`useSensor` / `useSensors` **无条件**在组件顶层调用（React #310 的同一条
+  // 理由：hook 的位置不能随渲染分支变），只有**参数**取决于 `touch`。
+  //
+  // 长按 250ms 且位移不超过 8px 才起拖：与 `useTouchLongPress` 是同一组常量（`mobileHitArea.ts`），
+  // 「长按正文弹表 / 长按手柄拖拽」的分界只由**按下的位置**决定，不由时长决定。
+  // 手机**不挂** `KeyboardSensor`（spec §3.4）：TouchSensor 是唯一传感器。
+  //
+  // 桌面必须让 `sensors` 落到 `DndContext` 的默认值（Pointer + Keyboard）。注意 `useSensors()`
+  // 在 dnd-kit v6.3.1 返回的是**过滤后的数组**而不是 null——把 `[]` 传下去会关掉全部传感器，
+  // 故这里在 `touch` 为假时显式传 `undefined`（解构默认值只在 undefined 时生效）。
+  const touch = chrome === 'mobile'
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: { delay: TOUCH_LONG_PRESS_MS, tolerance: TOUCH_SLOP_PX },
+  })
+  const sensors = useSensors(...(touch ? [touchSensor] : []))
+
   const selectedWord = words.find(w => w.id === selectedWordId)
   // 词级复习叠加层：词头徽标与记忆强度 chip 的数据源（v0.6.4）。wordId 只能取 selectedWordId。
   const wordId = selectedWordId ?? ''
@@ -1313,6 +1375,9 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     setInsertIndicator(null)
     // 记下被拖节点（v0.7.4 任务 12 的单位、任务 16 的行）：LeafFlow 据此给该单位画选中框。
     setActiveDragId(String(event.active.id))
+    // 手机：长按成立、进入拖拽时补一次与行菜单同一个反馈（v0.7.7 Task 6，spec §3.4）。
+    // 桌面不起 TouchSensor，`touch` 为假，这一行在桌面是死代码。
+    if (touch) navigator.vibrate?.(10)
   }
 
   // 拖动行的中线：键盘拖动时没有指针，用它作落点兜底
@@ -1395,7 +1460,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     defs,
     editorMode,
     // v0.7.7 Task 4：触摸分支的唯一门（spec §6 不变量 1）。
-    touch: chrome === 'mobile',
+    touch,
     // v0.7.7 Task 5：底部表的目标行高亮 + 打开入口（长按正文 / 容器标题、手机 ⋯ 共用）。
     sheetTargetId: sheet?.id ?? null,
     onOpenRowSheet: openRowSheet,
@@ -1776,6 +1841,9 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
             v0.7.2 修复 3：显式给 measure = ENTRY_BAND_WIDTH，与返回页（DictDetailCard）同值同理由
             ——正文右缘与头带 / 页签条齐平，两页共用一个正文度量（不再一页 660 一页 900）。 */}
         <DndContext
+          // 手机：只挂 TouchSensor（长按激活）；桌面：`undefined` → DndContext 用默认
+          // Pointer + Keyboard，既有鼠标拖拽与键盘拖拽逐字不变（v0.7.7 Task 6）。
+          sensors={touch ? sensors : undefined}
           collisionDetection={pointerWithin}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
