@@ -1910,6 +1910,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
           onAddTab={handleAddTab}
           onDeleteTab={handleDeleteTab}
           editorMode={editorMode}
+          touch={touch}
         />
       </div>
 
