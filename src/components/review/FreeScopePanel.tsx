@@ -176,6 +176,14 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
         <FreeScopeTabs active={kind} onSelect={setKind} right={infoTip} />
       )}
 
+      {/* 手机：开始练习紧贴 2×2 范围卡下方（v0.7.6 收尾，用户确认）。它回答的是
+          「按当前范围开一轮」，与范围卡是同一件事，故排在分类 / 薄弱词清单与题数之前，
+          不必滚过整张清单才够得着。桌面仍在内容区末尾，那里有 620px 限宽、一屏看得下。
+          宽度与范围卡同宽，用同一侧的内边距 16。 */}
+      {mobile && (
+        <div style={{ display: 'flex', width: '100%', padding: '12px 16px 0' }}>{startButton}</div>
+      )}
+
       <div
         className="flex flex-col items-start gap-5 p-8"
         style={mobile
@@ -322,8 +330,8 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
         {/* 判据抽在 canStartFreeScope 里（Review Focus 3），组件只消费结果；
             禁用观感（灰底 + 0.55 不透明度 + default 光标）交给 SquareButton 自带的
             BUTTON_DISABLED，不再在本处另写一份 opacity。
-            手机端（v0.7.6 §3.8）外包一层 flex、由 `grow` 撑满整行。 */}
-        {mobile ? <div style={{ display: 'flex', width: '100%' }}>{startButton}</div> : startButton}
+            手机端（v0.7.6 收尾）把按钮提到范围卡下方，这里只出桌面那一份。 */}
+        {!mobile && startButton}
       </div>
     </div>
   )
