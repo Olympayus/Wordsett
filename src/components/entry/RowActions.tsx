@@ -57,26 +57,35 @@ const EDIT_CLUSTER_WIDTH = NAV_CONTROL_HEIGHT * 2 + 2
  * `mode={editorMode ? 'edit' : 'view'}` 且不给 `onAdd`）——两态都只有一枚 22px 按钮，
  * 故普通模式预留的就是 22px 而不是 46px。行尾簇的不变量（常驻占位、只用 opacity 显隐、
  * 绝不条件渲染）管的是**整簇**的进出，与簇内某枚图标的可选性是两回事。
+ *
+ * v0.7.7 Task 4（spec §3.2 / §6.3）：`touch` 为真时**忽略 `mode`**，恒渲染 `menu` 槽
+ * （即那枚 `⋯`），不出 `＋` / 垃圾桶——手机上 `editorMode` 不再切换行尾簇形态，那套编者形态
+ * 是桌面的。宽度按单枚 `NAV_CONTROL_HEIGHT`（22px）预留并右对齐，与桌面普通模式只有 `⋯`
+ * 时的占宽一致。桌面的「常驻占位、只改 opacity」不变量**只约束桌面**：手机上没有 `⋯` 的行
+ * 由调用点**根本不渲染**本组件（spec §6.3），而不是渲染后隐藏。
  */
-export default function RowActions({ visible, mode, onAdd, onDelete, menu }: {
+export default function RowActions({ visible, mode, touch = false, onAdd, onDelete, menu }: {
   visible: boolean
   /** 'view' = 普通模式（只有 ⋯）；'edit' = 编者模式（＋ 与垃圾桶，没有 ⋯）。 */
   mode: 'view' | 'edit'
+  /** 手机：忽略 `mode`，恒出 `menu` 槽（那枚 ⋯），宽度按单枚 22px 预留。桌面不传。 */
+  touch?: boolean
   /** 可选：不传即不渲染 ＋（编者模式那枚「加到本容器」）。 */
   onAdd?: () => void
   onDelete: () => void
   menu: ReactNode
 }) {
+  const menuOnly = touch || mode === 'view'
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: '2px', flex: 'none',
-                   width: mode === 'view' ? `${onAdd ? EDIT_CLUSTER_WIDTH : NAV_CONTROL_HEIGHT}px` : undefined,
-                   justifyContent: mode === 'view' ? 'flex-end' : undefined,
+                   width: menuOnly ? `${touch ? NAV_CONTROL_HEIGHT : (onAdd ? EDIT_CLUSTER_WIDTH : NAV_CONTROL_HEIGHT)}px` : undefined,
+                   justifyContent: menuOnly ? 'flex-end' : undefined,
                    opacity: visible ? 1 : 0,
                    visibility: visible ? 'visible' : 'hidden',
                    pointerEvents: visible ? 'auto' : 'none',
                    color: visible ? 'var(--color-text-primary)' : 'var(--color-border-strong)',
                    transition: 'opacity var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)' }}>
-      {mode === 'edit' ? (
+      {!menuOnly ? (
         <>
           {onAdd && (
             <button type="button" aria-label="加到本容器" onClick={onAdd} style={rowIconStyle}

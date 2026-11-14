@@ -57,7 +57,9 @@ import { familiarityFromValue, displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
 import { moveConfirmRequest, moveTarget } from '../../lib/archiveMove'
 import { deleteWordConfirmRequest } from '../../lib/wordActions'
-import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING_X, ENTRY_PHONETIC_GAP } from '../../lib/layout'
+import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING_X, ENTRY_PHONETIC_GAP, NAV_CONTROL_HEIGHT } from '../../lib/layout'
+import { mobileRowActionsVisible } from '../../lib/mobileRowActions'
+import { hitAreaStyle, TOUCH_TARGET_PX } from '../../lib/mobileHitArea'
 import type { FieldDefinition, FieldValue } from '../../types/field'
 
 /**
@@ -133,6 +135,9 @@ type AddMenuState = { target: 'page' } | { target: 'row'; id: string } | null
 interface FieldCardCtx {
   defs: FieldDefinition[]
   editorMode: boolean
+  /** 手机外壳（v0.7.7 Task 4）：`chrome === 'mobile'`。所有触摸分支只在它为真时生效，
+   *  桌面逐像素不变（spec §6 不变量 1）。行尾簇的可见性读 `mobileRowActionsVisible`。 */
+  touch: boolean
   editingId: string | null
   editValue: string
   insertIndicator: InsertIndicator | null
@@ -210,14 +215,24 @@ function childLabelOverride(
   return null
 }
 
+/** 触摸命中区覆盖层相对 22px 按钮的偏移（v0.7.7 Task 4）：44 − 22 各让一半，覆盖层以按钮为中心。 */
+const TOUCH_HIT_OFFSET = -(TOUCH_TARGET_PX - NAV_CONTROL_HEIGHT) / 2
+
 /**
  * 行尾「⋯」菜单（v0.7.2）：两枚 22px 方钮里的第二枚。`RowActions` 出两套形态——编者模式
  * （`mode="edit"`）是 `＋` 与垃圾桶、不出 `menu`；普通模式（`mode="view"`）只出这一个 `menu` 槽，
  * 故这里自带 `⋯` 触发器，点开走现成的 `ContextMenu`（fixed 落位，点外 / Esc 自关）。
  * v0.7.3：普通模式的**所有**动作并进这一份菜单。
  * v0.7.4 决定三：行级只删不加——菜单收成「编辑 / 添加子项 / 删除」，「添加同级」全站撤掉。
+ *
+ * v0.7.7 Task 4（spec §3.2）：手机上这枚 `⋯` 是**唯一**保留的行尾控件，视觉仍是 22px，
+ * 命中区以绝对定位覆盖层扩到 44×44、**不参与布局**（不能改变行的可用宽度与折行点）。
+ * 覆盖层挂在**按钮内部**（`position: relative` + 一个 `aria-hidden` 的绝对定位 span）：
+ * 它因此是按钮的 DOM 后代，点在任何一寸扩出来的区域上都是点这枚按钮——`onClick` 等监听
+ * 仍只挂在原按钮上，覆盖层自己不带任何手势。覆盖层不传 `touch` 的调用点（单位行尾槽）
+ * 不渲染，桌面逐像素不变。
  */
-function RowMenu({ items }: { items: MenuItem[] }) {
+function RowMenu({ items, touch = false }: { items: MenuItem[]; touch?: boolean }) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   return (
     <>
@@ -226,10 +241,15 @@ function RowMenu({ items }: { items: MenuItem[] }) {
         title="更多操作"
         aria-label="更多操作"
         onClick={e => setPos({ x: e.clientX, y: e.clientY })}
-        style={rowIconStyle}
+        style={touch ? { ...rowIconStyle, position: 'relative' } : rowIconStyle}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit' }}
       >
+        {touch && (
+          // 44×44 命中区（v0.7.7 Task 4）：绝对定位、不进布局；挂在按钮内部，点击事件冒泡回
+          // 本按钮的原 onClick——监听不搬家。`aria-hidden`：语义仍由按钮的 aria-label 承担。
+          <span aria-hidden="true" style={{ ...hitAreaStyle(), top: TOUCH_HIT_OFFSET, left: TOUCH_HIT_OFFSET }} />
+        )}
         <Icon name="more" size={16} />
       </button>
       {pos && <ContextMenu x={pos.x} y={pos.y} items={items} onClose={() => setPos(null)} />}
@@ -282,7 +302,7 @@ function MeasuredInput({ value, font, mark, onChange, onKeyDown }: {
 // v0.7.3：行尾那枚 6px 方点（SourceMark）整个退场，来源只剩左缘那根条（SourceBar，由 FlowRow / LeafFlow 渲染）。
 function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false, barState, barFirst = true, barLast = true, inheritedUser = false, ...ctx }: FieldCardProps) {
   const {
-    defs, editorMode, editingId, editValue, insertIndicator, activeDragId, addMenu,
+    defs, editorMode, touch, editingId, editValue, insertIndicator, activeDragId, addMenu,
     onStartEdit, onEditValueChange, onSave, onCancelEdit, onDelete,
     onToggleAddMenu, onPickAdd, hoveredId, onHover, isInLibrary, onJump,
   } = ctx
@@ -360,6 +380,12 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     return (node.children ?? []).some(c => containsId(c, id))
   }
   const showsButtons = containsId(fv, hoveredId)
+  // v0.7.7 Task 4（spec §3.2 / §6.3）：手机只给「有子项的顶层行」留一枚常显的 ⋯，
+  // 其余行**根本不渲染**行尾簇（返回 null，而不是渲染后隐藏）。桌面仍走 hover 判据，
+  // 且**总是渲染**——「常驻占位、只改 opacity」的不变量只约束桌面。
+  const mobileActions = mobileRowActionsVisible(depth, hasChildren)
+  const hideRowActions = touch && !mobileActions
+  const rowActionsVisible = touch ? mobileActions : showsButtons
   // v0.7.4 任务 16：被拖行的原位留痕——内容变淡 + 极浅品牌底；跟手的那一份副本由 DragOverlay
   // 在页面级渲染（DragGhost）。**不再缩放**：副本已经在跟手，原位再缩放是双重反馈。
   // 只碰 opacity 与 background 两件「画」的属性：任何进布局的属性（边框 / 内边距）都会让行在
@@ -444,7 +470,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
       )
     }
     return (
-      <EditableValue editorMode={editorMode} onStartEdit={() => onStartEdit(ch)}>
+      <EditableValue editorMode={editorMode} touch={touch} onStartEdit={() => onStartEdit(ch)}>
         {/* 阅读态同样渲染链接（v0.7.5 Task 3）：单位是叶子项字段，fieldKey 取**子项自己的**
             key（`childKey`），结构字段由 `LinkedText` 内部按 `linkableField` 回落原文。 */}
         <LinkedText value={ch.value} fieldKey={childKey(ch)} isInLibrary={isInLibrary} onJump={onJump} />
@@ -509,7 +535,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
         </span>
       ) : isPosPane ? (
         <span
-          onClick={() => editorMode && onStartEdit(fv)}
+          onClick={() => !touch && editorMode && onStartEdit(fv)}
           onDoubleClick={() => !editorMode && onStartEdit(fv)}
           role="button"
           tabIndex={0}
@@ -527,13 +553,16 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
       )}
       <span style={{ flex: 1, borderTop: '1px solid var(--color-border)', transform: 'translateY(-3px)' }} />
       <span style={{ alignSelf: 'center', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-        <RowActions
-          visible={showsButtons}
-          mode={editorMode ? 'edit' : 'view'}
-          onAdd={() => onToggleAddMenu(fv)}
-          onDelete={() => onDelete(fv)}
-          menu={<RowMenu items={menuItems} />}
-        />
+        {hideRowActions ? null : (
+          <RowActions
+            visible={rowActionsVisible}
+            mode={editorMode ? 'edit' : 'view'}
+            touch={touch}
+            onAdd={() => onToggleAddMenu(fv)}
+            onDelete={() => onDelete(fv)}
+            menu={<RowMenu items={menuItems} touch={touch} />}
+          />
+        )}
       </span>
     </div>
   )
@@ -549,7 +578,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           // （点击那条让位是历史遗留：v0.7.4 任务 14 之前行内还有那对不阻断冒泡的「保存 / 取消」，
           // 点「取消」会先 setEditingId(null)、再被冒泡上来的这次点击拉回编辑态并把输入回滚成
           // 已存值，按钮看上去完全失灵；按钮搬走后它已无对应物，但形态无害、故一并保留。）
-          onClick={isGroupPane && !isEditing ? () => onStartEdit(fv) : undefined}
+          onClick={!touch && isGroupPane && !isEditing ? () => onStartEdit(fv) : undefined}
           onDoubleClick={isGroupPane && !isEditing ? () => onStartEdit(fv) : undefined}
           role={isGroupPane && !isEditing ? 'button' : undefined}
           tabIndex={isGroupPane && !isEditing ? 0 : undefined}
@@ -732,15 +761,16 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
             first={ownFirst}
             last={ownLast}
             focused={isFocused}
-            end={
+            end={hideRowActions ? undefined : (
               <RowActions
-                visible={showsButtons}
+                visible={rowActionsVisible}
                 mode={editorMode ? 'edit' : 'view'}
+                touch={touch}
                 onAdd={() => onToggleAddMenu(fv)}
                 onDelete={() => onDelete(fv)}
-                menu={<RowMenu items={menuItems} />}
+                menu={<RowMenu items={menuItems} touch={touch} />}
               />
-            }
+            )}
           >
             <span style={{ display: 'flex', alignItems: 'baseline', gap: `${GUTTER_GAP}px`, flex: 1, minWidth: 0 }}>
               {grip}
@@ -1255,6 +1285,8 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   const cardCtx: FieldCardCtx = {
     defs,
     editorMode,
+    // v0.7.7 Task 4：触摸分支的唯一门（spec §6 不变量 1）。
+    touch: chrome === 'mobile',
     editingId,
     editValue,
     insertIndicator,

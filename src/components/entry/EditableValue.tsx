@@ -14,9 +14,14 @@ import type { ReactNode } from 'react'
  * 键盘：Enter 与空格都进编辑（与行内正文那份一致；音标那份只认 Enter）。
  * `role="button"` 与 `tabIndex` 是这套模板的一部分——0 透明度或纯视觉的「可点」提示
  * 对键盘用户没有意义，故必须真的可聚焦、可激活。
+ *
+ * v0.7.7 Task 4：`touch` 为真时**单击不进编辑**（手机上单击留给长按菜单，双击才进编辑，
+ * 见 spec §3.2 / §3.8）；`onDoubleClick` 一侧刻意不动。桌面不传，行为逐字不变。
  */
-export default function EditableValue({ editorMode, onStartEdit, title, children }: {
+export default function EditableValue({ editorMode, touch = false, onStartEdit, title, children }: {
   editorMode: boolean
+  /** 手机外壳：单击不进编辑（双击仍按 `editorMode` 的既有判据）。桌面不传。 */
+  touch?: boolean
   onStartEdit: () => void
   /** 缺省按模式给「点击编辑 / 双击编辑」；文案特殊的调用点可覆盖，省略则用缺省。 */
   title?: string
@@ -26,7 +31,7 @@ export default function EditableValue({ editorMode, onStartEdit, title, children
     <span
       role="button"
       tabIndex={0}
-      onClick={() => editorMode && onStartEdit()}
+      onClick={() => !touch && editorMode && onStartEdit()}
       onDoubleClick={() => !editorMode && onStartEdit()}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStartEdit() } }}
       title={title ?? (editorMode ? '点击编辑' : '双击编辑')}
