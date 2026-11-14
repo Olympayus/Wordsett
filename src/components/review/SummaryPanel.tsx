@@ -6,6 +6,7 @@ import { useViewStore } from '../../stores/viewStore'
 import { jumpToWord } from '../../lib/review/jumpToWord'
 import { RATING_LABELS } from '../../lib/review/scopeLabel'
 import { getAbsent } from '../../services/reviewService'
+import { FIELD_LABEL_STYLE, LABEL_ON_THEME } from '../../lib/labelStyle'
 import {
   roundSummary, templateCounts, templateAccuracy, ratingDistribution, ratingSeries, wordLabelFor, answerDisplay, correctnessLabel, correctAnswerText,
 } from '../../lib/review/roundStats'
@@ -71,7 +72,7 @@ export default function SummaryPanel({ onRestart }: { onRestart: () => void }) {
         <thead>
           <tr>
             {['单词', '题型', '你的作答', '正确答案', '正误', '记忆评分'].map(h => (
-              <th key={h} style={{ textAlign: 'left', padding: '0 8px 6px', fontSize: '10.5px', color: 'var(--color-text-tertiary)', fontWeight: 600 }}>{h}</th>
+              <th key={h} style={{ ...LABEL_ON_THEME, textAlign: 'left', padding: '0 8px 6px' }}>{h}</th>
             ))}
           </tr>
         </thead>
@@ -150,7 +151,7 @@ function avg(xs: number[]): number {
 }
 
 function SectionTitle({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>{children}</div>
+  return <div style={{ ...FIELD_LABEL_STYLE }}>{children}</div>
 }
 
 function Stat({ label, value, unit }: { label: string; value: string; unit: string }) {
