@@ -27,18 +27,20 @@ export default function StrategyList({ strategies, active, onSelect, header, foo
             aria-current={on ? 'true' : undefined}
             data-session-guard={`strategy:${s.key}`}
             onClick={() => onSelect(s.key)}
+            // 选中态与工作区侧栏的智能视图（SmartViewList）同一套逻辑：白面 + 强描边 + 600，
+            // 未选中透明、悬停走 recessed 一档。左侧导航的「当前项」一律靠面与描边表达，
+            // 刻意不用品牌蓝（v0.7.6；用户确认与复习区智能视图一致）。
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
               textAlign: 'left', cursor: 'pointer',
               borderRadius: 'var(--radius-md)',
               padding: '8px 10px',
-              // 选中态：铬面 + 强描边 + 600，刻意不用品牌蓝（v0.7.6）。左侧导航的「当前项」
-              // 一律靠面与描边表达（工作区侧栏同一条规则），铬面又比未选中的 sunken 深一档，
-              // 在左栏里立得住。
-              background: on ? 'var(--color-chrome)' : 'var(--color-surface-sunken)',
               border: `1px solid ${on ? 'var(--color-border-strong)' : 'transparent'}`,
+              background: on ? 'var(--color-surface)' : 'transparent',
               color: 'var(--color-text-primary)',
             }}
+            onMouseEnter={e => { if (!on) e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = on ? 'var(--color-surface)' : 'transparent' }}
           >
             {/* 字体与工作区左侧栏（SmartViewList）同一套：无衬线 + --text-sm，激活时 600（v0.7.6） */}
             <span style={{ fontSize: 'var(--text-sm)', fontWeight: on ? 'var(--weight-semibold)' : 'var(--weight-regular)', fontFamily: 'var(--font-sans)' }}>{s.label}</span>
