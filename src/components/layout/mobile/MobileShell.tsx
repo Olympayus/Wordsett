@@ -358,6 +358,7 @@ export default function MobileShell() {
         wordId={assignWordId ?? ''}
         onClose={closeModals}
         onCreateNew={() => openEditor(null, assignWordId)}
+        variant="mobile"
       />
       {editorTarget && (
         <CategoryEditorModal

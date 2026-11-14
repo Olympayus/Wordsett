@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { CSSProperties, JSX } from 'react'
 import { SHEET_BACK, SHEET_CANCEL, type SheetItem } from '../../../lib/mobileSheets'
 import { registerMobilePopup } from '../../../lib/mobilePopups'
+import { CHECKBOX_SIZE, checkboxPaint } from '../../ui/CheckBox'
 
 /**
  * 手机底部动作表（v0.7.7 Task 3，spec §3.3）：手机上**所有**「长按 / ⋯ 弹出的表」
@@ -20,6 +21,11 @@ import { registerMobilePopup } from '../../../lib/mobilePopups'
  * 浮层阴影只消费全站唯一的 `--shadow-overlay`。列表行 44dp、两列格 56dp；
  * 危险项 `--color-danger` 且模型已排在最后（组件只按 `danger` 着色，不重排）；
  * `submenu` 项右侧一枚 `›`，`disabled` 置灰且不响应点击（`<button disabled>`）。
+ *
+ * v0.7.7 Task 10（spec §3.5）：`checked` 为 boolean 的行是**可勾选项**——行 `role="checkbox"`
+ * 且带 `aria-checked`，右侧画一枚与全站同款的勾选方块（`checkboxPaint` 复用 `CheckBox` 的涂装，
+ * 组件里不出现第二个可聚焦控件）。点它照常走 `onPick`，**关不关表由调用点决定**：分类分配
+ * 表故意不关，好让用户连续勾选。`checked` 未定义的行（其余所有表）逐字不变。
  */
 
 /** 表体最大高度：超过后内容区内部滚动，标题与取消不跟着走。 */
@@ -120,7 +126,7 @@ interface Props {
   title?: string
   subtitle?: string
   items?: SheetItem[]
-  /** 默认 `'list'`；添加菜单与分类分配用 `'grid'`。 */
+  /** 默认 `'list'`；添加菜单用 `'grid'`。分类分配表刻意用 `'list'`——逐行勾选要看全分类名。 */
   mode?: 'list' | 'grid'
   onPick: (key: string) => void
   onCancel: () => void
@@ -234,22 +240,42 @@ export default function MobileActionSheet({
               ))}
             </div>
           ) : (
-            rows.map((item, i) => (
-              <button
-                key={item.key}
-                type="button"
-                disabled={item.disabled}
-                onClick={() => onPick(item.key)}
-                style={listRowStyle(item, i === rows.length - 1)}
-              >
-                <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{item.label}</span>
-                {item.submenu && (
-                  <span aria-hidden="true" style={{ flexShrink: 0, fontSize: 18, lineHeight: 1, color: 'var(--color-text-tertiary)' }}>
-                    ›
-                  </span>
-                )}
-              </button>
-            ))
+            rows.map((item, i) => {
+              // `checked` 有值 = 可勾选项（分类分配表）：行本身即勾选框，点一下切换、不关表。
+              const checkable = typeof item.checked === 'boolean'
+              return (
+                <button
+                  key={item.key}
+                  type="button"
+                  role={checkable ? 'checkbox' : undefined}
+                  aria-checked={checkable ? item.checked : undefined}
+                  disabled={item.disabled}
+                  onClick={() => onPick(item.key)}
+                  style={listRowStyle(item, i === rows.length - 1)}
+                >
+                  <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{item.label}</span>
+                  {checkable && (
+                    // 与全站 CheckBox 同一套涂装（选中 = 填色块、未选 = 空心描边），
+                    // 但这里只是**画**出来的一枚标记、不是第二个控件：点击目标仍是整行按钮。
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        flexShrink: 0,
+                        width: CHECKBOX_SIZE,
+                        height: CHECKBOX_SIZE,
+                        borderRadius: 'var(--radius-sm)',
+                        ...checkboxPaint({ checked: item.checked!, hover: false, color: 'var(--color-brand)' }),
+                      }}
+                    />
+                  )}
+                  {item.submenu && (
+                    <span aria-hidden="true" style={{ flexShrink: 0, fontSize: 18, lineHeight: 1, color: 'var(--color-text-tertiary)' }}>
+                      ›
+                    </span>
+                  )}
+                </button>
+              )
+            })
           )}
         </div>
 

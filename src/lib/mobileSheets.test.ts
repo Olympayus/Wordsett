@@ -1,6 +1,6 @@
 // src/lib/mobileSheets.test.ts
 import { describe, it, expect } from 'vitest'
-import { rowSheetItems, unitSheetItems, drawerWordSheetItems, removeCategoryItems, categorySheetItems, tabSheetItems, appBarMenuItems } from './mobileSheets'
+import { rowSheetItems, unitSheetItems, drawerWordSheetItems, removeCategoryItems, categorySheetItems, tabSheetItems, appBarMenuItems, categoryAssignItems, SHEET_CREATE_CATEGORY } from './mobileSheets'
 
 describe('rowSheetItems', () => {
   it('叶子行：编辑 / 添加子项 / 删除（判据同桌面 menuItems）', () => {
@@ -48,6 +48,30 @@ describe('drawerWordSheetItems', () => {
 describe('removeCategoryItems', () => {
   it('按顺序列出分类名', () => {
     expect(removeCategoryItems(['雅思', '词根']).map(i => i.label)).toEqual(['雅思', '词根'])
+  })
+})
+
+describe('categoryAssignItems', () => {
+  const cats = [
+    { id: 'c1', name: '雅思' },
+    { id: 'c2', name: '词根' },
+  ]
+  it('按顺序列出分类，已属的带 checked、未属的是 false（可点，不 disabled）', () => {
+    const items = categoryAssignItems(cats, ['c2'])
+    expect(items.map(i => i.label)).toEqual(['雅思', '词根', '+ 新建分类'])
+    expect(items[0].checked).toBe(false)
+    expect(items[1].checked).toBe(true)
+    // 已属行仍**可点**（点一下即移除，spec §3.5），故不能是 disabled
+    expect(items.every(i => i.disabled === undefined)).toBe(true)
+  })
+  it('末行是新建分类哨兵，不是真实分类 id', () => {
+    const items = categoryAssignItems(cats, [])
+    const last = items.at(-1)!
+    expect(last.key).toBe(SHEET_CREATE_CATEGORY)
+    expect(last.checked).toBeUndefined()
+  })
+  it('没有分类时只剩「新建分类」一行', () => {
+    expect(categoryAssignItems([], []).map(i => i.label)).toEqual(['+ 新建分类'])
   })
 })
 

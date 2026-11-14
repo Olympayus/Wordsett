@@ -4,27 +4,39 @@ import { useCategoryStore } from '../../stores/categoryStore'
 import Icon from '../icons'
 import { Button } from '../ui/Button'
 import CheckBox from '../ui/CheckBox'
+import MobileActionSheet from '../layout/mobile/MobileActionSheet'
+import { SHEET_CREATE_CATEGORY, categoryAssignItems } from '../../lib/mobileSheets'
 
 interface Props {
   open: boolean
   wordId: string
   onClose: () => void
   onCreateNew: () => void
+  /**
+   * v0.7.7 Task 10（spec §3.5）：`mobile` 时改用 `MobileActionSheet` 的列表形态——
+   * 已属分类逐行带勾选态、点一下即增删、**切换不关表**；末行「＋ 新建分类」。
+   * 不设焦点陷阱、不画居中弹窗。桌面（默认）逐字不变。
+   */
+  variant?: 'desktop' | 'mobile'
 }
 
-export default function CategoryAssignModal({ open, wordId, onClose, onCreateNew }: Props) {
+export default function CategoryAssignModal({ open, wordId, onClose, onCreateNew, variant = 'desktop' }: Props) {
   const { categories, wordCategoryIds, assignToWord, removeFromWord } = useCategoryStore()
+  const isMobile = variant === 'mobile'
 
-  // Esc 关闭（§11 a11y 键盘可达）
+  // Esc 关闭（§11 a11y 键盘可达）。手机端关表走底部「取消」或安卓返回键
+  // （表自己经 `registerMobilePopup` 登记），不额外接 Esc。
   useEffect(() => {
-    if (!open) return
+    if (!open || isMobile) return
     const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [open, onClose])
+  }, [open, onClose, isMobile])
 
+  // 手机版是底部动作表，没有居中的焦点容器、也不该把焦点锁在表里；hook 仍无条件调用
+  // （React 规则），只是 `open` 传假。
   const panelRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(open, panelRef)
+  useFocusTrap(open && !isMobile, panelRef)
 
   if (!open) return null
 
@@ -36,6 +48,27 @@ export default function CategoryAssignModal({ open, wordId, onClose, onCreateNew
     } else {
       await assignToWord(wordId, categoryId)
     }
+  }
+
+  if (isMobile) {
+    return (
+      <MobileActionSheet
+        open
+        title="选择分类"
+        items={categoryAssignItems(categories, wordCategoryIds)}
+        onPick={key => {
+          if (key === SHEET_CREATE_CATEGORY) {
+            // 裁定 10：先关分配表，再走既有的新建分类入口（进 `CategoryEditorModal`）。
+            onClose()
+            onCreateNew()
+            return
+          }
+          // 切换**不关表**：已属 → 移除、未属 → 加入，可连续勾选；取消 / 安卓返回才关。
+          void toggle(key)
+        }}
+        onCancel={onClose}
+      />
+    )
   }
 
   return (

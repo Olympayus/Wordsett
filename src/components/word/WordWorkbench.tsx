@@ -235,6 +235,14 @@ function childLabelOverride(
 const TOUCH_HIT_OFFSET = -(TOUCH_TARGET_PX - NAV_CONTROL_HEIGHT) / 2
 
 /**
+ * 词条头带右簇里分类胶囊与「＋」的视觉边长（v0.7.7 Task 10，spec §3.5）。
+ * 两者的命中区都扩到 44dp：胶囊用 `verticalOnly`（横向会误中相邻胶囊），
+ * 「＋」用默认 44×44、以按钮为中心——左右各溢 10px，恰好填满右簇的 10px 间距而不越界。
+ */
+const BAND_CONTROL_SIZE = 24
+const BAND_HIT_OFFSET = -(TOUCH_TARGET_PX - BAND_CONTROL_SIZE) / 2
+
+/**
  * 底部表指向的目标行的临时高亮（v0.7.7 Task 5，spec §3.1）。
  *
  * 与 `FlowRow` 的 `focused` 同一形态——内阴影描边 + 圆角 + 极浅品牌底；内阴影画在盒内侧、
@@ -1792,7 +1800,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
           rightCluster={
             <>
               {shownCapsules.map(cat => (
-                <CategoryCapsule key={cat.id} category={cat} onClick={() => openEditor(cat, selectedWord.id)} />
+                <CategoryCapsule key={cat.id} category={cat} onClick={() => openEditor(cat, selectedWord.id)} touch={touch} />
               ))}
               {showMoreCapsules && (
                 <button
@@ -1814,24 +1822,31 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
                 </button>
               )}
               {showMoreCapsules && capsuleExpanded && extraCapsules.map(cat => (
-                <CategoryCapsule key={cat.id} category={cat} onClick={() => openEditor(cat, selectedWord.id)} />
+                <CategoryCapsule key={cat.id} category={cat} onClick={() => openEditor(cat, selectedWord.id)} touch={touch} />
               ))}
-              {/* 「+」虚线圆钮：新建/选择分类（规格 §5.1） */}
+              {/* 「+」虚线圆钮：新建/选择分类（规格 §5.1）。v0.7.7 Task 10：手机上补 44dp 命中区。 */}
               <button
                 type="button"
                 title="添加分类"
                 aria-label="添加分类"
                 onClick={() => { openAssign(selectedWord.id); setCapsuleExpanded(false) }}
                 style={{
-                  width: '24px', height: '24px', border: '1px dashed var(--color-border-strong)',
+                  width: `${BAND_CONTROL_SIZE}px`, height: `${BAND_CONTROL_SIZE}px`, border: '1px dashed var(--color-border-strong)',
                   borderRadius: 'var(--radius-full)', background: 'transparent',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
                   color: 'var(--color-text-tertiary)',
                   transition: 'color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
+                  // 覆盖层的定位基准只在手机加；桌面样式逐字不变。
+                  ...(touch ? { position: 'relative' as const } : null),
                 }}
                 onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.borderColor = 'var(--color-text-primary)' }}
                 onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
               >
+                {touch && (
+                  // 44×44 命中区（v0.7.7 Task 10）：绝对定位、不进布局；挂在按钮**内部**，
+                  // 点击冒泡回本按钮的 onClick。无 z-index：不盖过按钮自身。
+                  <span aria-hidden="true" style={{ ...hitAreaStyle(), top: BAND_HIT_OFFSET, left: BAND_HIT_OFFSET }} />
+                )}
                 <Icon name="plus" size={16} />
               </button>
             </>

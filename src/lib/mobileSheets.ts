@@ -18,6 +18,12 @@ export interface SheetItem {
   /** 有二级表：点了换内容而不是执行动作（「从…中移除」）。 */
   submenu?: boolean
   disabled?: boolean
+  /**
+   * 可勾选项（v0.7.7 Task 10，spec §3.5）：`undefined` = 不是勾选项（既有所有表逐字不变）；
+   * `boolean` = 该行带勾选态，点击即切换、**不关表**。组件据此渲染 `aria-checked` 与右侧勾选方块。
+   * 与 `disabled` 互斥地表达不同语义：勾选项永远可点（点一下即增删），置灰项不可点。
+   */
+  checked?: boolean
 }
 
 /** 底部表的取消键文案（Task 3 的 `MobileActionSheet` 消费）。 */
@@ -78,6 +84,26 @@ export function drawerWordSheetItems(a: { moveLabel: string; categoryCount: numb
 /** 「从…中移除」的二级表：按顺序列出分类名；key 就是分类名，调用点据此回查分类。 */
 export function removeCategoryItems(names: string[]): SheetItem[] {
   return names.map(name => ({ key: name, label: name }))
+}
+
+/**
+ * 分类分配表（v0.7.7 Task 10，spec §3.5「分配弹窗」）。
+ *
+ * 已属分类逐行带 `checked`、点一下即移除；未属的点一下即加入。切换**不关表**，故这是
+ * 一张「表内容跟着 store 重算」的活表——`assignedIds` 由调用点每次渲染现取。
+ * 末行「＋ 新建分类」不是分类：key 用哨兵值，调用点据此分流到 `onCreateNew`。
+ */
+export const SHEET_CREATE_CATEGORY = '__create_category__'
+
+export function categoryAssignItems(
+  categories: { id: string; name: string }[],
+  assignedIds: Iterable<string>,
+): SheetItem[] {
+  const assigned = new Set(assignedIds)
+  return [
+    ...categories.map(cat => ({ key: cat.id, label: cat.name, checked: assigned.has(cat.id) })),
+    { key: SHEET_CREATE_CATEGORY, label: '+ 新建分类' },
+  ]
 }
 
 /** 抽屉分类表头的表。 */
