@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import FreeScopeTabs, { SCOPE_TABS } from './FreeScopeTabs'
+import FreeScopeTabs from './FreeScopeTabs'
 import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
@@ -16,9 +16,18 @@ import { useWordStore } from '../../stores/wordStore'
 export type { FreeScopeKind } from '../../lib/review/types'
 
 /**
+ * 手机端范围卡片的顺序（v0.7.6 §3.8）：分类强化 → 薄弱词专项 → 今日队列重练 → 全库随机。
+ *
+ * **刻意与桌面页签条 `SCOPE_TABS` 的顺序不同**：设计稿为手机布局单独列举了这个次序
+ * （两处权威文档都这么写），桌面页签条照旧用自己的顺序。这里只存 key，
+ * 标题仍按 key 取 `FREE_SCOPE_LABEL`，不在本文件重抄中文名。
+ */
+const MOBILE_SCOPE_ORDER: FreeScopeKind[] = ['category', 'weak', 'today', 'random']
+
+/**
  * 手机端范围卡片的一行说明（v0.7.6 §3.8）。
  * 按范围 key 索引、不按标签文字索引：标签改了名，按文字找的说明会静默失配。
- * 标题本身不用这张表，直接取 `SCOPE_TABS` 的 label（与页签、控制台同源）。
+ * 标题本身不用这张表，直接取 `FREE_SCOPE_LABEL`（与页签、控制台同源）。
  */
 const MOBILE_SCOPE_DESC: Record<FreeScopeKind, string> = {
   category: '按分类抽词，可多选',
@@ -130,21 +139,22 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
   return (
     <div className="flex flex-col" style={{ minHeight: '100%' }}>
       {mobile ? (
-        /* 手机（v0.7.6 §3.8）：页签条换成 2×2 卡片。标题取 SCOPE_TABS 的 label，
+        /* 手机（v0.7.6 §3.8）：页签条换成 2×2 卡片，顺序取 MOBILE_SCOPE_ORDER
+           （与桌面页签条不同，理由见该常量的注释）。标题按 key 取 FREE_SCOPE_LABEL，
            说明按 key 取 MOBILE_SCOPE_DESC——中文名不在本文件出现第二份。 */
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: '14px 16px 0' }}>
           <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 6, fontSize: 16, fontWeight: 600, fontFamily: 'var(--font-serif)' }}>
             选择练习范围
             {infoTip}
           </div>
-          {SCOPE_TABS.map(t => {
-            const on = t.key === kind
+          {MOBILE_SCOPE_ORDER.map(key => {
+            const on = key === kind
             return (
               <button
-                key={t.key}
+                key={key}
                 type="button"
                 aria-pressed={on}
-                onClick={() => setKind(t.key)}
+                onClick={() => setKind(key)}
                 style={{
                   minWidth: 0, padding: 12, borderRadius: 8, textAlign: 'left', cursor: 'pointer',
                   border: '1px solid transparent', fontFamily: 'var(--font-sans)', color: 'inherit',
@@ -154,9 +164,9 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
                   touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
                 }}
               >
-                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{t.label}</div>
+                <div style={{ fontSize: 13.5, fontWeight: 600 }}>{FREE_SCOPE_LABEL[key]}</div>
                 <div style={{ marginTop: 4, fontSize: 11, lineHeight: 1.5, color: 'var(--color-text-secondary)' }}>
-                  {MOBILE_SCOPE_DESC[t.key]}
+                  {MOBILE_SCOPE_DESC[key]}
                 </div>
               </button>
             )
