@@ -171,10 +171,11 @@ export default function SummaryPanel({ onRestart, variant = 'desktop' }: {
  * 统计卡保留桌面那四档暖中性面（tone 顺序不变），图表卡用 sunken / chrome 交替，
  * 与桌面白卡区分开。
  *
- * 图表与逐题明细的栅格用 `minmax(0, 1fr)`，明细卡与卡内两行文字带 `minWidth: 0` /
- * `overflowWrap`，故长释义不会把卡片撑破。两处有意例外：统计卡是 brief 钉死的
- * `'1fr 1fr'`（四格只放短数字，不存在长文撑宽的问题）；absent 块是普通块级文字流、
- * 不在 flex/grid 里，常规换行已足够，不需要 `minWidth`。390dp 上因此不会横向滚动。
+ * 防横向溢出：图表与逐题明细的栅格用 `minmax(0, 1fr)`；明细卡与第一行（flex 行）带
+ * `minWidth: 0`，第二行摘要与词名按钮再各带 `overflowWrap: 'anywhere'`，长释义只会在
+ * 卡内折行。两处没设防的地方也不会溢出：统计卡是 brief 钉死的 `'1fr 1fr'`、四格只放短
+ * 数字；absent 块是根列容器的直接 flex 项，交叉轴 stretch 已把宽度钉在容器内，它自己的
+ * `overflowWrap: 'anywhere'` 负责断长串。
  */
 function MobileSummary({ queue, answered, absent, summary, counts, series, onRestart }: {
   queue: ReviewCardDTO[]
