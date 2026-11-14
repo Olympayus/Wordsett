@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import type { CSSProperties } from 'react'
 import { useViewStore } from '../../../stores/viewStore'
 import { useWordStore } from '../../../stores/wordStore'
@@ -6,10 +6,10 @@ import { useUiStore } from '../../../stores/uiStore'
 import { useWorkbenchNavigation } from '../../../lib/useWorkbenchNavigation'
 import { moveConfirmRequest, moveTarget, moveActionLabel } from '../../../lib/archiveMove'
 import { deleteWordConfirmRequest } from '../../../lib/wordActions'
+import { appBarMenuItems } from '../../../lib/mobileSheets'
 import Icon from '../../icons'
 import SquareButton from '../../ui/SquareButton'
-import ContextMenu, { type MenuItem } from '../../ui/ContextMenu'
-import { useMobilePopup } from '../../../lib/mobilePopups'
+import MobileActionSheet from './MobileActionSheet'
 
 /** 顶栏高度（spec §4.1：约 52dp）。不含状态栏——刘海 / 挖孔由 `paddingTop` 的安全区另加。 */
 const BAR_HEIGHT = 52
@@ -34,9 +34,6 @@ const iconBtn = (disabled = false): CSSProperties => ({
   WebkitTapHighlightColor: 'transparent',
 })
 
-/** ⋯ 菜单的浮层落位：直接以点击处为锚，由 `ContextMenu` 钳进视口（与桌面行尾 ⋯ 同一配方）。 */
-const MENU_ANCHOR_OFFSET = 8
-
 interface Props {
   /** 打开左侧抽屉（Task 6 的 `MobileDrawer`，由 `MobileShell` 接线）。 */
   onOpenDrawer: () => void
@@ -48,23 +45,23 @@ interface Props {
 }
 
 /**
- * 手机顶栏（Task 5，spec §4.1）：抽屉、返回 / 前进、标题、「编者」开关、⋯。
+ * 手机顶栏（Task 5，spec §4.1；Task 12 改）：抽屉、返回 / 前进、标题、⋯。
  *
  * - 返回 / 前进走 `useWorkbenchNavigation`——与桌面 `WorkbenchNavBar` 共用同一份
  *   「先切模块 → 再切数据集 → 最后选词」的实现（Task 5 抽出），两处入口顺序不可能分家。
- * - 「编者」开关是 `useViewStore.editorMode`（编者模式）的形态开关：`SquareButton` 的
- *   `pressed` 配方与桌面 `WorkbenchNavBar` 同一套（含 `role="switch"` + `aria-checked`
- *   与品牌蓝浅一阶底），尺寸取 `size="touch"`——`SquareButton` 为手机外壳开的触屏档，
- *   与 `nav` 同形、只把高度从 22 提到 32（spec §10）。于是它与左右两枚 32px 箭头键
- *   逐像素等高，右端簇读起来是同一排控件。
- * - ⋯ 里两件动作与桌面工作台**同一批调用**：移动复用 `lib/archiveMove` 的文案与
- *   `useWordStore` 的 `moveToArchive` / `moveToWorkspace`，删除复用 `useWordStore.deleteWord`
- *   与同一句确认文案（`WordWorkbench.handleDelete` 的逐字副本——两处都在「当前选中词」上操作，
- *   动作与确认文案必须一致，故确认文案抽成 `src/lib/wordActions.ts` 一份、两处共用）。
+ * - 「编者」按钮已撤（v0.7.7 Task 12，spec §3.8）：`editorMode` 在手机上只剩「显示来源色」
+ *   一个语义，开关收进 ⋯ 表的第一项（`appBarMenuItems`）。桌面 `WorkbenchNavBar` 不受影响。
+ * - ⋯ 打开的是 `MobileActionSheet`（Task 3），不再是桌面那枚 `ContextMenu`：手机上所有
+ *   「长按 / ⋯ 弹出的表」都走同一张底部表。条目来自 `appBarMenuItems`——首项来源色开关，
+ *   有选中词时再接移动 / 删除。没有选中词也出 ⋯（否则来源色开关无处可去，Ruling 3）。
+ * - 移动复用 `lib/archiveMove` 的文案与 `useWordStore` 的 `moveToArchive` / `moveToWorkspace`，
+ *   删除复用 `useWordStore.deleteWord` 与同一句确认文案（`WordWorkbench.handleDelete` 的逐字副本
+ *   ——两处都在「当前选中词」上操作，动作与确认文案必须一致，故确认文案抽成
+ *   `src/lib/wordActions.ts` 一份、两处共用）。
  * - 编辑态（`editing` 有值）时右端整簇换成「取消 / 保存」——与桌面 `WorkbenchNavBar` 的
  *   「编者 / 删除」换成「保存 / 取消」是同一个约定。
  *
- * 只有存在选中词时才出 ⋯ 与移动项：没有选中词，移动 / 删除都没有宾语。
+ * 详情态（词典页）不出 ⋯：见下方 `dictOpen` 的注释。
  */
 export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCancelEdit }: Props) {
   const { words, selectedWordId, location, moveToArchive, moveToWorkspace, deleteWord } = useWordStore()
@@ -86,12 +83,8 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
     : selectedWord
       ? selectedWord.lemma
       : location === 'archive' ? '储藏库' : '工作台'
-  // ⋯ 菜单的锚点（`ContextMenu` 按点击处落位并钳进视口）
-  const [menu, setMenu] = useState<{ x: number; y: number } | null>(null)
-  const closeMenu = useCallback(() => setMenu(null), [])
-  // 菜单开着时登记给外壳：安卓返回键先关菜单，而不是穿透出去换词 / 退出应用
-  // （`ContextMenu` 只听 window 的 Escape，而安卓返回不经 DOM）。
-  useMobilePopup(menu !== null, closeMenu)
+  // ⋯ 表的开关（Task 12）：表自己登记安卓返回键；关闭一律把状态清回 false。
+  const [menuOpen, setMenuOpen] = useState(false)
 
   // 详情态下收起返回 / 前进：`go` 只切模块 → 数据集 → 选中词，**不动 activeView**
   // （`useWorkbenchNavigation`），所以在词典页按它会把模块与高亮悄悄换走、正文却留在原处
@@ -117,10 +110,20 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
     await deleteWord(selectedWord.id)
   }
 
-  const menuItems: MenuItem[] = [
-    { key: 'move', label: moveActionLabel(location), onSelect: () => { void onMove() } },
-    { key: 'delete', label: '删除词条', danger: true, onSelect: () => { void onDelete() } },
-  ]
+  // 表的条目由纯函数给出（首项来源色开关，有选中词再接移动 / 删除）。
+  const menuItems = appBarMenuItems({
+    sourceColorsOn: editorMode,
+    moveLabel: moveActionLabel(location),
+    hasWord: !!selectedWord,
+  })
+
+  // 三个分支都先关表再执行：确认框由 `uiStore.confirm` 自己弹，不依赖本表还在。
+  const handleMenuPick = (key: string) => {
+    setMenuOpen(false)
+    if (key === 'sourceColors') { setEditorMode(!editorMode); return }
+    if (key === 'move') { void onMove(); return }
+    if (key === 'delete') { void onDelete(); return }
+  }
 
   return (
     <header
@@ -164,7 +167,7 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
         {editing ? (
           <>
             {/* 编辑态（Plan 2 的行内编辑）：与桌面 `WorkbenchNavBar` 同一约定——右端整簇换成
-                「取消 / 保存」，编者开关与 ⋯ 都让位（编辑中不该还能切形态开关或删除词条）。
+                「取消 / 保存」，⋯ 让位（编辑中不该还能删词条或切来源色）。
                 `size="touch"` 是 `SquareButton` 为手机外壳新开的触屏档：与 `nav` 同形，
                 只把高度提到 32（spec §10 的「沿用 size="nav" 配方，手机把高度调到约 32dp」）。
                 桌面那对仍是 `nav` 的 22px，两档互不牵动。 */}
@@ -176,44 +179,32 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
             </SquareButton>
           </>
         ) : (
-          <>
-            {/* 编者模式（「编者」）：形态开关，开 = 品牌蓝浅一阶 + 深字。`SquareButton` 的
-                `pressed` 配方与桌面 `WorkbenchNavBar` 同一套（`role="switch"` + `aria-checked`），
-                高度同样走 `touch` 档——与左右两枚 32px 箭头键逐像素等高，右端簇才不歪。 */}
-            <SquareButton
-              size="touch"
-              tone="canvas"
-              pressed={editorMode}
-              role="switch"
-              aria-checked={editorMode}
-              aria-label="编者"
-              title="编者"
-              onClick={() => setEditorMode(!editorMode)}
+          // ⋯ 只在非详情态出现：详情页的内容不是选中词的页面，而表里的移动 / 删除都作用在
+          // 选中词上（见上方 `dictOpen` 的注释）。**没有选中词也出现**——来源色开关不依赖选中词
+          // （Ruling 3），此时表里只有它一项。
+          !dictOpen && (
+            <button
+              type="button"
+              title="更多操作"
+              aria-label="更多操作"
+              onClick={() => setMenuOpen(true)}
+              style={iconBtn()}
             >
-              编者
-            </SquareButton>
-            {/* ⋯ 里两件动作：移入 / 移出储藏库、删除词条（与桌面工作台同一批调用，见组件头注释）。
-                没有选中词时整枚不出——移动与删除都没有宾语；详情态下也不出——见上方 `dictOpen`
-                的注释（那时内容不是选中词的页面）。 */}
-            {selectedWord && !dictOpen && (
-              <button
-                type="button"
-                title="更多操作"
-                aria-label="更多操作"
-                onClick={e => setMenu({ x: e.clientX, y: e.clientY + MENU_ANCHOR_OFFSET })}
-                style={iconBtn()}
-              >
-                <Icon name="more" size={18} />
-              </button>
-            )}
-          </>
+              <Icon name="more" size={18} />
+            </button>
+          )
         )}
       </div>
 
-      {/* ⋯ 菜单：fixed 落位、点外 / Esc 自关（`ContextMenu` 自带），与桌面行尾 ⋯ 同一组件 */}
-      {menu && selectedWord && !dictOpen && (
-        <ContextMenu x={menu.x} y={menu.y} items={menuItems} onClose={closeMenu} />
-      )}
+      {/* ⋯ 表（Task 12）：与手机上其余所有「长按 / ⋯」同一张 `MobileActionSheet`，
+          返回键 / 点遮罩 / 取消三条关闭路径都由它自己登记，`onCancel` 只负责清状态。 */}
+      <MobileActionSheet
+        open={menuOpen && !dictOpen}
+        title="更多操作"
+        items={menuItems}
+        onPick={handleMenuPick}
+        onCancel={() => setMenuOpen(false)}
+      />
     </header>
   )
 }
