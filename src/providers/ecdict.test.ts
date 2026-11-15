@@ -1,13 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { getCachedDbMock } = vi.hoisted(() => ({ getCachedDbMock: vi.fn() }))
+const { getCachedDbMock, resolveDictPathMock } = vi.hoisted(() => ({
+  getCachedDbMock: vi.fn(),
+  resolveDictPathMock: vi.fn(async () => 'test.db'),
+}))
 vi.mock('./dbCache', () => ({ getCachedDb: getCachedDbMock }))
 vi.mock('./dictPath', () => ({
-  resolveDictPath: vi.fn(async () => 'test.db'),
+  resolveDictPath: resolveDictPathMock,
   toSqliteUrl: vi.fn((p: string) => `sqlite:${p}`),
 }))
 
 import { EcdictProvider } from './ecdict'
+
+// v0.7.8 最终评审 Critical 回归：全新安装首启时，模块导入早于 MobileBootstrapGate 完成词典落盘，
+// 若在导入期调用 resolveDictPath，错误路径会被缓存、首启查词直到重启都不可用。
+// 本用例必须排在文件**最前**——import 期的调用记录还在（后续 describe 的 beforeEach 会清空它）。
+describe('词典路径惰性解析（首启查词回归）', () => {
+  it('模块导入时不调用 resolveDictPath，Provider 函数运行时才解析', async () => {
+    expect(resolveDictPathMock).not.toHaveBeenCalled()
+    getCachedDbMock.mockResolvedValue({ select: vi.fn().mockResolvedValue([]) })
+    await new EcdictProvider().searchLemmas('apple')
+    expect(resolveDictPathMock).toHaveBeenCalledWith('ecdict.db')
+  })
+})
 
 describe('EcdictProvider.searchLemmas', () => {
   const select = vi.fn()

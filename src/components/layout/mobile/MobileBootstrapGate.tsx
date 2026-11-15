@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState, type ReactNode } from 'react'
 import { Button } from '../../ui/Button'
 import { ensureDictionaries, type DictionaryStatus } from '../../../services/dictionaryBootstrap'
+import { resetDictPathCache } from '../../../providers/dictPath'
 import { gateModel } from '../../../lib/dictionaryGate'
 
 interface Props {
@@ -23,7 +24,12 @@ export function MobileBootstrapGate({ children }: Props) {
   const run = useCallback(() => {
     setError(null)
     ensureDictionaries()
-      .then(setStatus)
+      .then((status) => {
+        // 词典落盘完成后清掉可能已固化的解析缓存（v0.7.8 最终评审 Critical）：
+        // 任何在 gate 之前解析过的路径都指向 APK resource，必须让 provider 重新解析。
+        resetDictPathCache()
+        setStatus(status)
+      })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)))
   }, [])
 

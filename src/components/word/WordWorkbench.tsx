@@ -1213,6 +1213,11 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   // 初值刻意**不报**（`ref` 门）：从 `null` 到 `null` 的上报是白跑一趟——外壳为此多渲染一次，
   // 且中间那一帧顶栏会按「没在编辑」画，闪一下。状态真变了才报，报完把 ref 记成已报的值。
   const lastEditReport = useRef<{ dirty: boolean } | null>(null)
+  // 保存中标志（v0.7.8 最终评审 Important，spec §5.1「保存中不弹」）：`handleSave` 在
+  // `await updateFieldValue` 期间 `editingId` / `editValue` 仍是旧值（dirty 为真），若此时
+  // 失焦或点了导航入口，守卫会弹「有未保存的修改」——用户明明刚点了保存。置位期间
+  // `isDirty` 一律返回 false；try/finally 保证成功 / 失败都复位。
+  const savingRef = useRef(false)
   useEffect(() => {
     if (!onEditStateChange) return
     const next = editingId ? { dirty: hasFieldChanges(editValue, entryValue) } : null
@@ -1254,7 +1259,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   useEffect(() => {
     if (!editingId) return
     return registerEditGuard({
-      isDirty: () => hasFieldChanges(editValue, entryValue),
+      isDirty: () => !savingRef.current && hasFieldChanges(editValue, entryValue),
       // 确认「放弃修改」：清编辑态（未保存的值随 entryValue 一起作废，下次编辑重新取值）。
       discard: () => setEditingId(null),
       // 没有改动时的失焦 / 点别处：静默退出编辑，不弹确认。
@@ -1401,14 +1406,19 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
         return
       }
     }
-    if (fv.source === 'user') {
-      await updateFieldValue(fv.id, { value: editValue })  // 个人字段保持 personal
-    } else {
-      await updateFieldValue(fv.id, {
-        value: editValue,
-        edited: true,
-        originalValue: fv.originalValue ?? entryValue,  // 保留既有 original_value
-      })
+    savingRef.current = true
+    try {
+      if (fv.source === 'user') {
+        await updateFieldValue(fv.id, { value: editValue })  // 个人字段保持 personal
+      } else {
+        await updateFieldValue(fv.id, {
+          value: editValue,
+          edited: true,
+          originalValue: fv.originalValue ?? entryValue,  // 保留既有 original_value
+        })
+      }
+    } finally {
+      savingRef.current = false
     }
     setEditingId(null)
     setSaved(true)  // 保存确认条：仅在真实落库后置位（未改动早退的那条不置）

@@ -159,7 +159,7 @@ export default function MobileTabBar() {
               <span style={badgeStyle} aria-label={`${due} 张待复习`}>{due}</span>
             )}
             {tab.key === 'settings' && hasUpdateBadge && (
-              <span style={updateDotStyle} aria-label="有新版本" />
+              <span style={updateDotStyle} role="status" aria-label="有新版本" />
             )}
           </button>
         )

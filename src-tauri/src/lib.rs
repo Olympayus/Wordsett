@@ -154,7 +154,12 @@ pub fn run() {
             // 交给前端过一遍未保存确认；前端确认后调 `quit_app`，那里会先置旁路再 exit。
             // 手机上没有这条分流（`#[cfg(desktop)]`）：退出走 `exit_app` 的 Activity.finish。
             #[cfg(desktop)]
-            if let tauri::RunEvent::ExitRequested { api, .. } = &event {
+            if let tauri::RunEvent::ExitRequested { api, code, .. } = &event {
+                // 更新器重启（`RESTART_EXIT_CODE`）不是用户发起的退出：放行，不弹未保存确认
+                //（v0.7.8 最终评审——否则重启瞬间会闪一次「有未保存的修改」）。
+                if *code == Some(tauri::RESTART_EXIT_CODE) {
+                    return;
+                }
                 if !QUIT_BYPASS.load(Ordering::SeqCst) {
                     api.prevent_exit();
                     let _ = app.emit("quit-requested", ());
@@ -274,6 +279,14 @@ fn open_data_dir(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
+/// `open_external_url` 的白名单判据（v0.7.8 最终评审）：只放行 GitHub 的 https 链接。
+///
+/// 前缀必须带结尾斜杠：`https://github.com.evil/` 在 `https://github.com` 处就分叉，
+/// 去掉斜杠会把仿冒域名一起放进来。抽成纯函数便于单测。
+fn is_github_url(url: &str) -> bool {
+    url.starts_with("https://github.com/")
+}
+
 /// 用系统浏览器打开外部链接（v0.7.8 手机 / 平板更新）。
 ///
 /// **只放行 GitHub 链接**：这条命令的用途是让用户去 Releases 下载新版 APK，不是通用跳板；
@@ -283,7 +296,7 @@ fn open_data_dir(app: tauri::AppHandle) -> Result<(), String> {
 fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
     use tauri_plugin_opener::OpenerExt;
 
-    if !url.starts_with("https://github.com/") {
+    if !is_github_url(&url) {
         return Err("仅允许打开 GitHub 链接".to_string());
     }
 
@@ -357,8 +370,17 @@ fn fsrs_next(
 
 #[cfg(test)]
 mod tests {
-    use super::{fsrs_next, to_loadable_path};
+    use super::{fsrs_next, is_github_url, to_loadable_path};
     use std::path::Path;
+
+    #[test]
+    fn github_url_whitelist_is_exact_host() {
+        assert!(is_github_url("https://github.com/x/y"));
+        // 仿冒域名 / 明文 http / 其它站点一律拒绝
+        assert!(!is_github_url("https://github.com.evil/"));
+        assert!(!is_github_url("http://github.com/"));
+        assert!(!is_github_url("https://example.com/"));
+    }
 
     #[test]
     fn strips_verbatim_drive_prefix() {

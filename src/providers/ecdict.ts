@@ -5,14 +5,17 @@ import { buildSynonymDiscriminationFields, type SynonymMember } from '../lib/syn
 import { getCachedDb } from './dbCache'
 import { resolveDictPath, toSqliteUrl } from './dictPath'
 
-const dbPath = resolveDictPath('ecdict.db')
+// 惰性解析（v0.7.8 最终评审 Critical）：模块导入发生在 `MobileBootstrapGate` 完成词典落盘之前，
+// 此刻调用 `resolveDictPath` 会把错误的 resource 路径固化进 Promise 缓存，首启查词直到重启都不可用。
+// 改为每次 Provider 函数运行时才解析；`resolveDictPath` 自带缓存，重复调用不会重复 invoke。
+const dbPath = () => resolveDictPath('ecdict.db')
 
 export class EcdictProvider implements DictionaryProvider {
   readonly name = 'ecdict'
 
   async searchLemmas(query: string): Promise<string[]> {
     if (!query.trim()) return []
-    const db = await getCachedDb(toSqliteUrl(await dbPath))
+    const db = await getCachedDb(toSqliteUrl(await dbPath()))
     const q = `${query.toLowerCase().trim()}%`
     // 仅返回 entries 中存在详情的词：lemma.json 含 entries 缺失的孤儿词（如 applejacks），
     // 直接 LIKE 会把它们送进建议列表但点进去查无结果（v0.4.3 §2）
@@ -26,7 +29,7 @@ export class EcdictProvider implements DictionaryProvider {
   async lookup(word: string): Promise<DictionaryEntry[]> {
     if (!word.trim()) return []
     const normalized = word.toLowerCase().trim()
-    const db = await getCachedDb(toSqliteUrl(await dbPath))
+    const db = await getCachedDb(toSqliteUrl(await dbPath()))
     const rows = await db.select<Record<string, any>[]>(
       'SELECT * FROM entries WHERE word = ?1 LIMIT 1',
       [normalized]
@@ -65,7 +68,7 @@ export class EcdictProvider implements DictionaryProvider {
 
   async searchByChinese(query: string): Promise<Array<{ word: string; translation: string; collins: number; frq: number }>> {
     if (!query.trim()) return []
-    const db = await getCachedDb(toSqliteUrl(await dbPath))
+    const db = await getCachedDb(toSqliteUrl(await dbPath()))
     const q = `%${query.trim()}%`
     // v0.4.4：多取词频列；SQL 内先按常用度粗排再 LIMIT，避免常用词被插入序截断丢掉（各取数上限放宽到 300）
     const rows = await db.select<{ word: string; translation: string; collins: number; frq: number }[]>(

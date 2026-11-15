@@ -17,7 +17,8 @@ export async function checkMobileUpdate(fetcher: typeof fetch = fetch): Promise<
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   try {
     const res = await fetcher(MOBILE_LATEST_URL, { signal: controller.signal })
-    if (!res.ok) return { status: 'error', message: `更新检查失败：HTTP ${res.status}` }
+    // 文案只报事实（v0.7.8 最终评审）：前缀「检查失败：」由 AboutSettings 统一加，避免双重前缀。
+    if (!res.ok) return { status: 'error', message: `HTTP ${res.status}` }
     const manifest = parseLatestManifest(await res.text())
     if (!manifest) return { status: 'error', message: '更新清单格式无效' }
     // 远端版本已由 parseLatestManifest 校验过，这里剩下的 null 只可能来自

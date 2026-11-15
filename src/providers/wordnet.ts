@@ -6,7 +6,9 @@ import { resolveDictPath, toSqliteUrl } from './dictPath'
 import { RELATED_LABEL } from '../lib/wordnetRelations'
 import { freshGroups } from '../lib/wordnetGroups'
 
-const dbPath = resolveDictPath('wordnet.db')
+// 惰性解析（v0.7.8 最终评审 Critical）：与 ecdict 同一理由——导入早于 `MobileBootstrapGate`
+// 的词典落盘，届时解析会缓存错的 resource 路径；改为 Provider 函数运行时才解析。
+const dbPath = () => resolveDictPath('wordnet.db')
 
 export interface RelatedGroup {
   words: string[]
@@ -23,7 +25,7 @@ export class WordNetProvider implements DictionaryProvider {
 
   async searchLemmas(query: string): Promise<string[]> {
     if (!query.trim()) return []
-    const db = await getCachedDb(toSqliteUrl(await dbPath))
+    const db = await getCachedDb(toSqliteUrl(await dbPath()))
     const q = `${query.toLowerCase().trim()}%`
     const rows = await db.select<{ lemma: string }[]>(
       'SELECT DISTINCT lemma FROM wn_words WHERE lemma LIKE ?1 LIMIT 20',
@@ -35,7 +37,7 @@ export class WordNetProvider implements DictionaryProvider {
   async lookup(word: string): Promise<DictionaryEntry[]> {
     if (!word.trim()) return []
     const normalized = word.toLowerCase().trim()
-    const db = await getCachedDb(toSqliteUrl(await dbPath))
+    const db = await getCachedDb(toSqliteUrl(await dbPath()))
 
     // Query all synsets for this word, joining on composite PK (synset_offset, pos)
     const rows = await db.select<Record<string, any>[]>(
@@ -91,7 +93,7 @@ export class WordNetProvider implements DictionaryProvider {
     const empty = () => ({ path: [], groups: freshGroups() })
     if (!word.trim()) return empty()
     const normalized = word.toLowerCase().trim()
-    const db = await getCachedDb(toSqliteUrl(await dbPath))
+    const db = await getCachedDb(toSqliteUrl(await dbPath()))
 
     // 1) word → 所属 synsets
     const synsetRows = await db.select<{ synset_offset: number; pos: string }[]>(
