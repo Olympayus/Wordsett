@@ -304,8 +304,13 @@ describe('工作区改用原语（源码级守卫）', () => {
 //  `touch` 的推导改 `touchProp ?? chrome === 'mobile'` 并补两行注释（+2 行），共 +8，
 //  全部落在首段命中行之后；下半九处命中行重算为
 //  1293 / 1294 / 1437 / 1446 / 1450 / 1493 / 1656 / 1747 / 1964（由守卫失败输出回填）。
+//  v0.7.8 Task 6（编辑态接线）：`editGuard` import（+1，落在首段命中行之上，前六处 +1）；
+//  守卫注册 effect、取消回调上移与注释（+25 上下）落在下半段之上，后九处 +25～27。
+//  十五处命中行重算为
+//  449 / 450 / 460 / 466 / 487 / 488 / 1320 / 1321 / 1462 / 1471 / 1475 / 1518 / 1681 / 1772 / 1989
+//  （由守卫失败输出回填，未手算）。
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [448, 449, 459, 465, 486, 487, 1293, 1294, 1437, 1446, 1450, 1493, 1656, 1747, 1964], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 表条目可行性 / 添加项路由 / 布局分流（不问渲染形状）'],
+  ['WordWorkbench.tsx', [449, 450, 460, 466, 487, 488, 1320, 1321, 1462, 1471, 1475, 1518, 1681, 1772, 1989], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 表条目可行性 / 添加项路由 / 布局分流（不问渲染形状）'],
   ['DictDetailCard.tsx', [102, 193, 257, 386], '可见性过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 
@@ -365,6 +370,16 @@ describe('平板触摸语义（v0.7.8）', () => {
   it('touch 是独立 prop，默认仍由 chrome 推出', () => {
     expect(src).toMatch(/touch\?: boolean/)
     expect(src).toMatch(/const touch = touchProp \?\? chrome === 'mobile'/)
+  })
+})
+
+// 未保存编辑守卫（v0.7.8 Task 6）：编辑态必须把守卫注册进来，否则失焦 / 点击拦截 / 取消
+// 三条路径全都拿不到 dirty 判据（`confirmLeaveEdit` 无守卫时直接放行）。源码级守卫钉住接线。
+describe('未保存编辑守卫（v0.7.8）', () => {
+  const src = readFileSync(new URL('./WordWorkbench.tsx', import.meta.url), 'utf8')
+
+  it('编辑守卫已注册', () => {
+    expect(src).toContain('registerEditGuard')
   })
 })
 

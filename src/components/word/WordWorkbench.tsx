@@ -58,6 +58,7 @@ import { isWordInLibrary } from '../../lib/ensureWord'
 import { masteryBlocks, MASTERY_COLORS } from '../../lib/review/masteryScale'
 import { familiarityFromValue, displayTier } from '../../lib/review/mastery'
 import { useUiStore } from '../../stores/uiStore'
+import { registerEditGuard, confirmLeaveEdit } from '../../lib/editGuard'
 import { moveConfirmRequest, moveTarget } from '../../lib/archiveMove'
 import { deleteWordConfirmRequest } from '../../lib/wordActions'
 import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING_X, ENTRY_PHONETIC_GAP, NAV_CONTROL_HEIGHT } from '../../lib/layout'
@@ -1240,6 +1241,27 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     return () => window.removeEventListener('pointerdown', onPointerDown)
   }, [editingId, editValue, entryValue])
 
+  // ── 未保存编辑守卫（v0.7.8 Task 6，设计稿 §5.2）─────────────────────────────────
+  // 编辑态把三条结论交给模块级单例守卫：是否脏、放弃修改、静默退出。
+  //
+  // **必须在每次编辑状态变化时重新注册**（依赖三件套），不能只挂一次：`registerEditGuard`
+  // 是唯一重置内部 `discarded` 的地方——「放弃修改」确认过一次之后，那个标志会一直为真；
+  // 守卫若只注册一次，本组件余下的生命里所有未保存确认都会被静默跳过。重新注册等于
+  // 「新一次编辑重新计脏」；退出编辑态时 effect 早退，上一轮的 cleanup 把守卫注销。
+  //
+  // `dirty` 与顶栏那份判据同源（`hasFieldChanges`），不是 `editValue !== entryValue`：
+  // 顶栏 / 失焦 / 点击拦截三处对「改过没有」必须给出同一个答案。
+  useEffect(() => {
+    if (!editingId) return
+    return registerEditGuard({
+      isDirty: () => hasFieldChanges(editValue, entryValue),
+      // 确认「放弃修改」：清编辑态（未保存的值随 entryValue 一起作废，下次编辑重新取值）。
+      discard: () => setEditingId(null),
+      // 没有改动时的失焦 / 点别处：静默退出编辑，不弹确认。
+      cancelSilently: () => setEditingId(null),
+    })
+  }, [editingId, editValue, entryValue])
+
   // ── 手机外壳的保存 / 取消（Task 5）──────────────────────────────────────────────
   // **这两个 hook 必须在下面的空态早退之前**：`if (!selectedWord) return <EmptyState/>` 会在
   // 空态少走一段渲染体，若把它们留在早退之后，从空态切到选中词的那一次渲染 hook 数就变了
@@ -1250,10 +1272,15 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   // 三件局部 state），那个函数定义在早退之后，故经 ref 取最新一份——`useImperativeHandle` 的
   // 工厂只在挂载时建一次，直接闭包住首次渲染的 `handleSave` 会让手机顶栏的「保存」永远撞上
   // `if (!editingId) return`，成了永久空转的按钮。
+  //
+  // 取消（v0.7.8 Task 6）：统一走 `confirmLeaveEdit`——dirty 时先弹确认，干净时静默退出。
+  // 它只读模块级守卫、不读任何局部 state，故可以定义在早退之前，imperative handle 与各
+  // `onCancelEdit` prop 共用这一份（桌面导航条、Esc、手机顶栏、安卓返回键同一条路径）。
+  const cancelEdit = () => { void confirmLeaveEdit() }
   const handleSaveRef = useRef<() => Promise<void>>(async () => {})
   useImperativeHandle(ref, () => ({
     saveEdit: () => { void handleSaveRef.current() },
-    cancelEdit: () => setEditingId(null),
+    cancelEdit,
   }), [])
 
   if (!selectedWord) {
@@ -1392,12 +1419,10 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   // `handleSave` 存进 ref：赋值写在渲染体里而不是 effect 里——effect 会晚一帧，
   // 那一帧里点保存仍会落空。
   handleSaveRef.current = handleSave
-  // 桌面那对回调直接复用同一组：`WorkbenchNavBar` 的 `onSaveEdit` / `onCancelEdit` 语义逐字相同
-  // （桌面版此前是内联箭头函数，换成同一组稳定引用）。注意这两个**不是** useCallback——它们
-  // 每个渲染重造，稳定性由 `WorkbenchNavBar` 那侧不把它们放进依赖数组来保证（与 v0.7.4 前
-  // 的内联箭头函数等价）。
+  // 桌面保存回调：与手机外壳共用同一份 `handleSave`。注意它不是 useCallback——每个渲染重造，
+  // 稳定性由 `WorkbenchNavBar` 那侧不把它放进依赖数组来保证（与 v0.7.4 前的内联箭头函数等价）。
+  // 取消回调 `cancelEdit` 定义在空态早退之前（需供 imperative handle 使用），见上方守卫段。
   const saveEdit = () => { void handleSave() }
-  const cancelEdit = () => setEditingId(null)
 
   const handleDelete = async () => {
     const ok = await useUiStore.getState().confirm(deleteWordConfirmRequest(selectedWord.lemma))
@@ -1614,7 +1639,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     onStartEdit: handleStartEdit,
     onEditValueChange: setEditValue,
     onSave: handleSave,
-    onCancelEdit: () => setEditingId(null),
+    onCancelEdit: cancelEdit,
     onDelete: handleDeleteField,
     onToggleAddMenu: handleToggleAddMenu,
     onPickAdd: handleAddChild,
@@ -1960,7 +1985,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
                 onEditValueChange={setEditValue}
                 onStartEdit={handleStartEdit}
                 onSave={handleSave}
-                onCancelEdit={() => setEditingId(null)}
+                onCancelEdit={cancelEdit}
                 onAdd={() => handleAddField(defs.find(d => d.key === 'phonetic')!)}
                 onDelete={handleDeleteField}
                 label="音标"
@@ -1982,7 +2007,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
               onEditValueChange={setEditValue}
               onStartEdit={handleStartEdit}
               onSave={handleSave}
-              onCancelEdit={() => setEditingId(null)}
+              onCancelEdit={cancelEdit}
               onAdd={handleAddWordRoot}
               onDelete={handleDeleteField}
               label="词根"

@@ -6,11 +6,16 @@ import IndexPage from './routes/IndexPage'
 import { useUpdaterStore } from './stores/updaterStore'
 import { useMobileUpdateStore } from './stores/mobileUpdateStore'
 import { usePlatformClass } from './lib/usePlatform'
+import { useEditGuard } from './lib/useEditGuard'
 import { setProbe, type VoiceProbe } from './lib/review/ttsGate'
 import { resolveTheme, applyTheme, applyWindowTheme } from './lib/theme'
 import { useSettingsStore } from './stores/settingsStore'
 
 export default function App() {
+  // 未保存编辑守卫（v0.7.8 Task 6）：失焦确认 + 应用内点击拦截，全应用挂**恰好一次**。
+  // 守卫本体是模块级单例（`lib/editGuard.ts`），本 hook 只持两条监听的生命周期。
+  useEditGuard()
+
   // 启动静默检查：发现新版只点亮徽标，不弹窗。
   // 桌面走签名更新器（`useUpdaterStore`），Android（手机 / 平板）读 Releases 清单
   // （`useMobileUpdateStore`）——两条路径互不重叠，桌面行为保持不变。

@@ -165,7 +165,10 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
       {/* 右端簇 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
         {editing ? (
-          <>
+          // `data-edit-keep`（v0.7.8 Task 6）：未保存确认的捕获阶段点击拦截按它放行——
+          // 保存 / 取消本身绝不能先被拦掉（取消的确认走它自己的 `cancelEdit`）。
+          // 内层 span 复刻父级的 gap: 2，包一层不改变两枚按钮的间距。
+          <span data-edit-keep style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {/* 编辑态（Plan 2 的行内编辑）：与桌面 `WorkbenchNavBar` 同一约定——右端整簇换成
                 「取消 / 保存」，⋯ 让位（编辑中不该还能删词条或切来源色）。
                 `size="touch"` 是 `SquareButton` 为手机外壳新开的触屏档：与 `nav` 同形，
@@ -177,7 +180,7 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
             <SquareButton size="touch" tone="canvas" onClick={() => onSaveEdit?.()}>
               保存
             </SquareButton>
-          </>
+          </span>
         ) : (
           // ⋯ 只在非详情态出现：详情页的内容不是选中词的页面，而表里的移动 / 删除都作用在
           // 选中词上（见上方 `dictOpen` 的注释）。**没有选中词也出现**——来源色开关不依赖选中词

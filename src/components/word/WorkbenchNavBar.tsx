@@ -183,7 +183,10 @@ export default function WorkbenchNavBar({
                 `editing` 有值才出现，一次编辑全程都在，不做 hover 显隐。
                 `dirty` 本版只作将来的「未保存」提示，不据此禁用按钮。 */}
             {editing && (
-              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              // `data-edit-keep`（v0.7.8 Task 6）：未保存确认的捕获阶段点击拦截按它放行——
+              // 保存 / 取消本身绝不能先被拦掉（取消的确认走它自己的 `cancelEdit` →
+              // `confirmLeaveEdit`）。一处包住两枚按钮即可：判据是 `closest`。
+              <span data-edit-keep style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 {/* 可选 prop 用 `?.()`：`editing` 有值而回调没传时是「看得见、点不动作」的哑控件。 */}
                 <SquareButton size="nav" tone="canvas" onClick={() => onSaveEdit?.()}>保存</SquareButton>
                 <SquareButton size="nav" tone="canvas" onClick={() => onCancelEdit?.()}>取消</SquareButton>
