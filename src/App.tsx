@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { invoke } from '@tauri-apps/api/core'
 import ErrorBoundary from './components/ui/ErrorBoundary'
 import TextContextMenu from './components/ui/TextContextMenu'
 import IndexPage from './routes/IndexPage'
@@ -53,6 +54,9 @@ export default function App() {
       const resolved = resolveTheme(theme, mq.matches)
       applyTheme(resolved)
       void applyWindowTheme(resolved)
+      // 状态栏 / 手势条图标跟随应用主题（v0.7.8 Task 9）。桌面端命令为空操作，
+      // 非 Tauri 环境（vite dev / vitest）会 reject —— 一律静默，主题本身不受影响。
+      void invoke('set_system_bars_theme', { dark: resolved === 'dark' }).catch(() => {})
     }
     sync()
     if (theme !== 'system') return

@@ -2,6 +2,9 @@ mod config;
 mod dictionaries;
 mod orientation;
 mod platform;
+// 状态栏 / 手势条图标跟随应用主题（v0.7.8 Task 9）。非 Android 端命令为空操作，
+// 但模块本身永远参与编译（宿主机 `cargo test` 要能跑 `should_use_light_icons`）。
+mod system_bars;
 // 托盘是桌面专属：`tauri::tray` / `tauri::menu` 在 Tauri 里就是 `#[cfg(all(desktop, …))]`，
 // Android 上这两个模块根本不存在（tauri-2.11.5 src/lib.rs:102-114），整模块必须一起门掉，
 // 否则手机端 `cargo build` 在 `use tauri::tray::…` 处直接失败。
@@ -139,9 +142,9 @@ pub fn run() {
     // 词典落盘命令：Android 首启必需。桌面 resources 就地直读、永远命中，
     // marker 不成立时复制会因源缺失而返回 Err，不改变桌面行为。
     #[cfg(desktop)]
-    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app, quit_app]);
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme, quit_app]);
     #[cfg(not(desktop))]
-    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation, orientation::exit_app]);
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme]);
 
     builder.build(tauri::generate_context!())
         .expect("error while building tauri application")
