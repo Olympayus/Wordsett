@@ -12,7 +12,7 @@ import MobileDrawer from './MobileDrawer'
 import { useWordStore } from '../../../stores/wordStore'
 import { backAction, backLayers } from '../../../lib/mobileBackStack'
 import type { SettingsSectionKey } from '../../../lib/mobileSettings'
-import { applyScreenOrientation, exitMobileApp, registerMobileBack } from '../../../lib/mobileBackButton'
+import { exitMobileApp, registerMobileBack } from '../../../lib/mobileBackButton'
 import { canGoBack } from '../../../lib/navHistory'
 import { go } from '../../../lib/useWorkbenchNavigation'
 import { useNavHistoryStore } from '../../../stores/navHistoryStore'
@@ -20,7 +20,6 @@ import { useReviewSessionStore } from '../../../stores/reviewSessionStore'
 import { answeredCount } from '../../../lib/review/nav'
 import { isSessionLive, leaveMessage } from '../../../lib/review/sessionGuard'
 import { hideMobileTabBar } from '../../../lib/mobileTabBar'
-import { usePlatformClass } from '../../../lib/usePlatform'
 import { useUiStore } from '../../../stores/uiStore'
 import CategoryAssignModal from '../../word/CategoryAssignModal'
 import CategoryEditorModal from '../../word/CategoryEditorModal'
@@ -231,11 +230,8 @@ export default function MobileShell() {
     return () => { cancelled = true; unsubscribe() }
   }, [])
 
-  // 方向锁定：手机竖屏、平板横屏、桌面不锁（`orientationFor`）。挂载时按形态锁一次，
-  // **不随旋转改**——这是「锁」的定义；平板换形态时整树换外壳，挂载会再走一次。
-  // 失败由 `applyScreenOrientation` 自己吞掉（方向没锁上不拦住外壳启动）。
-  const platform = usePlatformClass()
-  useEffect(() => { applyScreenOrientation(platform) }, [platform])
+  // 方向锁定（v0.7.8）：已上移到 `IndexPage`——外壳分发的唯一入口，手机 / 平板都要经过它。
+  // 手机外壳不再自己调（平板复用桌面外壳，那条路径根本不会挂到这里，两处调用会漏掉平板）。
 
   // 全局浮层（Task 11）：与 `AppShell` 同一套 store 状态（`assignWordId` / `editorTarget`），
   // 少了它们手机上的分类分配与确认动作会「弹窗不出现、Promise 永不 resolve」。

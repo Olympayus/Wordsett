@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolvePlatform, usesMobileShell, tabletZoom, orientationFor, PHONE_MAX_WIDTH, TABLET_MIN_WIDTH } from './platform'
+import { resolvePlatform, usesMobileShell, tabletZoom, tabletLayout, orientationFor, PHONE_MAX_WIDTH, TABLET_MIN_WIDTH } from './platform'
 
 const env = (width: number, isAndroid = true) => ({ isTauri: true, isAndroid, width, height: 844 })
 
@@ -25,5 +25,17 @@ describe('platform', () => {
     expect(orientationFor('android-phone')).toBe('portrait')
     expect(orientationFor('android-tablet')).toBe('landscape')
     expect(orientationFor('desktop')).toBeNull()
+  })
+})
+
+describe('tabletLayout', () => {
+  it('1024 横屏：缩放触底、侧栏 240', () => {
+    expect(tabletLayout(1024)).toEqual({ zoom: 0.85, sidebarWidth: 240 })
+  })
+  it('1280 横屏：不缩放、侧栏 300', () => {
+    expect(tabletLayout(1280)).toEqual({ zoom: 1, sidebarWidth: 300 })
+  })
+  it('1246 参考宽：不缩放、侧栏 240（未到 1280）', () => {
+    expect(tabletLayout(1246)).toEqual({ zoom: 1, sidebarWidth: 240 })
   })
 })

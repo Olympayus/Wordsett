@@ -17,9 +17,19 @@ import UpdateDialog from '../ui/UpdateDialog'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import FindBar, { registerFindKeyHandler } from '../ui/FindBar'
 import { fitCollapsedWidth, measureMaxWordWidth, resolveSidebarWordFont, COLLAPSED_CHROME_ALPHABET, COLLAPSED_CHROME_CATEGORY, SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
+import { useTabletLayout } from '../../lib/usePlatform'
 import { useCloseRequest } from '../../lib/tray/useCloseRequest'
 
-export default function AppShell() {
+interface AppShellProps {
+  /**
+   * Android 平板（v0.7.8）：复用同一套三栏，但整棵树由 `IndexPage` 的缩放宿主包住。
+   * 为真时根节点高度取 `100%`（撑满宿主补偿后的高度）而不是 `h-screen`（100vh 是屏幕高，
+   * 缩放后会在底部留一条空白），侧栏展开宽度跟 `tabletLayout` 走（窄档 240）。
+   */
+  tablet?: boolean
+}
+
+export default function AppShell({ tablet = false }: AppShellProps) {
   const words = useWordStore(s => s.words)
   const activeView = useViewStore(s => s.activeView)
   const dictWord = useViewStore(s => s.dictWord)
@@ -27,14 +37,16 @@ export default function AppShell() {
   const mode = useSettingsStore(s => s.sidebarMode)
   const activeModule = useViewStore(s => s.activeModule)
   const { assignWordId, editorTarget, closeModals, openEditor } = useUiStore()
+  // 平板布局（v0.7.8）：非平板恒为 `{ zoom: 1, sidebarWidth: 300 }`，桌面行为不变。
+  const { sidebarWidth: tabletSidebarWidth } = useTabletLayout()
 
   // D1：收起宽度 = clamp(最长单词渲染宽度 + 实际 chrome, COLLAPSED_MIN_WIDTH(132px), 240px)，加词/删词重算，过渡走统一动效档
   const sidebarWidth = useMemo(() => {
-    if (!collapsed) return SIDEBAR_EXPANDED_WIDTH
+    if (!collapsed) return tablet ? tabletSidebarWidth : SIDEBAR_EXPANDED_WIDTH
     const chrome = mode === 'alphabet' ? COLLAPSED_CHROME_ALPHABET : COLLAPSED_CHROME_CATEGORY
     const max = measureMaxWordWidth(words.map(w => w.lemma), resolveSidebarWordFont())  // 与渲染同一字体
     return fitCollapsedWidth(max, chrome)
-  }, [collapsed, words, mode])
+  }, [collapsed, words, mode, tablet, tabletSidebarWidth])
 
   // 首次关窗弹窗（v0.7.0 §4.7）
   useCloseRequest()
@@ -54,7 +66,12 @@ export default function AppShell() {
   useEffect(() => registerFindKeyHandler(), [])
 
   return (
-    <div className="h-screen flex flex-col" style={{ background: 'var(--color-canvas)' }}>
+    <div
+      className={tablet ? 'flex flex-col' : 'h-screen flex flex-col'}
+      style={tablet
+        ? { background: 'var(--color-canvas)', height: '100%' }
+        : { background: 'var(--color-canvas)' }}
+    >
       {/* 全局顶栏：始终可见，不随侧边栏折叠（规格 §2） */}
       <header className="shrink-0">
         <TopBar />

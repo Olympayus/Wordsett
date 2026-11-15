@@ -6,6 +6,8 @@
  * 抽成纯函数是为了能在 node 环境里钉住断点与缩放。
  */
 
+import { SIDEBAR_EXPANDED_WIDTH } from './sidebar'
+
 /** 手机外壳的宽度上界（px，含）。599 及以下走手机外壳。 */
 export const PHONE_MAX_WIDTH = 599
 
@@ -42,6 +44,31 @@ export function usesMobileShell(p: PlatformClass): boolean {
 /** 平板缩放：参考宽度以下为 `width / TABLET_REFERENCE_WIDTH`，夹在 `TABLET_MIN_ZOOM` 与 1 之间。 */
 export function tabletZoom(width: number): number {
   return Math.min(Math.max(width / TABLET_REFERENCE_WIDTH, TABLET_MIN_ZOOM), 1)
+}
+
+/** 平板侧栏宽档的分界（px，含）：1280 起才回到桌面展开宽度。 */
+export const TABLET_WIDE_SIDEBAR_MIN_WIDTH = 1280
+
+/** 平板窄档侧栏宽度（px）：1024 横屏下把省下的 60px 让给正文。 */
+export const TABLET_SIDEBAR_WIDTH_NARROW = 240
+
+/** 平板下三栏布局的两个派生量（`IndexPage` 的缩放宿主与 `AppShell` 的侧栏共用一个判据）。 */
+export interface TabletLayout {
+  zoom: number
+  sidebarWidth: number
+}
+
+/**
+ * 平板布局：缩放复用 `tabletZoom`，侧栏宽度按横屏宽度分两档。
+ *
+ * 侧栏 1280 的判据**不随缩放放大**——宽度量的是缩放前的逻辑宽度（`window.innerWidth`），
+ * 与 `tabletZoom` 的入参同源；1280 及以上正文已经够宽，侧栏回到桌面的 300，窄档收 60px。
+ */
+export function tabletLayout(landscapeWidth: number): TabletLayout {
+  return {
+    zoom: tabletZoom(landscapeWidth),
+    sidebarWidth: landscapeWidth >= TABLET_WIDE_SIDEBAR_MIN_WIDTH ? SIDEBAR_EXPANDED_WIDTH : TABLET_SIDEBAR_WIDTH_NARROW,
+  }
 }
 
 /** 方向锁定：手机竖屏、平板横屏、桌面不锁定（返回 null）。 */
