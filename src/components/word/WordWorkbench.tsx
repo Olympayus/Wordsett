@@ -161,8 +161,8 @@ type MobileSheetState = {
 interface FieldCardCtx {
   defs: FieldDefinition[]
   editorMode: boolean
-  /** 手机外壳（v0.7.7 Task 4）：`chrome === 'mobile'`。所有触摸分支只在它为真时生效，
-   *  桌面逐像素不变（spec §6 不变量 1）。行尾簇的可见性读 `mobileRowActionsVisible`。 */
+  /** 触摸语义（v0.7.7 手机 / v0.7.8 平板）：手机恒真、平板由 `touch` prop 独立开启。所有触摸
+   *  分支只在它为真时生效，桌面逐像素不变（spec §6 不变量 1）。行尾簇的可见性读 `mobileRowActionsVisible`。 */
   touch: boolean
   /** 底部表当前指向的节点 id（v0.7.7 Task 5，spec §3.1）：该行出临时高亮，关表即清。 */
   sheetTargetId: string | null
@@ -1077,6 +1077,12 @@ interface Props {
    */
   chrome?: 'desktop' | 'mobile'
   /**
+   * 触摸语义（v0.7.8 平板）：与外壳形态**解耦**——平板仍是 `chrome='desktop'` 的三栏布局，
+   * 但长按 / 双击 / 行尾簇 / 拖拽传感器等触摸分支必须生效。缺省由 `chrome === 'mobile'`
+   * 推出，手机行为与 v0.7.7 逐字相同；桌面不传时恒为 false。
+   */
+  touch?: boolean
+  /**
    * 编辑态上报（Task 5，手机外壳）：`chrome='mobile'` 时，「取消 / 保存」画在顶栏
    * （`MobileAppBar`），而编辑态三件套（`editingId` / `editValue` / `entryValue`）是本组件的
    * 局部 state，故由本组件把结论报给外壳。**只有手机端传**：桌面把这对按钮画在自己的
@@ -1100,7 +1106,7 @@ export interface WordWorkbenchHandle {
 // `forwardRef` 只为了让手机外壳拿到保存 / 取消（见 `WordWorkbenchHandle`）。
 // 桌面两个调用点不传 ref，行为逐字不变。
 const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbench(
-  { chrome = 'desktop', onEditStateChange }, ref,
+  { chrome = 'desktop', touch: touchProp, onEditStateChange }, ref,
 ) {
   const { words, selectedWordId, fieldValues, location, updateFieldValue, deleteWord, addFieldValue, deleteFieldValue, reorderFieldValues, libraryLocationOf, moveToArchive, moveToWorkspace } = useWordStore()
   const [defs, setDefs] = useState<FieldDefinition[]>([])
@@ -1141,7 +1147,9 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   // 桌面必须让 `sensors` 落到 `DndContext` 的默认值（Pointer + Keyboard）。注意 `useSensors()`
   // 在 dnd-kit v6.3.1 返回的是**过滤后的数组**而不是 null——把 `[]` 传下去会关掉全部传感器，
   // 故这里在 `touch` 为假时显式传 `undefined`（解构默认值只在 undefined 时生效）。
-  const touch = chrome === 'mobile'
+  // v0.7.8：`touch` 是独立 prop——平板沿用 `chrome='desktop'` 的布局，但触摸分支要开；
+  // 手机不传，仍由外壳形态推出（v0.7.7 行为逐字不变）。布局分支继续只看 `chrome`。
+  const touch = touchProp ?? chrome === 'mobile'
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: { delay: TOUCH_LONG_PRESS_MS, tolerance: TOUCH_SLOP_PX },
   })

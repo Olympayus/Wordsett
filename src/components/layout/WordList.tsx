@@ -94,6 +94,7 @@ const WordList = forwardRef(function WordList({
   mode,
   onToggleMode,
   chrome = 'sidebar',
+  touch = false,
 }: {
   collapsed: boolean
   onToggleCollapse: () => void
@@ -101,6 +102,9 @@ const WordList = forwardRef(function WordList({
   onToggleMode: () => void
   /** 宿主形态：`'drawer'` 时工具条收掉三颗按钮（那两颗模式钮搬进抽屉标题，收起钮在抽屉里没有意义）。 */
   chrome?: 'sidebar' | 'drawer'
+  /** 触摸语义（v0.7.8 平板）：与外壳形态解耦——平板侧栏仍是 `chrome='sidebar'`，
+   *  但词行 / 分类组头的长按要弹底部表。手机由 `chrome='drawer'` 覆盖，不传。 */
+  touch?: boolean
 }, ref: Ref<WordListHandle>) {
   const { words, libraryWords, selectedWordId, selectWord, location, moveToArchive, moveToWorkspace } = useWordStore()
   const [selectMode, setSelectMode] = useState(false)
@@ -473,7 +477,7 @@ const WordList = forwardRef(function WordList({
           e.preventDefault()
           setMenu({ x: e.clientX, y: e.clientY, kind: 'category', category })
         } : undefined}
-        onLongPress={chrome === 'drawer' && category && !selectMode
+        onLongPress={(chrome === 'drawer' || touch) && category && !selectMode
           ? () => setSheet({ kind: 'category', cat: category })
           : undefined}
       />
@@ -494,8 +498,9 @@ const WordList = forwardRef(function WordList({
         onContextMenu={(e) => { e.preventDefault(); setMenu({ x: e.clientX, y: e.clientY, kind: 'word', word: row.word }) }}
         selectionMode={selectMode}
         checked={selected.has(row.key)}
-        // 抽屉里长按弹底部表；多选模式由 `WordListItem` 内部把 hook 禁用。
-        onLongPress={chrome === 'drawer' ? () => setSheet({ kind: 'word', word: row.word }) : undefined}
+        // 抽屉里长按弹底部表（v0.7.8：平板侧栏同样——`touch` 为真即挂）；多选模式由
+        // `WordListItem` 内部把 hook 禁用。
+        onLongPress={chrome === 'drawer' || touch ? () => setSheet({ kind: 'word', word: row.word }) : undefined}
       />
     )
   }

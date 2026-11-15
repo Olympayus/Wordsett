@@ -17,7 +17,7 @@ import UpdateDialog from '../ui/UpdateDialog'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import FindBar, { registerFindKeyHandler } from '../ui/FindBar'
 import { fitCollapsedWidth, measureMaxWordWidth, resolveSidebarWordFont, COLLAPSED_CHROME_ALPHABET, COLLAPSED_CHROME_CATEGORY, SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
-import { useTabletLayout } from '../../lib/usePlatform'
+import { usePlatformClass, useTabletLayout } from '../../lib/usePlatform'
 import { useCloseRequest } from '../../lib/tray/useCloseRequest'
 
 interface AppShellProps {
@@ -39,6 +39,10 @@ export default function AppShell({ tablet = false }: AppShellProps) {
   const { assignWordId, editorTarget, closeModals, openEditor } = useUiStore()
   // 平板布局（v0.7.8）：非平板恒为 `{ zoom: 1, sidebarWidth: 300 }`，桌面行为不变。
   const { sidebarWidth: tabletSidebarWidth } = useTabletLayout()
+  // 触摸语义（v0.7.8 Task 4）：布局分支只看 `chrome`，触摸分支只看这个 prop——两者刻意分开。
+  // 只有 `android-tablet` 为真：手机走 `MobileShell`（那里的触摸由 `chrome='mobile'` /
+  // `'drawer'` 推出），桌面恒为 false（长按 / 拖拽 / 行尾簇逐字不变）。
+  const touch = usePlatformClass() === 'android-tablet'
 
   // D1：收起宽度 = clamp(最长单词渲染宽度 + 实际 chrome, COLLAPSED_MIN_WIDTH(132px), 240px)，加词/删词重算，过渡走统一动效档
   const sidebarWidth = useMemo(() => {
@@ -106,6 +110,7 @@ export default function AppShell({ tablet = false }: AppShellProps) {
               onToggleCollapse={() => setCollapsed(c => !c)}
               mode={mode}
               onToggleMode={() => useSettingsStore.getState().setSidebarMode(mode === 'alphabet' ? 'category' : 'alphabet')}
+              touch={touch}
             />
             <SidebarFooter collapsed={collapsed} />
           </aside>
@@ -117,7 +122,7 @@ export default function AppShell({ tablet = false }: AppShellProps) {
           <main data-find-root={activeModule === 'archive' ? 'archive' : 'workbench'} className="flex-1 overflow-hidden">
             {activeView === 'dict' && dictWord
               ? <DictDetailPanel word={dictWord} />
-              : <WordWorkbench />}
+              : <WordWorkbench touch={touch} />}
           </main>
         </div>
 

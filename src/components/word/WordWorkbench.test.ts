@@ -300,8 +300,12 @@ describe('工作区改用原语（源码级守卫）', () => {
 //  `x.key === 'phonetic'`（与桌面 AddMenu 的「添加音标」同源）。十四处命中行重算为
 //  448 / 449 / 459 / 465 / 486 / 487 / 1285 / 1286 / 1429 / 1438 / 1442 / 1485 / 1648 / 1739 / 1956
 //  （行号由守卫失败输出回填，未手算；原十四处变十五处）。
+//  v0.7.8 Task 4（平板触摸语义）：`Props` 新增 `touch?: boolean` 与注释（+6 行）、
+//  `touch` 的推导改 `touchProp ?? chrome === 'mobile'` 并补两行注释（+2 行），共 +8，
+//  全部落在首段命中行之后；下半九处命中行重算为
+//  1293 / 1294 / 1437 / 1446 / 1450 / 1493 / 1656 / 1747 / 1964（由守卫失败输出回填）。
 const LEAF_FORM_GUARD_ALLOWLIST: [file: string, lines: number[], why: string][] = [
-  ['WordWorkbench.tsx', [448, 449, 459, 465, 486, 487, 1285, 1286, 1429, 1438, 1442, 1485, 1648, 1739, 1956], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 表条目可行性 / 添加项路由 / 布局分流（不问渲染形状）'],
+  ['WordWorkbench.tsx', [448, 449, 459, 465, 486, 487, 1293, 1294, 1437, 1446, 1450, 1493, 1656, 1747, 1964], '标签文字 / 窗格身份 / 段身份 / 计数 / 校验 / 容器路由 / 表条目可行性 / 添加项路由 / 布局分流（不问渲染形状）'],
   ['DictDetailCard.tsx', [102, 193, 257, 386], '可见性过滤 / 来源标 / 渲染壳内拆写 / run-in 头'],
 ]
 
@@ -350,6 +354,17 @@ describe('手机编辑手势（v0.7.7 Task 4 源码级守卫）', () => {
   it('流式单位（EditableValue）：单击受 !touch 门控，双击由 touch 旁路 editorMode', () => {
     expect(editableValue.match(/!touch &&/g) ?? []).toHaveLength(1)
     expect(editableValue).toMatch(/onDoubleClick=\{\(\) => \(touch \|\| !editorMode\) && onStartEdit\(\)\}/)
+  })
+})
+
+// 平板触摸语义（v0.7.8）：`touch` 与外壳形态解耦——平板沿用桌面三栏（`chrome='desktop'`），
+// 但触摸分支（长按 / 双击 / 行尾簇 / 拖拽传感器）必须生效。源码级守卫钉住「独立 prop、
+// 默认仍由 chrome 推出」这一条接线，避免以后又把它写回 `chrome === 'mobile'`。
+describe('平板触摸语义（v0.7.8）', () => {
+  const src = readFileSync(new URL('./WordWorkbench.tsx', import.meta.url), 'utf8')
+  it('touch 是独立 prop，默认仍由 chrome 推出', () => {
+    expect(src).toMatch(/touch\?: boolean/)
+    expect(src).toMatch(/const touch = touchProp \?\? chrome === 'mobile'/)
   })
 })
 
