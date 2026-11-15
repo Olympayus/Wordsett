@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import { useViewStore } from '../../../stores/viewStore'
+import { useMobileUpdateStore } from '../../../stores/mobileUpdateStore'
 import { MOBILE_TABS, tabActive, type MobileTabKey } from '../../../lib/mobileTabs'
 import Icon from '../../icons'
 import { useDueCount } from '../useDueCount'
@@ -62,6 +63,16 @@ const badgeStyle: CSSProperties = {
 }
 
 /**
+ * 更新圆点（v0.7.8）：设置格右上角。与复习徽标同一套位置语言（`top` + `right: 50%` +
+ * 固定右移），但**不带数字**——「有新版本」是二值状态，没有可数的量。
+ */
+const updateDotStyle: CSSProperties = {
+  position: 'absolute', top: 6, right: '50%', transform: 'translateX(12px)',
+  width: 8, height: 8, borderRadius: '50%',
+  background: 'var(--color-accent)',
+}
+
+/**
  * 底栏中轴上的搜索圆钮：暖中性面（`surface-raised`）+ 5px 栏面同色环 + 浮层阴影。
  *
  * `alignSelf: 'center'` 让 52px 的圆在 62px 的栏面里纵向居中（父级 `items-stretch` 会把
@@ -91,6 +102,7 @@ export default function MobileTabBar() {
   const showModule = useViewStore(s => s.showModule)
   const openSearch = useViewStore(s => s.openSearch)
   const due = useDueCount()
+  const hasUpdateBadge = useMobileUpdateStore(s => s.hasUpdateBadge)
 
   const click = (key: MobileTabKey) => {
     if (key === 'search') { openSearch(); return }
@@ -145,6 +157,9 @@ export default function MobileTabBar() {
             <span>{tab.label}</span>
             {tab.key === 'review' && due > 0 && (
               <span style={badgeStyle} aria-label={`${due} 张待复习`}>{due}</span>
+            )}
+            {tab.key === 'settings' && hasUpdateBadge && (
+              <span style={updateDotStyle} aria-label="有新版本" />
             )}
           </button>
         )

@@ -3,8 +3,12 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import SearchSuggestions from '../search/SearchSuggestions'
 import { useViewStore } from '../../stores/viewStore'
 import { useUpdaterStore } from '../../stores/updaterStore'
+import { useMobileUpdateStore } from '../../stores/mobileUpdateStore'
+import { useUiStore } from '../../stores/uiStore'
 import { useWordStore } from '../../stores/wordStore'
 import { useClickOutside } from '../../lib/useClickOutside'
+import { usePlatformClass } from '../../lib/usePlatform'
+import { openExternalUrl, RELEASES_URL } from '../../lib/openExternal'
 import { useSearchSuggestions } from '../../services/useSearchSuggestions'
 import { isChineseQuery } from '../../lib/chineseSearch'
 import { SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
@@ -43,9 +47,17 @@ export default function TopBar() {
   const { suggestions, glosses: zhGlosses, isComposing, setComposing, failed } = useSearchSuggestions(query)
   const showDict = useViewStore(s => s.showDict)
   const showWorkbench = useViewStore(s => s.showWorkbench)
-  const hasUpdate = useUpdaterStore(s => s.hasUpdateBadge)
-  const badgeVersion = useUpdaterStore(s => s.badgeVersion)
+  // 更新徽标按平台选数据源：桌面走签名更新器，Android 平板（它复用桌面外壳、挂的是
+  // 这个 TopBar）走 `useMobileUpdateStore`。手机外壳有自己的 `MobileTabBar` 圆点，不经过这里。
+  const platform = usePlatformClass()
+  const android = platform !== 'desktop'
+  const desktopHasUpdate = useUpdaterStore(s => s.hasUpdateBadge)
+  const desktopBadgeVersion = useUpdaterStore(s => s.badgeVersion)
   const openDialog = useUpdaterStore(s => s.openDialog)
+  const mobileHasUpdate = useMobileUpdateStore(s => s.hasUpdateBadge)
+  const mobileBadgeVersion = useMobileUpdateStore(s => s.badgeVersion)
+  const hasUpdate = android ? mobileHasUpdate : desktopHasUpdate
+  const badgeVersion = android ? mobileBadgeVersion : desktopBadgeVersion
   // 建议列表的模块标识读**词库索引**（v0.7.5 Task 13，工作区 ∪ 储藏库），
   // 不再拿当前模块的词表充数——那会把储藏库的词显示成未收录。
   const libraryIndex = useWordStore(s => s.libraryIndex)
@@ -77,6 +89,20 @@ export default function TopBar() {
     setShowSuggestions(false)
     showDict(word)
   }, [showDict])
+
+  // 更新徽标点击：桌面打开签名更新弹窗；Android 平板先确认，再把系统浏览器送到
+  // GitHub Releases——手机版只通知、不下载、不安装。
+  const handleUpdateClick = async () => {
+    if (!android) { openDialog(); return }
+    const ok = await useUiStore.getState().confirm({
+      title: badgeVersion ? `发现新版本 v${badgeVersion}` : '发现新版本',
+      message: '手机版通过 GitHub Releases 手动下载安装。',
+      confirmLabel: '前往 GitHub 下载',
+      cancelLabel: '稍后',
+    })
+    if (!ok) return
+    await openExternalUrl(RELEASES_URL).catch(e => console.error('[mobile] 打开下载页失败：', e))
+  }
 
   // 取数结果 → 下拉开合 / 键盘选中 / 错误条。归并放在 `useEffect` 而不是渲染期：
   // 清空输入框时也要顺带把下拉收掉，而那是同一次渲染里的 `suggestions` 变化，只有 effect
@@ -234,12 +260,13 @@ export default function TopBar() {
 
       {/* 右：更新徽标 + 窗口控制（最小化 / 最大化⇄还原 / 关闭） */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
-        {/* 更新徽标：静默检查发现新版时点亮，点击打开更新弹窗 */}
+        {/* 更新徽标：静默检查发现新版时点亮。桌面点击打开更新弹窗；Android 平板点击后
+            确认并跳转 GitHub Releases（见 handleUpdateClick）。 */}
         {hasUpdate && (
           <button
             type="button"
             title="有可用更新，点击查看"
-            onClick={openDialog}
+            onClick={() => { void handleUpdateClick() }}
             style={{
               height: 26, marginRight: 6, padding: '0 10px', border: 'none', borderRadius: 'var(--radius-full)',
               background: 'var(--color-brand-soft)', color: 'var(--color-brand)', fontSize: 12, fontWeight: 600,

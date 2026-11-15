@@ -4,15 +4,21 @@ import ErrorBoundary from './components/ui/ErrorBoundary'
 import TextContextMenu from './components/ui/TextContextMenu'
 import IndexPage from './routes/IndexPage'
 import { useUpdaterStore } from './stores/updaterStore'
+import { useMobileUpdateStore } from './stores/mobileUpdateStore'
+import { usePlatformClass } from './lib/usePlatform'
 import { setProbe, type VoiceProbe } from './lib/review/ttsGate'
 import { resolveTheme, applyTheme, applyWindowTheme } from './lib/theme'
 import { useSettingsStore } from './stores/settingsStore'
 
 export default function App() {
-  // 启动静默检查：发现新版只点亮顶栏徽标，不弹窗
+  // 启动静默检查：发现新版只点亮徽标，不弹窗。
+  // 桌面走签名更新器（`useUpdaterStore`），Android（手机 / 平板）读 Releases 清单
+  // （`useMobileUpdateStore`）——两条路径互不重叠，桌面行为保持不变。
+  const platform = usePlatformClass()
   useEffect(() => {
-    void useUpdaterStore.getState().checkSilently()
-  }, [])
+    if (platform === 'desktop') void useUpdaterStore.getState().checkSilently()
+    else void useMobileUpdateStore.getState().checkSilently()
+  }, [platform])
 
   // 启动探测系统是否有英文音色，决定听辨题型是否上线（spec §5.3）。
   // 探测失败 / 命令不存在一律视为不可用——放行的代价是用户抽到播放无声的听辨卡。

@@ -115,9 +115,9 @@ pub fn run() {
     // 词典落盘命令：Android 首启必需。桌面 resources 就地直读、永远命中，
     // marker 不成立时复制会因源缺失而返回 Err，不改变桌面行为。
     #[cfg(desktop)]
-    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app]);
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app]);
     #[cfg(not(desktop))]
-    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation, orientation::exit_app]);
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation, orientation::exit_app]);
 
     builder.build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -232,6 +232,24 @@ fn open_data_dir(app: tauri::AppHandle) -> Result<(), String> {
 
     app.opener()
         .reveal_item_in_dir(&db)
+        .map_err(|e| e.to_string())
+}
+
+/// 用系统浏览器打开外部链接（v0.7.8 手机 / 平板更新）。
+///
+/// **只放行 GitHub 链接**：这条命令的用途是让用户去 Releases 下载新版 APK，不是通用跳板；
+/// 白名单写死在这里，前端不做第二份校验（判定只留一处）。`open_url` 在桌面与 Android 上
+/// 都可用（插件已在 `run()` 里注册），失败信息原样回传，由调用方决定怎么提示。
+#[tauri::command]
+fn open_external_url(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    if !url.starts_with("https://github.com/") {
+        return Err("仅允许打开 GitHub 链接".to_string());
+    }
+
+    app.opener()
+        .open_url(&url, None::<&str>)
         .map_err(|e| e.to_string())
 }
 
