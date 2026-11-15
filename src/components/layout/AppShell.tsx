@@ -19,6 +19,7 @@ import FindBar, { registerFindKeyHandler } from '../ui/FindBar'
 import { fitCollapsedWidth, measureMaxWordWidth, resolveSidebarWordFont, COLLAPSED_CHROME_ALPHABET, COLLAPSED_CHROME_CATEGORY, SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
 import { usePlatformClass, useTabletLayout } from '../../lib/usePlatform'
 import { useCloseRequest } from '../../lib/tray/useCloseRequest'
+import { useQuitRequest } from '../../lib/useQuitRequest'
 
 interface AppShellProps {
   /**
@@ -54,6 +55,8 @@ export default function AppShell({ tablet = false }: AppShellProps) {
 
   // 首次关窗弹窗（v0.7.0 §4.7）
   useCloseRequest()
+  // 托盘「退出」/ Cmd+Q 的未保存确认（v0.7.8 Task 8）：先过编辑守卫，确认后才真正退出。
+  useQuitRequest()
 
   // 模块 ↔ 数据集的耦合（v0.7.5 Task 10）：工作台取工作区词表，储藏库取储藏库词表。
   // 刻意放在这里而不是 viewStore 的 action——让 viewStore import wordStore 会造成两个

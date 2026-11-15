@@ -26,12 +26,35 @@ mod tts_player;
 #[path = "tts_stub.rs"]
 mod tts_player;
 
+#[cfg(desktop)]
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::Manager;
 #[cfg(desktop)]
 use tauri::Emitter;
 #[cfg(desktop)]
 use tray::{close_action, CloseAction};
 use tts_player::{list_english_voices, speak, tts_english_voice_available};
+
+/// 退出旁路：`quit_app` 置位后才允许进程真正退出（v0.7.8 Task 8）。
+///
+/// 用户发起的退出（托盘「退出」、Cmd+Q、关窗分流里的「直接退出」）一律先 emit
+/// `quit-requested`，由前端过一遍未保存确认（editGuard）再回调 `quit_app`。
+/// 没有这个旁路，`quit_app` 里的 `app.exit(0)` 会再次命中下面的 `ExitRequested`
+/// 拦截，变成「确认 → 退出被拦 → 再确认」的死循环。
+#[cfg(desktop)]
+static QUIT_BYPASS: AtomicBool = AtomicBool::new(false);
+
+/// 前端确认过未保存修改后，真正退出应用（v0.7.8 Task 8）。
+///
+/// **先置旁路再 `exit`，顺序不可反**：反了这次退出会被 `ExitRequested` 拦下。
+/// 只注册在桌面命令表——手机退出走 `orientation::exit_app`（Activity.finish），
+/// 既没有托盘也没有 Cmd+Q。
+#[cfg(desktop)]
+#[tauri::command]
+fn quit_app(app: tauri::AppHandle) {
+    QUIT_BYPASS.store(true, Ordering::SeqCst);
+    app.exit(0);
+}
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -98,13 +121,14 @@ pub fn run() {
         );
 
         // 三条去向都要 prevent_close：Ask 要让窗口活到前端弹完窗，
-        // Hide 要的是「藏起来」不是「关掉」，Exit 由我们显式 exit
-        // （放行 close 也会退出，但那条路会再触发一次 CloseRequested，绕一圈）。
+        // Hide 要的是「藏起来」不是「关掉」，Exit 要先让前端确认未保存修改、
+        // 再由 `quit_app` 真正退出（放行 close 也会退出，但那条路会再触发一次
+        // CloseRequested，绕一圈）。
         api.prevent_close();
         match action {
             CloseAction::Ask => { let _ = window.emit("close-requested", ()); }
             CloseAction::Hide => hide_main_window(window.app_handle()),
-            CloseAction::Exit => window.app_handle().exit(0),
+            CloseAction::Exit => { let _ = window.emit("quit-requested", ()); }
         }
     });
 
@@ -115,13 +139,25 @@ pub fn run() {
     // 词典落盘命令：Android 首启必需。桌面 resources 就地直读、永远命中，
     // marker 不成立时复制会因源缺失而返回 Err，不改变桌面行为。
     #[cfg(desktop)]
-    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app]);
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app, quit_app]);
     #[cfg(not(desktop))]
     let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation, orientation::exit_app]);
 
     builder.build(tauri::generate_context!())
         .expect("error while building tauri application")
         .run(|app, event| {
+            // 退出请求拦截（v0.7.8 Task 8）：托盘「退出」、Cmd+Q 与关窗分流里的
+            // 「直接退出」最终都会走到这里（或先 emit 同一事件）。未置旁路时一律拦下，
+            // 交给前端过一遍未保存确认；前端确认后调 `quit_app`，那里会先置旁路再 exit。
+            // 手机上没有这条分流（`#[cfg(desktop)]`）：退出走 `exit_app` 的 Activity.finish。
+            #[cfg(desktop)]
+            if let tauri::RunEvent::ExitRequested { api, .. } = &event {
+                if !QUIT_BYPASS.load(Ordering::SeqCst) {
+                    api.prevent_exit();
+                    let _ = app.emit("quit-requested", ());
+                }
+            }
+
             // macOS：hide 之后点 Dock 图标 / Cmd+Tab 要能唤回主窗（00 §5）。
             // Reopen 是 macOS 专属变体（tauri/src/app.rs:279），故整臂按 target 门掉。
             #[cfg(target_os = "macos")]
@@ -129,7 +165,7 @@ pub fn run() {
                 show_main_window(app);
             }
 
-            // 非 macOS 上上面那条被 cfg 掉，两个参数都成了未使用。
+            // 手机端：上面两条桌面分支都被 cfg 掉，两个参数在这里显式丢弃。
             #[cfg(not(target_os = "macos"))]
             let _ = (app, event);
         });

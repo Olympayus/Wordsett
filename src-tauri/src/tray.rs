@@ -11,7 +11,7 @@ use std::sync::Mutex;
 
 use tauri::menu::{Menu, MenuBuilder, MenuItemBuilder};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 use crate::config;
 
@@ -150,8 +150,9 @@ pub fn init(app: &AppHandle) -> Result<(), String> {
         .tooltip(tooltip_text(0, show_due))
         .on_menu_event(|app, event| match event.id().0.as_str() {
             MENU_SHOW => crate::show_main_window(app),
-            // 退出是一次到位：不走 CloseRequested，否则关窗分流会再拦一道。
-            MENU_QUIT => app.exit(0),
+            // 退出先经前端（v0.7.8 Task 8）：编辑守卫要确认未保存修改，确认后由
+            // `quit_app` 置旁路再真正退出。直接 `app.exit(0)` 会绕过编辑守卫。
+            MENU_QUIT => { let _ = app.emit("quit-requested", ()); }
             _ => {}
         })
         .on_tray_icon_event(|tray, event| {
@@ -305,7 +306,9 @@ fn resync(app: &AppHandle) -> Result<(), String> {
 /// 前端弹窗的结论落回 Rust：写配置、同步托盘、执行隐藏或退出。
 ///
 /// 「直接退出」走 `app.exit(0)` 而不是关窗——关窗会再次触发 `CloseRequested`，
-/// 在 `close_dialog_seen` 已为 true 时反倒要绕一圈才退出。
+/// 在 `close_dialog_seen` 已为 true 时反倒要绕一圈才退出。这次 exit 仍会经过
+/// `RunEvent::ExitRequested`：旁路未置位，事件转成 `quit-requested` 后由前端回调
+/// `quit_app` 落地；编辑守卫在关窗结论处已确认过，不会二次弹窗。
 #[tauri::command]
 pub fn resolve_close_request(app: AppHandle, close_to_tray: bool) -> Result<(), String> {
     config::set_patch(serde_json::json!({
