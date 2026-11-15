@@ -48,6 +48,9 @@ lerna-debug.log*
 *.key
 *.key.pub
 /Wordsett
+src-tauri/gen/android/key.properties
+*.jks
+*.keystore
 
 # --- Docs (local planning notes, not committed) ---
 docs/
