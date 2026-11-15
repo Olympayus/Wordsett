@@ -2,6 +2,7 @@ import { useEffect } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { useUiStore } from '../../stores/uiStore'
 import { resolveCloseRequest } from '../config'
+import { confirmLeaveEdit } from '../editGuard'
 
 /**
  * 首次关窗的应用内双按钮弹窗（设计 §4.7）。
@@ -24,6 +25,9 @@ export function useCloseRequest(): void {
         cancelLabel: '直接退出',
         dismissable: false,
       })
+      // 直接退出会丢掉未保存的编辑，先过编辑守卫（v0.7.8 Task 7）；拒绝则窗口保持打开。
+      // 最小化到托盘不确认：编辑态原样保留，回到窗口还能继续。
+      if (!toTray && !(await confirmLeaveEdit())) return
       await resolveCloseRequest(toTray)
     })
     return () => { void unlisten.then(f => f()) }

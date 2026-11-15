@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { withEditGuard } from '../lib/editGuard'
 
 export type ActiveView = 'workbench' | 'dict'
 export type ActiveModule = 'workbench' | 'archive' | 'search' | 'review' | 'settings'
@@ -39,7 +40,10 @@ export const useViewStore = create<ViewStore>((set, get) => ({
   dictWord: null,
   editorMode: false,
   searchReturn: null,
-  showModule: (m) => set({ activeModule: m }),
+  // 三个「会丢掉编辑态」的模块切换都过编辑守卫（v0.7.8 Task 7）：干净时同步生效，
+  // dirty 时先确认，取消则整段 set 不执行。其余 action（showWorkbench / showWorkbenchView /
+  // closeSearch / openDictFromSearch / showSearchResults）不丢编辑态，不加守卫。
+  showModule: (m) => { withEditGuard(() => { set({ activeModule: m }) }) },
   // 全局入口（顶栏 Logo / 搜索建议）触发的是工作台内导航，须同时把模块切回工作台（v0.5.2 §7）：
   // 否则设置页激活时只改隐藏子树的 activeView/dictWord，界面毫无反应，
   // 且用户点「工作台」会落到一个自己没请求过的词典页。showModule 仍是唯一能选设置模块的入口。
@@ -47,17 +51,22 @@ export const useViewStore = create<ViewStore>((set, get) => ({
   // 储藏库模块（v0.7.5 Task 10）复用工作台这一层 DOM，侧栏点词条 / 右键「编辑」只该切回
   // 词编辑视图：用 showWorkbench 会连模块一起拨回工作台，用户点一下储藏库里的词就被送走。
   showWorkbenchView: () => set({ activeView: 'workbench', dictWord: null }),
-  showDict: (word) => set({ activeModule: 'workbench', activeView: 'dict', dictWord: word }),
+  showDict: (word) => {
+    withEditGuard(() => { set({ activeModule: 'workbench', activeView: 'dict', dictWord: word }) })
+  },
   setEditorMode: (on) => set({ editorMode: on }),
   // 移动搜索模块（Task 2）：记住来源，closeSearch 据此恢复。
+  // 进入搜索会切走当前词条页，属于「会丢编辑态」的导航，故整段包进守卫（v0.7.8 Task 7）。
   openSearch: () => {
-    const { activeModule, activeView, dictWord, searchReturn } = get()
-    // 已在搜索模块内再次 openSearch：保留现有 searchReturn 不动（原始来源不丢），
-    // 仍把视图重置为搜索列表。
-    const nextReturn = activeModule === 'search' && searchReturn
-      ? searchReturn
-      : { activeModule: activeModule === 'search' ? 'workbench' : activeModule, activeView, dictWord }
-    set({ activeModule: 'search', activeView: 'workbench', dictWord: null, searchReturn: nextReturn })
+    withEditGuard(() => {
+      const { activeModule, activeView, dictWord, searchReturn } = get()
+      // 已在搜索模块内再次 openSearch：保留现有 searchReturn 不动（原始来源不丢），
+      // 仍把视图重置为搜索列表。
+      const nextReturn = activeModule === 'search' && searchReturn
+        ? searchReturn
+        : { activeModule: activeModule === 'search' ? 'workbench' : activeModule, activeView, dictWord }
+      set({ activeModule: 'search', activeView: 'workbench', dictWord: null, searchReturn: nextReturn })
+    })
   },
   closeSearch: () => {
     const { searchReturn } = get()

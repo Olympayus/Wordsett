@@ -1,4 +1,5 @@
 import { canGoBack, canGoForward } from './navHistory'
+import { confirmLeaveEdit } from './editGuard'
 import { useNavHistoryStore } from '../stores/navHistoryStore'
 import { useViewStore } from '../stores/viewStore'
 import { useWordStore } from '../stores/wordStore'
@@ -26,6 +27,10 @@ function locationOfHistoryId(id: string): WordLocation | null {
  * 而它没有组件上下文、拿不到 hook 的返回值。两处共用一份实现，顺序不可能分家。
  */
 export async function go(dir: 'back' | 'forward'): Promise<void> {
+  // 未保存确认在**入口**（v0.7.8 Task 7）：用户拒绝后连历史游标都不该动——
+  // 先 `goBack` / `goForward` 再确认的话，取消时游标已经挪了一格，后退会变成前进。
+  // 整条链（模块 → 数据集 → 选中词）同生共死：取消即全部中止。
+  if (!(await confirmLeaveEdit())) return
   const nav = useNavHistoryStore.getState()
   const entry = dir === 'back'
     ? nav.goBack(locationOfHistoryId)

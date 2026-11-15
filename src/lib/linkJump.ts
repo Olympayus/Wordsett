@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import { normalizeLinkTarget, type LinkToken } from './links'
+import { confirmLeaveEdit } from './editGuard'
 import { useViewStore } from '../stores/viewStore'
 import { useWordStore } from '../stores/wordStore'
 import { useUiStore } from '../stores/uiStore'
@@ -55,6 +56,10 @@ async function alertMissing(target: string): Promise<void> {
  */
 export function useLinkJump(): (token: LinkToken) => Promise<void> {
   return useCallback(async (token: LinkToken): Promise<void> => {
+    // 未保存确认在**函数开头**（v0.7.8 Task 7）：链接跳转整条链（切模块 / 换数据集 /
+    // 选词 / 弹「失效链接」提示）都不该在用户拒绝后发生。失效提示也在这里之后——
+    // 用户还没决定要不要放弃这次编辑时，先弹一个「该词已不在库中」只是噪声。
+    if (!(await confirmLeaveEdit())) return
     const { libraryIndex } = useWordStore.getState()
     const resolved = resolveJumpTarget(token, libraryIndex)
     const lemma = normalizeLinkTarget(token.target)

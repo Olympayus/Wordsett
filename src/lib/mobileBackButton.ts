@@ -10,6 +10,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { onBackButtonPress } from '@tauri-apps/api/app'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { orientationFor, type PlatformClass } from './platform'
+import { confirmLeaveEdit } from './editGuard'
 
 /** 方向锁定的入参。Rust 侧是 `Option<String>` 的 `orientation`（Tauri 的 camelCase 映射）。 */
 export interface OrientationArgs {
@@ -67,6 +68,10 @@ export async function registerMobileBack(handler: () => void): Promise<() => voi
  * `exit_app` 失败（非 Tauri 环境 / 极端情况）时退回 `destroy()`，至少别让返回键毫无反应。
  */
 export async function exitMobileApp(): Promise<void> {
+  // 未保存确认（v0.7.8 Task 7）：退出会丢掉正在编辑的内容，先过编辑守卫；
+  // 拒绝就原地不动（返回键的确认框不穿透——`MobileShell.backHandler` 已把
+  // 打开中的 confirmReq 优先吃掉，这里只在栈真的走到「退出」时才可能发问）。
+  if (!(await confirmLeaveEdit())) return
   try {
     await invoke('exit_app')
   } catch (e) {

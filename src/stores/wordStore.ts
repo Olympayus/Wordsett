@@ -6,6 +6,7 @@ import type { MergeFieldInput } from '../services/wordService'
 import * as fieldService from '../services/fieldService'
 import { normalizeLinkTarget } from '../lib/links'
 import { buildLibraryIndex } from '../lib/collected'
+import { confirmLeaveEdit } from '../lib/editGuard'
 import { useCategoryStore } from './categoryStore'
 import { useNavHistoryStore } from './navHistoryStore'
 import { useReviewOverlayStore } from './reviewOverlayStore'
@@ -117,8 +118,10 @@ export const useWordStore = create<WordStore>((set, get) => ({
   },
 
   setLocation: async (location) => {
+    // 未保存确认（v0.7.8 Task 7）：模块不同才拦；拒绝后连 location 都不动。
     // 换模块即换数据集：选中词与字段列表一并清空（与 selectWord(null) 同样的空态），
     // 随后 loadWords 会顺带重建索引与三档计数。
+    if (location !== get().location && !(await confirmLeaveEdit())) return
     set({ location, selectedWordId: null, fieldValues: [] })
     await get().loadWords()
   },
@@ -135,6 +138,9 @@ export const useWordStore = create<WordStore>((set, get) => ({
   libraryLocationOf: (lemma) => get().libraryIndex.get(normalizeLinkTarget(lemma)) ?? null,
 
   selectWord: async (id, opts) => {
+    // 未保存确认（v0.7.8 Task 7）：真正切词才拦；保存 / 还原 / 重排 / 添加字段后的
+    // 同名刷新（id === 当前选中）不算离开，直接跳过——否则每次保存都会自弹确认。
+    if (id !== get().selectedWordId && !(await confirmLeaveEdit())) return
     // 仅切换单词时清空（加载态）；同名刷新（拖拽重排/编辑保存/还原/添加字段）保留列表，
     // 避免字段列表先坍缩再重取导致滚动容器 scrollTop 被钳到顶部（跳顶）。
     if (id !== get().selectedWordId) {
