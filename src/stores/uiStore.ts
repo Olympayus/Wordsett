@@ -39,6 +39,16 @@ export const useUiStore = create<UiStore>((set) => ({
   openEditor: (category, wordId) => set({ editorTarget: { category, wordId }, assignWordId: null }),
   closeModals: () => set({ assignWordId: null, editorTarget: null }),
   confirm: (req) => {
+    // 单 resolver 只能记住最后一个：覆盖前先把旧确认框按「取消」结算掉（v0.7.8 Task 7 修复）。
+    // 否则旧 Promise 永久挂起——编辑确认框打开时系统级关窗（Alt+F4 / 任务栏关闭）会走到这里，
+    // 编辑确认的 Promise 被覆盖后永不 settle，`editGuard` 的 `inflight` 随之卡死，
+    // 之后的关窗流程与所有入口守卫都会静默挂起。关掉旧弹窗视为取消，与 SessionGuard 的
+    // swallow 先例一致（旧确认框已经不可见，不能再假装它还能被回答）。
+    const previous = confirmResolver
+    if (previous) {
+      confirmResolver = null
+      previous(false)
+    }
     set({ confirmReq: req })
     return new Promise<boolean>((resolve) => { confirmResolver = resolve })
   },
