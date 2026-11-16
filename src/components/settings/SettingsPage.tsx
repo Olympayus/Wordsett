@@ -110,7 +110,9 @@ export default function SettingsPage({ variant = 'desktop', mobileSection: contr
     color: 'var(--color-text-primary)',
     background: isActive ? 'var(--color-surface)' : 'transparent',
     fontWeight: isActive ? 'var(--weight-semibold)' : 'var(--weight-regular)',
-    fontFamily: 'var(--font-serif)',
+    // 与复习区策略栏（StrategyList）和工作区智能视图（SmartViewList）同一套字形：
+    // 无衬线 + --text-sm，选中态 600（v0.7.8 收尾；此前三处只有这里还挂着衬线）。
+    fontFamily: 'var(--font-sans)',
     border: `1px solid ${isActive ? 'var(--color-border-strong)' : 'transparent'}`,
     borderRadius: 'var(--radius-md)',
     transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
