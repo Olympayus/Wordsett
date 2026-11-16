@@ -13,6 +13,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { useUiStore } from '../../stores/uiStore'
 import CategoryAssignModal from '../word/CategoryAssignModal'
 import CategoryEditorModal from '../word/CategoryEditorModal'
+import CollectBanner from './CollectBanner'
 import UpdateDialog from '../ui/UpdateDialog'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import FindBar, { registerFindKeyHandler } from '../ui/FindBar'
@@ -43,7 +44,8 @@ export default function AppShell({ tablet = false }: AppShellProps) {
   // 触摸语义（v0.7.8 Task 4）：布局分支只看 `chrome`，触摸分支只看这个 prop——两者刻意分开。
   // 只有 `android-tablet` 为真：手机走 `MobileShell`（那里的触摸由 `chrome='mobile'` /
   // `'drawer'` 推出），桌面恒为 false（长按 / 拖拽 / 行尾簇逐字不变）。
-  const touch = usePlatformClass() === 'android-tablet'
+  const platform = usePlatformClass()
+  const touch = platform === 'android-tablet'
 
   // D1：收起宽度 = clamp(最长单词渲染宽度 + 实际 chrome, COLLAPSED_MIN_WIDTH(132px), 240px)，加词/删词重算，过渡走统一动效档
   const sidebarWidth = useMemo(() => {
@@ -79,6 +81,10 @@ export default function AppShell({ tablet = false }: AppShellProps) {
         ? { background: 'var(--color-canvas)', height: '100%' }
         : { background: 'var(--color-canvas)' }}
     >
+      {/* 划词热键启动失败提示条（v0.7.9 Task 16）：只在桌面出现——`take_startup_error`
+          是桌面命令，平板（Android）构建里根本没有它。一次性读取，可关闭。 */}
+      {platform === 'desktop' && <CollectBanner />}
+
       {/* 全局顶栏：始终可见，不随侧边栏折叠（规格 §2） */}
       <header className="shrink-0">
         <TopBar />

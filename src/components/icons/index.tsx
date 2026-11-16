@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-export type IconName = 'plus' | 'grip' | 'more' | 'trash' | 'search' | 'swap' | 'chevron' | 'arrow-right' | 'chevron-left' | 'settings' | 'arrow-left' | 'close' | 'info' | 'edit' | 'chevron-right' | 'minimize' | 'maximize' | 'restore' | 'layers' | 'book' | 'check-square' | 'library' | 'calendar' | 'sprout' | 'alert' | 'minus' | 'box'
+export type IconName = 'plus' | 'grip' | 'more' | 'trash' | 'search' | 'swap' | 'chevron' | 'arrow-right' | 'chevron-left' | 'settings' | 'arrow-left' | 'close' | 'info' | 'edit' | 'chevron-right' | 'minimize' | 'maximize' | 'restore' | 'layers' | 'book' | 'check-square' | 'library' | 'calendar' | 'sprout' | 'alert' | 'minus' | 'box' | 'rotate-ccw'
 
 const PATHS: Record<IconName, ReactNode> = {
   plus: <path d="M12 5v14M5 12h14" />,
@@ -138,6 +138,13 @@ const PATHS: Record<IconName, ReactNode> = {
       <path d="M21 8l-9-5-9 5v8l9 5 9-5V8z" />
       <path d="M3 8l9 5 9-5" />
       <path d="M12 13v8" />
+    </>
+  ),
+  // 划词热键「恢复默认」：逆时针循环箭头（同一 24 视框与 1.5 线宽）
+  'rotate-ccw': (
+    <>
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+      <path d="M3 3v5h5" />
     </>
   ),
 }

@@ -8,6 +8,7 @@ import SidebarSettings from './SidebarSettings'
 import TrayWindowSettings from './TrayWindowSettings'
 import CategorySettings from './CategorySettings'
 import LinkSettings from './LinkSettings'
+import CollectSettings from './CollectSettings'
 import AboutSettings from './AboutSettings'
 import DataSettings from './DataSettings'
 import PlatformSettings from './PlatformSettings'
@@ -80,6 +81,10 @@ export default function SettingsPage({ variant = 'desktop', mobileSection: contr
   // Windows 上留一个点进去一片空白的导航项，与 03 §2.5「Windows 无此分区」相冲突。
   const platform = usePlatformClass()
   const [platformSupported, setPlatformSupported] = useState(false)
+  // 「划词」分区的可见性单独问 `collector_supported`（v0.7.9 Task 16）。**不要复用**
+  // `accessibility_status.supported`：Windows 上它恒为 false，会把 Windows 唯一能用的
+  // 划词分区一起藏掉——`collector_supported` 正是 Windows / macOS 为真的那个判据。
+  const [collectorSupported, setCollectorSupported] = useState(false)
   // 形态切换时把两态的选中项归零：留在桌面选中的分区上，一进手机外壳看到的就是那个子页，
   // 而不是「看起来像没进去的目录」。
   useEffect(() => {
@@ -94,9 +99,16 @@ export default function SettingsPage({ variant = 'desktop', mobileSection: contr
     if (mobile) return
     void invoke<{ supported: boolean }>('accessibility_status').then(s => setPlatformSupported(s.supported))
   }, [mobile])
+  useEffect(() => {
+    // 划词分区同样只在桌面形态存在（手机目录已剔除该项）。
+    if (mobile) return
+    void invoke<boolean>('collector_supported').then(setCollectorSupported)
+  }, [mobile])
   const sections: SettingsSection[] = mobile
     ? visibleSettingsSections(platform)
-    : SETTINGS_SECTIONS.filter(s => s.key !== 'platform' || platformSupported)
+    : SETTINGS_SECTIONS.filter(s =>
+        (s.key !== 'platform' || platformSupported) &&
+        (s.key !== 'collect' || collectorSupported))
 
   // v0.7.3 §6.2：选中态统一到智能视图那套——**阅读面圆角块 + 1px 描边 + 字重 600**，
   // 文字恒为主色。这一条推翻了 v0.5.3 的「暖品牌底 + 2px 品牌色左边条」决定：
@@ -275,6 +287,7 @@ export default function SettingsPage({ variant = 'desktop', mobileSection: contr
           {active === 'voice' && <VoiceSettings />}
           {active === 'category' && <CategorySettings />}
           {active === 'links' && <LinkSettings />}
+          {active === 'collect' && <CollectSettings />}
           {active === 'platform' && <PlatformSettings />}
           {active === 'about' && (
             <>
