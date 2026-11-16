@@ -6,6 +6,14 @@ mod platform;
 // **无条件编译**——宿主机 `cargo test` 要能跑这些纯函数；真实注册与抓取流水线
 // 在 Task 6 接入，那一段会整段 `#[cfg(desktop)]`，Android 构建碰不到插件。
 mod shortcut;
+// 划词收录（v0.7.9）：选区清洗 / 模式判定 / 抓取结果契约与 5 条诊断日志（Task 2）。
+// 纯逻辑、不碰平台 API，但整条流水线只服务桌面全局热键（手机没有这个概念），
+// 故与 `tray` 一样按 desktop 门控——Android 构建里不存在这两个模块，
+// 命令表也因此不必改（Task 6 才接命令，且只进桌面那一份）。
+#[cfg(desktop)]
+mod grab;
+#[cfg(desktop)]
+mod selection;
 // 状态栏 / 手势条图标跟随应用主题（v0.7.8 Task 9）。非 Android 端命令为空操作，
 // 但模块本身永远参与编译（宿主机 `cargo test` 要能跑 `should_use_light_icons`）。
 mod system_bars;
