@@ -33,6 +33,13 @@ describe('dueStatusFrom', () => {
     ], now, 'workspace')).toEqual({ kind: 'dueToday', cards: 2 })
   })
 
+  it('same_day_past_due_is_due_today_not_overdue_zero', () => {
+    const now = new Date(2026, 10, 16, 15, 0, 0).getTime()
+    const dueAt = new Date(2026, 10, 16, 11, 0, 0).getTime()
+    expect(dueStatusFrom([{ dueAt, suspended: false }], now, 'workspace'))
+      .toEqual({ kind: 'dueToday', cards: 1 })
+  })
+
   it('upcoming_uses_local_day_distance', () => {
     const now = new Date('2026-11-16T12:00:00').getTime()
     expect(dueStatusFrom([{ dueAt: now + 5 * DAY, suspended: false }], now, 'workspace'))

@@ -37,7 +37,9 @@ function localDayDiff(from: number, to: number): number {
 
 /**
  * 纯映射：db 行 → 调度状态。`location` 为 null（尚不知道归属）按工作区处理。
- * 逾期天数按**本地午夜边界**计算整天数；今日到期统计次日 0 点前到期的未挂起卡。
+ * 逾期天数按**本地午夜边界**计算整天数。逾期准入也以本地午夜为界：
+ * `[今天 0 点, 明天 0 点)` 内到期的卡（哪怕钟点已过）都算「今日到期」，
+ * 与 DueBadge 的「今日待复习」同一口径；今日到期统计次日 0 点前到期的未挂起卡。
  */
 export function dueStatusFrom(
   rows: { dueAt: number; suspended: boolean }[],
@@ -51,7 +53,7 @@ export function dueStatusFrom(
   let earliest = active[0].dueAt
   for (const r of active) if (r.dueAt < earliest) earliest = r.dueAt
 
-  if (earliest < now) {
+  if (earliest < localMidnight(now)) {
     return { kind: 'overdue', days: localDayDiff(earliest, now) }
   }
 

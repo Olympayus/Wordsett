@@ -845,8 +845,8 @@ export interface WordDueRow {
 /**
  * 按**已归一化**词面取该词全部卡的调度行（含挂起卡，由调用方决定怎么用）。
  *
- * 与到期队列同一口径：`words.location = 'workspace'`、内联 `review_states`——
- * 懒登记后尚未首评的卡没有 due_at，不属于「复习计划」，故不进结果。
+ * 与到期队列同一数据源（review_states）与同一条工作区过滤；本函数**不做**可用性掩码
+ * （DueBadge 计数还过 getAvailabilityMask + usableTemplates，这里只回原始调度行）。
  * 只回原始行，状态映射留在 `src/lib/dueLine.ts`，避免 SQL 层与展示层各写一套判据。
  */
 export async function getWordDueRows(normalizedLemma: string, h?: DbHandle): Promise<DbResult<WordDueRow[]>> {
