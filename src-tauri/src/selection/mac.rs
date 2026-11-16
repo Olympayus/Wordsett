@@ -130,10 +130,12 @@ fn copy_attribute(element: CFTypeRef, attribute: &str) -> Result<CfOwned, Select
 /// 读取当前前台应用的文本选区。
 ///
 /// 未授予辅助功能权限 → `Denied`；焦点控件不暴露 `AXSelectedText`（终端、自绘控件、
-/// 部分 PDF 阅读器等）→ `Unsupported`；其余系统错误 → `Os(AXError 码)`。
+/// 部分 PDF 阅读器等）→ `Unsupported`；有选区接口但没有选中文本（含全空白）→ `Empty`；
+/// 其余系统错误 → `Os(AXError 码)`。
 ///
-/// 文本为空 / 全空白时**原样返回** `Ok`（含 `Ok("")`）：清洗与「确无选中文本」的
-/// `Empty` 判定归 `selection/mod.rs` 的调用侧，本函数不越权做分析。
+/// 空 / 全空白选区在读取层就归入 `Empty`，与 `win.rs` 的 `join_ranges` 同一口径
+/// （「确无选中文本」由读取层判定，`grab.rs` 不应产出空词成功态）。非空时返回原始
+/// 文本，清洗与模式判定仍归调用侧。
 // Task 6 接线前生产代码还没有调用点，先压掉 dead_code 噪音；接线后删除。
 #[allow(dead_code)]
 pub fn read_selection() -> Result<String, SelectionError> {
@@ -164,7 +166,14 @@ pub fn read_selection() -> Result<String, SelectionError> {
     // retain；Copy Rule 的那份仍由 `selected` 释放——不会双重释放，也不会泄漏。
     // `to_string()` 复制成 Rust String，CFString 在函数返回前就释放了。
     let cf_text = unsafe { CFString::wrap_under_get_rule(selected.raw() as CFStringRef) };
-    Ok(cf_text.to_string())
+    let text = cf_text.to_string();
+
+    // 空 / 全空白选区 → Empty（与 `win.rs` 的 `join_ranges` 对齐）。不在这里 trim
+    // 后返回：非空文本保持原样，清洗归调用侧。
+    if text.trim().is_empty() {
+        return Err(SelectionError::Empty);
+    }
+    Ok(text)
 }
 
 #[cfg(test)]
