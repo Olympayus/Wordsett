@@ -60,7 +60,13 @@ function UpdateHintPopover() {
             fontSize: 'var(--text-xs)', lineHeight: 1.7, color: 'var(--color-text-primary)',
           }}
         >
-          手机版不支持应用内更新。新版本请在浏览器打开发布页，下载最新 APK 覆盖安装。
+          <div>手机版不支持应用内更新。新版本请在浏览器打开发布页，下载最新 APK 覆盖安装。</div>
+          <div style={{
+            marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)',
+            color: 'var(--color-text-primary)', wordBreak: 'break-all', userSelect: 'text',
+          }}>
+            {RELEASES_URL}
+          </div>
         </div>
       )}
     </span>
@@ -138,12 +144,6 @@ export default function AboutSettings(_props: Props = {}) {
               重试
             </SquareButton>
           )}
-        </div>
-        <div style={{
-          marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)',
-          color: 'var(--color-text-primary)', wordBreak: 'break-all', userSelect: 'text',
-        }}>
-          {RELEASES_URL}
         </div>
       </div>
     )
