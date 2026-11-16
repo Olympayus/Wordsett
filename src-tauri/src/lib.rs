@@ -6,6 +6,10 @@ mod platform;
 // **无条件编译**——宿主机 `cargo test` 要能跑这些纯函数；真实注册与抓取流水线
 // 在 Task 6 接入，那一段会整段 `#[cfg(desktop)]`，Android 构建碰不到插件。
 mod shortcut;
+// 划词小窗（v0.7.9 Task 5）：预载隐藏窗口、贴光标定位与窗口命令。
+// 与 grab / selection 同理只服务桌面全局热键，Android 构建里不存在。
+#[cfg(desktop)]
+mod collector;
 // 划词收录（v0.7.9）：选区清洗 / 模式判定 / 抓取结果契约与 5 条诊断日志（Task 2）。
 // 纯逻辑、不碰平台 API，但整条流水线只服务桌面全局热键（手机没有这个概念），
 // 故与 `tray` 一样按 desktop 门控——Android 构建里不存在这两个模块，
