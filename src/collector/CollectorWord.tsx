@@ -127,7 +127,12 @@ export function CollectorWord({ word }: { word: string }) {
   // 卸载标志：Root 用 grabId 作 key，换一次抓取就卸载本实例。本实例的收录写链可能比
   // 新一代抓取的「读选区 → show」更慢，此时再调 `collector_hide` 会把**新窗口**藏掉。
   const mountedRef = useRef(true)
-  useEffect(() => () => { mountedRef.current = false }, [])
+  useEffect(() => {
+    // setup 必须重申 true：StrictMode 在 dev 下会 setup → cleanup → setup 跑一遍，
+    // ref 跨这轮保留，只在 cleanup 里置 false 的话本实例此后永远以为自己是卸载态。
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
 
   // 已收录判定：订阅索引（工作区 ∪ 储藏库），收录成功后 store 重载索引会即时翻转。
   const location = useWordStore(s => libraryLocationIn(s.libraryIndex, word))
