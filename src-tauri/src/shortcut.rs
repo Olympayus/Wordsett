@@ -265,9 +265,10 @@ const FOCUS_RETURN_DELAY: std::time::Duration = std::time::Duration::from_millis
 /// 主窗顶部提示条只应出现一次（spec §5.6）。
 #[cfg(desktop)]
 static STARTUP_ERROR: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
-/// 尚未投递成功的最近一次抓取结果，供小窗挂载时握手（`collector_ready`）。
-/// `read_and_deliver` 在 `emit_to` 成功后清空它——握手只补「事件没送到」，
-/// 已投递过的结果不再在 webview 重挂载时重放。
+/// 最近一次抓取结果，供小窗挂载时握手（`collector_ready`）。
+/// 写入发生在 emit **之前**，并一直保留到 `collector_ready` 取走（`take`）——首次抓取
+/// 可能早于 collector webview 挂上 `collector-grab` 监听，清掉会让用户的第一抓直接丢失；
+/// 「重挂载时重放旧卡片」这一小概率代价由前端按 `grabId` 去重与窗口复用兜住，握手补偿优先。
 #[cfg(desktop)]
 static PENDING: std::sync::Mutex<Option<crate::grab::GrabOutcome>> =
     std::sync::Mutex::new(None);
@@ -486,15 +487,11 @@ fn read_and_deliver(app: &tauri::AppHandle, grab_id: u64) {
 
     // 先投递、再显示（终审修复）：小窗是隐藏复用窗口，webview 在隐藏时照常收事件。
     // 先 emit 让前端在窗口可见前就换成新卡片，否则复用窗口会先闪一帧上一张卡。
-    // 投递成功后立即清掉 pending：握手只补偿「事件没送到」的那一次，已投递过的结果
-    // 不应在 webview 重挂载时被重放（同一代重复投递仍由前端按 grabId 去重）。
-    match app.emit_to(crate::collector::LABEL, "collector-grab", &outcome) {
-        Ok(()) => {
-            if let Ok(mut slot) = PENDING.lock() {
-                *slot = None;
-            }
-        }
-        Err(e) => eprintln!("[shortcut] 抓取结果投递失败：{e}"),
+    // PENDING **保留到 `collector_ready` 取走**（controller ruling）：首次抓取可能早于
+    // webview 挂上监听，投递成功后清掉会让这一抓彻底丢失；重挂载重放旧卡片是更小的代价，
+    // 且前端 `accept` 仍按 `grabId` 去重。
+    if let Err(e) = app.emit_to(crate::collector::LABEL, "collector-grab", &outcome) {
+        eprintln!("[shortcut] 抓取结果投递失败：{e}");
     }
     crate::collector::show_at_cursor(app);
 }

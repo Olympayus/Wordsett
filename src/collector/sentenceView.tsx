@@ -106,9 +106,12 @@ const NOTE_STYLE: CSSProperties = { fontSize: '13px', lineHeight: 1.6, color: 'v
 /** 整句里给目标词加 `<mark>`：大小写不敏感，且只命中完整 token（不吃掉更长单词的一段）。 */
 function highlightSentence(text: string, word: string | null): ReactNode[] {
   if (!word) return [text]
-  const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const pattern = new RegExp(escaped, 'giu')
-  const isTokenChar = (ch: string | undefined) => ch !== undefined && /[\p{L}\p{N}'-]/u.test(ch)
+  // 目标词来自 `tokenize()`，撇号已归一成直撇号；句子保留原文排版（Word 自动更正是 `’`）。
+  // 比较时把三种撇号视为等价：`don't` 才能命中原文的 `don’t` / `don‘t`，其余字符逐字匹配。
+  const normalizedWord = word.replace(/[‘’]/g, "'")
+  const escaped = normalizedWord.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const pattern = new RegExp(escaped.replace(/'/g, "['’‘]"), 'giu')
+  const isTokenChar = (ch: string | undefined) => ch !== undefined && /[\p{L}\p{N}'’‘-]/u.test(ch)
   const nodes: ReactNode[] = []
   let last = 0
   let key = 0
