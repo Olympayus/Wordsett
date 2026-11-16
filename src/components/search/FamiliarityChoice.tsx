@@ -2,7 +2,7 @@ import type { InitialFamiliarityChoice } from '../../services/wordService'
 import { NAV_CONTROL_HEIGHT } from '../../lib/layout'
 
 /**
- * 初始熟悉度三段单选（spec 4.6；出题依据 02 §5.8 / 03 §2.10）。
+ * 初始熟悉度三档单选（spec 4.6；出题依据 02 §5.8 / 03 §2.10）。
  *
  * 只在**词不在库**时出现——已在库的词，熟悉度只对未首评新卡有消费方，
  * 而新卡在反复收录时不会重造，再问一次是打扰。
@@ -25,24 +25,37 @@ export const FAMILIARITY_OPTIONS: { value: InitialFamiliarityChoice; label: stri
  */
 export const FAMILIARITY_TOUCH_HEIGHT = 44
 
+/** 分段控件的轨底内衬（v0.7.9 §5.7 点 3）。 */
+const TRACK_PADDING = 2
+/** 外轨圆角；内件圆角 = 外轨 − 内衬，视觉上才是同一套同心圆角。 */
+const TRACK_RADIUS = 8
+
 export default function FamiliarityChoice({ value, onChange, disabled, touch = false }: {
   value: InitialFamiliarityChoice
   onChange: (v: InitialFamiliarityChoice) => void
   disabled?: boolean
   /**
-   * 触屏档（Task 8，手机词典详情底部动作条）：把三键提到 **44px** 高。
+   * 触屏档（Task 8，手机词典详情底部动作条）：分段件高度取 **44px**（spec §10 的触摸下限）。
    *
-   * spec §10 要求手机上的可点目标 ≥ 44dp，而桌面档的 22px 是按「与导航条右端其余控件
-   * 逐像素等高」定的（见下方 height 注释）。两态**共用同一套视觉**（同边框 / 同底色 /
-   * 同字色），只差高度与水平内边距——触屏档的内边距按比例放大（12 → 20），
-   * 于是三键并排的宽度与高度同向变化，不会在两种形态下读成两种控件。
+   * 视觉与桌面档逐字同款（同轨底 / 同选中态 / 同墨色），只差高度与水平内边距——
+   * 触屏档的内边距按比例放大（12 → 20），于是宽度与高度同向变化。
    *
-   * 缺省 false：桌面 `WorkbenchNavBar` 的调用点逐字不变。
+   * 缺省 false：桌面 `WorkbenchNavBar` / 划词小窗的调用点逐字不变。
    */
   touch?: boolean
 }) {
   return (
-    <div role="radiogroup" aria-label="初始熟悉度" style={{ display: 'inline-flex', gap: touch ? 8 : 6 }}>
+    <div
+      role="radiogroup"
+      aria-label="初始熟悉度"
+      style={{
+        display: 'inline-flex',
+        gap: 2,
+        padding: TRACK_PADDING,
+        background: 'var(--color-border)',
+        borderRadius: TRACK_RADIUS,
+      }}
+    >
       {FAMILIARITY_OPTIONS.map(o => {
         const active = o.value === value
         return (
@@ -54,19 +67,22 @@ export default function FamiliarityChoice({ value, onChange, disabled, touch = f
             disabled={disabled}
             onClick={() => onChange(o.value)}
             style={{
-              // 尺寸（v0.7.2 修复 1「初始熟悉度选择按钮过大」）：三键与导航条右端其余控件同高
-              // （NAV_CONTROL_HEIGHT 22px），不再撑满整条 32px。改前只有内边距、行高随 body 的 1.7 走，
-              // 实高 ≈31px——比旁边的「合并添加 · N 项」高近 10px，故用户觉得「过大」。
-              // 水平内边距与行高取设计稿 .seg span（showcase-v2:83：padding:3px 12px / line-height:1.5）；
-              // 行高必须显式给，否则继承 1.7 会把 22px 的内容框顶穿到内边距里。
-              // `touch` 档（Task 8）只覆盖高度与水平内边距（44 / 20），其余逐字不动。
-              height: touch ? `${FAMILIARITY_TOUCH_HEIGHT}px` : `${NAV_CONTROL_HEIGHT}px`,
+              // 分段件（v0.7.9 §5.7 点 3）：选中项白面 + 强描边 + 600，未选中透明；
+              // 文字恒主色——选中靠面与描边表达，不把未选项压成灰（那会读成禁用）。
+              // 桌面档高度 = NAV_CONTROL_HEIGHT − 2 × 内衬：轨与内件合计仍是 22px，
+              // 与导航条右端其余控件逐像素等高（v0.7.2 定下的几何不破）。
+              // `touch` 档把内件提到 44px（触摸下限），轨随之 48px。
+              height: touch ? `${FAMILIARITY_TOUCH_HEIGHT}px` : `${NAV_CONTROL_HEIGHT - TRACK_PADDING * 2}px`,
               display: 'inline-flex', alignItems: 'center',
-              padding: touch ? '0 20px' : '3px 12px', lineHeight: 1.5, borderRadius: 'var(--radius-full)', cursor: disabled ? 'default' : 'pointer',
+              padding: touch ? '0 20px' : '0 12px', lineHeight: 1,
+              borderRadius: TRACK_RADIUS - TRACK_PADDING,
+              cursor: disabled ? 'default' : 'pointer',
               fontFamily: 'var(--font-sans)', fontSize: 12.5,
-              border: `1px solid ${active ? 'var(--color-brand)' : 'var(--color-border)'}`,
-              background: active ? 'var(--color-brand-soft)' : 'var(--color-surface)',
-              color: active ? 'var(--color-brand)' : 'var(--color-text-secondary)',
+              // 非选中项用透明描边占位：选中 / 未选中只换颜色，几何完全一致，切换时不跳。
+              border: `1px solid ${active ? 'var(--color-border-strong)' : 'transparent'}`,
+              background: active ? 'var(--color-surface)' : 'transparent',
+              color: 'var(--color-text-primary)',
+              fontWeight: active ? 600 : 400,
               // 触屏：禁掉双击缩放选中与点击高亮块（与 SquareButton / MobileAppBar 同一套措施）
               ...(touch ? { touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' } : null),
             }}

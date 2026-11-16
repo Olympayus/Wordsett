@@ -20,12 +20,15 @@ import { useMobilePopup } from '../../lib/mobilePopups'
  *
  * 视觉分两层（390dp 竖屏是这台设备的实际宽度，两层的分工就是为它留的）：
  * - **顶面**（`CRUMB_HEIGHT` 34px，**恒在**，只换内容）：
- *   - 工作台 / 储藏库：返回 + 「词典 › 词」面包屑 + 「已选 N 项」+ 右端「添加至…」。
- *   - 搜索路径：**只**留「已选 N 项」+「添加至…」——返回与面包屑画在 `DictDetailPanel` 自己的
- *     顶栏里，底条不重复。
- *   「已选 N 项」两条路径都在（spec §4.5 的动作条清单里它有名字），只是搜索路径下它排在最左。
- * - **主面**（`BAR_HEIGHT` 52px，拇指可达层）：初始熟悉度三键 / 归属文案（左簇）+「＋」合并键。
+ *   - 工作台 / 储藏库：返回 + 「词典 › 词」面包屑 + 归属文案（陶土橙，v0.7.9 §5.7）+
+ *     「已选 N 项」+ 右端「添加至…」。
+ *   - 搜索路径：**只**留归属文案 +「已选 N 项」+「添加至…」——返回与面包屑画在
+ *     `DictDetailPanel` 自己的顶栏里，底条不重复。
+ *   归属文案与「已选 N 项」两条路径都在**顶面面包屑之后**（spec §5.7 点 1：手机动作条的
+ *   归属标识同样取陶土橙；「已选 N 项」是勾选后的即时读数，spec §4.5 的动作条清单里有它）。
+ * - **主面**（`BAR_HEIGHT` 52px，拇指可达层）：初始熟悉度三键（左簇）+「＋」合并键。
  *   「已选 N 项」刻意不在这里：390dp 上 278 + 40 + 122 + 8 ≈ 448 > 366，全堆主面会溢出。
+ *   已在库时主面无归属文案——它已上移到顶面面包屑之后，主面只留右端「＋」。
  *
  * 顶面**恒渲染**、不条件渲染（`hasCrumb` 只决定里面画什么）：条高因此是常数
  * `CRUMB_HEIGHT + BAR_HEIGHT`，`DictDetailPanel` 的下内距算式不必分两条路径。
@@ -95,9 +98,9 @@ export default function MobileDictActionBar({
   useMobilePopup(pickerOpen, closePicker)
   const anchorRef = useRef<HTMLDivElement>(null)
   // 顶面的内容随路径而变（这一面两条路径都有，故恒渲染、不条件渲染）：
-  // - 工作台 / 储藏库（`word` 有值）：返回 + 「词典 › 词」面包屑 + 「已选 N 项」+ 「添加至…」
-  // - 搜索路径（`word` 为 undefined）：**只**留「已选 N 项」+「添加至…」——返回与面包屑画在
-  //   `DictDetailPanel` 自己的顶栏里（见那里的注释），底条不重复；而「已选」与「添加至…」
+  // - 工作台 / 储藏库（`word` 有值）：返回 + 「词典 › 词」面包屑 + 归属文案 + 「已选 N 项」+ 「添加至…」
+  // - 搜索路径（`word` 为 undefined）：**只**留归属文案 + 「已选 N 项」+「添加至…」——返回与面包屑
+  //   画在 `DictDetailPanel` 自己的顶栏里（见那里的注释），底条不重复；而「已选」与「添加至…」
   //   必须挪出主面，否则主面在 390dp 上会被挤出屏幕（278 + 40 + 122 + 8 ≈ 448 > 366）。
   const hasCrumb = Boolean(word)
   const barHeight = CRUMB_HEIGHT + BAR_HEIGHT
@@ -125,20 +128,31 @@ export default function MobileDictActionBar({
             <button type="button" title="返回" aria-label="返回" onClick={onBack} style={iconBtn}>
               <Icon name="arrow-left" size={18} />
             </button>
+            {/* 面包屑不再吸满余量：它只按内容占宽、必要时收缩省略，于是后面的归属文案与
+                已选读数紧跟在它之后（左簇），右端的「添加至…」由自己的 marginLeft:auto 顶开。 */}
             <span style={{
-              flex: '1 1 auto', minWidth: 0, fontSize: 12, color: 'var(--color-text-tertiary)',
+              flex: '0 1 auto', minWidth: 0, fontSize: 12, color: 'var(--color-text-tertiary)',
               whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
             }}>
               词典 › <b style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>{word}</b>
             </span>
           </>
         )}
-        {/* 「已选 N 项」：勾选后的即时读数，两条路径都在（spec §4.5 的动作条清单）。
-            搜索路径下它排最左、把右端顶给「添加至…」；词条页路径下它跟在面包屑后面，
-            面包屑吸收余量（`flex: 1 1 auto`），读数与动作键都不缩。 */}
+        {/* 归属文案（v0.7.9 §5.7 点 1）：与桌面返回页同一份 `collectedLabel`，取陶土橙
+            `--color-accent`（深色主题自动取深色档）；不在库不渲染。 */}
+        {model.libraryLabel && (
+          <span style={{
+            flexShrink: 0, fontSize: 12, fontWeight: 600, color: 'var(--color-accent)',
+            whiteSpace: 'nowrap',
+          }}>
+            {model.libraryLabel}
+          </span>
+        )}
+        {/* 「已选 N 项」：勾选后的即时读数，两条路径都在、紧跟在归属文案之后（spec §5.7 点 2 的
+            左侧排布；主面见下方注释，放不下）。 */}
         <span style={{
           flexShrink: 0, fontSize: 11, color: 'var(--color-text-tertiary)',
-          whiteSpace: 'nowrap', marginLeft: hasCrumb ? 4 : 0,
+          whiteSpace: 'nowrap',
         }}>
           已选 <span className="stat-num">{mergeCount}</span> 项
         </span>
@@ -156,19 +170,17 @@ export default function MobileDictActionBar({
         </div>
       </div>
 
-      {/* 主面：初始熟悉度 / 归属（左簇）+「＋」合并键（右端） */}
+      {/* 主面：初始熟悉度（左簇）+「＋」合并键（右端） */}
       <div className="flex items-center" style={{ height: `${BAR_HEIGHT}px`, gap: 8, minHeight: 0 }}>
-        {/* 初始熟悉度三键：词不在库时出现；已在库则整组换成归属文案（`collectedLabel`）——
-            与桌面 `WorkbenchNavBar` 逐字同一约定（三键与那句文案的宽度接近，切词时不左右跳）。 */}
+        {/* 初始熟悉度三键：**只在词不在库时**出现；已在库时归属文案已在顶面面包屑之后
+            （v0.7.9 §5.7），主面左簇留空、右端「＋」靠 marginLeft:auto 顶到最右。 */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flexShrink: 1 }}>
-          {model.showFamiliarity ? (
+          {model.showFamiliarity && (
             <>
               <span style={{ fontSize: 11, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap', flexShrink: 0 }}>初始熟悉度</span>
-              {/* `touch`（Task 8）：三键提到 44px 命中区（spec §10）。 */}
+              {/* `touch`（Task 8）：分段控件提到 44px 命中区（spec §10）。 */}
               <FamiliarityChoice value={familiarity} onChange={onFamiliarityChange} touch />
             </>
-          ) : (
-            <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{model.libraryLabel}</span>
           )}
         </div>
 

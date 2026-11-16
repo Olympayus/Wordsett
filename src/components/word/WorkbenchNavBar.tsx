@@ -11,6 +11,7 @@ import type { InitialFamiliarityChoice } from '../../services/wordService'
 import type { WordLocation } from '../../types'
 import { moveActionLabel } from '../../lib/archiveMove'
 import { collectedLabel } from '../../lib/collected'
+import { FIELD_LABEL_STYLE } from '../../lib/labelStyle'
 import { NAV_HEIGHT, NAV_CONTROL_HEIGHT } from '../../lib/layout'
 
 interface WorkbenchNavBarProps {
@@ -36,8 +37,8 @@ interface WorkbenchNavBarProps {
   /** 词不在库时的初始熟悉度单选（region='dict' 使用）。 */
   familiarity?: InitialFamiliarityChoice
   onFamiliarityChange?: (v: InitialFamiliarityChoice) => void
-  /** 词已在库时所在的模块（region='dict' 使用）：三键整组换成「已在工作台 / 已在储藏库」，
-   * 保持右端宽度接近、按钮不左右跳。null / 缺省＝不在库。 */
+  /** 词已在库时所在的模块（region='dict' 使用）：词不在库（null / 缺省）才在右端出初始熟悉度三键；
+   *  已在库时陶土橙归属文案与「已选 N 项」一道排在左端面包屑之后（v0.7.9 §5.7）。 */
   libraryLocation?: WordLocation | null
   /** 有东西正在编辑时显现（工作区唯一）：保存 / 取消。 */
   editing?: { dirty: boolean }
@@ -137,6 +138,23 @@ export default function WorkbenchNavBar({
       {region === 'dict' && breadcrumb && (
         <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{breadcrumb}</span>
       )}
+      {/* 归属标识与已选读数（v0.7.9 §5.7 点 1 / 2）：都排在面包屑之后、靠左。
+          归属文案「已在工作台 / 已在储藏库」取陶土橙 `--color-accent`（深色主题自动取深色档），
+          未收录不渲染；「已选 N 项」**常驻占位**、只用 visibility 控制——不占位的话勾选第一项时
+          导航条的左簇会横向跳动。右端不再重复这两者。 */}
+      {region === 'dict' && libraryLabel && (
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-accent)', whiteSpace: 'nowrap' }}>
+          {libraryLabel}
+        </span>
+      )}
+      {region === 'dict' && (
+        <span style={{
+          fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap',
+          visibility: mergeCount > 0 ? 'visible' : 'hidden',
+        }}>
+          已选 <span className="stat-num">{mergeCount}</span> 项
+        </span>
+      )}
       {/* dict 区无法推进历史指针，其前进箭头必然禁用，故不渲染 */}
       {region === 'workbench' && (
         <button
@@ -222,27 +240,17 @@ export default function WorkbenchNavBar({
           </>
         ) : (
           <>
-            {/* 初始熟悉度三键（v0.6.5 §4.5，从页面底部收录区上移）：词不在库时可选，缺省落第 1 档「陌生」。
-                词已在库则整组换成灰色「已在工作台 / 已在储藏库」（v0.7.5 Task 13 按模块分档）——
-                这一支与三键的右端宽度接近，切词时按钮不左右跳。 */}
-            {libraryLabel ? (
-              <span style={{ fontSize: '12px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{libraryLabel}</span>
-            ) : (
+            {/* 初始熟悉度（v0.6.5 §4.5，从页面底部收录区上移）：**只在词不在库时**出现在右端；
+                已在库时右端只留 ＋ / 添加至…，归属文案与已选读数已在左侧（v0.7.9 §5.7）。
+                标签改用 C1 小标题版式（`FIELD_LABEL_STYLE`：10.5px / 600 / 字距 0.1em）。 */}
+            {!libraryLabel && (
               <>
-                <span style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>初始熟悉度</span>
+                <span style={FIELD_LABEL_STYLE}>初始熟悉度</span>
                 {/* 三个入参都是可选的：调用方只传 familiarity 而不传 onFamiliarityChange 时，
                     三键会是「看得见、点得动、什么都不做」的哑控件。disabled 让降级可见而不是静默。 */}
                 <FamiliarityChoice value={familiarity ?? 1} onChange={v => onFamiliarityChange?.(v)} disabled={!onFamiliarityChange} />
               </>
             )}
-            {/* 已选读数（v0.7.3 §8.2）：从按钮文案里拆出来单独放，**常驻占位**——
-                不占位的话勾选第一项时两颗按钮会左右跳。 */}
-            <span style={{
-              fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap',
-              visibility: mergeCount > 0 ? 'visible' : 'hidden',
-            }}>
-              已选 <span className="stat-num">{mergeCount}</span> 项
-            </span>
             <div ref={anchorRef} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               {/* 「＋」＝原「合并添加 · N 项」：行为逐字不变（不传 categoryId，合并后落默认分类）。
                   Tooltip 包裹而非 title 的理由照旧（accname 2.2）。 */}

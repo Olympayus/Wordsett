@@ -135,9 +135,9 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
               </button>
             </Tooltip>
             {collected && (
-              // 「已收录」是**内容的数据标记**（这个词在不在库里），§6 规则 3：蓝不做数据标记，
-              // 故用中性二级灰，不再用品牌蓝。
-              <span aria-label={collected} title={collected} style={{ color: 'var(--color-text-secondary)', fontSize: 10, fontWeight: 700 }}>✓</span>
+              // 「已收录」是**内容的数据标记**（这个词在不在库里），§6 规则 3：蓝不做数据标记。
+              // v0.7.9 §5.7 起三处消费点统一取陶土橙 `--color-accent`（深色主题自动取深色档）。
+              <span aria-label={collected} title={collected} style={{ color: 'var(--color-accent)', fontSize: 10, fontWeight: 700 }}>✓</span>
             )}
           </span>
         )

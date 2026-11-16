@@ -85,8 +85,9 @@ export default function SearchSuggestions({ suggestions, selectedIndex, onSelect
               )}
             </span>
             {collected && (
-              // 「已收录」是内容的数据标记（§6 规则 3：蓝不做数据标记），用中性二级灰。
-              <span title={collected} style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-text-secondary)', fontWeight: 500, fontFamily: 'var(--font-sans)' }}>✓ {collected}</span>
+              // 「已收录」是内容的数据标记（§6 规则 3：蓝不做数据标记）。v0.7.9 §5.7 起
+              // 三处消费点统一取陶土橙 `--color-accent`（深色主题自动取深色档）。
+              <span title={collected} style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-accent)', fontWeight: 500, fontFamily: 'var(--font-sans)' }}>✓ {collected}</span>
             )}
           </button>
         )
