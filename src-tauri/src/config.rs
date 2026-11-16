@@ -22,7 +22,8 @@ pub const FILE_NAME: &str = "shortcuts.json";
 /// 默认配置。加新键就在这里加，`load_or_default` 的归一化会自动给老文件补上。
 pub fn defaults() -> Value {
     json!({
-        "actions": {},
+        // v0.7.9 划词收录：热键默认值随平台（Windows Alt+KeyW / macOS Option+KeyW）。
+        "actions": { "grab_word": crate::shortcut::default_accelerator() },
         "tts":    { "voice": null, "rate": 1.0 },
         "window": { "close_to_tray": true, "close_dialog_seen": false },
         "tray":   { "show_due_count": true },
@@ -250,6 +251,16 @@ mod tests {
         assert_eq!(f32_at(&d, "tts.rate", 0.0), 1.0);
         assert_eq!(str_at(&d, "tts.voice"), None);
         assert!(d["actions"].is_object());
+    }
+
+    /// v0.7.9：新装用户的 shortcuts.json 直接带划词热键的**平台默认值**。
+    /// 与 `shortcut::default_accelerator()` 钉在一起，避免两处各写一份字符串。
+    #[test]
+    fn defaults_include_platform_grab_word() {
+        assert_eq!(
+            str_at(&defaults(), "actions.grab_word").as_deref(),
+            Some(crate::shortcut::default_accelerator())
+        );
     }
 
     #[test]

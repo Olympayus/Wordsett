@@ -39,6 +39,10 @@ fsrs = "6"
 # Plan 3 再接 Android 后端。
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
+# 全局热键（v0.7.9 划词收录，Task 6 接线）。**精确锁到 2.3.2**：accelerator 的
+# 解析形状（`global-hotkey` 0.8）是 `shortcut.rs` 校验白名单的依据，升级插件必须
+# 同步核对那张白名单。desktop-only：手机没有「全局热键」这个概念。
+tauri-plugin-global-shortcut = "=2.3.2"
 tts = "0.26"
 
 # SAPI5 回退后端（spec §6.3）。windows 0.58 已由 Tauri 传递引入并锁在 Cargo.lock 里，

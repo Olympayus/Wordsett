@@ -2,6 +2,10 @@ mod config;
 mod dictionaries;
 mod orientation;
 mod platform;
+// 全局热键的纯逻辑（v0.7.9 划词收录）：校验 / 平台默认值 / 改键回滚。
+// **无条件编译**——宿主机 `cargo test` 要能跑这些纯函数；真实注册与抓取流水线
+// 在 Task 6 接入，那一段会整段 `#[cfg(desktop)]`，Android 构建碰不到插件。
+mod shortcut;
 // 状态栏 / 手势条图标跟随应用主题（v0.7.8 Task 9）。非 Android 端命令为空操作，
 // 但模块本身永远参与编译（宿主机 `cargo test` 要能跑 `should_use_light_icons`）。
 mod system_bars;
