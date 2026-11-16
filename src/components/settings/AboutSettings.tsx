@@ -1,9 +1,71 @@
+import { useEffect, useRef, useState } from 'react'
 import pkg from '../../../package.json'
 import { useUpdaterStore } from '../../stores/updaterStore'
 import { useMobileUpdateStore } from '../../stores/mobileUpdateStore'
 import { usePlatformClass } from '../../lib/usePlatform'
 import { openExternalUrl, RELEASES_URL } from '../../lib/openExternal'
+import { useMobilePopup } from '../../lib/mobilePopups'
 import SquareButton from '../ui/SquareButton'
+import Icon from '../icons'
+
+/** 更新方式说明的「i」悬浮窗（v0.7.8 收尾）：原来那行常驻小字收进这里，
+ *  图标紧跟在「检查更新」右侧，点开才占版面。
+ *
+ *  关窗三条路径与手机其它浮层一致：再点图标（开关）、点面板外（捕获阶段
+ *  `pointerdown`，触摸端同样触发）、安卓返回键（`useMobilePopup` 登记）；
+ *  另加 Esc 供键盘 / 桌面语义。 */
+function UpdateHintPopover() {
+  const [open, setOpen] = useState(false)
+  const hostRef = useRef<HTMLSpanElement>(null)
+  useMobilePopup(open, () => setOpen(false))
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    const onDown = (e: PointerEvent) => {
+      if (hostRef.current?.contains(e.target as Node)) return
+      setOpen(false)
+    }
+    document.addEventListener('keydown', onKey)
+    document.addEventListener('pointerdown', onDown, true)
+    return () => {
+      document.removeEventListener('keydown', onKey)
+      document.removeEventListener('pointerdown', onDown, true)
+    }
+  }, [open])
+  return (
+    <span ref={hostRef} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <button
+        type="button"
+        aria-label="更新方式说明"
+        aria-expanded={open}
+        onClick={() => setOpen(o => !o)}
+        style={{
+          width: 31, height: 31, padding: 0, flexShrink: 0,
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          border: '1px solid var(--color-hairline)', borderRadius: '50%',
+          background: 'transparent', color: 'var(--color-text-secondary)',
+          cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+        }}
+      >
+        <Icon name="info" size={15} />
+      </button>
+      {open && (
+        <div
+          role="note"
+          style={{
+            position: 'absolute', top: 'calc(100% + 8px)', left: 0, zIndex: 'var(--z-dropdown)',
+            width: 'min(248px, calc(100vw - 136px))', padding: '10px 12px',
+            background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+            borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-overlay)',
+            fontSize: 'var(--text-xs)', lineHeight: 1.7, color: 'var(--color-text-primary)',
+          }}
+        >
+          手机版不支持应用内更新。新版本请在浏览器打开发布页，下载最新 APK 覆盖安装。
+        </div>
+      )}
+    </span>
+  )
+}
 
 /**
  * 「关于」里的版本行。
@@ -65,6 +127,7 @@ export default function AboutSettings(_props: Props = {}) {
           <SquareButton tone={tone} onClick={() => { void mobileCheckManually() }} disabled={checkingNow}>
             检查更新
           </SquareButton>
+          <UpdateHintPopover />
           {mobilePhase === 'available' && (
             <SquareButton tone={tone} onClick={openReleases}>
               前往 GitHub 下载
@@ -75,9 +138,6 @@ export default function AboutSettings(_props: Props = {}) {
               重试
             </SquareButton>
           )}
-        </div>
-        <div style={{ marginTop: 8 }}>
-          手机版不支持应用内更新。新版本请在浏览器打开发布页，下载最新 APK 覆盖安装。
         </div>
         <div style={{
           marginTop: 4, fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)',
