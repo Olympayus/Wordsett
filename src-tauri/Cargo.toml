@@ -53,6 +53,12 @@ tts = "0.26"
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.58", features = ["Win32_Media_Speech", "Win32_System_Com", "Win32_UI_Accessibility", "Win32_Foundation"] }
 
+# macOS 选区读取（v0.7.9，`selection/mac.rs`）：AX 复制出来的 CFString → Rust String，
+# 以及 CFTypeRef 的 type-id 判定 / CFRelease。core-foundation 0.10.1 本就在依赖树里
+# （Tauri 在 macOS 上传递引入），这里只是显式声明、不引新依赖树。
+[target.'cfg(target_os = "macos")'.dependencies]
+core-foundation = "0.10"
+
 # 屏幕方向（Task 10）：`set_screen_orientation` 在安卓上经 JNI 调 Activity.setRequestedOrientation。
 # 只在安卓端引入——桌面不锁方向，这个 crate 也不参与它的依赖树。
 # 不引 `ndk-context`：tao 0.35 从不初始化它（见 `orientation.rs` 文件头），Activity 走

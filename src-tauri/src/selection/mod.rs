@@ -2,7 +2,8 @@
 //!
 //! 三件事：清洗与 token 化（`strip_selection` / `tokens`）、模式判定（`analyze`）、
 //! 带超时的读取包装（`read_with`）。平台实现在 `selection/win.rs`（Windows UIA，Task 3）
-//! 与 Task 4 的 macOS AX 里；本文件只做平台分发，不碰任何平台 API，也不含 Tauri 命令。
+//! 与 `selection/mac.rs`（macOS 辅助功能 / AX，Task 4）；本文件只做平台分发，不碰任何
+//! 平台 API，也不含 Tauri 命令。
 //!
 //! 模式判定（spec §5.2）：token 数 1 → 单词；2–30 → 句子；>30 → 句子 + `too_long`。
 //! 超长**不截断**：`text` 保留清洗后的全文，前端据此显示「选区过长（N 个词）」。
@@ -10,14 +11,20 @@
 use std::sync::mpsc;
 use std::time::Duration;
 
-// 平台分发：Windows 走 UI Automation；macOS 的 `mac` 在 Task 4 接入（那一支会加
-// `#[cfg(target_os = "macos")] pub use mac::read_selection;`）。
+// 平台分发：Windows 走 UI Automation（Task 3），macOS 走辅助功能 / AX（Task 4，盲写）。
 #[cfg(target_os = "windows")]
 mod win;
 // Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 unused 噪音；接线后删除。
 #[cfg(target_os = "windows")]
 #[allow(unused_imports)]
 pub use win::read_selection;
+
+#[cfg(target_os = "macos")]
+mod mac;
+// Task 6 接线前生产代码还没有调用点，先压掉 unused 噪音；接线后删除。
+#[cfg(target_os = "macos")]
+#[allow(unused_imports)]
+pub use mac::read_selection;
 
 /// Windows 与 macOS 之外的桌面平台（Linux）没有选区读取实现，统一返回 `Unsupported`。
 /// 手机端整条流水线不参与编译（lib.rs 的 `#[cfg(desktop)] mod selection;`），

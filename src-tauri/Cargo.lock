@@ -85,6 +85,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 name = "app"
 version = "0.7.8"
 dependencies = [
+ "core-foundation 0.10.1",
  "fsrs",
  "jni 0.21.1",
  "log",
