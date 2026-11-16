@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest'
 import { getDb } from '../db/connection'
 import * as wordsDb from '../db/words'
 import { createTestDb, type DbLike } from '../db/test-utils'
-import { addWord, deleteWord, deleteWords, getPreviews, mergeFields, setInitialFamiliarity } from './wordService'
+import { addWord, appendExampleUnderDefinition, deleteWord, deleteWords, getPreviews, mergeFields, setInitialFamiliarity } from './wordService'
 import * as categoriesDb from '../db/categories'
 import { clearDefinitionsCache } from './fieldService'
 import { getFieldValuesForWord } from '../db/fields'
@@ -259,6 +259,50 @@ describe('setInitialFamiliarity', () => {
     await setInitialFamiliarity(id, 9 as any)
     const fam = await famRows(id)
     expect(fam.find(v => v.fieldId === 'f_initial_familiarity')!.value).toBe('1')
+  })
+})
+
+describe('wordService.appendExampleUnderDefinition', () => {
+  it('appendExampleUnderDefinition mounts example under the existing definition', async () => {
+    const w = await wordsDb.createWord({ lemma: 'ephemeral' })
+    if (!w.ok) throw new Error('createWord failed')
+    await mergeFields(w.data.id, [
+      { key: 'part_of_speech', value: 'adj.', source: 'ecdict', tempId: 'p-pos' },
+      { key: 'chinese_definition', value: '短暂的', source: 'ecdict', tempId: 'p-def', parentTempId: 'p-pos' },
+    ])
+    const before = await getFieldValuesForWord(w.data.id)
+    const def = before.ok ? before.data.find(fv => fv.fieldId === 'f_chinese_definition') : undefined
+    expect(def).toBeDefined()
+    expect(await appendExampleUnderDefinition(w.data.id, { key: 'chinese_definition', value: '短暂的' }, 'The ephemeral beauty fades.')).toBe(true)
+    const after = await getFieldValuesForWord(w.data.id)
+    const container = after.ok ? after.data.find(fv => fv.fieldId === 'f_example_sentence') : undefined
+    const ex = after.ok ? after.data.find(fv => fv.fieldId === 'f_example') : undefined
+    expect(container?.parentId).toBe(def!.id)
+    expect(ex?.parentId).toBe(container!.id)
+    expect(ex?.value).toBe('The ephemeral beauty fades.')
+  })
+
+  it('appendExampleUnderDefinition 幂等且找不到释义时不写入', async () => {
+    const w = await wordsDb.createWord({ lemma: 'transient' })
+    if (!w.ok) throw new Error('createWord failed')
+    await mergeFields(w.data.id, [
+      { key: 'part_of_speech', value: 'adj.', source: 'ecdict', tempId: 'p-pos' },
+      { key: 'chinese_definition', value: '短暂的', source: 'ecdict', tempId: 'p-def', parentTempId: 'p-pos' },
+    ])
+    const def = { key: 'chinese_definition' as const, value: '短暂的' }
+    expect(await appendExampleUnderDefinition(w.data.id, def, 'A transient glow.')).toBe(true)
+    expect(await appendExampleUnderDefinition(w.data.id, def, 'A transient glow.')).toBe(true)
+
+    const rows = await getFieldValuesForWord(w.data.id)
+    if (!rows.ok) throw new Error('getFieldValuesForWord failed')
+    expect(rows.data.filter(fv => fv.fieldId === 'f_example_sentence')).toHaveLength(1)
+    expect(rows.data.filter(fv => fv.fieldId === 'f_example' && fv.value === 'A transient glow.')).toHaveLength(1)
+
+    // 词典有、但用户当年没把这个义项收进词条 → 拒绝，不产生孤儿行。
+    expect(await appendExampleUnderDefinition(w.data.id, { key: 'english_definition', value: 'lasting only a short time' }, 'X.')).toBe(false)
+    const after = await getFieldValuesForWord(w.data.id)
+    if (!after.ok) throw new Error('getFieldValuesForWord failed')
+    expect(after.data.filter(fv => fv.fieldId === 'f_example')).toHaveLength(1)
   })
 })
 

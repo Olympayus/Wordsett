@@ -4,12 +4,19 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen, type UnlistenFn } from '@tauri-apps/api/event'
 import { getDb, initDatabase } from '../db/connection'
 import { dbReadyAction } from '../lib/dbReady'
+import { libraryLocationIn } from '../lib/collected'
+import { RETRY_WAIT_MS, retrySequence } from '../lib/collectorRetry'
 import { applyTheme, applyWindowTheme, resolveTheme } from '../lib/theme'
+import { getWordDueStatus } from '../services/wordDue'
+import type { WordDueStatus } from '../lib/dueLine'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useWordStore } from '../stores/wordStore'
+import { markGrabCurrent } from './currentGrab'
 import { CollectorTitleBar, CollectorWord } from './CollectorWord'
 import { CollectorSentence } from './CollectorSentence'
-import type { GrabErrorKind, GrabOutcome } from './types'
+import { CollectorExisting } from './CollectorExisting'
+import { CollectorFailure } from './CollectorFailure'
+import type { GrabOutcome } from './types'
 
 /**
  * 划词小窗的根（v0.7.9 spec §5.3 / §6.2 / §6.3）。
@@ -27,9 +34,9 @@ import type { GrabErrorKind, GrabOutcome } from './types'
  *    小窗下一次唤起居中生效（spec §6.3）。
  * 4. **窗口高度**：量内容后调 `collector_resize`，Rust 负责 clamp 到工作区。
  *
- * 按状态渲染子树：失败 → 简版失败卡（Task 14 换成 `CollectorFailure`）；句子模式 →
- * `CollectorSentence`（目标词候选、释义树与例句归属全部由它自己装载）；单词 →
- * `CollectorWord`（含词典未收录 / 已在库两种内联态）。
+ * 按状态渲染子树：失败 → `CollectorFailure`（重试 = 焦点回流序列）；单词模式先按
+ * `libraryIndex` 分流——已在库 → `CollectorExisting`（不提供收录），否则 → `CollectorWord`；
+ * 句子模式 → `CollectorSentence`（它按**当前目标词**再分流已有库 / 新词，见其注释）。
  */
 
 // ---- 模块级状态：StrictMode 在 dev 下会把 effect 跑两遍（卸载再挂载），而
@@ -125,27 +132,11 @@ async function openDatabase(): Promise<boolean> {
   }
 }
 
-// ---- 失败文案：前端按 kind 决定（spec §5.1），os 用 Rust 给的 detail。 ----
-
-interface FailureCopy { title: string; detail: string }
-
-function failureCopy(outcome: GrabOutcome): FailureCopy {
-  const error = outcome.error
-  // 契约上 error 模式的 error 一定非空；防御到一个兜底文案，避免出现空白卡。
-  const kind: GrabErrorKind = error?.kind ?? 'os'
-  switch (kind) {
-    case 'empty': return { title: '未检测到选中文本', detail: '请先选中文本，再按热键。' }
-    case 'unsupported': return { title: '当前应用不支持读取选区', detail: '该应用没有提供可读取的文本选区。' }
-    case 'denied': return { title: '没有读取选区的权限', detail: '请在系统设置中授予辅助功能权限后再试。' }
-    case 'timeout': return { title: '读取选区超时', detail: '请重试。' }
-    case 'too_long': return { title: '选区过长', detail: `选区包含 ${outcome.tokens} 个词，请缩小选区后重试。` }
-    case 'os': return { title: '读取选区时发生错误', detail: error?.detail || '系统返回了未知错误。' }
-  }
-}
+// ---- 失败态：文案与「前往系统设置」都收在 `CollectorFailure`（spec §5.1 / §5.3）。 ----
 
 type DbState = 'idle' | 'connecting' | 'ready' | 'failed'
 
-/** 一张带标题条的简版提示卡：失败态与「数据库尚未就绪」共用（Task 14 会接管失败卡）。 */
+/** 带标题条的简版提示卡：「数据库尚未就绪」与「正在准备…」共用。 */
 function NoticeCard({ title, detail }: { title: string; detail?: string }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--color-surface)' }}>
@@ -163,10 +154,14 @@ function NoticeCard({ title, detail }: { title: string; detail?: string }) {
 export function CollectorRoot() {
   const [outcome, setOutcome] = useState<GrabOutcome | null>(null)
   const [dbState, setDbState] = useState<DbState>('idle')
+  /** 调度状态连同它的词面一起存：换词后的第一帧不会把上一个词的调度行显示给新词。 */
+  const [dueFor, setDueFor] = useState<{ word: string; status: WordDueStatus } | null>(null)
   const lastGrabId = useRef(0)
   const dbReady = useRef(false)
   const rootRef = useRef<HTMLDivElement>(null)
   const lastReportedHeight = useRef(0)
+  /** 重试进行中：连点「重试」只应触发一次隐藏 / 读取。 */
+  const retryingRef = useRef(false)
 
   // 主题：每次显示都重读持久化设置（spec §6.3）。rehydrate 失败不该挡住显示，
   // 读到的仍是 store 里的现值（zustand 在模块加载时已自动水合过一次）。
@@ -201,6 +196,8 @@ export function CollectorRoot() {
     // 旧代丢弃：pending 与事件可能送来同一次抓取，重复的 grabId 也在这里被吃掉。
     if (next.grabId <= lastGrabId.current) return
     lastGrabId.current = next.grabId
+    // 写链的隐藏闸门读同一份代际（见 currentGrab.ts）：新一代到达后，旧写链不得再藏窗。
+    markGrabCurrent(next.grabId)
     setOutcome(next)
     void syncTheme()
     // 失败态不碰数据库：文案与 × 就够了，连库留给真正要查词的抓取。
@@ -251,19 +248,72 @@ export function CollectorRoot() {
     return () => observer.disconnect()
   }, [])
 
+  // 单词模式的「已在库」判定（spec §5.3 / §5.4）：索引含工作区 ∪ 储藏库，
+  // 订阅式读取让主窗在小窗藏着的这段时间里改过词库也能即时反映。
+  const libraryIndex = useWordStore(s => s.libraryIndex)
+  const word = outcome?.mode === 'word' ? outcome.text : null
+  const wordLocation = word !== null ? libraryLocationIn(libraryIndex, word) : null
+
+  // 已收录词的复习调度行：只对单词模式预取（句子模式由 CollectorExisting 按目标词自取）。
+  // 查询失败由 `getWordDueStatus` 回落为「尚无复习计划」，不会挡住已收录态。
+  useEffect(() => {
+    if (word === null || wordLocation === null || dbState !== 'ready') {
+      setDueFor(null)
+      return
+    }
+    let cancelled = false
+    void getWordDueStatus(word, wordLocation)
+      .then(status => { if (!cancelled) setDueFor({ word, status }) })
+      .catch(e => { console.error('[collector] 复习状态查询失败', e) })
+    return () => { cancelled = true }
+  }, [word, wordLocation, dbState])
+
+  /** 只把属于当前词面的调度状态交给卡片；换词后的第一帧按「未知」处理（显示占位）。 */
+  const due = dueFor !== null && dueFor.word === word ? dueFor.status : null
+
+  /**
+   * 「重试」（spec §5.1 的焦点归还）与「小窗已显示时再按热键」共用同一序列：
+   * `collector_hide` → 120ms → `grab_now`。Rust 在后台读选区、投递 `collector-grab`
+   * 之前自己 `show_at_cursor` —— 前端**不再手动显示**；新结果到达后 `accept` 按
+   * `grabId` 换代，组件以新 key 重新挂载（失败则仍显示失败态）。
+   */
+  const retry = useCallback(() => {
+    if (retryingRef.current) return
+    retryingRef.current = true
+    void (async () => {
+      try {
+        for (const step of retrySequence()) {
+          if (step === 'hide') {
+            await invoke('collector_hide').catch(e => console.error('[collector] 隐藏小窗失败', e))
+          } else if (step === 'wait') {
+            await new Promise<void>(resolve => setTimeout(resolve, RETRY_WAIT_MS))
+          } else if (step === 'read') {
+            await invoke('grab_now').catch(e => console.error('[collector] 重新读取选区失败', e))
+          }
+          // `show` 由 Rust 在投递结果前完成（`shortcut::read_and_deliver`）。
+        }
+      } finally {
+        retryingRef.current = false
+      }
+    })()
+  }, [])
+
   let content: ReactNode = null
   if (outcome) {
     if (outcome.mode === 'error') {
-      const copy = failureCopy(outcome)
-      content = <NoticeCard title={copy.title} detail={copy.detail} />
+      content = <CollectorFailure error={outcome.error} onRetry={retry} />
     } else if (dbState === 'failed') {
       content = <NoticeCard title="数据库尚未就绪" detail="请稍后重试。" />
     } else if (dbState === 'ready') {
       // key 用 grabId：同一次抓取只挂载一次，换词 / 重新抓取都从干净状态开始
       // （勾选集、熟悉度、错误行都跟着重来）。
-      content = outcome.mode === 'sentence'
-        ? <CollectorSentence key={outcome.grabId} outcome={outcome} />
-        : <CollectorWord key={outcome.grabId} word={outcome.text} />
+      if (outcome.mode === 'sentence') {
+        content = <CollectorSentence key={outcome.grabId} outcome={outcome} />
+      } else if (wordLocation !== null) {
+        content = <CollectorExisting key={outcome.grabId} word={outcome.text} location={wordLocation} due={due} />
+      } else {
+        content = <CollectorWord key={outcome.grabId} word={outcome.text} grabId={outcome.grabId} onRetry={retry} />
+      }
     } else {
       content = <NoticeCard title="正在准备…" />
     }

@@ -9,11 +9,10 @@ import { CollectorTree } from './CollectorTree'
 import { lookupTitleMeta, lookupWord } from '../services/searchService'
 import { collectorMergeInputs, definitionGroups, leafKeys } from '../lib/collectorTree'
 import { toggleSubtreeSelection } from '../lib/dictPlan'
-import { ensureWord } from '../lib/ensureWord'
-import { collectedLabel, libraryLocationIn } from '../lib/collected'
 import { FIELD_LABEL_STYLE } from '../lib/labelStyle'
-import { useWordStore } from '../stores/wordStore'
-import { setInitialFamiliarity, type InitialFamiliarityChoice } from '../services/wordService'
+import type { InitialFamiliarityChoice } from '../services/wordService'
+import { collectNewWord } from './collectNewWord'
+import { CollectorFailure } from './CollectorFailure'
 import type { TitleMeta } from '../providers/titleMeta'
 import type { DictionaryField } from '../types/dictionary'
 
@@ -25,8 +24,9 @@ import type { DictionaryField } from '../types/dictionary'
  * `lookupTitleMeta`（音标），收录走与搜索返回页**逐字同源**的三步：
  * `ensureWord` → `mergeWordFields` → 新词 `setInitialFamiliarity`。
  *
- * 已收录判定读 store 的 `libraryIndex`（工作区 ∪ 储藏库）。Root 在渲染本组件前已经
- * 刷新过索引，故这里的初始值就是准的；订阅式读取让收录成功后新词也能即时反映。
+ * 已收录判定不在这里：Root 在渲染本组件前按 `libraryIndex` 路由，已在库的词走
+ * `CollectorExisting`，本组件只处理「新词」（写链内部仍会复核一次，防索引刷新竞态）。
+ * 词典未收录复用 `CollectorFailure` 的同一卡形。
  *
  * 本文件同时导出 `CollectorTitleBar`：Root 的失败 / 句子占位卡也要同一条可拖动标题条，
  * 三处各画一份迟早会漂（T13/T14 的组件也直接复用它）。单词模式是本任务的正文，
@@ -114,7 +114,7 @@ export const WORD_HEAD_STYLE: CSSProperties = {
   overflowWrap: 'anywhere',
 }
 
-export function CollectorWord({ word }: { word: string }) {
+export function CollectorWord({ word, grabId, onRetry }: { word: string; grabId: number; onRetry: () => void }) {
   const [fields, setFields] = useState<DictionaryField[]>([])
   const [meta, setMeta] = useState<TitleMeta | null>(null)
   const [loading, setLoading] = useState(true)
@@ -126,19 +126,6 @@ export function CollectorWord({ word }: { word: string }) {
   // 同步闸门：Enter 与「收录」按钮可能在同一毫秒各触发一次（按钮聚焦时按 Enter，
   // 原生 click 与 window keydown 都会到达），ref 比 state 早一个渲染周期。
   const busyRef = useRef(false)
-  // 卸载标志：Root 用 grabId 作 key，换一次抓取就卸载本实例。本实例的收录写链可能比
-  // 新一代抓取的「读选区 → show」更慢，此时再调 `collector_hide` 会把**新窗口**藏掉。
-  const mountedRef = useRef(true)
-  useEffect(() => {
-    // setup 必须重申 true：StrictMode 在 dev 下会 setup → cleanup → setup 跑一遍，
-    // ref 跨这轮保留，只在 cleanup 里置 false 的话本实例此后永远以为自己是卸载态。
-    mountedRef.current = true
-    return () => { mountedRef.current = false }
-  }, [])
-
-  // 已收录判定：订阅索引（工作区 ∪ 储藏库），收录成功后 store 重载索引会即时翻转。
-  const location = useWordStore(s => libraryLocationIn(s.libraryIndex, word))
-  const alreadyInLibrary = location !== null
 
   const groups = useMemo(() => definitionGroups(fields).filter(g => g.leaves.length > 0), [fields])
   const allKeys = useMemo(() => leafKeys(groups), [groups])
@@ -174,40 +161,22 @@ export function CollectorWord({ word }: { word: string }) {
   }, [word])
 
   const handleCollect = useCallback(async () => {
-    if (busyRef.current || alreadyInLibrary || selected.size === 0) return
+    if (busyRef.current || selected.size === 0) return
     const inputs = collectorMergeInputs(fields, selected)
     if (inputs.length === 0) return
     busyRef.current = true
     setBusy(true)
     setCollectError(null)
     try {
-      // 落库前再确认一次「不在库」：Root 的索引刷新与本组件的挂载是并行的，
-      // 索引还没刷新完时 UI 会把一个既有词显示成可收录。`ensureWord` 只会复用既有
-      // 词条、不会拒绝，随后的 `mergeWordFields` 就会把同一批释义再插一遍——
-      // 这一步是那个竞态的唯一闸门（T14 的 CollectorExisting 也依赖同一份索引）。
-      await useWordStore.getState().reloadLibraryIndex()
-      if (libraryLocationIn(useWordStore.getState().libraryIndex, word) !== null) return
-      const target = await ensureWord(word)
-      if (!target) throw new Error('ensureWord returned null')
-      const merged = await useWordStore.getState().mergeWordFields(target.id, inputs)
-      if (!merged) throw new Error('mergeWordFields failed')
-      // 刚确认过不在库，故这条路一定是新词：熟悉度与搜索返回页同路径、同默认值。
-      // 写入失败不阻断收录（字段已落库，缺失只让该词回落 1），与 DictDetailPanel 的取舍一致。
-      const wrote = await setInitialFamiliarity(target.id, familiarity)
-      if (!wrote) console.error('[collector] 初始熟悉度写入失败')
-      // 隐藏失败不该把一次已经落库的收录报成失败（窗口没藏起来只是体验问题）。
-      // 卸载后（用户已触发新一代抓取）不再隐藏：那会把新窗口一起藏掉。
-      if (mountedRef.current) {
-        await invoke('collector_hide').catch(e => console.error('[collector] 隐藏小窗失败', e))
-      }
-    } catch (e) {
-      console.error('[collector] 收录失败', e)
-      setCollectError('收录失败，请重试')
+      // 共用写链（`collectNewWord`）：落库前复核「不在库」→ ensureWord → merge →
+      // 初始熟悉度（新词）→ 仍属当前代抓取时隐藏小窗。已在库的竞态由写链内的复核兜住。
+      const result = await collectNewWord({ word, inputs, familiarity, grabId })
+      if (result === 'failed') setCollectError('收录失败，请重试')
     } finally {
       busyRef.current = false
       setBusy(false)
     }
-  }, [alreadyInLibrary, selected, fields, word, familiarity])
+  }, [selected, fields, word, familiarity, grabId])
 
   // Enter 收录（spec §5.3 底栏键位提示）。只有文本输入类控件豁免（打字 / 输入法）：
   // 勾选框、熟悉度、按钮都是 `<button>`，聚焦后按 Enter 仍应触发收录——若把 BUTTON
@@ -227,9 +196,22 @@ export function CollectorWord({ word }: { word: string }) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [handleCollect])
 
-  // 已在库的判定优先：词典恰好查不到时不该同时冒出「词典未收录」和「已在库」两句话。
-  const notFound = !alreadyInLibrary && !loading && !lookupError && groups.length === 0
-  const showTree = !alreadyInLibrary && !loading && !lookupError && groups.length > 0
+  const notFound = !loading && !lookupError && groups.length === 0
+  const showTree = !loading && !lookupError && groups.length > 0
+
+  // 词典未收录：复用失败卡（同一卡形、只给「打开详情页」与「重试」两个出口）。
+  // 「已在库」不会走到这里——Root 已经按索引把这种词路由到 `CollectorExisting`。
+  if (notFound) {
+    return (
+      <CollectorFailure
+        error={null}
+        kindOverride="not_found"
+        onRetry={onRetry}
+        onOpenDict={openDict}
+        word={word}
+      />
+    )
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', background: 'var(--color-surface)' }}>
@@ -247,32 +229,14 @@ export function CollectorWord({ word }: { word: string }) {
           <span style={{ alignSelf: 'center', display: 'inline-flex' }}>
             <SpeakButton text={word} size={16} />
           </span>
-          {alreadyInLibrary && (
-            <span style={{ alignSelf: 'center', marginLeft: 'auto', fontSize: '12.5px', fontWeight: 600, color: 'var(--color-accent)' }}>
-              {collectedLabel(location)}
-            </span>
-          )}
         </div>
 
-        {/* 已在库态不渲染词典进度：那张卡只需要词头、归属与说明。 */}
-        {loading && !alreadyInLibrary && (
+        {loading && (
           <div style={{ fontSize: '12.5px', color: 'var(--color-text-tertiary)' }}>正在查询…</div>
         )}
 
-        {!alreadyInLibrary && !loading && lookupError && (
+        {!loading && lookupError && (
           <div style={{ fontSize: '12.5px', color: 'var(--color-danger)' }}>词典查询失败，请重试。</div>
-        )}
-
-        {notFound && (
-          <div style={{ fontSize: '13px', lineHeight: 1.6, color: 'var(--color-text-secondary)' }}>
-            词典未收录该词，无法收录。
-          </div>
-        )}
-
-        {alreadyInLibrary && (
-          <div style={{ fontSize: '12.5px', lineHeight: 1.6, color: 'var(--color-text-secondary)' }}>
-            这个词已在词库中，本次不重复收录。
-          </div>
         )}
 
         {showTree && (
@@ -292,7 +256,7 @@ export function CollectorWord({ word }: { word: string }) {
         )}
       </div>
 
-      {alreadyInLibrary || notFound || lookupError ? (
+      {lookupError ? (
         <BottomBar>
           <Button variant="secondary" onClick={openDict}>打开详情页</Button>
         </BottomBar>

@@ -110,6 +110,58 @@ export async function mergeFields(wordId: string, fields: MergeFieldInput[]): Pr
   }
 }
 
+/**
+ * 把一句例句追加到**既有**释义行之下（v0.7.9「已在库」句子模式，spec §5.4 的细化）。
+ *
+ * 与 `mergeFields` 刻意分开（控制器裁定）：既有词的释义已经在库里，走合并输入会
+ * 把同一批释义当 root 输入再插一遍；这里直接按 `(fieldId, value)` 找到那条释义行、
+ * 用它的真实 id 作父级，插 `example_sentence` 容器 + `example` 叶子，最后按模板重排。
+ *
+ * - 找不到该释义行（词典有这个义项、但用户当年没收它）→ `false`，不写任何行。
+ * - 同一定义下已有相同例句文本 → `true`（幂等：重试 / 手滑重复点击不会插第二条）。
+ */
+export async function appendExampleUnderDefinition(
+  wordId: string,
+  definition: { key: 'chinese_definition' | 'english_definition'; value: string },
+  text: string,
+): Promise<boolean> {
+  const defs = await getDefinitions()
+  const def = defs.find(d => d.key === definition.key)
+  if (!def) return false
+  const existingResult = await getFieldValuesForWord(wordId)
+  if (!existingResult.ok) return false
+  const rows = existingResult.data
+
+  // 取第一条匹配：同名释义可能分属不同词性父（见 mergeFields 的去重口径），
+  // 小窗的释义树给出的是（标签, 值），没有父级信息，首条即树的呈现顺序。
+  const target = rows.find(fv => fv.fieldId === def.id && fv.value === definition.value)
+  if (!target) return false
+
+  const containers = new Set(
+    rows
+      .filter(fv => fv.parentId === target.id && fv.fieldId === 'f_example_sentence')
+      .map(fv => fv.id),
+  )
+  const duplicate = rows.some(fv =>
+    fv.fieldId === 'f_example' &&
+    fv.parentId !== null &&
+    containers.has(fv.parentId) &&
+    fv.value === text,
+  )
+  if (duplicate) return true
+
+  const container = await fieldsDb.insertFieldValue({
+    wordId, fieldId: 'f_example_sentence', value: '', source: 'user', parentId: target.id,
+  })
+  if (!container.ok || !container.data) return false
+  const example = await fieldsDb.insertFieldValue({
+    wordId, fieldId: 'f_example', value: text, source: 'user', parentId: container.data.id,
+  })
+  if (!example.ok) return false
+  await renumberWordByTemplate(wordId)
+  return true
+}
+
 export async function deleteWord(id: string): Promise<boolean> {
   const result = await wordsDb.deleteWord(id)
   return result.ok
