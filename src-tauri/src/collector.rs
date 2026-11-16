@@ -67,7 +67,7 @@ pub fn clamp_to_work_area(
     (x, y)
 }
 
-/// 预载小窗：建一次、之后一直藏着复用（Task 6 在 setup 里调用）。
+/// 预载小窗：建一次、之后一直藏着复用（`lib.rs` 的 setup 在启动时调用）。
 ///
 /// 幂等：窗口已在时直接成功，避免 `tauri dev` 的热重载路径上重复建窗报错。
 pub fn create(app: &AppHandle) -> Result<(), String> {
@@ -91,7 +91,7 @@ pub fn create(app: &AppHandle) -> Result<(), String> {
     .map_err(|e| e.to_string())
 }
 
-/// 把窗口挪到光标旁并显示（热键流水线在 Task 6 调用）。
+/// 把窗口挪到光标旁并显示（`shortcut::read_and_deliver` 在抓取完成后调用）。
 ///
 /// 找不到窗口 / 光标 / 显示器时**静默返回**：这条路径在后台线程里跑，
 /// 一次定位失败不该 panic 掉整个进程；真正的失败会由抓取结果自己说话。

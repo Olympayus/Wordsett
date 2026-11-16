@@ -149,8 +149,15 @@ pub fn run() {
     let builder = builder.on_window_event(|window, event| {
         // 划词小窗：失焦即隐藏（spec §5.3 的窗口级行为）。小窗不参与主窗的关窗分流。
         if window.label() == collector::LABEL {
-            if let tauri::WindowEvent::Focused(false) = event {
-                collector::hide(window.app_handle());
+            match event {
+                tauri::WindowEvent::Focused(false) => collector::hide(window.app_handle()),
+                // Alt+F4 / 系统关闭：小窗是**预载复用**的（`create` 只在 setup 跑一次），
+                // 真关掉就再也不会出现。拦下来改成隐藏，语义与「点 ×」一致。
+                tauri::WindowEvent::CloseRequested { api, .. } => {
+                    api.prevent_close();
+                    collector::hide(window.app_handle());
+                }
+                _ => {}
             }
             return;
         }

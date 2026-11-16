@@ -4,7 +4,7 @@
 //! （spec §7：`{ grabId, mode, text, tokens, error }`，`rename_all = "camelCase"`
 //! 不得删改）。`GrabLog` 是设置页「最近一次抓取」的环形日志：最多 5 条、最新在前。
 //!
-//! 平台无关：读选区在 Task 3/4，流水线（pending + emit）在 Task 6。
+//! 平台无关：读选区在 Task 3/4，流水线（pending + emit）在 `shortcut::run_grab`。
 
 use crate::selection::{analyze, SelectionError, TextMode};
 use std::collections::VecDeque;

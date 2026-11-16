@@ -56,7 +56,6 @@ fn map_hresult(hresult: HRESULT) -> SelectionError {
 
 /// 把多段选区的文本合并成一条：每段 trim、丢掉空段、以单个空格连接；
 /// 合并后仍为空（没有选区 / 全是空白）→ `Empty`。
-#[allow(dead_code)]
 pub(crate) fn join_ranges(texts: Vec<String>) -> Result<String, SelectionError> {
     let joined = texts
         .iter()

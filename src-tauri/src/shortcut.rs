@@ -244,12 +244,15 @@ where
 // 无条件引用会让手机构建直接失败。上面那层纯逻辑各平台照常编译（宿主机测试要用）。
 // ---------------------------------------------------------------------------
 
-/// 配置文件里划词热键的键路径（唯一一处）。
+/// 配置文件里划词热键的分区 / 键名。读（`str_at` 的点分路径）与写（`set_patch`
+/// 的嵌套对象）都从这里取值——两处各写一份字符串迟早会漂移。
 #[cfg(desktop)]
-const GRAB_WORD_PATH: &str = "actions.grab_word";
-/// `set_shortcut` 目前只支持这一个动作（spec §7）。
+const GRAB_WORD_SECTION: &str = "actions";
 #[cfg(desktop)]
-const ACTION_GRAB_WORD: &str = "grab_word";
+const GRAB_WORD_KEY: &str = "grab_word";
+/// `set_shortcut` 的动作名（spec §7）。当前与配置键同名，故直接取同一个常量。
+#[cfg(desktop)]
+const ACTION_GRAB_WORD: &str = GRAB_WORD_KEY;
 /// 读选区的超时预算（spec §5.1）。
 #[cfg(desktop)]
 const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(500);
@@ -330,7 +333,8 @@ fn on_hotkey(app: &tauri::AppHandle) {
 /// 当前配置的热键（注册失败时配置值保持原样，所以它也是「上次成功注册」的值）。
 #[cfg(desktop)]
 fn configured_accelerator() -> String {
-    crate::config::str_at(&crate::config::get(), GRAB_WORD_PATH)
+    let path = format!("{GRAB_WORD_SECTION}.{GRAB_WORD_KEY}");
+    crate::config::str_at(&crate::config::get(), &path)
         .unwrap_or_else(|| default_accelerator().to_string())
 }
 
@@ -374,8 +378,12 @@ pub fn set_shortcut(
     let reg = PluginRegistrar { app: &app };
 
     let result = apply_shortcut(&reg, &current, &accelerator, |next| {
-        // 只写这一个键；深合并保留其余配置（config 不变量 1）。
-        crate::config::set_patch(json!({ "actions": { "grab_word": next } })).map(|_| ())
+        // 只写这一个键（分区 / 键名与读取共用同一组常量）；深合并保留其余配置
+        // （config 不变量 1）。
+        crate::config::set_patch(json!({
+            (GRAB_WORD_SECTION): { (GRAB_WORD_KEY): next }
+        }))
+        .map(|_| ())
     });
 
     // 新键被占用且旧键也没装回去：运行时已没有可用热键，升级成启动级错误
@@ -413,32 +421,49 @@ pub fn collector_ready() -> Option<crate::grab::GrabOutcome> {
 /// 热键首次触发路径：藏窗（防御）→ 后台读选区 → 存 pending + 记日志 → 显示 → 投递。
 #[cfg(desktop)]
 pub fn run_grab(app: &tauri::AppHandle) {
+    // 代际必须在**触发时**分配：若放到工作线程里取号，线程调度会先于按下次序决定
+    // 谁是「新」的一次，旧的一次可能拿到更大的 id，从而通过回程的丢弃检查、
+    // 覆盖 pending 并重新显示（spec §5.1-1 的「丢弃旧代结果」）。
+    let grab_id = next_grab_id();
+
     // 绝不在小窗自己可见时读选区（焦点在它自己的 webview 上）。正常路径窗口
     // 本来就藏着，这里的 hide 只是防御，不等待——120ms 只属于 `grab_now`。
     crate::collector::hide(app);
     let app = app.clone();
-    std::thread::spawn(move || read_and_deliver(&app));
+    std::thread::spawn(move || read_and_deliver(&app, grab_id));
 }
 
 /// 「重试」与「小窗已显示时再次触发」：藏窗 → 等焦点回到原应用 → 走同一条读取/显示路径。
 #[cfg(desktop)]
 #[tauri::command]
 pub fn grab_now(app: tauri::AppHandle) -> Result<(), String> {
+    // 同上：取号先于 120ms 等待，按下次序即代际次序。
+    let grab_id = next_grab_id();
     crate::collector::hide(&app);
     std::thread::spawn(move || {
         std::thread::sleep(FOCUS_RETURN_DELAY);
-        read_and_deliver(&app);
+        read_and_deliver(&app, grab_id);
     });
     Ok(())
 }
 
+/// 分配下一代抓取 id（1 起）。
+#[cfg(desktop)]
+fn next_grab_id() -> u64 {
+    GRAB_ID.fetch_add(1, std::sync::atomic::Ordering::SeqCst) + 1
+}
+
 /// 后台线程里的读取与投递（spec §5.1）。
 #[cfg(desktop)]
-fn read_and_deliver(app: &tauri::AppHandle) {
+fn read_and_deliver(app: &tauri::AppHandle, grab_id: u64) {
     use std::sync::atomic::Ordering;
     use tauri::Emitter;
 
-    let grab_id = GRAB_ID.fetch_add(1, Ordering::SeqCst) + 1;
+    // 开工前已被更新的一次抓取取代：连读都不要读——此时小窗可能已经由新的那次
+    // 显示出来，读到的会是它自己的 webview（spec §5.1 / 评审决定 2 的绝对禁令）。
+    if GRAB_ID.load(Ordering::SeqCst) != grab_id {
+        return;
+    }
 
     let outcome = crate::grab::normalize_empty(crate::grab::outcome_for(
         grab_id,
