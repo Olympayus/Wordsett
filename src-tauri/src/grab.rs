@@ -52,8 +52,6 @@ pub struct GrabLogEntry {
 /// - `Ok` 且超长 → `mode: "error"`、`error.kind = "too_long"`，**`text` 保留全文**、
 ///   `tokens` 是真实数（前端显示「选区过长（N 个词）」）。
 /// - 其余 `Ok` → `"word"` / `"sentence"`，`error: None`。
-// Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
 pub fn outcome_for(grab_id: u64, result: Result<String, SelectionError>) -> GrabOutcome {
     match result {
         Err(error) => GrabOutcome {
@@ -95,15 +93,46 @@ pub fn outcome_for(grab_id: u64, result: Result<String, SelectionError>) -> Grab
     }
 }
 
+/// 流水线收尾：读到了、但清洗后一个 token 都没有（纯标点 / 空白）时改成
+/// 「未检测到选中文本」的失败态（spec §5.1 的 Empty）。
+///
+/// 为什么不在 `outcome_for` 里做：`analyze` 刻意不越权判定 Empty（读取层才分得清
+/// 「接口存在但没有选区」与「选区只有标点」），映射函数只负责形状转换。这里是
+/// Task 6 的抓取流水线入口，用户的真实意图与「没选中文本」相同，故在**流水线层**
+/// 收口，`outcome_for` 的契约保持不变。
+pub fn normalize_empty(outcome: GrabOutcome) -> GrabOutcome {
+    if outcome.error.is_none() && outcome.tokens == 0 {
+        GrabOutcome {
+            grab_id: outcome.grab_id,
+            mode: "error",
+            text: String::new(),
+            tokens: 0,
+            error: Some(GrabError {
+                kind: "empty".to_string(),
+                // 与 SelectionError::Empty 同形：类目文案由前端按 kind 决定。
+                detail: String::new(),
+            }),
+        }
+    } else {
+        outcome
+    }
+}
+
 /// 最近抓取的环形日志：`push` 进最新一条，超过 5 条丢最旧的；`entries()` 最新在前。
 #[derive(Debug, Default)]
 pub struct GrabLog {
     entries: VecDeque<GrabLogEntry>,
 }
 
-// Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
 impl GrabLog {
+    /// 空日志。`const` 是为了能直接放进 `static Mutex<GrabLog>`（`Default::default`
+    /// 不是 const fn）。
+    pub const fn new() -> Self {
+        Self {
+            entries: VecDeque::new(),
+        }
+    }
+
     pub fn push(&mut self, entry: GrabLogEntry) {
         // 先入最新、再截断：等到 push 之后再 truncate，丢弃的永远是队尾（最旧）那条。
         self.entries.push_front(entry);
@@ -211,5 +240,40 @@ mod tests {
     #[test]
     fn grab_log_starts_empty() {
         assert!(GrabLog::default().entries().is_empty());
+    }
+
+    /// 流水线收尾（spec §5.1）：读到了、但清洗后一个 token 都没有（纯标点 / 空白）
+    /// 按「未检测到选中文本」处理，而不是给前端一张空白的词模式卡。
+    #[test]
+    fn zero_token_success_becomes_empty_error() {
+        let o = normalize_empty(outcome_for(3, Ok("。，！ --".into())));
+        assert_eq!(o.grab_id, 3);
+        assert_eq!(o.mode, "error");
+        assert_eq!(o.tokens, 0);
+        assert_eq!(o.text, "");
+        assert_eq!(o.error.expect("必须是 empty 失败态").kind, "empty");
+    }
+
+    /// 已有结论的结果（真词 / 超长）不被收尾逻辑改写。
+    #[test]
+    fn normalize_empty_leaves_real_outcomes_untouched() {
+        let word = normalize_empty(outcome_for(4, Ok("ephemeral".into())));
+        assert_eq!(word.mode, "word");
+        assert!(word.error.is_none());
+
+        let sentence = normalize_empty(outcome_for(
+            5,
+            Ok("The ephemeral beauty of cherry blossoms fades within days.".into()),
+        ));
+        assert_eq!(sentence.mode, "sentence");
+
+        let too_long = normalize_empty(outcome_for(
+            6,
+            Ok((1..=31)
+                .map(|i| format!("w{i}"))
+                .collect::<Vec<_>>()
+                .join(" ")),
+        ));
+        assert_eq!(too_long.error.expect("超长仍是失败态").kind, "too_long");
     }
 }

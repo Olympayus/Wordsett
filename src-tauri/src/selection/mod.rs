@@ -12,33 +12,27 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 // 平台分发：Windows 走 UI Automation（Task 3），macOS 走辅助功能 / AX（Task 4，盲写）。
+// 同名函数由 `shortcut::run_grab` 经 `read_with` 调用。
 #[cfg(target_os = "windows")]
 mod win;
-// Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 unused 噪音；接线后删除。
 #[cfg(target_os = "windows")]
-#[allow(unused_imports)]
 pub use win::read_selection;
 
 #[cfg(target_os = "macos")]
 mod mac;
-// Task 6 接线前生产代码还没有调用点，先压掉 unused 噪音；接线后删除。
 #[cfg(target_os = "macos")]
-#[allow(unused_imports)]
 pub use mac::read_selection;
 
 /// Windows 与 macOS 之外的桌面平台（Linux）没有选区读取实现，统一返回 `Unsupported`。
 /// 手机端整条流水线不参与编译（lib.rs 的 `#[cfg(desktop)] mod selection;`），
 /// 这个兜底只为其余桌面构建能通过编译。
 #[cfg(not(any(target_os = "windows", target_os = "macos")))]
-#[allow(dead_code)]
 pub fn read_selection() -> Result<String, SelectionError> {
     Err(SelectionError::Unsupported)
 }
 
 /// 读取选区失败的类目。`kind()` 的返回值是跨语言契约的一部分
 /// （spec §7 的 `error.kind`），改名即破坏前端映射。
-// Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum SelectionError {
     /// 确有选区接口，但当前没有选中文本。
@@ -53,8 +47,6 @@ pub enum SelectionError {
     Os(String),
 }
 
-// Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
 impl SelectionError {
     /// 失败类目（前端按它选文案，spec §7）。
     pub fn kind(&self) -> &'static str {
@@ -78,8 +70,6 @@ impl SelectionError {
 }
 
 /// 清洗选区：trim + 把换行 / 制表 / 连续空白折叠成单个空格（spec §5.1）。
-// Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
 pub fn strip_selection(raw: &str) -> String {
     raw.split_whitespace().collect::<Vec<_>>().join(" ")
 }
@@ -88,8 +78,6 @@ pub fn strip_selection(raw: &str) -> String {
 /// 都落在这一类），首尾的 `'` / `-` 去掉，空串丢弃。
 ///
 /// 大小写保留原文——查库的小写归一化在 providers 层，不在这里做（spec §5.1）。
-// Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
 pub fn tokens(text: &str) -> Vec<String> {
     text.split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
         .map(|piece| piece.trim_matches(|c: char| c == '\'' || c == '-'))
@@ -118,8 +106,6 @@ pub struct Analyzed {
 ///
 /// 单词模式下 `text` 取那个 token（首尾标点 / 引号已在 `tokens` 里剥掉，
 /// spec §5.1「单词模式剥除首尾标点与引号」）；句子模式保留清洗后的全文。
-// Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
 pub fn analyze(raw: &str) -> Analyzed {
     let cleaned = strip_selection(raw);
     let words = tokens(&cleaned);
@@ -159,8 +145,6 @@ pub fn analyze(raw: &str) -> Analyzed {
 ///
 /// 超时后不 join 线程——读选区的系统调用可能卡在目标应用里，让它在后台自然结束，
 /// 结果随 channel 一起丢弃（Task 6 用 grabId 丢弃旧代结果，不依赖这里取消）。
-// Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
 pub fn read_with<R>(reader: R, timeout: Duration) -> Result<String, SelectionError>
 where
     R: FnOnce() -> Result<String, SelectionError> + Send + 'static,

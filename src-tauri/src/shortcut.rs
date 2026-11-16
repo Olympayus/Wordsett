@@ -1,8 +1,12 @@
-//! 全局热键（v0.7.9 划词收录）。
+//! 全局热键与抓取流水线（v0.7.9 划词收录）。
 //!
-//! 本模块只放**纯逻辑**：accelerator 校验、平台默认值、注册/注销的抽象与改键回滚。
-//! 真实注册（`tauri-plugin-global-shortcut`）与抓取流水线在 Task 6 接入，整段会
-//! `#[cfg(desktop)]`——这里的纯函数部分各平台都编译（Android 构建也要过 `cargo check`）。
+//! 分两层：
+//! - **纯逻辑**（各平台都编译）：accelerator 校验、平台默认值、注册/注销抽象、
+//!   改键回滚与「成功才落盘」。宿主机 `cargo test` 跑的就是这一层。
+//! - **桌面接线**（整段 `#[cfg(desktop)]`）：真实注册器（`tauri-plugin-global-shortcut`）、
+//!   `register_all` 与命令（`set_shortcut` / `take_startup_error` / `take_grab_log` /
+//!   `grab_now` / `collector_ready`），以及一次抓取的完整流水线 `run_grab`。
+//!   Android 构建里插件 crate 根本不存在，这一段不能参与编译。
 //!
 //! accelerator 的形状以 `global-hotkey` 的解析器为准（`HotKey::from_str`）：
 //! 修饰键 + 恰好一个主键，`+` 分隔。校验只做形状判断，不碰任何平台 API。
@@ -100,8 +104,6 @@ const NAMED_KEYS: [&str; 50] = [
 ///
 /// 只做形状判断——键是否真的能注册由平台决定（`ShortcutRegistrar::register`）。
 /// 错误文案面向设置页直接显示，用中文短句。
-// Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
 pub fn validate(accel: &str) -> Result<(), String> {
     let mut modifiers: Vec<&'static str> = Vec::new();
     let mut has_main = false;
@@ -168,10 +170,8 @@ fn is_supported_main_key(key: &str) -> bool {
     NAMED_KEYS.contains(&key)
 }
 
-/// 注册 / 注销的抽象。生产实现包 `tauri-plugin-global-shortcut`（Task 6），
+/// 注册 / 注销的抽象。生产实现包 `tauri-plugin-global-shortcut`（见下方桌面接线段），
 /// 测试用 `MockRegistrar` 记录调用顺序并模拟「被占用」。
-// Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
 pub trait ShortcutRegistrar {
     fn register(&self, accel: &str) -> Result<(), String>;
     fn unregister(&self, accel: &str) -> Result<(), String>;
@@ -183,9 +183,7 @@ pub trait ShortcutRegistrar {
 /// 注册失败后若不回滚，用户会从一个可用热键变成完全没有热键。
 ///
 /// 回滚失败只记日志、不改变返回的错误——用户需要处理的是「新键被占用」，
-/// 回滚失败是启动级错误，由 Task 6 的 `take_startup_error` 负责呈现。
-// Task 6 接线前生产代码还没有调用点（单测已覆盖），先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
+/// 回滚失败是启动级错误，由 `take_startup_error` 负责呈现。
 pub fn set_shortcut_impl<R: ShortcutRegistrar>(
     reg: &R,
     current: &str,
@@ -207,6 +205,348 @@ pub fn set_shortcut_impl<R: ShortcutRegistrar>(
             Err("该组合键可能已被其他应用占用，请换一个".to_string())
         }
     }
+}
+
+/// 改键的完整事务：换键 → 成功才落盘（spec §6.1 / §11-7 的「配置值保持不变」）。
+///
+/// `save` 由调用方注入（生产是 `config::set_patch`，测试是内存里的 `SaveSpy`）——
+/// 这样「注册失败时零次落盘」这条不变量不需要碰磁盘也能钉住。
+///
+/// 落盘失败时把旧键装回去：否则运行中的热键是新键、重启后却回到旧键，
+/// 界面显示与真实行为会分叉。回滚本身失败只记日志，由命令层升级成启动级错误。
+// 移动端没有热键概念，`apply_shortcut` 的唯一生产调用点是桌面命令表；
+// 纯逻辑链（validate → set_shortcut_impl → apply_shortcut）仍各平台编译，
+// 宿主机测试要跑它。故只在非桌面构建上压掉这条「从未使用」。
+#[cfg_attr(not(desktop), allow(dead_code))]
+pub fn apply_shortcut<R, S>(reg: &R, current: &str, next: &str, save: S) -> Result<(), String>
+where
+    R: ShortcutRegistrar,
+    S: FnOnce(&str) -> Result<(), String>,
+{
+    // 注册失败时 save 根本不会被执行（这是「失败不落盘」的实现处）。
+    set_shortcut_impl(reg, current, next)?;
+
+    if let Err(e) = save(next) {
+        if let Err(rollback) = reg.unregister(next).and_then(|()| reg.register(current)) {
+            eprintln!("[shortcut] 保存失败后恢复旧快捷键 {current} 也失败：{rollback}");
+        }
+        return Err(format!("快捷键保存失败：{e}"));
+    }
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// 桌面接线：真实注册器、启动注册、命令与抓取流水线（v0.7.9 Task 6）。
+//
+// 整段 `#[cfg(desktop)]`：`tauri-plugin-global-shortcut` 的 crate 在 Android/iOS 上
+// 根本不存在（crate 顶层 `#![cfg(not(any(target_os = "android", target_os = "ios")))]`），
+// 无条件引用会让手机构建直接失败。上面那层纯逻辑各平台照常编译（宿主机测试要用）。
+// ---------------------------------------------------------------------------
+
+/// 配置文件里划词热键的键路径（唯一一处）。
+#[cfg(desktop)]
+const GRAB_WORD_PATH: &str = "actions.grab_word";
+/// `set_shortcut` 目前只支持这一个动作（spec §7）。
+#[cfg(desktop)]
+const ACTION_GRAB_WORD: &str = "grab_word";
+/// 读选区的超时预算（spec §5.1）。
+#[cfg(desktop)]
+const READ_TIMEOUT: std::time::Duration = std::time::Duration::from_millis(500);
+/// 「小窗已在显示」路径的焦点归还等待（spec §5.1 / §11-1）。只走 `grab_now`，
+/// 热键首次触发（小窗藏着）不等这 120ms。
+#[cfg(desktop)]
+const FOCUS_RETURN_DELAY: std::time::Duration = std::time::Duration::from_millis(120);
+
+/// 启动级错误（注册失败 / 旧键恢复失败）。`take_startup_error` 取走后清空——
+/// 主窗顶部提示条只应出现一次（spec §5.6）。
+#[cfg(desktop)]
+static STARTUP_ERROR: std::sync::Mutex<Option<String>> = std::sync::Mutex::new(None);
+/// 最近一次抓取结果，供小窗挂载时握手（`collector_ready`）。
+#[cfg(desktop)]
+static PENDING: std::sync::Mutex<Option<crate::grab::GrabOutcome>> =
+    std::sync::Mutex::new(None);
+/// 最近 5 条抓取日志（设置页诊断行）。
+#[cfg(desktop)]
+static LOG: std::sync::Mutex<crate::grab::GrabLog> =
+    std::sync::Mutex::new(crate::grab::GrabLog::new());
+/// 抓取代际。自增分配，旧代结果在回程处被丢弃（spec §5.1-1）。
+#[cfg(desktop)]
+static GRAB_ID: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// 生产注册器：包 `tauri-plugin-global-shortcut`。
+#[cfg(desktop)]
+struct PluginRegistrar<'a> {
+    app: &'a tauri::AppHandle,
+}
+
+#[cfg(desktop)]
+impl ShortcutRegistrar for PluginRegistrar<'_> {
+    fn register(&self, accel: &str) -> Result<(), String> {
+        register_hotkey(self.app, accel)
+    }
+
+    fn unregister(&self, accel: &str) -> Result<(), String> {
+        use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+        let shortcuts = self.app.global_shortcut();
+        // 启动时注册失败（被占用）或已被外部注销时，插件里根本没有这个键，
+        // 系统注销会返回 Err。此时「注销」应当是无操作——否则用户永远改不掉
+        // 一个注册失败的键（spec §9「被占用可在设置改键」）。
+        if !shortcuts.is_registered(accel) {
+            return Ok(());
+        }
+        shortcuts.unregister(accel).map_err(|e| e.to_string())
+    }
+}
+
+/// 注册一个 accelerator 并挂上抓取回调。
+#[cfg(desktop)]
+fn register_hotkey(app: &tauri::AppHandle, accel: &str) -> Result<(), String> {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+
+    app.global_shortcut()
+        .on_shortcut(accel, |app, _shortcut, event| {
+            // 按下与抬起都会回调；只认按下边沿（spec §5.1-1）。
+            if event.state == ShortcutState::Pressed {
+                on_hotkey(app);
+            }
+        })
+        .map_err(|e| e.to_string())
+}
+
+/// 热键按下的分流（spec §5.1 / §11-1）：
+/// - 小窗藏着：立即读（`run_grab`），读完再显示——正常路径。
+/// - 小窗已显示：先藏、等焦点回到原应用、再读（`grab_now`）——否则读到的是小窗自己。
+#[cfg(desktop)]
+fn on_hotkey(app: &tauri::AppHandle) {
+    if crate::collector::is_visible(app) {
+        let _ = grab_now(app.clone());
+    } else {
+        run_grab(app);
+    }
+}
+
+/// 当前配置的热键（注册失败时配置值保持原样，所以它也是「上次成功注册」的值）。
+#[cfg(desktop)]
+fn configured_accelerator() -> String {
+    crate::config::str_at(&crate::config::get(), GRAB_WORD_PATH)
+        .unwrap_or_else(|| default_accelerator().to_string())
+}
+
+#[cfg(desktop)]
+fn record_startup_error(message: String) {
+    if let Ok(mut slot) = STARTUP_ERROR.lock() {
+        *slot = Some(message);
+    }
+}
+
+/// 启动注册（setup 调用）。失败只记错误、不 panic（spec §5.6）。
+#[cfg(desktop)]
+pub fn register_all(app: &tauri::AppHandle) -> Result<(), String> {
+    let accel = configured_accelerator();
+    PluginRegistrar { app }.register(&accel).map_err(|e| {
+        let message = format!("划词热键注册失败（可能被其他应用占用），可在设置中修改：{e}");
+        record_startup_error(message.clone());
+        message
+    })
+}
+
+/// 改键命令（前端不发插件权限，全部经这里，spec §7）。
+///
+/// 只有 `apply_shortcut` 成功（新键真的注册上）才落盘 `actions.grab_word`；
+/// 注册失败时配置与缓存原样不动（spec §6.1 / §11-7）。
+#[cfg(desktop)]
+#[tauri::command]
+pub fn set_shortcut(
+    app: tauri::AppHandle,
+    action: String,
+    accelerator: String,
+) -> Result<(), String> {
+    use serde_json::json;
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+
+    if action != ACTION_GRAB_WORD {
+        return Err(format!("未知的快捷键动作：{action}"));
+    }
+
+    let current = configured_accelerator();
+    let reg = PluginRegistrar { app: &app };
+
+    let result = apply_shortcut(&reg, &current, &accelerator, |next| {
+        // 只写这一个键；深合并保留其余配置（config 不变量 1）。
+        crate::config::set_patch(json!({ "actions": { "grab_word": next } })).map(|_| ())
+    });
+
+    // 新键被占用且旧键也没装回去：运行时已没有可用热键，升级成启动级错误
+    // （spec §6.1 末段）。校验失败、或旧键已恢复时不会进这里。
+    if result.is_err() && !app.global_shortcut().is_registered(current.as_str()) {
+        let message = format!("原快捷键 {current} 未能恢复，请重新设置划词热键");
+        eprintln!("[shortcut] {message}");
+        record_startup_error(message);
+    }
+
+    result
+}
+
+/// 取走启动级错误（主窗顶部提示条，一次性）。
+#[cfg(desktop)]
+#[tauri::command]
+pub fn take_startup_error() -> Option<String> {
+    STARTUP_ERROR.lock().ok().and_then(|mut slot| slot.take())
+}
+
+/// 最近 5 条抓取日志，最新在前（设置页诊断行，spec §7）。
+#[cfg(desktop)]
+#[tauri::command]
+pub fn take_grab_log() -> Vec<crate::grab::GrabLogEntry> {
+    LOG.lock().map(|log| log.entries()).unwrap_or_default()
+}
+
+/// 小窗挂载时握手取走最近一次结果（spec §7）。
+#[cfg(desktop)]
+#[tauri::command]
+pub fn collector_ready() -> Option<crate::grab::GrabOutcome> {
+    PENDING.lock().ok().and_then(|mut slot| slot.take())
+}
+
+/// 热键首次触发路径：藏窗（防御）→ 后台读选区 → 存 pending + 记日志 → 显示 → 投递。
+#[cfg(desktop)]
+pub fn run_grab(app: &tauri::AppHandle) {
+    // 绝不在小窗自己可见时读选区（焦点在它自己的 webview 上）。正常路径窗口
+    // 本来就藏着，这里的 hide 只是防御，不等待——120ms 只属于 `grab_now`。
+    crate::collector::hide(app);
+    let app = app.clone();
+    std::thread::spawn(move || read_and_deliver(&app));
+}
+
+/// 「重试」与「小窗已显示时再次触发」：藏窗 → 等焦点回到原应用 → 走同一条读取/显示路径。
+#[cfg(desktop)]
+#[tauri::command]
+pub fn grab_now(app: tauri::AppHandle) -> Result<(), String> {
+    crate::collector::hide(&app);
+    std::thread::spawn(move || {
+        std::thread::sleep(FOCUS_RETURN_DELAY);
+        read_and_deliver(&app);
+    });
+    Ok(())
+}
+
+/// 后台线程里的读取与投递（spec §5.1）。
+#[cfg(desktop)]
+fn read_and_deliver(app: &tauri::AppHandle) {
+    use std::sync::atomic::Ordering;
+    use tauri::Emitter;
+
+    let grab_id = GRAB_ID.fetch_add(1, Ordering::SeqCst) + 1;
+
+    let outcome = crate::grab::normalize_empty(crate::grab::outcome_for(
+        grab_id,
+        crate::selection::read_with(crate::selection::read_selection, READ_TIMEOUT),
+    ));
+
+    // 旧代结果直接丢弃：读选区期间用户又按了一次热键，以小窗最终显示的那次为准。
+    if GRAB_ID.load(Ordering::SeqCst) != grab_id {
+        return;
+    }
+
+    if let Ok(mut slot) = PENDING.lock() {
+        *slot = Some(outcome.clone());
+    }
+    if let Ok(mut log) = LOG.lock() {
+        log.push(log_entry(&outcome));
+    }
+
+    crate::collector::show_at_cursor(app);
+    if let Err(e) = app.emit_to(crate::collector::LABEL, "collector-grab", &outcome) {
+        eprintln!("[shortcut] 抓取结果投递失败：{e}");
+    }
+}
+
+/// 一次抓取 → 一条诊断日志（spec §5.6：成功记模式与文本摘要，失败记类目文案）。
+#[cfg(desktop)]
+fn log_entry(outcome: &crate::grab::GrabOutcome) -> crate::grab::GrabLogEntry {
+    crate::grab::GrabLogEntry {
+        time: now_hms(),
+        mode: Some(outcome.mode.to_string()),
+        summary: match &outcome.error {
+            // too_long / os 的 detail 已经是一句完整文案（含 token 数 / 系统错误详情）。
+            Some(error) if !error.detail.is_empty() => error.detail.clone(),
+            Some(error) => error_label(&error.kind),
+            None => truncate_summary(&outcome.text),
+        },
+        error_kind: outcome.error.as_ref().map(|error| error.kind.clone()),
+    }
+}
+
+/// 失败类目的用户可读文案。`SelectionError::detail()` 对这几类返回空串，
+/// 文案由消费方按 kind 决定——Rust 侧只有这条诊断日志需要它。
+#[cfg(desktop)]
+fn error_label(kind: &str) -> String {
+    match kind {
+        "empty" => "未检测到选中文本".to_string(),
+        "unsupported" => "当前应用不支持读取选区".to_string(),
+        "denied" => "系统拒绝读取选区（macOS 需授予辅助功能权限）".to_string(),
+        "timeout" => "读取选区超时".to_string(),
+        "too_long" => "选区过长".to_string(),
+        other => format!("系统错误（{other}）"),
+    }
+}
+
+/// 文本摘要：超过 24 个字符截断并加省略号（日志一行放得下）。
+#[cfg(desktop)]
+fn truncate_summary(text: &str) -> String {
+    const MAX_CHARS: usize = 24;
+    if text.chars().count() <= MAX_CHARS {
+        return text.to_string();
+    }
+    let head: String = text.chars().take(MAX_CHARS).collect();
+    format!("{head}…")
+}
+
+/// 日志时间戳 `HH:MM:SS`（本地时区；设置页原样显示）。只用系统 API，不引新依赖。
+#[cfg(desktop)]
+fn now_hms() -> String {
+    let (h, m, s) = local_hms();
+    format!("{h:02}:{m:02}:{s:02}")
+}
+
+#[cfg(all(desktop, target_os = "windows"))]
+fn local_hms() -> (u32, u32, u32) {
+    // `SYSTEMTIME` 已带本地时区，正是设置页要显示的时间。
+    let t = unsafe { windows::Win32::System::SystemInformation::GetLocalTime() };
+    (t.wHour as u32, t.wMinute as u32, t.wSecond as u32)
+}
+
+#[cfg(all(desktop, target_os = "macos"))]
+fn local_hms() -> (u32, u32, u32) {
+    use core_foundation::date::CFDate;
+    use core_foundation::timezone::CFTimeZone;
+
+    // CFDate::now() 是 CFAbsoluteTime（2001-01-01 UTC 起的秒数），本函数只取
+    // 「今天的哪一秒」；UTC 秒 + 时区偏移即本地墙钟时间。
+    let offset = CFTimeZone::system().seconds_from_gmt(CFDate::now()) as i64;
+    let utc = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs() as i64)
+        .unwrap_or(0);
+    let local = (utc + offset).rem_euclid(86_400);
+    ((local / 3_600) as u32, ((local % 3_600) / 60) as u32, (local % 60) as u32)
+}
+
+/// 其余桌面平台（Linux）没有本地时间绑定；本就没有选区读取实现（`Unsupported`），
+/// 日志退回 UTC 只影响诊断显示。
+#[cfg(all(desktop, not(any(target_os = "windows", target_os = "macos"))))]
+fn local_hms() -> (u32, u32, u32) {
+    let secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+    (
+        ((secs / 3_600) % 24) as u32,
+        ((secs % 3_600) / 60) as u32,
+        (secs % 60) as u32,
+    )
 }
 
 #[cfg(test)]
@@ -374,5 +714,76 @@ mod tests {
         let (reg, calls) = mock();
         assert!(set_shortcut_impl(&reg, "Alt+KeyW", "KeyW").is_err());
         assert!(calls.borrow().is_empty(), "校验失败时不得动注册器");
+    }
+
+    /// spec §6.1 / §11-7：注册失败时配置值必须原样不动。
+    /// 用 `SaveSpy`（一次闭包调用记一条）代替真实落盘——本用例不碰磁盘。
+    #[test]
+    fn failed_new_accelerator_keeps_config_value() {
+        let (reg, calls) = mock_with_failing_register("Control+KeyK");
+        let saves = RefCell::new(Vec::<String>::new());
+
+        let err = apply_shortcut(&reg, "Alt+KeyW", "Control+KeyK", |next| {
+            saves.borrow_mut().push(next.to_string());
+            Ok(())
+        })
+        .unwrap_err();
+
+        assert!(err.contains("占用"), "错误文案应说明被占用：{err}");
+        assert!(
+            saves.borrow().is_empty(),
+            "注册失败时不得写配置，实际写了：{:?}",
+            saves.borrow()
+        );
+        // 旧键必须被装回去（与 set_shortcut_impl 的既有契约一致）
+        assert_eq!(
+            *calls.borrow(),
+            vec![
+                "unregister:Alt+KeyW",
+                "register:Control+KeyK",
+                "register:Alt+KeyW",
+            ]
+        );
+    }
+
+    /// 成功路径：先换键、再把新值交给 save，且只交一次。
+    #[test]
+    fn successful_change_saves_new_accelerator_once() {
+        let (reg, calls) = mock();
+        let mut saved: Option<String> = None;
+
+        apply_shortcut(&reg, "Alt+KeyW", "Control+Shift+KeyK", |next| {
+            saved = Some(next.to_string());
+            Ok(())
+        })
+        .expect("改键应成功");
+
+        assert_eq!(saved.as_deref(), Some("Control+Shift+KeyK"));
+        assert_eq!(
+            *calls.borrow(),
+            vec!["unregister:Alt+KeyW", "register:Control+Shift+KeyK"]
+        );
+    }
+
+    /// 注册成功但落盘失败：把旧键装回去，运行时与配置文件保持同一份事实。
+    #[test]
+    fn save_failure_restores_old_accelerator() {
+        let (reg, calls) = mock();
+
+        let err = apply_shortcut(&reg, "Alt+KeyW", "Control+Shift+KeyK", |_| {
+            Err("磁盘只读".to_string())
+        })
+        .unwrap_err();
+
+        assert!(err.contains("保存失败"), "错误文案应说明保存失败：{err}");
+        assert_eq!(
+            *calls.borrow(),
+            vec![
+                "unregister:Alt+KeyW",
+                "register:Control+Shift+KeyK",
+                "unregister:Control+Shift+KeyK",
+                "register:Alt+KeyW",
+            ]
+        );
     }
 }

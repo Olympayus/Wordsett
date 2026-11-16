@@ -15,10 +15,6 @@
 //! 不会因物理 / 逻辑换算漂移。
 //!
 //! 整模块经 lib.rs 的 `#[cfg(desktop)]` 只编译在桌面：手机没有全局热键，也就没有小窗。
-//!
-//! `#![allow(dead_code)]`：Task 6 接线前本模块没有任何调用点（建窗在 setup、命令在
-//! 命令表、定位在抓取流水线），非 test 构建会逐项报「从未使用」；接线后删除这条 allow。
-#![allow(dead_code)]
 
 use std::sync::Mutex;
 
@@ -142,6 +138,18 @@ pub fn hide(app: &AppHandle) {
     if let Some(window) = app.get_webview_window(LABEL) {
         let _ = window.hide();
     }
+}
+
+/// 小窗当前是否在屏上。
+///
+/// 热键回调据此分流两条抓取路径（spec §5.1 / §11-1）：藏着 → 立即读；
+/// 已显示 → 先藏、等焦点回到原应用，再读（`shortcut::grab_now`）。
+/// 取不到窗口或查询失败一律当「不可见」——那样走的立即读路径即使读到了
+/// 小窗自己的 webview 之外的内容，也不会比「藏着」更糟。
+pub fn is_visible(app: &AppHandle) -> bool {
+    app.get_webview_window(LABEL)
+        .and_then(|w| w.is_visible().ok())
+        .unwrap_or(false)
 }
 
 /// 光标所在显示器；取不到时退回主显示器，都没有则 `None`。

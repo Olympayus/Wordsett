@@ -49,9 +49,11 @@ tts = "0.26"
 # 这里只是显式声明并开启所需 feature——不引新依赖树。
 # Win32_UI_Accessibility / Win32_Foundation 供 v0.7.9 的 UI Automation 选区读取
 # （`selection/win.rs`）；Speech/Com 供 SAPI5。
+# Win32_System_SystemInformation 只为 `GetLocalTime`（抓取日志的本地时间戳，
+# `shortcut.rs`）——不引新 crate，只是同一个 windows 多开一个模块。
 # 注意：版本号与 Tauri 的传递版本绑在一起，升级 Tauri 时须一并核对。
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = ["Win32_Media_Speech", "Win32_System_Com", "Win32_UI_Accessibility", "Win32_Foundation"] }
+windows = { version = "0.58", features = ["Win32_Media_Speech", "Win32_System_Com", "Win32_UI_Accessibility", "Win32_Foundation", "Win32_System_SystemInformation"] }
 
 # macOS 选区读取（v0.7.9，`selection/mac.rs`）：AX 复制出来的 CFString → Rust String，
 # 以及 CFTypeRef 的 type-id 判定 / CFRelease。core-foundation 0.10.1 本就在依赖树里

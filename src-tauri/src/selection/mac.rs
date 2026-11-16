@@ -136,8 +136,6 @@ fn copy_attribute(element: CFTypeRef, attribute: &str) -> Result<CfOwned, Select
 /// 空 / 全空白选区在读取层就归入 `Empty`，与 `win.rs` 的 `join_ranges` 同一口径
 /// （「确无选中文本」由读取层判定，`grab.rs` 不应产出空词成功态）。非空时返回原始
 /// 文本，清洗与模式判定仍归调用侧。
-// Task 6 接线前生产代码还没有调用点，先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
 pub fn read_selection() -> Result<String, SelectionError> {
     // 未授权的进程调 AX 会拿到 kAXErrorAPIDisabled；提前判定可把「没给权限」与
     // 「控件不提供选区」区分开（前端对前者给「前往系统设置」入口）。

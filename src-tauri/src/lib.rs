@@ -2,9 +2,9 @@ mod config;
 mod dictionaries;
 mod orientation;
 mod platform;
-// 全局热键的纯逻辑（v0.7.9 划词收录）：校验 / 平台默认值 / 改键回滚。
-// **无条件编译**——宿主机 `cargo test` 要能跑这些纯函数；真实注册与抓取流水线
-// 在 Task 6 接入，那一段会整段 `#[cfg(desktop)]`，Android 构建碰不到插件。
+// 全局热键与抓取流水线（v0.7.9 划词收录）：校验 / 平台默认值 / 改键回滚是纯逻辑，
+// **无条件编译**（宿主机 `cargo test` 要能跑）；真实注册（插件）、命令与 `run_grab`
+// 在模块内整段 `#[cfg(desktop)]`，Android 构建碰不到插件。
 mod shortcut;
 // 划词小窗（v0.7.9 Task 5）：预载隐藏窗口、贴光标定位与窗口命令。
 // 与 grab / selection 同理只服务桌面全局热键，Android 构建里不存在。
@@ -13,7 +13,7 @@ mod collector;
 // 划词收录（v0.7.9）：选区清洗 / 模式判定 / 抓取结果契约与 5 条诊断日志（Task 2）。
 // 纯逻辑、不碰平台 API，但整条流水线只服务桌面全局热键（手机没有这个概念），
 // 故与 `tray` 一样按 desktop 门控——Android 构建里不存在这两个模块，
-// 命令表也因此不必改（Task 6 才接命令，且只进桌面那一份）。
+// 命令也只出现在桌面那一份命令表里。
 #[cfg(desktop)]
 mod grab;
 #[cfg(desktop)]
@@ -90,6 +90,12 @@ pub fn run() {
         show_main_window(app);
     }));
 
+    // 全局热键插件（v0.7.9 划词收录）：只在桌面注册。插件 crate 在 Android/iOS 上
+    // 整个不存在（`#![cfg(not(any(target_os = "android", target_os = "ios")))]`），
+    // 这条无条件引用会让手机构建直接失败。
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
+
     let builder = builder
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -105,6 +111,19 @@ pub fn run() {
                 .resolve("", BaseDirectory::AppConfig)
                 .map_err(|e| e.to_string())?;
             config::init(&dir);
+
+            // 划词收录（v0.7.9）：先预载隐藏小窗，再注册全局热键。
+            // 两者失败都只记日志、不 panic——热键注册失败会由 STARTUP_ERROR
+            // 转成主窗顶部的一次性提示条，其余功能不受影响（spec §5.6）。
+            #[cfg(desktop)]
+            {
+                if let Err(e) = collector::create(app.handle()) {
+                    eprintln!("[collector] 小窗创建失败：{e}");
+                }
+                if let Err(e) = shortcut::register_all(app.handle()) {
+                    eprintln!("[shortcut] 启动注册失败：{e}");
+                }
+            }
 
             // 托盘只在桌面存在（见文件头 `mod tray` 的注释）。手机上没有托盘，
             // 也就没有「关窗 → 最小化到托盘」这条分流可言。
@@ -128,6 +147,13 @@ pub fn run() {
     // 根本不走 CloseRequested；在这条路径上挂一个「隐藏窗口」的处理只会把应用藏没。
     #[cfg(desktop)]
     let builder = builder.on_window_event(|window, event| {
+        // 划词小窗：失焦即隐藏（spec §5.3 的窗口级行为）。小窗不参与主窗的关窗分流。
+        if window.label() == collector::LABEL {
+            if let tauri::WindowEvent::Focused(false) = event {
+                collector::hide(window.app_handle());
+            }
+            return;
+        }
         if window.label() != "main" {
             return;
         }
@@ -158,7 +184,7 @@ pub fn run() {
     // 词典落盘命令：Android 首启必需。桌面 resources 就地直读、永远命中，
     // marker 不成立时复制会因源缺失而返回 Err，不改变桌面行为。
     #[cfg(desktop)]
-    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme, quit_app]);
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme, quit_app, collector::collector_resize, collector::collector_hide, collector::collector_open_dict, collector::collector_supported, shortcut::set_shortcut, shortcut::take_startup_error, shortcut::take_grab_log, shortcut::collector_ready, shortcut::grab_now]);
     #[cfg(not(desktop))]
     let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme]);
 

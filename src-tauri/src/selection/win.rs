@@ -75,8 +75,6 @@ pub(crate) fn join_ranges(texts: Vec<String>) -> Result<String, SelectionError> 
 ///
 /// 焦点控件不暴露 TextPattern（终端、自绘控件等）→ `Unsupported`；确实没有选中
 /// 文本 → `Empty`；系统拒绝访问 → `Denied`；其余系统错误 → `Os(码)`。
-// Task 6 接线前生产代码还没有调用点，先压掉 dead_code 噪音；接线后删除。
-#[allow(dead_code)]
 pub fn read_selection() -> Result<String, SelectionError> {
     // 守卫必须活到函数结尾：COM 对象（automation / pattern / range）都在它之后创建、
     // 先于它析构，顺序由局部变量的逆序 drop 保证。
