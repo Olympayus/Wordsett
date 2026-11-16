@@ -8,6 +8,7 @@ import { applyTheme, applyWindowTheme, resolveTheme } from '../lib/theme'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useWordStore } from '../stores/wordStore'
 import { CollectorTitleBar, CollectorWord } from './CollectorWord'
+import { CollectorSentence } from './CollectorSentence'
 import type { GrabErrorKind, GrabOutcome } from './types'
 
 /**
@@ -27,8 +28,8 @@ import type { GrabErrorKind, GrabOutcome } from './types'
  * 4. **窗口高度**：量内容后调 `collector_resize`，Rust 负责 clamp 到工作区。
  *
  * 按状态渲染子树：失败 → 简版失败卡（Task 14 换成 `CollectorFailure`）；句子模式 →
- * 占位（Task 13 换成 `CollectorSentence`）；单词 → `CollectorWord`（含词典未收录 /
- * 已在库两种内联态）。
+ * `CollectorSentence`（目标词候选、释义树与例句归属全部由它自己装载）；单词 →
+ * `CollectorWord`（含词典未收录 / 已在库两种内联态）。
  */
 
 // ---- 模块级状态：StrictMode 在 dev 下会把 effect 跑两遍（卸载再挂载），而
@@ -261,7 +262,7 @@ export function CollectorRoot() {
       // key 用 grabId：同一次抓取只挂载一次，换词 / 重新抓取都从干净状态开始
       // （勾选集、熟悉度、错误行都跟着重来）。
       content = outcome.mode === 'sentence'
-        ? <NoticeCard key={outcome.grabId} title={outcome.text} detail="句子模式即将接入。" />
+        ? <CollectorSentence key={outcome.grabId} outcome={outcome} />
         : <CollectorWord key={outcome.grabId} word={outcome.text} />
     } else {
       content = <NoticeCard title="正在准备…" />

@@ -23,13 +23,14 @@ interface Props {
   selected: Set<string>
   onToggle: (key: string) => void
   /**
-   * 句子模式「整句归入哪个释义」的强制选中项（Task 13 消费）。
-   * Task 12 只保留形状——单词模式没有这个概念，故这里不读它。
+   * 句子模式「整句归入哪个释义」的强制选中项（Task 13 消费）：该叶子恒为选中且
+   * 不可取消——例句必须有父级。父组件同时会把该键并进 `selected`，故组的三态
+   * 判据（`selectionState`）读到的仍是同一份集合，不会出现「勾选框勾着、集合里没有」。
    */
   forcedKey?: string | null
 }
 
-export function CollectorTree({ groups, selected, onToggle }: Props) {
+export function CollectorTree({ groups, selected, onToggle, forcedKey }: Props) {
   // 防御：Task 10 的模型理论上不给空组，但一个没有叶子的组画出来只有一枚点不动的勾选框
   // 和「0 个义项」——过滤掉比让它出现在小窗里更安全（控制器 T10 结转裁定）。
   const visible = groups.filter(g => g.leaves.length > 0)
@@ -54,29 +55,33 @@ export function CollectorTree({ groups, selected, onToggle }: Props) {
               </span>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', paddingLeft: '24px' }}>
-              {group.leaves.map(leaf => (
-                <div key={leaf.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', lineHeight: 1.55 }}>
-                  <span style={{ display: 'inline-flex', flexShrink: 0, paddingTop: '2px' }}>
-                    <CheckBox
-                      checked={selected.has(leaf.key)}
-                      onChange={() => onToggle(leaf.key)}
-                      label={`${leaf.label} ${leaf.number ?? ''}`}
-                    />
-                  </span>
-                  <span style={{ ...FIELD_LABEL_STYLE, flexShrink: 0, paddingTop: '4px', whiteSpace: 'nowrap' }}>
-                    {leaf.label}
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: '13px', color: 'var(--color-text-primary)', overflowWrap: 'anywhere' }}>
-                    {leaf.value}
-                  </span>
-                  <span style={{
-                    flexShrink: 0, paddingTop: '3px', fontSize: '11.5px',
-                    color: 'var(--color-text-tertiary)', fontVariantNumeric: 'tabular-nums',
-                  }}>
-                    {leaf.number}
-                  </span>
-                </div>
-              ))}
+              {group.leaves.map(leaf => {
+                const forced = leaf.key === forcedKey
+                return (
+                  <div key={leaf.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', lineHeight: 1.55 }}>
+                    <span style={{ display: 'inline-flex', flexShrink: 0, paddingTop: '2px' }}>
+                      <CheckBox
+                        checked={selected.has(leaf.key) || forced}
+                        disabled={forced}
+                        onChange={() => onToggle(leaf.key)}
+                        label={`${leaf.label} ${leaf.number ?? ''}`}
+                      />
+                    </span>
+                    <span style={{ ...FIELD_LABEL_STYLE, flexShrink: 0, paddingTop: '4px', whiteSpace: 'nowrap' }}>
+                      {leaf.label}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: '13px', color: 'var(--color-text-primary)', overflowWrap: 'anywhere' }}>
+                      {leaf.value}
+                    </span>
+                    <span style={{
+                      flexShrink: 0, paddingTop: '3px', fontSize: '11.5px',
+                      color: 'var(--color-text-tertiary)', fontVariantNumeric: 'tabular-nums',
+                    }}>
+                      {leaf.number}
+                    </span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         )

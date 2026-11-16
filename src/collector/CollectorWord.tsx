@@ -85,8 +85,9 @@ export function CollectorTitleBar() {
   )
 }
 
-/** 底栏：左提示、右按钮组。三个状态（正常 / 词典未收录 / 已在库）共用这一份几何。 */
-function BottomBar({ hint, children }: { hint?: string; children: ReactNode }) {
+/** 底栏：左提示、右按钮组。三个状态（正常 / 词典未收录 / 已在库）共用这一份几何。
+ *  T13 的句子模式也复用它（同一份几何、同一条 chrome 面）。 */
+export function BottomBar({ hint, children }: { hint?: string; children: ReactNode }) {
   return (
     <div
       style={{
@@ -103,7 +104,8 @@ function BottomBar({ hint, children }: { hint?: string; children: ReactNode }) {
   )
 }
 
-const WORD_HEAD_STYLE: CSSProperties = {
+/** 词头字形（Literata 600 / 21px）。T13 的「词典未收录」卡也用同一枚词头。 */
+export const WORD_HEAD_STYLE: CSSProperties = {
   fontFamily: 'var(--font-serif)',
   fontSize: '21px',
   fontWeight: 600,
