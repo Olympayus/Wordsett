@@ -835,3 +835,39 @@ export async function getAbsentWords(h?: DbHandle, opts: CandidateOpts = {}): Pr
     return { ok: false, error: e.toString() }
   }
 }
+
+/** 调度行的原始行（v0.7.9 Task 11）：只取工作区、已点评分（有 review_states）的卡。 */
+export interface WordDueRow {
+  dueAt: number
+  suspended: boolean
+}
+
+/**
+ * 按**已归一化**词面取该词全部卡的调度行（含挂起卡，由调用方决定怎么用）。
+ *
+ * 与到期队列同一口径：`words.location = 'workspace'`、内联 `review_states`——
+ * 懒登记后尚未首评的卡没有 due_at，不属于「复习计划」，故不进结果。
+ * 只回原始行，状态映射留在 `src/lib/dueLine.ts`，避免 SQL 层与展示层各写一套判据。
+ */
+export async function getWordDueRows(normalizedLemma: string, h?: DbHandle): Promise<DbResult<WordDueRow[]>> {
+  const d = db(h)
+  try {
+    const rows = await d.select<Record<string, any>>(
+      `SELECT s.due_at, s.suspended
+         FROM review_cards c
+         JOIN words w ON w.id = c.word_id AND w.location = 'workspace'
+         JOIN review_states s ON s.card_id = c.id
+        WHERE w.normalized_lemma = ?1`,
+      [normalizedLemma],
+    )
+    return {
+      ok: true,
+      data: rows.map(r => ({
+        dueAt: Number(r.due_at),
+        suspended: Number(r.suspended) !== 0,
+      })),
+    }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
