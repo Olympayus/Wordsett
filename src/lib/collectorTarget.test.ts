@@ -14,6 +14,14 @@ describe('句子模式目标词与内容词（v0.7.9）', () => {
     expect(stripWordSelection("don't")).toBe("don't")
   })
 
+  // 与 tokenize() / Rust tokens() 的边缘规则对齐：两端引号与连字符也剥，内部原样。
+  it('strip_word_selection_strips_edge_quotes_and_hyphens', () => {
+    expect(stripWordSelection("'ephemeral'")).toBe('ephemeral')
+    expect(stripWordSelection('"-word"')).toBe('word')
+    expect(stripWordSelection('-well-known-')).toBe('well-known')
+    expect(stripWordSelection("don't")).toBe("don't")
+  })
+
   // 中文/全角标点也必须在两端剥掉（选区常把句读一起带进来）。
   it('strip_word_selection_strips_cjk_punctuation', () => {
     expect(stripWordSelection('「ephemeral。」')).toBe('ephemeral')
@@ -70,5 +78,21 @@ describe('句子模式目标词与内容词（v0.7.9）', () => {
 
   it('pick_default_target_returns_null_on_empty', () => {
     expect(pickDefaultTarget([])).toBeNull()
+  })
+
+  // 排序口径与默认目标必须一致：未知词频是 +Infinity（垫底），默认目标取已知最低。
+  it('pick_default_target_agrees_with_candidate_order', () => {
+    const freqs: Record<string, number> = { beauty: 9000, ephemeral: 10, fades: 500 }
+    const sentence = 'The ephemeral beauty of cherry blossoms fades within days and ephemeral again'
+    const c = contentCandidates(sentence, w => freqs[w.toLowerCase()])
+    expect(pickDefaultTarget(c)!.word).toBe('ephemeral')
+  })
+
+  it('orders_explicit_zero_known_then_unknown_infinity', () => {
+    const c = contentCandidates('known rare unknown', w =>
+      w === 'rare' ? 0 : w === 'known' ? 50 : undefined
+    )
+    expect(c.map(x => x.word)).toEqual(['rare', 'known', 'unknown'])
+    expect(c.map(x => x.freq)).toEqual([0, 50, Number.POSITIVE_INFINITY])
   })
 })
