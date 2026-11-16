@@ -29,6 +29,13 @@ export const FAMILIARITY_TOUCH_HEIGHT = 44
 const TRACK_PADDING = 2
 /** 外轨圆角；内件圆角 = 外轨 − 内衬，视觉上才是同一套同心圆角。 */
 const TRACK_RADIUS = 8
+/**
+ * 轨底色（v0.7.9 评审修订）：`--color-surface-sunken` 而非 spec 字面的 `--color-border`。
+ * 深色主题下 `--color-border`（#303030）比选中项的白面对应档 `--color-surface`（#2A2A2A）
+ * **更亮**，分段会读反；sunken（浅 #F5F3ED / 深 #1E1E1E）在**两套主题**里都保证
+ * 「选中项比轨更亮」，也与 `StrategyTabs` 分段控件的既有做法一致。
+ */
+const TRACK_BACKGROUND = 'var(--color-surface-sunken)'
 
 export default function FamiliarityChoice({ value, onChange, disabled, touch = false }: {
   value: InitialFamiliarityChoice
@@ -52,7 +59,7 @@ export default function FamiliarityChoice({ value, onChange, disabled, touch = f
         display: 'inline-flex',
         gap: 2,
         padding: TRACK_PADDING,
-        background: 'var(--color-border)',
+        background: TRACK_BACKGROUND,
         borderRadius: TRACK_RADIUS,
       }}
     >

@@ -11,7 +11,7 @@ import type { InitialFamiliarityChoice } from '../../services/wordService'
 import type { WordLocation } from '../../types'
 import { moveActionLabel } from '../../lib/archiveMove'
 import { collectedLabel } from '../../lib/collected'
-import { FIELD_LABEL_STYLE } from '../../lib/labelStyle'
+import { LABEL_ON_THEME } from '../../lib/labelStyle'
 import { NAV_HEIGHT, NAV_CONTROL_HEIGHT } from '../../lib/layout'
 
 interface WorkbenchNavBarProps {
@@ -242,10 +242,12 @@ export default function WorkbenchNavBar({
           <>
             {/* 初始熟悉度（v0.6.5 §4.5，从页面底部收录区上移）：**只在词不在库时**出现在右端；
                 已在库时右端只留 ＋ / 添加至…，归属文案与已选读数已在左侧（v0.7.9 §5.7）。
-                标签改用 C1 小标题版式（`FIELD_LABEL_STYLE`：10.5px / 600 / 字距 0.1em）。 */}
+                标签改用 C1 小标题版式，墨取 `LABEL_ON_THEME`（同 10.5px / 600 / 字距 0.1em，
+                墨换次级文字色）——导航条脚下是 sunken 主题面，`labelStyle.ts` 规定主题面一律
+                用次级墨（`--color-label` 压 sunken 只有 ≈4.38:1）。 */}
             {!libraryLabel && (
               <>
-                <span style={FIELD_LABEL_STYLE}>初始熟悉度</span>
+                <span style={LABEL_ON_THEME}>初始熟悉度</span>
                 {/* 三个入参都是可选的：调用方只传 familiarity 而不传 onFamiliarityChange 时，
                     三键会是「看得见、点得动、什么都不做」的哑控件。disabled 让降级可见而不是静默。 */}
                 <FamiliarityChoice value={familiarity ?? 1} onChange={v => onFamiliarityChange?.(v)} disabled={!onFamiliarityChange} />

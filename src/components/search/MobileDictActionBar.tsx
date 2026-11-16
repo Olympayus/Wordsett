@@ -12,11 +12,11 @@ import { useMobilePopup } from '../../lib/mobilePopups'
 /**
  * 手机词典详情页的底部动作条（Task 8，spec §4.5 / §6）。
  *
- * 桌面 `DictDetailPanel` 把「初始熟悉度 / 已选 N 项 / ＋ / 添加至…」排在**顶部** `WorkbenchNavBar`
- * 的右端；手机把它们挪到页面底部固定条上，按拇指可达排列（spec §4.5：「移到页面底部动作条，
- * 按拇指可达排列」）。**动作与桌面逐字同源**：熟悉度三键复用 `FamiliarityChoice`、合并回调与
- * 计数 / 禁用判据由 `DictDetailPanel` 传入、分类下拉复用 `CategoryPickerPopover`——本组件不新造
- * 任何一套判定，只是换了一处落位。
+ * 桌面 `DictDetailPanel` 把归属文案与「已选 N 项」排在**顶部** `WorkbenchNavBar` 面包屑之后
+ * （左端），熟悉度组 / ＋ / 添加至…仍在右端；手机把这些动作挪到页面底部固定条上，按拇指可达
+ * 排列（spec §4.5：「移到页面底部动作条，按拇指可达排列」）。**动作与桌面逐字同源**：熟悉度三键
+ * 复用 `FamiliarityChoice`、合并回调与计数 / 禁用判据由 `DictDetailPanel` 传入、分类下拉复用
+ * `CategoryPickerPopover`——本组件不新造任何一套判定，只是换了一处落位。
  *
  * 视觉分两层（390dp 竖屏是这台设备的实际宽度，两层的分工就是为它留的）：
  * - **顶面**（`CRUMB_HEIGHT` 34px，**恒在**，只换内容）：
@@ -42,8 +42,9 @@ import { useMobilePopup } from '../../lib/mobilePopups'
  * - **分类下拉朝上开**（`placement="top"`）：锚点在视口下缘，向下没有空间，`popoverPosition`
  *   会自动翻到对面，这里显式声明意图而不是靠「放不下就翻」的兜底。
  *
- * 视觉只取既有 token，零新色值。蓝只给「已选 / 激活」这类状态（熟悉度三键的选中态），
- * 主操作走 `SquareButton` 的中性底——与桌面返回页同一配方。
+ * 视觉只取既有 token，零新色值。熟悉度分段控件的选中态走「面 + 描边 + 600」而不吃品牌蓝
+ * （与 `StrategyTabs` / 桌面左栏选中态同一套语言）；主操作走 `SquareButton` 的中性底——
+ * 与桌面返回页同一配方。
  */
 
 /** 主面高度（拇指可达的那一层）。不含安全区——手势条另加（同 `MobileTabBar` 的 `BAR_HEIGHT` 做法）。 */
