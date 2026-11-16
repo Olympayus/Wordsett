@@ -46,10 +46,12 @@ tauri-plugin-global-shortcut = "=2.3.2"
 tts = "0.26"
 
 # SAPI5 回退后端（spec §6.3）。windows 0.58 已由 Tauri 传递引入并锁在 Cargo.lock 里，
-# 这里只是显式声明并开启 Speech/Com 两个 feature——不引新依赖树。
+# 这里只是显式声明并开启所需 feature——不引新依赖树。
+# Win32_UI_Accessibility / Win32_Foundation 供 v0.7.9 的 UI Automation 选区读取
+# （`selection/win.rs`）；Speech/Com 供 SAPI5。
 # 注意：版本号与 Tauri 的传递版本绑在一起，升级 Tauri 时须一并核对。
 [target.'cfg(windows)'.dependencies]
-windows = { version = "0.58", features = ["Win32_Media_Speech", "Win32_System_Com"] }
+windows = { version = "0.58", features = ["Win32_Media_Speech", "Win32_System_Com", "Win32_UI_Accessibility", "Win32_Foundation"] }
 
 # 屏幕方向（Task 10）：`set_screen_orientation` 在安卓上经 JNI 调 Activity.setRequestedOrientation。
 # 只在安卓端引入——桌面不锁方向，这个 crate 也不参与它的依赖树。
