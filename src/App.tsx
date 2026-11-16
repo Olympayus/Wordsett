@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 import ErrorBoundary from './components/ui/ErrorBoundary'
 import TextContextMenu from './components/ui/TextContextMenu'
 import IndexPage from './routes/IndexPage'
@@ -8,6 +9,8 @@ import { useUpdaterStore } from './stores/updaterStore'
 import { useMobileUpdateStore } from './stores/mobileUpdateStore'
 import { usePlatformClass } from './lib/usePlatform'
 import { useEditGuard } from './lib/useEditGuard'
+import { confirmLeaveEdit } from './lib/editGuard'
+import { useViewStore } from './stores/viewStore'
 import { setProbe, type VoiceProbe } from './lib/review/ttsGate'
 import { resolveTheme, applyTheme, applyWindowTheme } from './lib/theme'
 import { useSettingsStore } from './stores/settingsStore'
@@ -24,6 +27,23 @@ export default function App() {
   useEffect(() => {
     if (platform === 'desktop') void useUpdaterStore.getState().checkSilently()
     else void useMobileUpdateStore.getState().checkSilently()
+  }, [platform])
+
+  // 划词小窗「打开详情页」（v0.7.9 Task 15）：Rust `collector_open_dict` 先把主窗
+  // 置前（含 unminimize），再 emit `open-dict`——**顺序刻意如此**，确认框要弹在已经
+  // 可见的主窗里。这里只接一次：dirty 时先过 `confirmLeaveEdit()`（与退出 / 关窗
+  // 同一条入口，in-flight 确认框会被复用）；取消则留在原页，小窗已因失焦自行隐藏。
+  // 确认后直接用 `openDictFromSearch` 落搜索模块的词典返回页——不必先 `openSearch`。
+  // 只在桌面注册：小窗本身就是桌面专属（手机没有全局热键，见 Rust 的 `#[cfg(desktop)]`）。
+  useEffect(() => {
+    if (platform !== 'desktop') return
+    const unlisten = listen('open-dict', e => {
+      const word = (e.payload as { word: string }).word
+      void confirmLeaveEdit().then(ok => {
+        if (ok) useViewStore.getState().openDictFromSearch(word)
+      })
+    })
+    return () => { void unlisten.then(f => f()) }
   }, [platform])
 
   // 启动探测系统是否有英文音色，决定听辨题型是否上线（spec §5.3）。
