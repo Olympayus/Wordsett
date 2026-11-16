@@ -124,6 +124,10 @@ export function CollectorWord({ word }: { word: string }) {
   // 同步闸门：Enter 与「收录」按钮可能在同一毫秒各触发一次（按钮聚焦时按 Enter，
   // 原生 click 与 window keydown 都会到达），ref 比 state 早一个渲染周期。
   const busyRef = useRef(false)
+  // 卸载标志：Root 用 grabId 作 key，换一次抓取就卸载本实例。本实例的收录写链可能比
+  // 新一代抓取的「读选区 → show」更慢，此时再调 `collector_hide` 会把**新窗口**藏掉。
+  const mountedRef = useRef(true)
+  useEffect(() => () => { mountedRef.current = false }, [])
 
   // 已收录判定：订阅索引（工作区 ∪ 储藏库），收录成功后 store 重载索引会即时翻转。
   const location = useWordStore(s => libraryLocationIn(s.libraryIndex, word))
@@ -185,7 +189,10 @@ export function CollectorWord({ word }: { word: string }) {
       const wrote = await setInitialFamiliarity(target.id, familiarity)
       if (!wrote) console.error('[collector] 初始熟悉度写入失败')
       // 隐藏失败不该把一次已经落库的收录报成失败（窗口没藏起来只是体验问题）。
-      await invoke('collector_hide').catch(e => console.error('[collector] 隐藏小窗失败', e))
+      // 卸载后（用户已触发新一代抓取）不再隐藏：那会把新窗口一起藏掉。
+      if (mountedRef.current) {
+        await invoke('collector_hide').catch(e => console.error('[collector] 隐藏小窗失败', e))
+      }
     } catch (e) {
       console.error('[collector] 收录失败', e)
       setCollectError('收录失败，请重试')
@@ -195,15 +202,17 @@ export function CollectorWord({ word }: { word: string }) {
     }
   }, [alreadyInLibrary, selected, fields, word, familiarity])
 
-  // Enter 收录（spec §5.3 底栏键位提示）。焦点在输入类控件或按钮上时不接管：
-  // 前者是打字，后者应由原生 Enter 激活那个按钮（否则点过「打开详情页」后按 Enter
-  // 会同时触发它和收录）。
+  // Enter 收录（spec §5.3 底栏键位提示）。只有文本输入类控件豁免（打字 / 输入法）：
+  // 勾选框、熟悉度、按钮都是 `<button>`，聚焦后按 Enter 仍应触发收录——若把 BUTTON
+  // 一并排除，用户点过勾选框再按 Enter 会去「原生激活那个复选框」，把刚做的勾选翻回去。
+  // 原生激活由下面的 `preventDefault` 拦掉；「收录」按钮自己的 click 与这条路径重复时，
+  // 由 `busyRef` 同步闸门兜住。
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key !== 'Enter' || e.defaultPrevented || e.isComposing) return
       const el = document.activeElement as HTMLElement | null
       const tag = el?.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON' || el?.isContentEditable) return
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable) return
       e.preventDefault()
       void handleCollect()
     }
