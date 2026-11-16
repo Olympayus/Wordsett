@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { emit } from '@tauri-apps/api/event'
 import { ensureWord } from '../lib/ensureWord'
 import { libraryLocationIn } from '../lib/collected'
 import { useWordStore } from '../stores/wordStore'
@@ -51,6 +52,10 @@ export async function collectNewWord(opts: {
     // 写入失败不阻断收录（字段已落库，缺失只让该词回落 1），与搜索返回页的取舍一致。
     const wrote = await setInitialFamiliarity(target.id, familiarity)
     if (!wrote) console.error('[collector] 初始熟悉度写入失败')
+    // 跨 webview 通知主窗刷新词库（App 层监听后 `loadWords`）：小窗与主窗的 zustand
+    // 实例不共享，否则侧栏 / 计数 / 「已在库」判据要等下一次自然重载才更新。
+    // 通知失败不影响收录结果——词已经落库。
+    void emit('library-changed').catch(e => console.error('[collector] 通知主窗刷新词库失败', e))
     // 隐藏失败不该把一次已经落库的收录报成失败（窗口没藏起来只是体验问题）。
     if (isGrabCurrent(grabId)) {
       await invoke('collector_hide').catch(e => console.error('[collector] 隐藏小窗失败', e))

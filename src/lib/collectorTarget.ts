@@ -58,6 +58,13 @@ const TOKEN_SEPARATOR = /[^\p{L}\p{N}'-]+/u
 const EDGE_QUOTES_OR_DASHES = /^['-]+|['-]+$/g
 
 /**
+ * 弯撇号（U+2018 / U+2019，Word / Office 自动更正产出）。切词前归一成直撇号，
+ * 否则 `don’t` 会被切成 `don` + `t`——一个单词被误判成句子，查库也命不中 ecdict
+ * （它的词头用直撇号）。与 Rust `selection::tokens` 的归一化逐字一致。
+ */
+const CURLY_APOSTROPHES = /[‘’]/g
+
+/**
  * 选区两端要剥掉的东西：除字母 / 数字之外的**一切**（中英文标点、空白、引号、连字符）。
  * 与 `tokenize()` / Rust `tokens()` 的边缘规则对齐：`'ephemeral'` → `ephemeral`；
  * 只剥两端，故内部的撇号与连字符不受影响（don't / well-known）。
@@ -71,12 +78,13 @@ const PURE_NUMBER = /^\p{N}+$/u
 const UNKNOWN_FREQ = Number.POSITIVE_INFINITY
 
 /**
- * 分词：与 Rust `selection::tokens` 同规则——按「非字母数字且非 `'` / `-`」切，
- * 再剥掉每段首尾的 `'` / `-`、丢掉空串。内部的 `'` / `-` 保留（don't / well-known）。
+ * 分词：与 Rust `selection::tokens` 同规则——弯撇号先归一成 `'`，再按「非字母数字且
+ * 非 `'` / `-`」切，剥掉每段首尾的 `'` / `-`、丢掉空串。内部的 `'` / `-` 保留
+ * （don't / well-known）。
  */
 export function tokenize(text: string): string[] {
   const out: string[] = []
-  for (const piece of text.split(TOKEN_SEPARATOR)) {
+  for (const piece of text.replace(CURLY_APOSTROPHES, "'").split(TOKEN_SEPARATOR)) {
     const word = piece.replace(EDGE_QUOTES_OR_DASHES, '')
     if (word !== '') out.push(word)
   }

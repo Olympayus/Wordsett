@@ -6,8 +6,8 @@
 //!
 //! 定位规则（spec §12）：窗口左上角 = 光标 + `CURSOR_OFFSET`，逐轴 clamp 到**光标
 //! 所在显示器**的工作区（物理像素）；工作区比窗口还小时贴工作区左上角，而不是产生
-//! 负坐标之外的越界位置。`clamp_to_work_area` 是本模块唯一的纯函数，其余函数都只是
-//! 它的平台壳。
+//! 负坐标之外的越界位置。`clamp_to_work_area` / `clamp_position` 是本模块的纯函数，
+//! 其余函数都只是它们的平台壳。
 //!
 //! 高度是**跨次保留**的：前端量完内容调 `collector_resize`，下一次热键触发仍用这个
 //! 高度参与 clamp——否则每次显示都会先按默认 420 算位置、再被前端改成实际高度，
@@ -50,21 +50,49 @@ fn remember_h(h: f64) {
 }
 
 /// 贴光标定位的纯函数（spec §12）：左上角 = `cursor + CURSOR_OFFSET`，
-/// 逐轴 clamp 到 `[工作区左上, 工作区右下 − 窗口尺寸]`。
+/// 再交给 `clamp_position` 逐轴夹到工作区内。
 ///
 /// `area` 是 `((min_x, min_y), (max_x, max_y))`，`size` 是窗口的**物理**尺寸——
 /// 三组坐标必须在同一坐标系里（这里是物理像素），否则高 DPI 屏上会偏。
-/// 上界取 `.max(min)`：工作区比窗口还小时退化成贴左上角，`clamp` 的两个界
-/// 不能反（反了会 panic）。
 pub fn clamp_to_work_area(
     cursor: (i32, i32),
     size: (i32, i32),
     area: ((i32, i32), (i32, i32)),
 ) -> (i32, i32) {
+    clamp_position(
+        (cursor.0 + CURSOR_OFFSET.0, cursor.1 + CURSOR_OFFSET.1),
+        size,
+        area,
+    )
+}
+
+/// 把给定的左上角逐轴 clamp 到 `[工作区左上, 工作区右下 − 窗口尺寸]`。
+///
+/// 光标定位（`clamp_to_work_area`）与内容变高后的重新定位（`collector_resize`）
+/// 共用这一份算术——两处各写一遍迟早会漂移。
+///
+/// 上界取 `.max(min)`：工作区比窗口还小时退化成贴左上角，`clamp` 的两个界
+/// 不能反（反了会 panic）。
+pub fn clamp_position(
+    top_left: (i32, i32),
+    size: (i32, i32),
+    area: ((i32, i32), (i32, i32)),
+) -> (i32, i32) {
     let ((min_x, min_y), (max_x, max_y)) = area;
-    let x = (cursor.0 + CURSOR_OFFSET.0).clamp(min_x, (max_x - size.0).max(min_x));
-    let y = (cursor.1 + CURSOR_OFFSET.1).clamp(min_y, (max_y - size.1).max(min_y));
+    let x = top_left.0.clamp(min_x, (max_x - size.0).max(min_x));
+    let y = top_left.1.clamp(min_y, (max_y - size.1).max(min_y));
     (x, y)
+}
+
+/// 窗口的物理尺寸：逻辑高度 + 显示器缩放（DPI）一次算齐。
+///
+/// 缩放因子异常（≤ 0）时按 1 处理，避免除零 / 零宽窗口。
+fn physical_size(scale: f64, h: f64) -> (i32, i32) {
+    let scale = if scale > 0.0 { scale } else { 1.0 };
+    (
+        (COLLECTOR_W as f64 * scale).round() as i32,
+        (h * scale).round() as i32,
+    )
 }
 
 /// 预载小窗：建一次、之后一直藏着复用（`lib.rs` 的 setup 在启动时调用）。
@@ -117,13 +145,10 @@ pub fn show_at_cursor(app: &AppHandle) {
     // 工作区与光标都是物理像素；窗口尺寸要换算成物理才能参与同一套 clamp。
     let scale = monitor.scale_factor();
     let h = last_h();
-    let physical_size = (
-        (COLLECTOR_W as f64 * scale).round() as i32,
-        (h * scale).round() as i32,
-    );
+    let window_size = physical_size(scale, h);
     let (x, y) = clamp_to_work_area(
         (cursor.x.round() as i32, cursor.y.round() as i32),
-        physical_size,
+        window_size,
         work_area_of(&monitor),
     );
 
@@ -170,10 +195,14 @@ fn work_area_of(monitor: &Monitor) -> ((i32, i32), (i32, i32)) {
     )
 }
 
-/// 前端量完内容后把窗口高度调到刚好装下。
+/// 前端量完内容后把窗口高度调到刚好装下，并重新 clamp 位置。
 ///
 /// 上界是**当前显示器工作区高**（逻辑像素）：物理值除以 scale 得到与 `height`
 /// 同量纲的数；没有显示器信息时退回默认高度，至少不让它超过初始尺寸。
+///
+/// 位置（终审修复）：窗口长高后原来的左上角可能把底边顶出工作区——按**新物理高度**
+/// 重新 clamp 一次。这里不用光标锚点（`clamp_to_work_area`），因为内容变高时窗口
+/// 不该跳到光标旁；保持当前左上角、只把它拉回工作区内。
 #[tauri::command]
 pub fn collector_resize(app: AppHandle, height: f64) {
     let Some(window) = app.get_webview_window(LABEL) else {
@@ -185,10 +214,9 @@ pub fn collector_resize(app: AppHandle, height: f64) {
         return;
     }
 
-    let max_h = window
-        .current_monitor()
-        .ok()
-        .flatten()
+    let monitor = window.current_monitor().ok().flatten();
+    let max_h = monitor
+        .as_ref()
         .map(|m| {
             let scale = m.scale_factor();
             let scale = if scale > 0.0 { scale } else { 1.0 };
@@ -199,6 +227,21 @@ pub fn collector_resize(app: AppHandle, height: f64) {
 
     remember_h(h);
     let _ = window.set_size(LogicalSize::new(COLLECTOR_W as f64, h));
+
+    // 尺寸已按新高度落地，位置只做「拉回工作区」——两轴共用 `clamp_position`，
+    // 与 `show_at_cursor` 的算术不会漂移。
+    let Some(monitor) = monitor else {
+        return;
+    };
+    let Ok(position) = window.outer_position() else {
+        return;
+    };
+    let (x, y) = clamp_position(
+        (position.x, position.y),
+        physical_size(monitor.scale_factor(), h),
+        work_area_of(&monitor),
+    );
+    let _ = window.set_position(PhysicalPosition::new(x, y));
 }
 
 /// 隐藏小窗的命令壳（前端失焦兜底 / 关闭按钮调用）。
@@ -225,7 +268,7 @@ pub fn collector_supported() -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::clamp_to_work_area;
+    use super::{clamp_position, clamp_to_work_area};
 
     /// 光标在右下角附近：x / y 都要往回 clamp，让窗口完整留在工作区内。
     #[test]
@@ -250,6 +293,22 @@ mod tests {
         assert_eq!(
             clamp_to_work_area((10, 10), (380, 420), ((0, 0), (300, 300))),
             (0, 0)
+        );
+    }
+
+    /// 窗口长高后按**新**尺寸把当前位置拉回工作区：底边溢出 → 上移，右边溢出 → 左移；
+    /// 已经装得下的位置一个像素都不动（终审修复的窗口重 clamp）。
+    #[test]
+    fn position_clamp_uses_new_size_and_leaves_fitting_window_alone() {
+        // 380x650 的窗口在 (1540, 500)：底边 1150 超出 1080，上移到 y = 430。
+        assert_eq!(
+            clamp_position((1540, 500), (380, 650), ((0, 0), (1920, 1080))),
+            (1540, 430)
+        );
+        // 装得下：原样返回。
+        assert_eq!(
+            clamp_position((100, 100), (380, 650), ((0, 0), (1920, 1080))),
+            (100, 100)
         );
     }
 }

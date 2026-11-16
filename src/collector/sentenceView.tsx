@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
+import { emit } from '@tauri-apps/api/event'
 import { Button } from '../components/ui/Button'
 import { getWordFreqs } from '../services/lemmaFreq'
 import { lookupWord } from '../services/searchService'
@@ -553,6 +554,9 @@ export function ExistingSentenceBody({ header, view, selection, outcome }: BodyP
         outcome.text,
       )
       if (!ok) throw new Error('appendExampleUnderDefinition failed')
+      // 例句已落到既有释义下：通知主窗刷新词库（与 `collectNewWord` 同一条事件）。
+      // 失败不影响收录结果——主窗下次自然重载时仍会看到这条例句。
+      void emit('library-changed').catch(e => console.error('[collector] 通知主窗刷新词库失败', e))
       if (isGrabCurrent(outcome.grabId)) {
         await invoke('collector_hide').catch(e => console.error('[collector] 隐藏小窗失败', e))
       }

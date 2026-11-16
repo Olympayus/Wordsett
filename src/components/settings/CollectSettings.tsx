@@ -15,9 +15,10 @@ import Icon from '../icons'
  * 设置页「划词」分区（v0.7.9 Task 16，spec §5.6）。
  *
  * 两行：
- * 1. **抓词热键**：`rotate-ccw`（恢复默认）+ 当前组合键键帽 + 修改。录制态实时预览按住的修饰键，
- *    Esc 取消、Backspace 恢复默认显示（**不立即保存**——保存只发生在录制出完整组合键、
- *    `set_shortcut` 成功之后）；注册失败行内红字并保留旧显示。
+ * 1. **抓词热键**：`rotate-ccw`（恢复默认，经 `set_shortcut` 落库）+ 当前组合键键帽 + 修改。
+ *    录制态实时预览按住的修饰键，Esc 取消、Backspace 恢复原值（回到录制开始时的组合键，
+ *    不保存）；恢复默认与录制出完整组合键都走同一个 `commit`（注册成功才改显示）；
+ *    注册失败行内红字并保留旧值。
  * 2. **抓取日志**：标题独立一行，日志块整行宽排在下方；挂载期间每 2s 轮询一次
  *    `take_grab_log`（Rust 侧环形缓冲，最多 5 条、最新在前）。
  *
@@ -142,6 +143,8 @@ export default function CollectSettings() {
   const [log, setLog] = useState<GrabLogEntry[]>([])
   // 一次只允许一个 `set_shortcut` 在飞：否则连按两下会交错改键。
   const busy = useRef(false)
+  // 录制开始时的组合键（Backspace「恢复原值」的取值）；只由 `startRecording` 写入。
+  const originalAccelerator = useRef(DEFAULT_ACCELERATOR)
 
   useEffect(() => {
     let alive = true
@@ -175,13 +178,9 @@ export default function CollectSettings() {
     setErrorDetail(null)
   }
 
-  /** 恢复默认：只改显示，不立即保存（spec §5.6；保存须经录制确认）。 */
-  const resetToDefault = () => {
-    setDisplayed(DEFAULT_ACCELERATOR)
-    cancelRecording()
-  }
-
   const startRecording = () => {
+    // 「恢复原值」的取值点是录制开始这一瞬，不是 config 里可能已变的当前值。
+    originalAccelerator.current = displayed
     setRecording(true)
     setDraft([])
     setError(null)
@@ -207,8 +206,13 @@ export default function CollectSettings() {
     }
   }
 
+  /** 恢复默认：与录制出组合键走同一条 `commit` 路径（spec §5.6）——注册成功才改显示。 */
+  const resetToDefault = () => {
+    void commit(DEFAULT_ACCELERATOR)
+  }
+
   // 录制态：窗口级监听。用捕获阶段拦下所有按键，避免 Ctrl+R / Ctrl+W 之类的
-  // 浏览器默认行为在录制时生效；Esc 取消、Backspace 恢复默认显示，其余交给纯函数。
+  // 浏览器默认行为在录制时生效；Esc 取消、Backspace（含带修饰键）恢复原值，其余交给纯函数。
   useEffect(() => {
     if (!recording) return
     const onKeyDown = (e: KeyboardEvent) => {
@@ -216,8 +220,8 @@ export default function CollectSettings() {
       e.stopPropagation()
       if (e.code === 'Escape') { cancelRecording(); return }
       if (e.code === 'Backspace') {
-        // 恢复默认显示，不保存（与「恢复默认」图标同一语义）。
-        setDisplayed(DEFAULT_ACCELERATOR)
+        // 恢复原值：回到本次录制开始时的组合键，不保存（spec §5.6）。
+        setDisplayed(originalAccelerator.current)
         cancelRecording()
         return
       }
@@ -276,7 +280,7 @@ export default function CollectSettings() {
       </div>
       {recording && (
         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', paddingBottom: 6 }}>
-          按 Esc 取消，Backspace 恢复默认（不会立即保存）
+          按 Esc 取消，Backspace 恢复原值（不会立即保存）
         </div>
       )}
       {error && (

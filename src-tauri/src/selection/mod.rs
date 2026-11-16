@@ -77,9 +77,15 @@ pub fn strip_selection(raw: &str) -> String {
 /// 切 token：以「非字母数字、且不是词内 `'` / `-`」的字符为分隔（空格与中英文标点
 /// 都落在这一类），首尾的 `'` / `-` 去掉，空串丢弃。
 ///
+/// 切之前先把弯撇号 `’` / `‘`（U+2019 / U+2018，Word / Office 自动更正的产物）
+/// 归一成直撇号 `'`：否则 `don’t` 会被切成 `don` + `t`，一个单词被误判成句子，
+/// 查库也命不中 ecdict（它的词头用直撇号）。归一后 `'` 照旧是词内字符，两端引号
+/// 由下面的 `trim_matches` 剥掉。
+///
 /// 大小写保留原文——查库的小写归一化在 providers 层，不在这里做（spec §5.1）。
 pub fn tokens(text: &str) -> Vec<String> {
-    text.split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
+    text.replace('‘', "'").replace('’', "'")
+        .split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
         .map(|piece| piece.trim_matches(|c: char| c == '\'' || c == '-'))
         .filter(|piece| !piece.is_empty())
         .map(str::to_string)
@@ -174,6 +180,15 @@ mod tests {
             vec!["don't", "stop", "it's", "well-known"]
         );
         assert_eq!(tokens("  。，！  "), Vec::<String>::new());
+    }
+
+    /// 弯撇号（Word / Office 自动更正）按词内直撇号处理：一个单词不得裂成两个 token。
+    /// 归一后的 `'` 也让查库能命中 ecdict 的直撇号词头。
+    #[test]
+    fn tokens_normalize_curly_apostrophes() {
+        assert_eq!(tokens("don’t stop"), vec!["don't", "stop"]);
+        // 弯单引号包裹的单词：两端引号归一后照旧被剥掉。
+        assert_eq!(tokens("‘ephemeral’"), vec!["ephemeral"]);
     }
 
     #[test]

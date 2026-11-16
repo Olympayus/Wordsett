@@ -11,6 +11,7 @@ import { usePlatformClass } from './lib/usePlatform'
 import { useEditGuard } from './lib/useEditGuard'
 import { confirmLeaveEdit } from './lib/editGuard'
 import { useViewStore } from './stores/viewStore'
+import { useWordStore } from './stores/wordStore'
 import { setProbe, type VoiceProbe } from './lib/review/ttsGate'
 import { resolveTheme, applyTheme, applyWindowTheme } from './lib/theme'
 import { useSettingsStore } from './stores/settingsStore'
@@ -41,6 +42,20 @@ export default function App() {
       const word = (e.payload as { word: string }).word
       void confirmLeaveEdit().then(ok => {
         if (ok) useViewStore.getState().openDictFromSearch(word)
+      })
+    })
+    return () => { void unlisten.then(f => f()) }
+  }, [platform])
+
+  // 划词小窗收录成功后通知主窗刷新词库（v0.7.9 终审修复）：小窗与主窗是两个 webview，
+  // zustand 实例不共享；`loadWords` 会连同 `reloadLibraryIndex` 一起重建当前模块词表、
+  // 全库索引与三档计数（与 IndexPage 的启动加载同一入口），不碰编辑态，脏编辑期间也安全。
+  // 只在桌面注册：小窗本身就是桌面专属。
+  useEffect(() => {
+    if (platform !== 'desktop') return
+    const unlisten = listen('library-changed', () => {
+      void useWordStore.getState().loadWords().catch(e => {
+        console.error('[app] 刷新词库失败', e)
       })
     })
     return () => { void unlisten.then(f => f()) }

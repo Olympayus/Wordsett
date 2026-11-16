@@ -33,6 +33,12 @@ describe('句子模式目标词与内容词（v0.7.9）', () => {
     expect(tokenize("Hello, world! It's well-known.")).toEqual(['Hello', 'world', "It's", 'well-known'])
   })
 
+  // 弯撇号（Word / Office 自动更正）与 Rust 一样先归一成直撇号：一个单词不得裂成两个。
+  it('normalizes_curly_apostrophes_like_rust', () => {
+    expect(tokenize('don’t')).toEqual(["don't"])
+    expect(tokenize('It’s a well-known fact.')).toEqual(["It's", 'a', 'well-known', 'fact'])
+  })
+
   // 与 Rust `selection::tokens` 的既有用例逐字对齐（纯标点 → 空数组）。
   it('tokens_drop_punctuation_only_pieces', () => {
     expect(tokenize('  。，！  ')).toEqual([])
