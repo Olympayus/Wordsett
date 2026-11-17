@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import { useFocusTrap } from '../../lib/useFocusTrap'
+import { useSheetMaxHeight } from '../../lib/useSheetMaxHeight'
 import { hasCoarsePointer } from '../../lib/pointer'
 import { touchInputStyles } from '../../lib/touchInput'
 import { useCategoryStore } from '../../stores/categoryStore'
@@ -87,6 +88,8 @@ export default function CategoryEditorModal({ open, category, wordId, onClose, o
   // 手机版是底部表：没有居中的焦点容器，不该把焦点锁在表里（与 `CategoryAssignModal`
   // 同一取舍），`autoFocus` 仍由输入框自己完成。
   useFocusTrap(open && !isMobile, panelRef)
+  // 键盘弹出时表体随 visualViewport 收缩（规格 §7.4）。
+  const sheetMaxH = useSheetMaxHeight(isMobile, open)
 
   if (!open) return null
 
@@ -138,13 +141,14 @@ export default function CategoryEditorModal({ open, category, wordId, onClose, o
         ref={panelRef}
         role="dialog"
         aria-modal="true"
+        aria-label={category ? '编辑分类' : '新建分类'}
         onClick={e => { if (e.target === e.currentTarget) onClose() }}
         style={{ position: 'fixed', inset: 0, background: 'var(--color-scrim)', zIndex: 'var(--z-modal)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
       >
         <div
           onClick={e => e.stopPropagation()}
           style={{
-            width: '100%', maxHeight: '88vh', display: 'flex', flexDirection: 'column',
+            width: '100%', maxHeight: sheetMaxH ?? '88vh', display: 'flex', flexDirection: 'column',
             background: 'var(--color-surface)', borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
             boxShadow: 'var(--shadow-overlay)', fontFamily: 'var(--font-sans)', overflow: 'hidden',
           }}
@@ -210,9 +214,15 @@ export default function CategoryEditorModal({ open, category, wordId, onClose, o
               <CheckBox checked={isDefault} onChange={v => setIsDefault(v)} label="设为默认分类" />
               设为默认分类（新建单词自动归入）
             </label>
-
-            {error && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)', marginTop: '8px' }}>{error}</div>}
           </div>
+
+          {/* 校验错误放在可滚区**之外**、脚键之上：保存失败时无论表体滚到哪，红字都可见
+              （否则键盘一弹、错误落在滚出视口的下方，点保存看起来毫无反应）。 */}
+          {error && (
+            <div role="alert" style={{ flexShrink: 0, padding: '10px 16px', borderTop: '1px solid var(--color-border)', fontSize: 'var(--text-sm)', color: 'var(--color-danger)' }}>
+              {error}
+            </div>
+          )}
 
           <div style={{ flexShrink: 0, borderTop: '1px solid var(--color-border)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
             {category && wordId && (

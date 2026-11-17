@@ -3,6 +3,7 @@ import type { WordWithPreview } from '../../types/word'
 import { useWordStore } from '../../stores/wordStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useFocusTrap } from '../../lib/useFocusTrap'
+import { useSheetMaxHeight } from '../../lib/useSheetMaxHeight'
 import { useMobilePopup } from '../../lib/mobilePopups'
 import { hasCoarsePointer } from '../../lib/pointer'
 import { touchInputStyles } from '../../lib/touchInput'
@@ -93,6 +94,8 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
   const panelRef = useRef<HTMLDivElement>(null)
   // 手机版是底部表：不锁焦点（与 `CategoryAssignModal` 同一取舍）；桌面 / 平板照旧。
   useFocusTrap(open && !isMobile, panelRef)
+  // 键盘弹出时表体随 visualViewport 收缩（规格 §7.4）。
+  const sheetMaxH = useSheetMaxHeight(isMobile, open)
   // 弹层开着时登记给外壳：安卓返回键先关弹层，而不是退出设置页。
   useMobilePopup(open, onClose)
 
@@ -153,13 +156,14 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
         ref={panelRef}
         role="dialog"
         aria-modal="true"
+        aria-label={direction === 'add' ? `把单词加入「${categoryName}」` : `把单词移出「${categoryName}」`}
         onClick={e => { if (e.target === e.currentTarget) onClose() }}
         style={{ position: 'fixed', inset: 0, background: 'var(--color-scrim)', zIndex: 'var(--z-modal)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
       >
         <div
           onClick={e => e.stopPropagation()}
           style={{
-            width: '100%', maxHeight: '88vh', display: 'flex', flexDirection: 'column',
+            width: '100%', maxHeight: sheetMaxH ?? '88vh', display: 'flex', flexDirection: 'column',
             background: 'var(--color-surface)', borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
             boxShadow: 'var(--shadow-overlay)', fontFamily: 'var(--font-sans)', overflow: 'hidden',
           }}

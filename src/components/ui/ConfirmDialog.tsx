@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { useUiStore } from '../../stores/uiStore'
 import { scrimDismisses } from '../../lib/confirmDialog'
+import { useSheetMaxHeight } from '../../lib/useSheetMaxHeight'
 
 /**
  * 手机形态的脚键（v0.7.10 Task 17）：44dp、等分、发丝分隔。
@@ -28,14 +29,17 @@ interface Props {
 }
 
 export default function ConfirmDialog({ variant = 'desktop' }: Props) {
+  const isMobile = variant === 'mobile'
   const req = useUiStore(s => s.confirmReq)
   const resolveConfirm = useUiStore(s => s.resolveConfirm)
+  // 键盘弹出时表体随 visualViewport 收缩（hook 必须在早退之前无条件调用）。
+  const sheetMaxH = useSheetMaxHeight(isMobile, Boolean(req))
   if (!req) return null
 
   const danger = req.danger ?? false
   const confirmLabel = req.confirmLabel ?? (req.alertMode ? '确定' : '删除')
 
-  if (variant === 'mobile') {
+  if (isMobile) {
     return (
       <div
         style={{
@@ -50,7 +54,8 @@ export default function ConfirmDialog({ variant = 'desktop' }: Props) {
           aria-label={req.title}
           onClick={e => e.stopPropagation()}
           style={{
-            width: '100%', background: 'var(--color-surface)',
+            width: '100%', maxHeight: sheetMaxH ?? '88vh', display: 'flex', flexDirection: 'column',
+            background: 'var(--color-surface)',
             borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
             boxShadow: 'var(--shadow-overlay)',
             // 手势条安全区：与 `MobileActionSheet` 同一条理由——底栏不压在系统手势上。
@@ -58,7 +63,8 @@ export default function ConfirmDialog({ variant = 'desktop' }: Props) {
             fontFamily: 'var(--font-sans)', overflow: 'hidden',
           }}
         >
-          <div style={{ padding: '20px 16px 18px' }}>
+          {/* 长文案 / 多条链接错误在表体内滚动，脚键仍钉在底部。 */}
+          <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '20px 16px 18px' }}>
             <div style={{ fontSize: 16, fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: 8 }}>
               {req.title}
             </div>
@@ -67,7 +73,7 @@ export default function ConfirmDialog({ variant = 'desktop' }: Props) {
               {req.message}
             </div>
           </div>
-          <div style={{ display: 'flex', borderTop: '1px solid var(--color-border)' }}>
+          <div style={{ flexShrink: 0, display: 'flex', borderTop: '1px solid var(--color-border)' }}>
             {!req.alertMode && (
               <button
                 type="button"
