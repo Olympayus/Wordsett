@@ -50,6 +50,15 @@ export function isAndroidTablet(p: PlatformClass): boolean {
   return p === 'android-tablet'
 }
 
+/**
+ * 只有桌面有可拖的窗口（v0.7.10）：自绘标题栏的拖动区与最小化 / 最大化还原 / 关闭
+ * 三枚按钮只在桌面渲染。平板复用桌面外壳，但窗口不归用户拖拽、也没有窗口控件可点。
+ * 手机外壳不渲染 `TopBar`，判据在那里不参与。
+ */
+export function isDesktop(p: PlatformClass): boolean {
+  return p === 'desktop'
+}
+
 /** 平板缩放：参考宽度以下为 `width / TABLET_REFERENCE_WIDTH`，夹在 `TABLET_MIN_ZOOM` 与 1 之间。 */
 export function tabletZoom(width: number): number {
   return Math.min(Math.max(width / TABLET_REFERENCE_WIDTH, TABLET_MIN_ZOOM), 1)

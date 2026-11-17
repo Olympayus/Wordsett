@@ -8,6 +8,7 @@ import { useUiStore } from '../../stores/uiStore'
 import { useWordStore } from '../../stores/wordStore'
 import { useClickOutside } from '../../lib/useClickOutside'
 import { usePlatformClass } from '../../lib/usePlatform'
+import { isDesktop } from '../../lib/platform'
 import { openExternalUrl, RELEASES_URL } from '../../lib/openExternal'
 import { useSearchSuggestions } from '../../services/useSearchSuggestions'
 import { isChineseQuery } from '../../lib/chineseSearch'
@@ -50,7 +51,10 @@ export default function TopBar() {
   // 更新徽标按平台选数据源：桌面走签名更新器，Android 平板（它复用桌面外壳、挂的是
   // 这个 TopBar）走 `useMobileUpdateStore`。手机外壳有自己的 `MobileTabBar` 圆点，不经过这里。
   const platform = usePlatformClass()
-  const android = platform !== 'desktop'
+  // 窗口按钮与拖拽区只在桌面存在（v0.7.10）：平板复用这套外壳但没有可拖的窗口，
+  // 手机外壳则不渲染 TopBar。三处（拖拽属性 / 双击最大化 / 三枚按钮）共用这一个判据。
+  const desktopOnly = isDesktop(platform)
+  const android = !desktopOnly
   const desktopHasUpdate = useUpdaterStore(s => s.hasUpdateBadge)
   const desktopBadgeVersion = useUpdaterStore(s => s.badgeVersion)
   const openDialog = useUpdaterStore(s => s.openDialog)
@@ -140,8 +144,9 @@ export default function TopBar() {
 
   return (
     <header
-      data-tauri-drag-region
+      {...(desktopOnly ? { 'data-tauri-drag-region': true } : {})}
       onDoubleClick={(e) => {
+        if (!desktopOnly) return
         const t = e.target as HTMLElement
         if (t.closest('input, button')) return
         toggleMaximize()
@@ -258,7 +263,7 @@ export default function TopBar() {
         </div>
       </div>
 
-      {/* 右：更新徽标 + 窗口控制（最小化 / 最大化⇄还原 / 关闭） */}
+      {/* 右：更新徽标 + 窗口控制（最小化 / 最大化⇄还原 / 关闭，仅桌面） */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
         {/* 更新徽标：静默检查发现新版时点亮。桌面点击打开更新弹窗；Android 平板点击后
             确认并跳转 GitHub Releases（见 handleUpdateClick）。 */}
@@ -277,24 +282,28 @@ export default function TopBar() {
           </button>
         )}
 
-        <button type="button" title="最小化" aria-label="最小化" onClick={() => void appWindow.minimize()}
-          style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
-          <Icon name="minimize" size={14} />
-        </button>
-        <button type="button" title={isMaximized ? '还原' : '最大化'} aria-label={isMaximized ? '还原' : '最大化'} onClick={toggleMaximize}
-          style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
-          <Icon name={isMaximized ? 'restore' : 'maximize'} size={14} />
-        </button>
-        <button type="button" title="关闭" aria-label="关闭" onClick={() => void appWindow.close()}
-          style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-danger)'; e.currentTarget.style.color = 'white' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}>
-          <Icon name="close" size={14} />
-        </button>
+        {desktopOnly && (
+          <>
+            <button type="button" title="最小化" aria-label="最小化" onClick={() => void appWindow.minimize()}
+              style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+              <Icon name="minimize" size={14} />
+            </button>
+            <button type="button" title={isMaximized ? '还原' : '最大化'} aria-label={isMaximized ? '还原' : '最大化'} onClick={toggleMaximize}
+              style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+              <Icon name={isMaximized ? 'restore' : 'maximize'} size={14} />
+            </button>
+            <button type="button" title="关闭" aria-label="关闭" onClick={() => void appWindow.close()}
+              style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-danger)'; e.currentTarget.style.color = 'white' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}>
+              <Icon name="close" size={14} />
+            </button>
+          </>
+        )}
       </div>
     </header>
   )
