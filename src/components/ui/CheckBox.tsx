@@ -110,10 +110,10 @@ export default function CheckBox({ checked, onChange, disabled, color, label, in
   /** 部分选中（v0.7.4 决定六）：画减号、`aria-checked="mixed"`。默认关，其它调用点不受影响。 */
   indeterminate?: boolean
   /**
-   * 锁定选中（v0.7.9 划词「整句归入哪个释义」）：外观 = 普通选中态（满填色块、无降透明），
-   * 但点不动。它与 disabled 是两种语义——**必须保持选中**不该看起来像「不可用」：
+   * 锁定选中（v0.7.9 划词「整句归入哪个释义」）：**已选中且不可取消**。外观是满填色块
+   * 外套一圈品牌淡晕（与普通勾选框拉开身份，读作「被钉住的选中」），不降透明——
    * disabled 的 38% 透明度在满填前会被读成「没选中」，正好与原意相反。
-   * 语义由 `aria-disabled` 播报，视觉保持「已选中」。
+   * 语义由 `aria-disabled` 播报，点不动。
    */
   locked?: boolean
 }) {
@@ -121,6 +121,12 @@ export default function CheckBox({ checked, onChange, disabled, color, label, in
   const c = color ?? 'var(--color-brand)'
   const paint = checkboxPaint({ checked, hover: locked ? false : hover, disabled, indeterminate, color: c })
   const inert = disabled || locked
+  // 锁定态（v0.7.9 划词「例句归入哪个释义」）：选中色块外再套一圈品牌淡晕。
+  // 晕是**画**出来的外阴影，不进布局；它把「这一个和别的勾选框不一样」在 16px 尺度上
+  // 表达出来（独占的、被钉住的选中），而满填色块仍如实说「已选中」。
+  const boxShadow = locked
+    ? `${paint.boxShadow}, 0 0 0 2px color-mix(in srgb, var(--color-brand) 30%, transparent)`
+    : paint.boxShadow
   return (
     <button
       type="button"
@@ -139,7 +145,7 @@ export default function CheckBox({ checked, onChange, disabled, color, label, in
         // 描边与内块共用这一条：两层盒内阴影都不占空间（不像真 border 会压内容盒），
         // 且都是画出来的路径而非布局盒子，不参与设备像素取整——v0.6.4 那个
         // 「色块没居中」的两半成因到这一版才都堵上，见文件头。
-        boxShadow: paint.boxShadow,
+        boxShadow: boxShadow,
         opacity: disabled ? 0.38 : 1,
         transition: 'box-shadow var(--duration-fast) var(--ease-smooth), background-color var(--duration-fast) var(--ease-smooth)',
       }}

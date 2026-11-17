@@ -88,15 +88,36 @@ export function CollectorTree({ groups, selected, onToggle, forcedKey }: Props) 
             key={leaf.key}
             no={leaf.number ?? undefined}
             end={(
-              // 归属释义的勾选框用 `locked`（v0.7.9 用户实测修订）：它**必须保持选中**
-              // （例句要有父级），但外观必须是普通选中态。先前的 `disabled` 会整体降到
-              // 38% 透明度，读起来正好相反——「该释义没有被选择」。
-              <CheckBox
-                checked={selected.has(leaf.key) || forced}
-                locked={forced}
-                label={forced ? `${leaf.label} ${leaf.number ?? ''}（例句将归入此释义）` : `${leaf.label} ${leaf.number ?? ''}`}
-                onChange={() => onToggle(leaf.key)}
-              />
+              // 归属释义（v0.7.9 用户实测修订）：必须保持选中（例句要有父级），且要
+              // 一眼看出「整句挂在这一条释义下」——勾选框用 `locked`（满填选中 + 品牌
+              // 淡晕，与普通勾选框拉开身份），再在行尾配一枚「例句」小标签说明它的
+              // 特殊含义。`disabled` 的降透明外观会读成「没选中」，已弃用。
+              forced ? (
+                <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span
+                    title="例句将归入此释义"
+                    style={{
+                      fontSize: '10.5px', fontWeight: 600, lineHeight: '16px',
+                      color: 'var(--color-brand)', background: 'var(--color-brand-soft)',
+                      borderRadius: 'var(--radius-full)', padding: '0 6px', whiteSpace: 'nowrap',
+                    }}
+                  >
+                    例句
+                  </span>
+                  <CheckBox
+                    checked
+                    locked
+                    label={`${leaf.label} ${leaf.number ?? ''}（例句将归入此释义）`}
+                    onChange={() => onToggle(leaf.key)}
+                  />
+                </span>
+              ) : (
+                <CheckBox
+                  checked={selected.has(leaf.key)}
+                  label={`${leaf.label} ${leaf.number ?? ''}`}
+                  onChange={() => onToggle(leaf.key)}
+                />
+              )
             )}
           >
             {content}
