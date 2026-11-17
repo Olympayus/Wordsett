@@ -165,6 +165,30 @@ pub fn hide(app: &AppHandle) {
     }
 }
 
+/// 失焦事件的真相守卫：只有系统前台**真的换成别的窗口**才隐藏（spec §5.3「失焦即隐」）。
+///
+/// Windows 上点击小窗内部（标题栏、勾选框……）会把键盘焦点从顶层窗口转交 WebView2
+/// 子窗口；tao 把这次顶层 `WM_KILLFOCUS` 也报成 `WindowEvent::Focused(false)`。若在该
+/// 事件上直接 `hide`，用户一按下标题栏准备拖动，窗口就消失。这里用 `GetForegroundWindow`
+/// 复核：前台仍是本窗口（含其子窗口、拖动中的捕获态）就不动；点了别的应用才隐藏。
+///
+/// 其余平台（macOS）没有这条焦点转交路径，直接隐藏。
+pub fn hide_if_focus_left(app: &AppHandle) {
+    #[cfg(target_os = "windows")]
+    if let Some(window) = app.get_webview_window(LABEL) {
+        if let Ok(hwnd) = window.hwnd() {
+            // 两个 HWND 来自不同的 windows crate 版本，比较内层原始指针即可。
+            let foreground = unsafe {
+                windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow()
+            };
+            if foreground.0 == hwnd.0 {
+                return;
+            }
+        }
+    }
+    hide(app);
+}
+
 /// 小窗当前是否在屏上。
 ///
 /// 热键回调据此分流两条抓取路径（spec §5.1 / §11-1）：藏着 → 立即读；

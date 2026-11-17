@@ -1,14 +1,21 @@
 import CheckBox from '../components/ui/CheckBox'
-import PosTag from '../components/ui/PosTag'
-import { FIELD_LABEL_STYLE } from '../lib/labelStyle'
+import FlowRow from '../components/entry/FlowRow'
+import SenseFlow from '../components/entry/SenseFlow'
+import type { SenseGroup } from '../components/entry/SenseFlow'
+import { leafForm } from '../lib/fieldKind'
 import { selectionState } from '../lib/dictPlan'
 import { leafKeys, type DefinitionGroup } from '../lib/collectorTree'
 
 /**
- * 小窗的释义勾选树（v0.7.9 spec §5.3）——只呈现词性组与直属中 / 英释义：
+ * 小窗的释义勾选树（v0.7.9 spec §5.3）——只呈现词性组与直属中 / 英释义，
+ * 排版**与主窗词典返回页一致**（DictDetailCard 的 v0.7.4 正文流），不另起一套旧样式：
  *
- *   组行：三态勾选框 + 词性标签（`PosTag`）+「N 个义项」
- *   叶子行：勾选框 + C1 标签（中文释义 / 英文释义）+ 值 + 义号
+ *   组头：衬线斜体词性（run-in 头）+「中 N · 英 M」计数 + 2px 横线 + 三态勾选框
+ *   行：  FlowRow——连续义号槽 + 正文（英文释义衬线，中文释义正文字体）+ 行尾勾选框
+ *
+ * 折行时续行与首行**同一条左缘**（FlowRow 的编号槽是悬挂缩进的锚点，正文不因标签列
+ * 被额外推右）——先前「勾选框 + 中文释义/英文释义标签 + 值 + 义号」的四栏行是旧格式，
+ * 标签列会把值挤成窄列、折行看起来缩进一大截，已弃用。
  *
  * 模型（分组、键、义号）全部来自 Task 10 的 `lib/collectorTree`，本组件不重算序号：
  * 勾选键必须与 `collectorMergeInputs` 的路径键逐字一致，否则收录的内容会错位。
@@ -32,60 +39,69 @@ interface Props {
 
 export function CollectorTree({ groups, selected, onToggle, forcedKey }: Props) {
   // 防御：Task 10 的模型理论上不给空组，但一个没有叶子的组画出来只有一枚点不动的勾选框
-  // 和「0 个义项」——过滤掉比让它出现在小窗里更安全（控制器 T10 结转裁定）。
+  // 和「中 0 · 英 0」——过滤掉比让它出现在小窗里更安全（控制器 T10 结转裁定）。
   const visible = groups.filter(g => g.leaves.length > 0)
   const allKeys = leafKeys(visible)
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-      {visible.map(group => {
-        const state = selectionState(selected, allKeys, group.key)
+  const senseGroups: SenseGroup[] = visible.map(group => {
+    const state = selectionState(selected, allKeys, group.key)
+    const zh = group.leaves.filter(leaf => leaf.label === '中文释义').length
+    const counts = `中 ${zh} · 英 ${group.leaves.length - zh}`
+    return {
+      // 组头照抄返回页的自绘头（DictDetailCard）：衬线斜体词性 + 计数 + 2px 横线，
+      // 勾选框落在横线之后——小窗与返回页的「一行里勾整组」是同一个位置。
+      head: (
+        <div style={{
+          display: 'flex', alignItems: 'baseline', gap: '10px',
+          paddingLeft: '11px', lineHeight: '27px',
+        }}>
+          <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '16px', fontWeight: 600 }}>
+            {group.pos || '该词性'}
+          </span>
+          <span className="stat-num" style={{ fontSize: '11px', color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>
+            {counts}
+          </span>
+          <span style={{ flex: 1, borderTop: '2px solid var(--color-border)', transform: 'translateY(-3px)' }} />
+          <span style={{ display: 'inline-flex', alignSelf: 'center' }}>
+            <CheckBox
+              checked={state !== 'none'}
+              indeterminate={state === 'partial'}
+              label={`${group.pos || '该词性'} 全部义项`}
+              onChange={() => onToggle(group.key)}
+            />
+          </span>
+        </div>
+      ),
+      items: group.leaves.map(leaf => {
+        const forced = leaf.key === forcedKey
+        // 正文样式问 `leafForm`（与返回页同一判据）：英文释义走衬线 15px/26px，
+        // 中文释义是普通正文。勾选键与显示形态无关，仍是 `leaf.key`。
+        const content = leafForm(leaf.field.key) === 'english-def'
+          ? (
+            <span style={{ fontFamily: 'var(--font-serif)', fontSize: '15px', lineHeight: '26px', color: 'var(--ink-1)' }}>
+              {leaf.value}
+            </span>
+          )
+          : leaf.value
         return (
-          <div key={group.key} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <FlowRow
+            key={leaf.key}
+            no={leaf.number ?? undefined}
+            end={(
               <CheckBox
-                checked={state === 'all'}
-                indeterminate={state === 'partial'}
-                onChange={() => onToggle(group.key)}
-                label={`${group.pos || '该词性'} 全部义项`}
+                checked={selected.has(leaf.key) || forced}
+                disabled={forced}
+                label={`${leaf.label} ${leaf.number ?? ''}`}
+                onChange={() => onToggle(leaf.key)}
               />
-              <PosTag value={group.pos} size="sm" />
-              <span style={{ fontSize: '11.5px', color: 'var(--color-text-tertiary)' }}>
-                {group.leaves.length} 个义项
-              </span>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', paddingLeft: '24px' }}>
-              {group.leaves.map(leaf => {
-                const forced = leaf.key === forcedKey
-                return (
-                  <div key={leaf.key} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', lineHeight: 1.55 }}>
-                    <span style={{ display: 'inline-flex', flexShrink: 0, paddingTop: '2px' }}>
-                      <CheckBox
-                        checked={selected.has(leaf.key) || forced}
-                        disabled={forced}
-                        onChange={() => onToggle(leaf.key)}
-                        label={`${leaf.label} ${leaf.number ?? ''}`}
-                      />
-                    </span>
-                    <span style={{ ...FIELD_LABEL_STYLE, flexShrink: 0, paddingTop: '4px', whiteSpace: 'nowrap' }}>
-                      {leaf.label}
-                    </span>
-                    <span style={{ flex: 1, minWidth: 0, fontSize: '13px', color: 'var(--color-text-primary)', overflowWrap: 'anywhere' }}>
-                      {leaf.value}
-                    </span>
-                    <span style={{
-                      flexShrink: 0, paddingTop: '3px', fontSize: '11.5px',
-                      color: 'var(--color-text-tertiary)', fontVariantNumeric: 'tabular-nums',
-                    }}>
-                      {leaf.number}
-                    </span>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+            )}
+          >
+            {content}
+          </FlowRow>
         )
-      })}
-    </div>
-  )
+      }),
+    }
+  })
+
+  return <SenseFlow groups={senseGroups} />
 }

@@ -150,7 +150,12 @@ pub fn run() {
         // 划词小窗：失焦即隐藏（spec §5.3 的窗口级行为）。小窗不参与主窗的关窗分流。
         if window.label() == collector::LABEL {
             match event {
-                tauri::WindowEvent::Focused(false) => collector::hide(window.app_handle()),
+                // 失焦即隐藏，但先核对系统前台：点击小窗内部会把焦点交给 WebView2
+                // 子窗口，tao 也报 Focused(false)——直接 hide 会让标题栏一按就消失
+                // （见 `collector::hide_if_focus_left`）。
+                tauri::WindowEvent::Focused(false) => {
+                    collector::hide_if_focus_left(window.app_handle())
+                }
                 // Alt+F4 / 系统关闭：小窗是**预载复用**的（`create` 只在 setup 跑一次），
                 // 真关掉就再也不会出现。拦下来改成隐藏，语义与「点 ×」一致。
                 tauri::WindowEvent::CloseRequested { api, .. } => {
