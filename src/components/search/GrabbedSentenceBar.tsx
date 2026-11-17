@@ -5,7 +5,6 @@ import Icon from '../icons'
 import { DashMark } from '../entry/Mark'
 import { FIELD_LABEL_STYLE } from '../../lib/labelStyle'
 import { defaultAttachKey, definitionGroups, type DefinitionLeaf } from '../../lib/collectorTree'
-import { libraryLocationIn } from '../../lib/collected'
 import { appendExampleUnderDefinition } from '../../services/wordService'
 import { getWordByLemma } from '../../db/words'
 import { usePendingExampleStore } from '../../stores/pendingExampleStore'
@@ -21,10 +20,11 @@ import type { DictionaryField } from '../../types/dictionary'
  *
  * **本条的按钮只写例句，绝不收录 / 合并任何东西**（用户裁定）：不 `ensureWord`、
  * 不 `mergeWordFields`——「把词或释义加进工作台」是导航栏右上角「添加至…」的职责。
- * 因此加入的前提是词条与那条释义都已在库里：
- * - 词不在库 → 行内提示先去「添加至…」收录，按钮不可用；
+ * 因此加入的前提是词条与那条释义都已在库里；不满足时按钮**仍然可点**，点击后在
+ * 条内给出带图标的说明（词不在库 / 词条缺这条释义），而不是一个没有反馈的禁用态：
+ * - 词不在库 → 提示先用「添加至…」收录；
  * - 词在库但没有这条释义（词典有这个义项、用户当年没收）→ `appendExampleUnderDefinition`
- *   返回 false，行内提示先收录该释义。
+ *   返回 false，提示先收录该释义。
  *
  * 关闭（右上角 ×）＝不添加：只清掉 pending，不写任何东西。
  */
@@ -47,9 +47,6 @@ export default function GrabbedSentenceBar({ word, fields }: {
   const [attachKey, setAttachKey] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [status, setStatus] = useState<Status>('idle')
-  // 词是否已在库（活订阅）：不在库时本条只展示、不提供动作——「加进工作台」归导航栏的
-  // 「添加至…」，这里绝不代劳（用户裁定）。
-  const inLibrary = useWordStore(s => libraryLocationIn(s.libraryIndex, word) !== null)
 
   // 换词 / 换一次抓取：默认归属与状态都重新开始（本组件常驻在详情页里，word 会变）。
   useEffect(() => {
@@ -96,8 +93,8 @@ export default function GrabbedSentenceBar({ word, fields }: {
       // 词表 / 索引刷新（只读刷新，不新增词条）：词条卡片与工作区能看到这条例句。
       await useWordStore.getState().loadWords().catch(() => {})
       setStatus('done')
-      // 让成功态停留一瞬再收起：立刻卸载会让用户看不到「刚才那一下发生了什么」。
-      setTimeout(() => usePendingExampleStore.getState().clear(), 1100)
+      // 让成功提示停留一瞬再收起：立刻卸载会让用户看不到「刚才那一下发生了什么」。
+      setTimeout(() => usePendingExampleStore.getState().clear(), 1400)
     } catch (e) {
       console.error('[detail] 加入划词例句失败', e)
       setStatus('failed')
@@ -186,26 +183,43 @@ export default function GrabbedSentenceBar({ word, fields }: {
           }))}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
-          <span style={{
-            fontSize: 11.5, lineHeight: 1.45, minWidth: 0,
-            color: status === 'failed' ? 'var(--color-danger)'
-              : status === 'done' ? 'var(--color-success)'
-              : 'var(--color-text-secondary)',
-          }}>
-            {!inLibrary
-              ? STATUS_COPY.noWord
-              : status === 'idle' ? '' : STATUS_COPY[status]}
-          </span>
-          <span style={{ marginLeft: 'auto', display: 'inline-flex', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
+          <span style={{ marginLeft: 'auto', display: 'inline-flex' }}>
             <Button
               onClick={() => { void handleAttach() }}
-              disabled={busy || status === 'done' || leaf === null || !inLibrary}
+              disabled={busy || status === 'done' || leaf === null}
             >
-              作为例句加入此释义
+              {busy ? '正在加入…' : '作为例句加入此释义'}
             </Button>
           </span>
         </div>
+
+        {/* 点击反馈（role=status + aria-live）：按钮**始终可点**——不满足前提时点击也
+            给出明确原因，而不是一个按不动的灰按钮。成功 / 失败 / 缺词条 / 缺释义
+            各自一条带图标的提示，文字走正文档而不是 11.5px 的边角小字。 */}
+        {status !== 'idle' && (
+          <div
+            role="status"
+            aria-live="polite"
+            style={{
+              marginTop: 8, display: 'flex', alignItems: 'flex-start', gap: 6,
+              padding: '6px 8px', borderRadius: 'var(--radius-sm)',
+              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+            }}
+          >
+            <span style={{
+              display: 'inline-flex', paddingTop: 1,
+              color: status === 'done' ? 'var(--color-success)'
+                : status === 'failed' ? 'var(--color-danger)'
+                : 'var(--color-text-tertiary)',
+            }}>
+              <Icon name={status === 'done' ? 'check-square' : status === 'failed' ? 'alert' : 'info'} size={13} />
+            </span>
+            <span style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--color-text-secondary)' }}>
+              {STATUS_COPY[status]}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   )
