@@ -45,3 +45,25 @@ export function reorderSiblingIds(
   without.splice(before ? at : at + 1, 0, draggedId)
   return without
 }
+
+/** 拖拽落点三态（v0.7.10 任务 5）：落到自身 → none；父级不同 → invalid；否则 valid */
+export type DropVerdict = 'valid' | 'invalid' | 'none'
+
+/**
+ * 同级落点判定：落到自身所在行 → 'none'（调用方不写入）；拖动项与目标的父级不同
+ * → 'invalid'（跨父级拖动不支持）；父级相同 → 'valid'。根级双方的父级都是 null，视为相同。
+ */
+export function dropVerdict(
+  draggedParentId: string | null,
+  targetParentId: string | null,
+  sameRow: boolean,
+): DropVerdict {
+  if (sameRow) return 'none'
+  return draggedParentId === targetParentId ? 'valid' : 'invalid'
+}
+
+/** 把 draggedId 移到同级末尾；不在集合内时返回原数组的副本（绝不原地修改入参） */
+export function appendSiblingIds(siblingIds: readonly string[], draggedId: string): string[] {
+  if (!siblingIds.includes(draggedId)) return [...siblingIds]
+  return [...siblingIds.filter(id => id !== draggedId), draggedId]
+}

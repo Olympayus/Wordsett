@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { insertBefore, dropY, reorderSiblingIds } from './dragReorder'
+import { insertBefore, dropY, reorderSiblingIds, dropVerdict, appendSiblingIds } from './dragReorder'
 
 // 例句项 / 近义词项的真实几何（WordWorkbench.tsx FieldCard）：
 // 卡片 padding 6px×2 + 行高 24px（行内垃圾桶按钮 24px 撑起行高）= 36px；相邻卡片间距 2px。
@@ -96,5 +96,18 @@ describe('dropY 落点纵坐标', () => {
     expect(dropY({} as unknown as Event, 30, 500)).toBe(500)
     expect(dropY(null, 30, 500)).toBe(500)
     expect(dropY(undefined, 30, 500)).toBe(500)
+  })
+})
+
+describe('dropVerdict / appendSiblingIds（v0.7.10 任务 5）', () => {
+  it('dropVerdict_classifies_three_states', () => {
+    expect(dropVerdict('r1', 'r1', false)).toBe('valid')
+    expect(dropVerdict('r1', 'r2', false)).toBe('invalid')
+    expect(dropVerdict('r1', 'r1', true)).toBe('none')
+    expect(dropVerdict(null, null, false)).toBe('valid')   // 两个根级
+  })
+  it('appendSiblingIds_moves_to_end', () => {
+    expect(appendSiblingIds(['a', 'b', 'c'], 'a')).toEqual(['b', 'c', 'a'])
+    expect(appendSiblingIds(['a'], 'a')).toEqual(['a'])
   })
 })
