@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useViewStore } from '../../stores/viewStore'
 import { useMobilePopup } from '../../lib/mobilePopups'
+import { scaleForAnchor, type OverlayScale } from '../../lib/overlayZoom'
 import { touchInputStyles } from '../../lib/touchInput'
 import ClearButton from './ClearButton'
 
@@ -38,6 +39,11 @@ export default function FindBar({ variant = 'desktop' }: { variant?: 'desktop' |
   const [matches, setMatches] = useState(0)
   const activeModule = useViewStore(s => s.activeModule)
   const inputRef = useRef<HTMLInputElement>(null)
+  // 桌面 / 平板形态的缩放锚点（v0.7.10 §7.5 / §7.8）：本组件挂在 `AppShell` 的子树里，
+  // 平板的 `zoom` 宿主是它的祖先；portal 到 body 的面板不再被祖先缩放，需按 zoom 补 transform。
+  // 隐藏宿主 span 只为提供「祖先是谁」——它属于 AppShell 树、零布局，桌面看不出任何变化。
+  const hostRef = useRef<HTMLSpanElement>(null)
+  const [scale, setScale] = useState<OverlayScale | null>(null)
   useEffect(() => { current = new FindBarController(() => { setQuery(q => q || ''); setOpen(true); requestAnimationFrame(() => inputRef.current?.focus()) }); return () => { current = null } }, [])
   // 打开期间登记进手机返回栈（v0.7.10 Task 27）：安卓返回键先关查找条，不穿透到抽屉 / 模块。
   // 桌面外壳不读这张表，登记本身无副作用。
@@ -74,7 +80,19 @@ export default function FindBar({ variant = 'desktop' }: { variant?: 'desktop' |
     if (target) { const el = target.startContainer.parentElement; el?.scrollIntoView({ block: 'center', behavior: 'smooth' }) }
   }, [open, query, index, activeModule])
 
-  if (!open) return null
+  // 平板 zoom 补偿（v0.7.10 §7.5 / §7.8）：与 Tooltip / ContextMenu 同一口径——
+  // 先于绘制读出宿主祖先的 zoom，面板按 scale(zoom) 缩回视觉尺寸。桌面 zoom = 1 → null，
+  // 不写 transform，样式逐字不变。手机形态流内渲染、不受 zoom 影响，不参与。
+  useLayoutEffect(() => {
+    if (!open || variant === 'mobile') { setScale(null); return }
+    setScale(scaleForAnchor(hostRef.current))
+  }, [open, variant])
+
+  if (!open) {
+    // 桌面 / 平板形态需要一个属于 `AppShell` 子树的锚点来读 zoom；关闭时只留这个
+    // 零布局的隐藏 span，面板本身仍不渲染。手机形态不需要它，保持原样返回 null。
+    return variant === 'mobile' ? null : <span ref={hostRef} style={{ display: 'none' }} />
+  }
   if (variant === 'mobile') {
     // 手机形态（v0.7.10 Task 27）：流内整条、贴在 `MobileAppBar` 正下方（顶栏 52 + 安全区已由
     // 顶栏自己承担），不 portal、不做坐标计算，打开时把内容区往下推而不是盖住它。
@@ -94,8 +112,9 @@ export default function FindBar({ variant = 'desktop' }: { variant?: 'desktop' |
         <span style={{ flex: 'none', fontSize: 12, color: 'var(--color-text-tertiary)', fontVariantNumeric: 'tabular-nums' }}>
           {Math.min(index + 1, matches)}/{matches}
         </span>
-        <button type="button" aria-label="下一个匹配" onClick={() => matches > 0 && setIndex(i => Math.min(i + 1, matches - 1))} style={mobileBtnStyle}>↓</button>
+        {/* 顺序（v0.7.10 §7.8「↑↓」）：手机形态 ↑ 在前、↓ 在后；桌面形态保持原样。 */}
         <button type="button" aria-label="上一个匹配" onClick={() => setIndex(i => Math.max(i - 1, 0))} style={mobileBtnStyle}>↑</button>
+        <button type="button" aria-label="下一个匹配" onClick={() => matches > 0 && setIndex(i => Math.min(i + 1, matches - 1))} style={mobileBtnStyle}>↓</button>
         <button type="button" aria-label="关闭查找" onClick={() => setOpen(false)} style={mobileBtnStyle}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
             <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
@@ -104,28 +123,35 @@ export default function FindBar({ variant = 'desktop' }: { variant?: 'desktop' |
       </div>
     )
   }
-  return createPortal(
-    <div style={{
-      // 置于内容区右上角（header 高 48，避开右上角窗口控制），右对齐贴合内容区与右边距
-      position: 'fixed', top: 56, right: 12, zIndex: 5000, display: 'flex', alignItems: 'center', gap: 8,
-      padding: '6px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-      borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-overlay)',
-    }}>
-      <input ref={inputRef} value={query} onChange={e => { setQuery(e.target.value); setIndex(0) }}
-        onKeyDown={e => { if (e.key === 'Escape') setOpen(false) }}
-        placeholder="在页面内查找…" autoFocus
-        style={{ width: 150, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--color-text-primary)' }} />
-      <ClearButton visible={query.length > 0} onClick={() => { setQuery(''); setIndex(0); inputRef.current?.focus() }} />
-      <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{Math.min(index + 1, matches)}/{matches}</span>
-      <button type="button" onClick={() => matches > 0 && setIndex(i => Math.min(i + 1, matches - 1))} style={btnStyle}>↓</button>
-      <button type="button" onClick={() => setIndex(i => Math.max(i - 1, 0))} style={btnStyle}>↑</button>
-      <button type="button" aria-label="关闭查找" onClick={() => setOpen(false)} style={btnStyle}>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-          <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
-        </svg>
-      </button>
-    </div>,
-    document.body
+  return (
+    <>
+      <span ref={hostRef} style={{ display: 'none' }} />
+      {createPortal(
+        <div style={{
+          // 置于内容区右上角（header 高 48，避开右上角窗口控制），右对齐贴合内容区与右边距
+          position: 'fixed', top: 56, right: 12, zIndex: 5000, display: 'flex', alignItems: 'center', gap: 8,
+          padding: '6px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-overlay)',
+          // 平板 zoom（v0.7.10 §7.5 / §7.8）：从右上角缩，右缘与上缘的落点保持不动。
+          ...(scale ? { transform: scale.transform, transformOrigin: 'top right' } : null),
+        }}>
+          <input ref={inputRef} value={query} onChange={e => { setQuery(e.target.value); setIndex(0) }}
+            onKeyDown={e => { if (e.key === 'Escape') setOpen(false) }}
+            placeholder="在页面内查找…" autoFocus
+            style={{ width: 150, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--color-text-primary)' }} />
+          <ClearButton visible={query.length > 0} onClick={() => { setQuery(''); setIndex(0); inputRef.current?.focus() }} />
+          <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{Math.min(index + 1, matches)}/{matches}</span>
+          <button type="button" onClick={() => matches > 0 && setIndex(i => Math.min(i + 1, matches - 1))} style={btnStyle}>↓</button>
+          <button type="button" onClick={() => setIndex(i => Math.max(i - 1, 0))} style={btnStyle}>↑</button>
+          <button type="button" aria-label="关闭查找" onClick={() => setOpen(false)} style={btnStyle}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+              <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+            </svg>
+          </button>
+        </div>,
+        document.body
+      )}
+    </>
   )
 }
 const btnStyle = { border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--color-text-secondary)', fontSize: 14, padding: '2px 6px', borderRadius: 4 }

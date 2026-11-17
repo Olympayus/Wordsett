@@ -2113,7 +2113,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   const masteryTier = displayTier({ stability: overlay?.weakestStability ?? null, familiarity })
   const mastery = masteryBlocks(masteryTier)
   const strengthNode = (
-    <Tooltip content={<WordMasteryTooltip wordId={selectedWord.id} weakestStability={overlay?.weakestStability ?? null} familiarity={familiarity} />}>
+    <Tooltip tapOpen content={<WordMasteryTooltip wordId={selectedWord.id} weakestStability={overlay?.weakestStability ?? null} familiarity={familiarity} />}>
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2.5, flexShrink: 0 }}>
         {Array.from({ length: mastery.total }, (_, i) => (
           <i key={i} style={{

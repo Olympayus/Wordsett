@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { dayTotal, dayAccuracy, isTrendSparse, subtitleFor, periodFor, splitCaptionNumbers, shortDay, type DayRating, type RoundStatsInput } from './trend'
+import { dayTotal, dayAccuracy, isTrendSparse, lastSevenDays, subtitleFor, periodFor, splitCaptionNumbers, shortDay, type DayRating, type RoundStatsInput } from './trend'
 
 const day = (again: number, hard: number, good: number): DayRating => ({ day: '2026-09-25', again, hard, good })
 
@@ -32,6 +32,37 @@ describe('lib/review/trend', () => {
     expect(isTrendSparse([day(1, 0, 0)], [0, 3, 0, 0, 0, 0, 0, 0])).toBe(false)
     // 空库 → 稀疏
     expect(isTrendSparse([], noDue)).toBe(true)
+  })
+})
+
+describe('lastSevenDays（v0.7.10 §7.7：近 7 个本地日历日，含跨月）', () => {
+  const rating = (day: string): DayRating => ({ day, again: 0, hard: 0, good: 1 })
+
+  it('含今天在内的 7 天：起点日计入、前一天与末日之后剔除', () => {
+    // now = 2026-03-02 → 窗口 2026-02-24 … 2026-03-02（跨月）。
+    const now = new Date(2026, 2, 2, 12, 0, 0)
+    const input = [
+      '2026-02-22', '2026-02-23', '2026-02-24', '2026-02-27',
+      '2026-02-28', '2026-03-01', '2026-03-02', '2026-03-03',
+    ].map(rating)
+    expect(lastSevenDays(input, now).map(r => r.day)).toEqual([
+      '2026-02-24', '2026-02-27', '2026-02-28', '2026-03-01', '2026-03-02',
+    ])
+  })
+
+  it('按本地日历日而不是 24 小时滑窗：零点刚过仍只含当日窗口', () => {
+    // 本地 00:05 时，7 天前那一天的 23:59 仍在窗口内（滑窗会把它算成「差一天」）。
+    const now = new Date(2026, 2, 2, 0, 5, 0)
+    expect(lastSevenDays([rating('2026-02-23'), rating('2026-02-24')], now).map(r => r.day))
+      .toEqual(['2026-02-24'])
+    // 跨年：12-31 与 01-01 按字符串比较仍连续。
+    const newYear = new Date(2027, 0, 1, 9, 0, 0)
+    expect(lastSevenDays([rating('2026-12-25'), rating('2026-12-26'), rating('2027-01-01')], newYear)
+      .map(r => r.day)).toEqual(['2026-12-26', '2027-01-01'])
+  })
+
+  it('空输入返回空数组（不因没有评分而造日子）', () => {
+    expect(lastSevenDays([], new Date(2026, 2, 2))).toEqual([])
   })
 })
 

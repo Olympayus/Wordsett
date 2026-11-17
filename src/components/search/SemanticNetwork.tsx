@@ -143,7 +143,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
         )
       })}
       {g.definition && (
-        <Tooltip content={<GlossTip gloss={g.definition} />} width={340}>
+        <Tooltip tapOpen content={<GlossTip gloss={g.definition} />} width={340}>
           <span role="img" aria-label={`组说明：${g.words.join('、')}`} style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'help' }}><Icon name="info" size={12} /></span>
         </Tooltip>
       )}
@@ -182,7 +182,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
               {LABELS[key]}
               <span style={{ fontWeight: 400, color: 'var(--color-text-tertiary)', marginLeft: 2 }}>{items.length}</span>
-              <Tooltip content={RELATION_DESCRIPTIONS[key]} width={300}>
+              <Tooltip tapOpen content={RELATION_DESCRIPTIONS[key]} width={300}>
                 <span role="img" aria-label="说明" style={{ display: 'inline-flex', color: 'var(--color-text-tertiary)', cursor: 'help' }}><Icon name="info" size={13} /></span>
               </Tooltip>
             </div>

@@ -189,7 +189,7 @@ export default function CategoryPickerPopover({ anchor, onPick, onClose, align =
           面板是它的兄弟节点而非子节点，所以点面板本身不会冒泡到这里；点面板外任意处则命中遮罩。
           整组都 portal 到 body：祖先的 overflow: hidden 与平板 zoom 都够不到它。 */}
       <div
-        style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-dropdown)' }}
+        style={{ position: 'fixed', inset: 0, zIndex: 'calc(var(--z-modal) + 1)' }}
         onClick={onClose}
       />
       <div
@@ -197,7 +197,12 @@ export default function CategoryPickerPopover({ anchor, onPick, onClose, align =
         role="menu"
         style={{
           position: 'fixed',
-          zIndex: 'calc(var(--z-dropdown) + 1)',
+          // 层级（v0.7.10 修复）：portal 到 body 后，浮层必须压在**所有宿主层**之上——
+          // 手机抽屉是 `--z-modal`（40）、词典动作条 / 工作台导航条是 `--z-sticky`（20），
+          // 旧的 `--z-dropdown`（10）会把抽屉里的批量分类下拉整块盖住。取 modal + 1 / + 2：
+          // 高于抽屉与居中弹窗，低于 `--z-toast`。新建分类那条路径先 `onClose()` 再开编辑器
+          // （见下方按钮），故不会与弹窗抢层级。
+          zIndex: 'calc(var(--z-modal) + 2)',
           // 平板 zoom：位置是视觉坐标，尺寸由 scale(zoom) 补回；桌面为 undefined，无 transform。
           transform: pos?.transform ?? undefined,
           transformOrigin: pos?.transformOrigin,

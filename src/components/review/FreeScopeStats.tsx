@@ -1,4 +1,4 @@
-import { dayTotal, dayAccuracy, type DayRating } from '../../lib/review/trend'
+import { dayTotal, dayAccuracy, lastSevenDays } from '../../lib/review/trend'
 import { MASTERY_COLORS, MASTERY_TIER_NAMES } from '../../lib/review/masteryScale'
 import type { ReviewStats } from './StatsMini'
 
@@ -36,7 +36,11 @@ export interface FreeOverview {
  * 两处不是同一个分母，别把它们相加或互相折算。
  */
 export default function FreeScopeStats({ kind, workspaceCount, stats, overview, variant = 'desktop' }: {
-  kind: 'random' | 'today'
+  /**
+   * `random` / `today` 各有一套读数；`category` / `weak` 复用 `random` 那三枚瓦片
+   * 与熟悉度条（v0.7.10 §7.7：手机在这两页下方补同形的紧凑块，桌面不渲染）。
+   */
+  kind: 'random' | 'today' | 'category' | 'weak'
   /** 工作区词数（复习只认工作区，储藏库词不参与） */
   workspaceCount: number
   stats: ReviewStats
@@ -44,9 +48,9 @@ export default function FreeScopeStats({ kind, workspaceCount, stats, overview, 
   /** 几何档（v0.7.10 T23）：缺省 `desktop`；手机外壳传 `mobile`，桌面调用点不传。 */
   variant?: 'desktop' | 'mobile'
 }) {
-  return kind === 'random'
-    ? <RandomStats workspaceCount={workspaceCount} stats={stats} variant={variant} />
-    : <TodayStats stats={stats} overview={overview} variant={variant} />
+  return kind === 'today'
+    ? <TodayStats stats={stats} overview={overview} variant={variant} />
+    : <RandomStats workspaceCount={workspaceCount} stats={stats} variant={variant} />
 }
 
 const TILES: React.CSSProperties = { display: 'flex', gap: 10, width: '100%' }
@@ -77,38 +81,14 @@ function Tile({ value, label, mobile }: { value: number | string; label: string;
 }
 
 /**
- * 本地日期串（YYYY-MM-DD），与 `db/review.ts` 的 `date(..., 'localtime')` 同形，
- * 因此可以直接按字符串比较先后（零填充定长）。
- */
-function localDayKey(d: Date): string {
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${d.getFullYear()}-${m}-${day}`
-}
-
-/**
- * 最近 7 个本地日历日（含今天）内的评分。
- *
- * `stats.recentRatings` 本身是 **14 天**窗口（`db/review.ts` 的 `now - 14 天`），
- * 而本块瓦片的标签是「近 7 天」——标签与数据窗口必须一致，故先用 `day` 串过滤再求和。
- * 起算点是本地日历日而非 24 小时滑窗：与 `getStats` / `practiceToday` 的日界口径一致。
- * `now` 参数只为可测性留出注入点，生产调用不传。
- */
-function lastSevenDays(ratings: DayRating[], now: Date = new Date()): DayRating[] {
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)
-  const startKey = localDayKey(start)
-  const endKey = localDayKey(now)
-  return ratings.filter(r => r.day >= startKey && r.day <= endKey)
-}
-
-/**
  * `random`：工作区词数 / 近 7 天题数 / 近 7 天记得率 + 熟悉度 6 档条。
  *
  * 记得率＝`trend.ts` 的 `dayAccuracy`（good / 总评分数，v0.7.2 起「记得率」= rating 3 占比），
  * 按当日题量加权汇总——与 `StatsMini` 的趋势卡副标题同一算法、同一口径。规格 §7.7 要求
  * 本块与 `StatsMini`「复习量 / 记得率」同源，故这里不另写一套公式。
- * 题数与记得率都**先过滤到最近 7 个本地日历日**（`recentRatings` 原窗口是 14 天），标签与
- * 数据窗口一致。0 条时显示「—」而不是 0%——0/0 是未定义，写成 0% 会被读成「全忘了」。
+ * 题数与记得率都**先过滤到最近 7 个本地日历日**（`lastSevenDays`，`recentRatings` 原窗口
+ * 是 14 天），标签与数据窗口一致。0 条时显示「—」而不是 0%——0/0 是未定义，写成 0% 会被
+ * 读成「全忘了」。
  */
 function RandomStats({ workspaceCount, stats, variant }: { workspaceCount: number; stats: ReviewStats; variant: 'desktop' | 'mobile' }) {
   const mobile = variant === 'mobile'

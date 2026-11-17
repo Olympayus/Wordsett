@@ -337,8 +337,10 @@ export default function FreeScopePanel({ categories, variant = 'desktop', value,
         {/* 内容块（v0.7.10 §7.7、Task 22）：全库随机 = 工作区词数 / 近 7 天读数 / 熟悉度 6 档；
             今日队列重练 = 今日到期 / 涉及词数 / 今日已练 / 未来 8 根到期柱。数据全由 props 进。
             桌面在本内容区里渲染；手机由 Task 23 传 `mobile` 紧凑几何——内容区紧跟开始按钮，
-            故它自然落在「范围卡下方、开始按钮之后」，随既有滚动容器滚动。 */}
-        {(kind === 'random' || kind === 'today') && (
+            故它自然落在「范围卡下方、开始按钮之后」，随既有滚动容器滚动。
+            手机的分类 / 薄弱词也一样补这三枚紧凑瓦片与熟悉度条（§7.7 末段）：它们与全库随机
+            共用同一份工作区读数，桌面这两页保持原样（只有清单）。 */}
+        {(kind === 'random' || kind === 'today' || (mobile && (kind === 'category' || kind === 'weak'))) && (
           <FreeScopeStats
             kind={kind}
             variant={mobile ? 'mobile' : 'desktop'}

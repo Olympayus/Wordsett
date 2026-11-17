@@ -85,6 +85,12 @@ const EMPTY_TEXT: Record<SmartViewKey, string> = {
  */
 export interface WordListHandle {
   toggleSelectMode: () => void
+  /**
+   * 关掉批量条的分类下拉（v0.7.10 修复）。浮层 portal 到 body，会逃出抽屉的
+   * `visibility: hidden` / `inert`——抽屉关闭时若不同步清掉它，面板与全屏遮罩会留在
+   * 屏幕上，用户点哪里都只命中遮罩。抽屉的 `onClose` 走同步清理，不依赖浮层自己感知。
+   */
+  closeBatchPopover: () => void
 }
 
 // `forwardRef` 只为了让手机抽屉拿到「进入多选」（见 `WordListHandle`）。
@@ -307,6 +313,7 @@ const WordList = forwardRef(function WordList({
   // 与本组件内的 Esc 监听同一份出口：抽屉那枚「多选」钮只需进入，清空 / 退出仍归本组件。
   useImperativeHandle(ref, () => ({
     toggleSelectMode: () => setSelectMode(true),
+    closeBatchPopover: () => setBatchPopover(null),
   }), [])
 
   // 批量条的分类下拉开着时登记给外壳：安卓返回键先关下拉，而不是退选择模式 / 抽屉。

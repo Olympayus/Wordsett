@@ -34,6 +34,31 @@ export function dayAccuracy(d: DayRating): number {
 }
 
 /**
+ * 本地日期串（YYYY-MM-DD），与 `db/review.ts` 的 `date(..., 'localtime')` 同形，
+ * 因此可以直接按字符串比较先后（零填充定长）。
+ */
+function localDayKey(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+/**
+ * 最近 7 个本地日历日（含今天）内的评分（v0.7.10 §7.7；原先内联在 `FreeScopeStats`）。
+ *
+ * `getStats` 的 `recentRatings` 是 **14 天**窗口，而自由练习读数块的标签是「近 7 天」——
+ * 标签与数据窗口必须一致，故先用 `day` 串过滤再求和。起算点是本地日历日而非 24 小时滑窗：
+ * 与 `getStats` / `practiceToday` 的日界口径一致。`now` 参数只为可测性留出注入点，
+ * 生产调用不传。
+ */
+export function lastSevenDays(ratings: DayRating[], now: Date = new Date()): DayRating[] {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)
+  const startKey = localDayKey(start)
+  const endKey = localDayKey(now)
+  return ratings.filter(r => r.day >= startKey && r.day <= endKey)
+}
+
+/**
  * 稀疏判定：评分样本 < 3 天**且**未来 8 日无一到期时视为「数据积累中」。
  * 全四宫格只判这一次（v0.6.2 条目 9 之前，StatsMini 的三张图与 OverviewPanel 的 TrendBar
  * 各自判一次，于是同一个库会在上面画着曲线、下面写着「数据积累中」；现在趋势已并入四宫格，

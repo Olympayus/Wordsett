@@ -88,6 +88,9 @@ export default function MobileDrawer({ open, onClose }: Props) {
     if (open) { wasOpen.current = true; return }
     if (!wasOpen.current) return
     wasOpen.current = false
+    // 分类下拉 portal 到 body，逃得开抽屉的 `visibility: hidden` / `inert`：抽屉关闭时
+    // 必须同步清掉批量条的浮层状态（v0.7.10 修复），否则面板与全屏遮罩会留在屏幕上卡死。
+    listRef.current?.closeBatchPopover()
     document.getElementById('mobile-drawer-open')?.focus()
   }, [open])
 

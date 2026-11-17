@@ -183,7 +183,10 @@ export default function Tooltip({ content, children, width = 300, minWidth, styl
           const scale = scaleForAnchor(anchorEl)
           return (
             <div style={{
-              position: 'fixed', left: p.x, top: p.y, zIndex: 'var(--z-dropdown)',
+              // 层级（v0.7.10 修复）：与分类浮层同一口径——portal 到 body 后必须压在宿主层之上。
+              // 手机抽屉（`--z-modal` 40）里的顽固词提示此前落在 `--z-dropdown`（10），
+              // 点按开出来也整块被抽屉盖住；取 modal + 1，让所有信息型提示都看得见。
+              position: 'fixed', left: p.x, top: p.y, zIndex: 'calc(var(--z-modal) + 1)',
               ...(scale ? { transform: scale.transform, transformOrigin: scale.transformOrigin } : null),
               maxWidth: width, minWidth, padding: '8px 12px',
               background: 'var(--color-surface)', border: '1px solid var(--color-border)',

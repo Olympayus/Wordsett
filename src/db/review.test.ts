@@ -16,6 +16,7 @@ import {
   getWordCardBreakdown,
   getStrategyCounts,
   getStats,
+  getPracticeToday,
   getAbsentWords,
 } from './review'
 import { createTestDb, type DbLike } from './test-utils'
@@ -1607,5 +1608,54 @@ describe('归档词不参与复习取数（v0.7.5 Task 12）', () => {
     const r = await getWordCardBreakdown('w1', db)
     if (!r.ok) throw new Error(r.error)
     expect(r.data.map(x => x.template).sort()).toEqual(['recall', 'recognize'])
+  })
+})
+
+// v0.7.10 §7.7 计划 §9.1：今日已练的日界必须与 getStats 逐字一致——本地零点切日，
+// 且只数 mode = 'practice'。这里直接插 review_logs，绕开写路径只验查询本身。
+describe('getPracticeToday 的本地日界（v0.7.10 计划 §9.1）', () => {
+  let db: DbLike
+  beforeEach(async () => { db = await createTestDb() })
+
+  /** 本地时间戳：日界用例不能依赖运行时区，一律用本地 Date 构造。 */
+  const local = (month: number, day: number, h: number, m = 0, s = 0) =>
+    new Date(2026, month - 1, day, h, m, s).getTime()
+
+  async function seedLogs() {
+    await seedWord(db, 'w1', 'alpha')
+    await db.execute(
+      "INSERT INTO review_cards (id, word_id, template, created_at) VALUES ('c1','w1','recognize',0)")
+    const rows: Array<[string, number, number, string]> = [
+      // [id, reviewed_at, rating, mode]
+      ['p-prev', local(3, 9, 23, 59, 59), 1, 'practice'],   // 前一天最后一秒：不计
+      ['p-mid', local(3, 10, 0, 0, 0), 1, 'practice'],      // 当日零点整：计
+      ['r-mid', local(3, 10, 9, 0, 0), 3, 'review'],        // 复习日志：不计
+      ['p-last', local(3, 10, 23, 59, 59), 1, 'practice'],  // 当日最后一秒：计
+      ['p-next', local(3, 11, 0, 0, 0), 1, 'practice'],     // 次日零点整：不计
+    ]
+    for (const [id, at, rating, mode] of rows) {
+      await db.execute(
+        `INSERT INTO review_logs (id, card_id, reviewed_at, rating, template, mode)
+         VALUES (?1, 'c1', ?2, ?3, 'recognize', ?4)`,
+        [id, at, rating, mode])
+    }
+  }
+
+  it('只数当日 mode = practice 的条数，前一天 / 次日 / review 都不算', async () => {
+    await seedLogs()
+    const now = local(3, 10, 12, 0, 0)
+    const r = await getPracticeToday(now, db)
+    if (!r.ok) throw new Error(r.error)
+    expect(r.data).toBe(2)
+  })
+
+  it('跨过本地零点后窗口整体翻页', async () => {
+    await seedLogs()
+    const before = await getPracticeToday(local(3, 9, 23, 59, 59), db)
+    const after = await getPracticeToday(local(3, 11, 0, 0, 0), db)
+    if (!before.ok) throw new Error(before.error)
+    if (!after.ok) throw new Error(after.error)
+    expect(before.data).toBe(1)   // 只剩 3-09 23:59:59 那条
+    expect(after.data).toBe(1)    // 只剩 3-11 00:00:00 那条
   })
 })
