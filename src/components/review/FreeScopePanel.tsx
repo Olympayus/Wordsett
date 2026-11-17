@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import FreeScopeTabs from './FreeScopeTabs'
+import FreeScopeStats, { type FreeOverview } from './FreeScopeStats'
+import type { ReviewStats } from './StatsMini'
 import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
 import CheckBox from '../ui/CheckBox'
@@ -39,7 +41,7 @@ const MOBILE_SCOPE_DESC: Record<FreeScopeKind, string> = {
   random: '工作台全部词条',
 }
 
-export default function FreeScopePanel({ categories, variant = 'desktop', value, onChange, start }: {
+export default function FreeScopePanel({ categories, variant = 'desktop', value, onChange, start, overview, stats }: {
   // color 一并带进来（v0.6.3 条目 6）：分类行的勾选框要按分类走色，
   // 写进 prop 类型而不是在面板里另取一份，是为了让别的调用点漏传时编译器先叫。
   categories: { id: string; name: string; color: string }[]
@@ -60,6 +62,14 @@ export default function FreeScopePanel({ categories, variant = 'desktop', value,
    * 不复制那套逻辑。桌面不传（按钮已统一到左栏控制台下方）。
    */
   start?: ReactNode
+  /**
+   * 自由练习读数块的数（v0.7.10 §7.7 / Task 22）：`getOverview` 的今日到期 / 涉及词数 /
+   * 今日已练。面板原样转给 `FreeScopeStats`，自己不取数；手机分支本任务不渲染它（Task 23）。
+   * 概览尚未读到或读失败时为 null，读数按 0 兜底。
+   */
+  overview: FreeOverview | null
+  /** 复习统计（`overview.stats`，`ReviewModule` 负责兜底空值）。`random` 的熟悉度条与 7 天读数用它。 */
+  stats: ReviewStats
 }) {
   const mobile = variant === 'mobile'
   // 触摸输入档（v0.7.10 §7.4）：本组件桌面与手机外壳共用、没有 `touch` prop，按主指针判断；
@@ -316,20 +326,28 @@ export default function FreeScopePanel({ categories, variant = 'desktop', value,
           </div>
         )}
 
-        {kind === 'random' && (
-          <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
-            词库共 <span className="stat-num">{wordCount}</span> 词
-          </div>
+        {/* 内容块（v0.7.10 §7.7、Task 22）：全库随机 = 工作区词数 / 近 7 天读数 / 熟悉度 6 档；
+            今日队列重练 = 今日到期 / 涉及词数 / 今日已练 / 未来 8 根到期柱。数据全由 props 进。
+            手机形态由 Task 23 接在范围卡下方，本任务只在桌面分支渲染（mobile 分支不动）。 */}
+        {!mobile && kind === 'random' && (
+          <FreeScopeStats kind="random" workspaceCount={wordCount} stats={stats} overview={overview} />
+        )}
+        {!mobile && kind === 'today' && (
+          <FreeScopeStats kind="today" workspaceCount={wordCount} stats={stats} overview={overview} />
         )}
 
-        <label className="flex items-center gap-2" style={{ fontSize: '13px' }}>
-          数量
-          <input
-            type="number" min={1} max={100} value={limit}
-            onChange={e => onChange({ ...value, limit: Math.min(100, Math.max(1, Number(e.target.value) || 1)) })}
-            style={{ width: '80px', padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)', background: 'transparent', color: 'inherit', fontSize: '13px', ...touchInputStyles(touch) }}
-          />
-        </label>
+        {/* 数量控件只对 random / category / weak 有意义（spec §7.7）：今日队列重练按当前到期队列
+            全量出题，不渲染数量。共享的这一条 label 因此按 kind 门控，不再复制第二份。 */}
+        {kind !== 'today' && (
+          <label className="flex items-center gap-2" style={{ fontSize: '13px' }}>
+            数量
+            <input
+              type="number" min={1} max={100} value={limit}
+              onChange={e => onChange({ ...value, limit: Math.min(100, Math.max(1, Number(e.target.value) || 1)) })}
+              style={{ width: '80px', padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)', background: 'transparent', color: 'inherit', fontSize: '13px', ...touchInputStyles(touch) }}
+            />
+          </label>
+        )}
 
         {/* 桌面的「开始练习」已统一到左栏控制台下方（v0.7.10 §7.7），本组件不再渲染。 */}
       </div>

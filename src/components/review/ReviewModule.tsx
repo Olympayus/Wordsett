@@ -9,6 +9,7 @@ import ArenaNavBar from './ArenaNavBar'
 import SessionGuard from './SessionGuard'
 import SummaryPanel from './SummaryPanel'
 import ReviewConsole from './ReviewConsole'
+import type { ReviewStats } from './StatsMini'
 import SquareButton from '../ui/SquareButton'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useSettingsStore } from '../../stores/settingsStore'
@@ -24,6 +25,13 @@ import { canStartFreeScope } from '../../lib/review/categoryCounts'
 import { isSessionLive } from '../../lib/review/sessionGuard'
 import { canGoBack, canGoForward, answeredCount } from '../../lib/review/nav'
 import { scopeLabel, correctCount, TEMPLATE_LABEL } from '../../lib/review/scopeLabel'
+
+/**
+ * 概览尚未读到 / 读失败时传给统计组件的空值（v0.7.10 Task 22）。
+ * `masteryBuckets` 给空数组即可：消费方按桶总和归一，全空时条为零宽、由底轨兜住。
+ * 三处统计消费点（自由练习读数块、桌面 / 手机概览）共用这一份，免得同一个空值抄三遍。
+ */
+const EMPTY_STATS: ReviewStats = { masteryBuckets: [], dueByDay: [], recentRatings: [] }
 
 export default function ReviewModule() {
   const { strategy, sessionStrategy, phase, queue, answered, freeScope, index, setStrategy, startSession, setIndex, reset } = useReviewSessionStore()
@@ -257,13 +265,15 @@ export default function ReviewModule() {
                   value={freeSelection}
                   onChange={setFreeSelection}
                   start={mobileFreeStart}
+                  overview={overview}
+                  stats={overview?.stats ?? EMPTY_STATS}
                 />
               )}
               {showOverview && strategy === 'today' && (
                 <MobileOverview
                   overview={overview}
                   weakCount={counts.weak}
-                  stats={overview?.stats ?? { masteryBuckets: [], dueByDay: [], recentRatings: [] }}
+                  stats={overview?.stats ?? EMPTY_STATS}
                   canStart={(overview?.deliverable ?? 0) > 0}
                   onStart={handleStart}
                 />
@@ -298,12 +308,14 @@ export default function ReviewModule() {
             categories={categories.map(c => ({ id: c.id, name: c.name, color: c.color }))}
             value={freeSelection}
             onChange={setFreeSelection}
+            overview={overview}
+            stats={overview?.stats ?? EMPTY_STATS}
           />
         )}
         {showOverview && strategy === 'today' && (
           <OverviewPanel
             title="今日复习"
-            stats={overview?.stats ?? { masteryBuckets: [], dueByDay: [], recentRatings: [] }}
+            stats={overview?.stats ?? EMPTY_STATS}
           />
         )}
         {live && (
