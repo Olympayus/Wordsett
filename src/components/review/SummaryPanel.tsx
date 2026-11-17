@@ -24,7 +24,7 @@ import {
  * 的词」，不是本轮出过的词，塞不进逐题表。
  *
  * v0.7.6 加 `variant`：桌面仍是上面这套，手机形态整段交给下面的 `MobileSummary`
- * （单列 / 2×2 统计卡 / 两张图 / 明细卡列表），两者共用本函数顶部的取数。
+ * （单列 / 2×2 统计卡 / 四张图 / 明细卡列表），两者共用本函数顶部的取数。
  */
 export default function SummaryPanel({ onRestart, variant = 'desktop' }: {
   onRestart: () => void
@@ -59,6 +59,8 @@ export default function SummaryPanel({ onRestart, variant = 'desktop' }: {
         absent={absent}
         summary={summary}
         counts={counts}
+        dist={dist}
+        accs={accs}
         series={series}
         onRestart={onRestart}
       />
@@ -166,8 +168,8 @@ export default function SummaryPanel({ onRestart, variant = 'desktop' }: {
 /**
  * 手机结算页（v0.7.6 §3.6 手机段）：与桌面同数据、同顺序，只换呈现。
  *
- * 390dp 放不下六列表格，故逐题明细退成卡片堆叠；图表按 §3.6 手机段只留两张
- * （本轮评分走势 + 本轮题型构成），「评分分布」「题型正确率」在手机上不渲染。
+ * 390dp 放不下六列表格，故逐题明细退成卡片堆叠；图表与桌面同为四张（v0.7.10 补齐：
+ * 本轮评分走势 / 题型构成 / 评分分布 / 题型正确率，v0.7.6 曾只留前两张）。
  * 统计卡保留桌面那四档暖中性面（tone 顺序不变），图表卡用 sunken / chrome 交替，
  * 与桌面白卡区分开。
  *
@@ -177,12 +179,14 @@ export default function SummaryPanel({ onRestart, variant = 'desktop' }: {
  * 数字；absent 块是根列容器的直接 flex 项，交叉轴 stretch 已把宽度钉在容器内，它自己的
  * `overflowWrap: 'anywhere'` 负责断长串。
  */
-function MobileSummary({ queue, answered, absent, summary, counts, series, onRestart }: {
+function MobileSummary({ queue, answered, absent, summary, counts, dist, accs, series, onRestart }: {
   queue: ReviewCardDTO[]
   answered: AnsweredEntry[]
   absent: { wordId: string; lemma: string }[]
   summary: ReturnType<typeof roundSummary>
   counts: ReturnType<typeof templateCounts>
+  dist: ReturnType<typeof ratingDistribution>
+  accs: ReturnType<typeof templateAccuracy>
   series: number[]
   onRestart: () => void
 }) {
@@ -206,6 +210,12 @@ function MobileSummary({ queue, answered, absent, summary, counts, series, onRes
         </RoundCard>
         <RoundCard background="var(--color-chrome)" title="本轮题型构成" subtitle={counts.filter(c => c.count > 0).map(c => `${c.label} ${c.count}`).join(' · ') || '本轮没有题'}>
           <StackedBars rows={counts.filter(c => c.count > 0).map(c => ({ label: c.label, n: c.count }))} />
+        </RoundCard>
+        <RoundCard background="var(--color-surface-sunken)" title="本轮评分分布" subtitle={`忘了 ${dist.again} · 模糊 ${dist.hard} · 记得 ${dist.good}`}>
+          <StackedBars rows={[{ label: '忘了', n: dist.again }, { label: '模糊', n: dist.hard }, { label: '记得', n: dist.good }]} />
+        </RoundCard>
+        <RoundCard background="var(--color-chrome)" title="本轮题型正确率" subtitle={accuracySubtitle(accs)}>
+          <AccuracyRows rows={accs} />
         </RoundCard>
       </div>
 

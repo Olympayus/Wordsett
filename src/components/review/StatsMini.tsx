@@ -33,8 +33,8 @@ const CARDS = [
  * 每张卡底部有一行补充文字（subtitleFor），因为小图上读不准具体数值，
  * 而 hover tooltip 在触控板上等于没有。
  *
- * `variant`（v0.7.6 §4）：手机概览只留前两张（遗忘曲线变动 / 明日压力），单列铺满；
- * 卡片本身与桌面逐项相同——「四张留两张、两列并一列」是布局，不是另一套卡。
+ * `variant`（v0.7.6 §4 → v0.7.10）：手机概览渲染**全部四张**、单列铺满（v0.7.6 曾只留
+ * 前两张，本版补齐）；卡片本身与桌面逐项相同——「两列并一列」是布局，不是另一套卡。
  */
 export default function StatsMini({ stats, variant = 'desktop' }: { stats: ReviewStats; variant?: 'desktop' | 'mobile' }) {
   // 稀疏判据直接调 isTrendSparse，不在此处重抄一遍——它就是为「两处各自判一次稀疏，
@@ -42,8 +42,6 @@ export default function StatsMini({ stats, variant = 'desktop' }: { stats: Revie
   // 稀疏时卡片一起换成占位卡（spec §4.2）。
   const sparse = isTrendSparse(stats.recentRatings, stats.dueByDay)
   const mobile = variant === 'mobile'
-  // 只切**前两张**（顺序即 CARDS 的定义序），不按标题另挑一套——挑选逻辑留在 CARDS 一处
-  const cards: readonly (typeof CARDS)[number][] = mobile ? CARDS.slice(0, 2) : CARDS
   return (
     // maxWidth 624（v0.6.3 条目 9）：每张卡约 306px，而折线的 viewBox 宽是 300 且
     // preserveAspectRatio="none"，横向拉伸因此回到约 1:1。全屏时每张卡超过 500px、
@@ -57,13 +55,13 @@ export default function StatsMini({ stats, variant = 'desktop' }: { stats: Revie
       maxWidth: mobile ? 'none' : 624,
     }}>
       {sparse
-        ? cards.map(c => (
+        ? CARDS.map(c => (
             <div key={c.kind} style={{ padding: '10px 12px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
               <div style={{ fontFamily: 'var(--font-serif)', fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary)' }}>{c.title}</div>
               <div style={{ fontSize: '12px', marginTop: '6px', color: 'var(--color-text-secondary)' }}>数据积累中</div>
             </div>
           ))
-        : cards.map(c => (
+        : CARDS.map(c => (
             <MiniCard key={c.kind} title={c.title} period={periodFor(c.kind)} subtitle={subtitleFor(c.kind, stats)}>{c.render(stats)}</MiniCard>
           ))}
     </div>

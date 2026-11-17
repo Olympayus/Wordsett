@@ -64,18 +64,22 @@ function judgeAnswer(dto: ReviewCardDTO, input: string): boolean | null {
  * 键是原生 `<button>` + 内联样式而不是 `SquareButton`：底栏键是 54dp 的触摸目标，
  * 与桌面方块键的 padding / 字号 / tone 体系不是一套，借用只会为了两处一致而改坏一处。
  */
-function MobileAnswerBar({ mode, atTail, disabled, onRate, onAdvance }: {
+function MobileAnswerBar({ mode, atTail, disabled, defaultRating, onRate, onAdvance }: {
   mode: AnswerBarMode
   atTail: boolean
   disabled: boolean
+  /** 首评的视觉默认键（与桌面 RatingBar 同一字段，spec 4.6）。null = 不预填 */
+  defaultRating: 1 | 2 | 3 | null
   onRate: (rating: number) => void
   onAdvance: () => void
 }) {
   if (mode === 'none') return null
   const keyStyle: React.CSSProperties = {
     flex: 1, height: 54, borderRadius: 8,
+    // 竖排：数字在上、标签在下（v0.7.10 恢复 1/2/3 提示，三键同形）
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1,
     background: 'var(--color-surface)', border: '1px solid var(--color-hairline)',
-    color: 'var(--color-text-primary)', fontSize: 14, fontWeight: 600,
+    color: 'var(--color-text-primary)', fontSize: 14, fontWeight: 600, lineHeight: 1.15,
     fontFamily: 'var(--font-sans)', cursor: disabled ? 'default' : 'pointer',
     // 触屏行为与 SquareButton / 手机范围卡一致：禁双击缩放与系统点击高亮块，
     // 否则每次评分都闪一块系统色。
@@ -99,13 +103,18 @@ function MobileAnswerBar({ mode, atTail, disabled, onRate, onAdvance }: {
           key={o.rating}
           type="button"
           disabled={disabled}
-          // 手机没有数字键，键面只印标签（spec §3.7「无 1/2/3 提示」）；
-          // 外接键盘的快捷键仍留给读屏：aria-keyshortcuts 不进入可见文字。
+          // v0.7.10 推翻 v0.7.7 spec §3.7「手机无 1/2/3 提示」——用户裁决恢复：
+          // 数字用 --text-xs 印在标签上方（三键同形），外接键盘 / 读屏的快捷键仍由
+          // aria-keyshortcuts 承担。默认档（dto.sched.defaultRating）与桌面 RatingBar
+          // 同源，用品牌色内描边强调，不新造色值。
           aria-keyshortcuts={o.key}
           onClick={() => onRate(o.rating)}
-          style={rateKeyStyle}
+          style={o.rating === defaultRating
+            ? { ...rateKeyStyle, boxShadow: 'inset 0 0 0 2px var(--color-brand)' }
+            : rateKeyStyle}
         >
-          {o.label}
+          <span style={{ fontSize: 'var(--text-xs)', fontWeight: 500, color: 'var(--color-text-secondary)' }}>{o.key}</span>
+          <span>{o.label}</span>
         </button>
       )) : (
         <button type="button" onClick={onAdvance} style={keyStyle}>
@@ -419,6 +428,8 @@ export default function ReviewArena({ mobile = false }: { mobile?: boolean }) {
         mode={barMode}
         atTail={atTail}
         disabled={rating}
+        // 与桌面 RatingBar:348 同一个字段：默认档只做视觉强调，不抢焦点、不预选
+        defaultRating={dto.sched.defaultRating}
         // 与桌面三键走同一个处理函数：判分结论在 handleSubmit 时已落进 correct，
         // 这里只把它转交，不重算。
         onRate={r => void handleRate(r, lastInput, false, correct)}
