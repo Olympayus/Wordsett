@@ -17,6 +17,7 @@ import { useUiStore } from '../../../stores/uiStore'
 import CategoryAssignModal from '../../word/CategoryAssignModal'
 import CategoryEditorModal from '../../word/CategoryEditorModal'
 import ConfirmDialog from '../../ui/ConfirmDialog'
+import FindBar from '../../ui/FindBar'
 import { useAndroidBackStack } from '../useAndroidBackStack'
 
 // 手机外壳（Task 4 立骨架，Task 5 填三块）。
@@ -141,9 +142,15 @@ export default function MobileShell() {
         />
       )}
 
-      {/* 内容区：`data-find-root` 与 `AppShell` 同名（标记当前模块的搜索根），手机上
-          `FindBar` 不挂载，故它今天只是与桌面同一套 DOM 契约的一部分，不驱动任何行为。
-          高度由 `flex-1` + `minHeight: 0` 决定——不写死高度。 */}
+      {/* 页内查找（v0.7.10 Task 27）：手机形态**流内**挂在顶栏正下方，打开时把内容区往下推、
+          不盖住正文。组件关闭时自身返回 null，故不占位。只挂在词条页（工作台 / 储藏库）——
+          搜索根 `data-find-root` 也只在这两个模块的 `<main>` 上；入口在 Task 28 接到 ⋯ 菜单
+          （`openFind()`），本任务只挂组件。 */}
+      {(activeModule === 'workbench' || activeModule === 'archive') && <FindBar variant="mobile" />}
+
+      {/* 内容区：`data-find-root` 与 `AppShell` 同名（标记当前模块的搜索根），手机页内查找
+          （Task 27）按 `activeModule` 从这里取搜索根。高度由 `flex-1` + `minHeight: 0` 决定
+          ——不写死高度。 */}
       <div
         className="flex-1 flex flex-col overflow-hidden"
         style={{ minHeight: 0 }}
