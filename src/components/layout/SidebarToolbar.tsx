@@ -1,6 +1,8 @@
 import { useRef } from 'react'
 import Icon from '../icons'
 import ClearButton from '../ui/ClearButton'
+import { hasCoarsePointer } from '../../lib/pointer'
+import { touchInputStyles } from '../../lib/touchInput'
 
 /** 第一行里各控件的显隐规则。抽成纯函数是为了可测——node 环境测不到 DOM。
  *  `chrome='drawer'`（Task 6 的 `MobileDrawer`）是第一行的**第三种**形态：那三颗按钮
@@ -96,6 +98,11 @@ export default function SidebarToolbar({
 }: Props) {
   const slots = toolbarSlots({ collapsed, selectMode, chrome })
   const inputRef = useRef<HTMLInputElement>(null)
+  // 触摸输入档（v0.7.10 §7.4）：本组件在侧栏与手机抽屉两处挂载、没有 `touch` prop，
+  // 故判据取主指针（`hasCoarsePointer()`；无 matchMedia 的环境返回 false）。两种外壳
+  // 共用同一个值，不按 `chrome` 再分一套。
+  const touch = hasCoarsePointer()
+  const touchStyle = touchInputStyles(touch)
   return (
     <div className="shrink-0" style={{ padding: '10px 10px 0' }}>
       {/* 第一行：控件。角色分工固定——左侧是「模式类」，右端是「窗口类」。
@@ -159,6 +166,8 @@ export default function SidebarToolbar({
           className="flex items-center gap-2"
           style={{
             height: '32px', padding: '0 10px', marginTop: '8px',
+            // 触摸档下高度交给输入框（minHeight 40）撑开，32px 的桌面高度让位。
+            ...(touch ? { height: 'auto' } : null),
             background: 'var(--color-surface)', border: '1px solid var(--color-border)',
             borderRadius: 'var(--radius-md)',
             transition: 'border-color var(--duration-fast) var(--ease-smooth)',
@@ -176,6 +185,9 @@ export default function SidebarToolbar({
             style={{
               flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent',
               fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
+              // 触摸档（v0.7.10 §7.4）：16px 防 iOS 聚焦缩放、minHeight 40 撑满筛选条；
+              // 横向留白由外层那圈 10px 负责，内层归零。
+              ...touchStyle, ...(touch ? { padding: 0 } : null),
             }}
           />
           <ClearButton

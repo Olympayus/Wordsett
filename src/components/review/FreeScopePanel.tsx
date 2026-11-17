@@ -10,6 +10,8 @@ import { aggregateCategoryCounts, canStartFreeScope, freeScopeEmptyText, freeSco
 import type { FreeScopeKind } from '../../lib/review/types'
 import { FREE_SCOPE_LABEL } from '../../lib/review/scopeLabel'
 import { jumpToWord } from '../../lib/review/jumpToWord'
+import { hasCoarsePointer } from '../../lib/pointer'
+import { touchInputStyles } from '../../lib/touchInput'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useWordStore } from '../../stores/wordStore'
 
@@ -48,6 +50,9 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
   variant?: 'desktop' | 'mobile'
 }) {
   const mobile = variant === 'mobile'
+  // 触摸输入档（v0.7.10 §7.4）：本组件桌面与手机外壳共用、没有 `touch` prop，按主指针判断；
+  // 桌面鼠标环境为空对象，数量框样式逐字不变。
+  const touch = hasCoarsePointer()
   const reviewSettings = useSettingsStore(s => s.review)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
   // 词库总数：v0.7.5 Task 12 起是**工作区**词数，不是 `words.length`——
@@ -323,7 +328,7 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
           <input
             type="number" min={1} max={100} value={limit}
             onChange={e => setLimit(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
-            style={{ width: '80px', padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)', background: 'transparent', color: 'inherit', fontSize: '13px' }}
+            style={{ width: '80px', padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)', background: 'transparent', color: 'inherit', fontSize: '13px', ...touchInputStyles(touch) }}
           />
         </label>
 

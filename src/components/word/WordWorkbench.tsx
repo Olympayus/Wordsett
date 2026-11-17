@@ -58,6 +58,7 @@ import { useSettingsStore } from '../../stores/settingsStore'
 import { isLeech, leechTooltip } from '../../lib/review/leech'
 import { measureTextWidth, MEASURE_STYLE, MEASURE_INPUT_CLASS, MEASURE_MIN_WIDTH, measureMarkSlot } from '../../lib/measureText'
 import { editKeyDown } from '../../lib/editKeyDown'
+import { touchInputStyles } from '../../lib/touchInput'
 import { linkableField, stripLinks, validateLinks, linkErrorText, type LinkToken } from '../../lib/links'
 import { useLinkJump } from '../../lib/linkJump'
 import { isWordInLibrary } from '../../lib/ensureWord'
@@ -504,24 +505,29 @@ const EXAMPLE_EDIT_FONT_SIZE = 14
 // 单行编辑框：从**被替换内容**的宽度起、随输入增长。字体由调用处按该行给——例句（`example`）
 // 是衬线斜体 14px、行首还有一枚 `DashMark`（见值格的非编辑分支），两样都要算进去，
 // 否则进编辑那一刻既换了字体、又丢了那枚 `–`，整行当场往左跳。
-function MeasuredInput({ value, font, mark, onChange, onKeyDown }: {
+function MeasuredInput({ value, font, mark, touch, onChange, onKeyDown }: {
   value: string
   font: CSSProperties
   /** 被替换内容里、输入框**之前**那部分（例句的行首 `–`）；其余行不传。 */
   mark?: ReactNode
+  /** 触摸输入档（v0.7.10 §7.4）：16px / 高 40px。探针与输入框展开**同一份**，
+   *  量出来的 border-box 才继续等于输入框真实占的那一段；桌面为空对象、逐字不变。 */
+  touch: boolean
   onChange: (v: string) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
 }) {
   const probeRef = useRef<HTMLSpanElement>(null)
   const [textWidth, setTextWidth] = useState(0)
   useLayoutEffect(() => { setTextWidth(measureTextWidth(probeRef.current)) }, [value])
+  const touchStyle = touchInputStyles(touch)
   return (
     <>
-      <span ref={probeRef} aria-hidden="true" className={MEASURE_INPUT_CLASS} style={{ ...MEASURE_STYLE, ...font }}>{mark}{value}</span>
+      <span ref={probeRef} aria-hidden="true" className={MEASURE_INPUT_CLASS} style={{ ...MEASURE_STYLE, ...font, ...touchStyle }}>{mark}{value}</span>
       <input
         className={MEASURE_INPUT_CLASS}
         style={{ ...font, minWidth: MEASURE_MIN_WIDTH, ...(textWidth ? { width: textWidth } : null),
-                 border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)' }}
+                 border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)',
+                 ...touchStyle }}
         value={value}
         onChange={e => onChange(e.target.value)}
         onKeyDown={onKeyDown}
@@ -770,6 +776,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           <MeasuredInput
             value={editValue}
             font={{ fontFamily: 'var(--font-sans)', fontSize: '15px' }}
+            touch={touch}
             onChange={onEditValueChange}
             onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
           />
@@ -836,6 +843,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           <MeasuredInput
             value={editValue}
             font={headLabelStyle}
+            touch={touch}
             onChange={onEditValueChange}
             onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
           />
@@ -930,6 +938,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
                   fontWeight: FIELD_LABEL_STYLE.fontWeight,
                   letterSpacing: FIELD_LABEL_STYLE.letterSpacing,
                 }}
+                touch={touch}
                 onChange={onEditValueChange}
                 onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
               />
@@ -967,7 +976,12 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               <span style={{ display: 'flex', flexDirection: 'column' }}>
                 <textarea
                   className="w-full px-3 py-2 rounded text-sm resize-none min-h-[60px]"
-                  style={{ border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)' }}
+                  style={{
+                    border: '1px solid var(--color-brand)', color: 'var(--color-text-primary)', background: 'var(--color-surface)',
+                    // 触摸档（v0.7.10 §7.4）：字号 16px；多行框原有的 60px 下限高于 40px 档，
+                    // 这里显式保留 60（否则展开的 minHeight 40 会把类里的 min-h-[60px] 压掉）。
+                    ...touchInputStyles(touch), ...(touch ? { minHeight: 60 } : null),
+                  }}
                   value={editValue}
                   onChange={e => onEditValueChange(e.target.value)}
                   onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
@@ -996,6 +1010,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
                       <DashMark color={editorMode ? MARK_COLOR[unitState(fv, inheritedUser)] : 'var(--ink-3)'} />
                     ) : undefined
                   }
+                  touch={touch}
                   onChange={onEditValueChange}
                   onKeyDown={editKeyDown(def.fieldType, onSave, onCancelEdit)}
                 />

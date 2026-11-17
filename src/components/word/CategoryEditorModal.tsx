@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, type CSSProperties } from 'react'
 import { useFocusTrap } from '../../lib/useFocusTrap'
+import { hasCoarsePointer } from '../../lib/pointer'
+import { touchInputStyles } from '../../lib/touchInput'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useUiStore } from '../../stores/uiStore'
 import type { Category } from '../../types/category'
@@ -32,6 +34,9 @@ interface Props {
 
 export default function CategoryEditorModal({ open, category, wordId, onClose, onSaved }: Props) {
   const { createCategory, updateCategory, deleteCategory, assignToWord, removeFromWord } = useCategoryStore()
+  // 触摸输入档（v0.7.10 §7.4）：桌面临窗与手机外壳（Task 17 的底部表形态）共用本组件，
+  // 没有 `touch` prop，判据取主指针；桌面鼠标环境为空对象。
+  const touch = hasCoarsePointer()
   const [name, setName] = useState('')
   const [color, setColor] = useState(CATEGORY_COLORS[0])
   const [description, setDescription] = useState('')
@@ -98,6 +103,8 @@ export default function CategoryEditorModal({ open, category, wordId, onClose, o
     border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
     fontSize: 'var(--text-sm)', background: 'var(--color-surface)',
     color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',
+    // 触摸档（v0.7.10 §7.4）：16px / 高 40px；固定的 36px 让位给内容高度。
+    ...touchInputStyles(touch), ...(touch ? { height: 'auto' } : null),
   }
   const labelStyle: CSSProperties = { fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: '6px' }
 

@@ -9,6 +9,8 @@ import { useWordStore } from '../../stores/wordStore'
 import { useClickOutside } from '../../lib/useClickOutside'
 import { usePlatformClass } from '../../lib/usePlatform'
 import { isDesktop } from '../../lib/platform'
+import { hasCoarsePointer } from '../../lib/pointer'
+import { touchInputStyles } from '../../lib/touchInput'
 import { openExternalUrl, RELEASES_URL } from '../../lib/openExternal'
 import { useSearchSuggestions } from '../../services/useSearchSuggestions'
 import { isChineseQuery } from '../../lib/chineseSearch'
@@ -55,6 +57,10 @@ export default function TopBar() {
   // 手机外壳则不渲染 TopBar。三处（拖拽属性 / 双击最大化 / 三枚按钮）共用这一个判据。
   const desktopOnly = isDesktop(platform)
   const android = !desktopOnly
+  // 触摸输入档（v0.7.10 §7.4）：本组件只服务桌面外壳（平板复用同一套），没有 `touch` prop，
+  // 故按主指针判断——平板上搜索框 16px / 40px，桌面鼠标环境为空对象、样式逐字不变。
+  const touch = hasCoarsePointer()
+  const touchStyle = touchInputStyles(touch)
   const desktopHasUpdate = useUpdaterStore(s => s.hasUpdateBadge)
   const desktopBadgeVersion = useUpdaterStore(s => s.badgeVersion)
   const openDialog = useUpdaterStore(s => s.openDialog)
@@ -208,6 +214,8 @@ export default function TopBar() {
         <div className="relative" ref={searchRef}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: '8px', height: '32px', padding: '0 12px',
+            // 触摸档（平板）：高度交给输入框的 minHeight 40，顶栏 48px 内仍留出上下边距。
+            ...(touch ? { height: 'auto' } : null),
             background: 'var(--color-surface)',
             border: `1px solid ${focused ? 'var(--color-brand)' : 'var(--color-border)'}`,
             borderRadius: 'var(--radius-full)',   // Chrome 式胶囊圆角（原 radius-lg）
@@ -230,6 +238,9 @@ export default function TopBar() {
                 flex: 1, border: 'none', outline: 'none', background: 'transparent',
                 fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
                 fontFamily: 'var(--font-sans)',
+                // 触摸档（v0.7.10 §7.4）：16px 防 iOS 聚焦缩放、minHeight 40；横向留白由
+                // 外层胶囊的 12px 给出，内层归零。
+                ...touchStyle, ...(touch ? { padding: 0 } : null),
               }}
             />
             <ClearButton

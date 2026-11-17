@@ -1,3 +1,6 @@
+import { hasCoarsePointer } from '../../lib/pointer'
+import { touchInputStyles } from '../../lib/touchInput'
+
 /**
  * 「标签＋说明」在左、数字框在右的一行（原为 ReviewSettings 的局部组件）。
  *
@@ -20,6 +23,9 @@ export default function NumberRow({ label, hint, value, min, max, step, integer,
   disabled?: boolean
   onChange: (v: number) => void
 }) {
+  // 触摸输入档（v0.7.10 §7.4）：设置页在手机外壳与桌面共用本组件，没有 `touch` prop，
+  // 按主指针判断；桌面鼠标环境为空对象，样式逐字不变。
+  const touch = hasCoarsePointer()
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, opacity: disabled ? 0.45 : 1 }}>
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -38,7 +44,7 @@ export default function NumberRow({ label, hint, value, min, max, step, integer,
           const clamped = Math.min(max, Math.max(min, v))
           onChange(integer ? Math.round(clamped) : clamped)
         }}
-        style={{ width: '90px', flexShrink: 0, padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)', background: 'transparent', color: 'inherit', fontSize: '13px', cursor: disabled ? 'not-allowed' : undefined }}
+        style={{ width: '90px', flexShrink: 0, padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)', background: 'transparent', color: 'inherit', fontSize: '13px', cursor: disabled ? 'not-allowed' : undefined, ...touchInputStyles(touch) }}
       />
     </div>
   )

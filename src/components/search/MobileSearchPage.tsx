@@ -5,6 +5,7 @@ import { useWordStore } from '../../stores/wordStore'
 import { useSearchSuggestions } from '../../services/useSearchSuggestions'
 import { searchRows } from '../../lib/mobileSearch'
 import { isChineseQuery } from '../../lib/chineseSearch'
+import { touchInputStyles } from '../../lib/touchInput'
 import Icon from '../icons'
 import ClearButton from '../ui/ClearButton'
 
@@ -35,8 +36,9 @@ import ClearButton from '../ui/ClearButton'
 
 /** 顶行视觉高度（spec §4.1 的顶栏 52dp）。**不含**状态栏——安全区由 `paddingTop` 另加。 */
 const BAR_HEIGHT = 52
-/** 输入框高度：与手机顶栏控件同为 32px（Task 5 的 CONTROL），命中区由整行高度保证。 */
-const INPUT_HEIGHT = 32
+/** 输入档（v0.7.10 §7.4）：本页只在手机外壳挂载，恒为触摸语境——字号 16px / 高 40px，
+ *  iOS 聚焦不放大、Android 同一档。 */
+const TOUCH_INPUT = touchInputStyles(true)
 /** 建议行高：44dp 是触摸目标的下限（spec §10），行内两行文字仍读得开。 */
 const ROW_HEIGHT = 44
 
@@ -135,7 +137,7 @@ export default function MobileSearchPage() {
         </button>
 
         <div style={{
-          flex: '1 1 auto', minWidth: 0, height: `${INPUT_HEIGHT}px`,
+          flex: '1 1 auto', minWidth: 0,
           display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px',
           background: 'var(--color-surface)',
           border: '1px solid var(--color-border)',
@@ -169,6 +171,9 @@ export default function MobileSearchPage() {
               flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent',
               fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
               fontFamily: 'var(--font-sans)',
+              // 触摸档：字号 16px（iOS 聚焦不缩放）与高 40px 由输入框自己承担；横向留白
+              // 已由外层胶囊的 `padding: '0 12px'` 给出，这里归零避免双层内边距。
+              ...TOUCH_INPUT, padding: 0,
             }}
           />
           <ClearButton visible={query.trim().length > 0} onClick={clearQuery} />

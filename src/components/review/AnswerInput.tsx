@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from 'react'
 import { letterMatches } from '../../lib/review/typed'
 import { RESULT_HALF_WIDTH } from '../../lib/review/resultLayout'
+import { hasCoarsePointer } from '../../lib/pointer'
+import { touchInputStyles } from '../../lib/touchInput'
 import SquareButton from '../ui/SquareButton'
 
 export type InputKind = 'choice' | 'typed' | 'reveal'
@@ -118,6 +120,10 @@ export default function AnswerInput({
   const [columns, setColumns] = useState<1 | 2>(2)
   /** 上次量列数时的容器宽度。RO 只认「宽度变了」才重量——理由见下面 ResizeObserver 处。 */
   const measuredWidthRef = useRef(-1)
+  // 触摸输入档（v0.7.10 §7.4）：桌面与手机复习界面共用本组件、没有 `touch` prop，按主指针判断；
+  // 桌面鼠标环境返回空对象，键入框样式逐字不变。
+  const touch = hasCoarsePointer()
+  const touchStyle = touchInputStyles(touch)
 
   // 重量一次实际高度判定是否换行（v0.6.3 条目 8）。
   // 必须在 layout effect 里做：绘制前定下列数，否则用户会看到先 2×2 再跳成 1×4 的一帧。
@@ -271,11 +277,13 @@ export default function AnswerInput({
             border: '1px solid var(--color-border)', background: 'transparent',
             color: letterHighlight && target ? 'transparent' : 'var(--color-text-primary)',
             caretColor: 'var(--color-text-primary)', fontSize: '14px', fontFamily: 'inherit',
+            // 触摸档（v0.7.10 §7.4）：16px 防 iOS 聚焦缩放、高 40px。
+            ...touchStyle,
           }}
         />
         {/* 逐字母着色层：覆盖在输入框之上，逐位渲染正确/错误颜色（不阻断输入） */}
         {matches && (
-          <div aria-hidden="true" style={{ position: 'absolute', inset: 0, padding: '8px 10px', fontSize: '14px', color: 'var(--color-text-primary)', pointerEvents: 'none', whiteSpace: 'pre' }}>
+          <div aria-hidden="true" style={{ position: 'absolute', inset: 0, padding: '8px 10px', fontSize: '14px', color: 'var(--color-text-primary)', pointerEvents: 'none', whiteSpace: 'pre', ...touchStyle }}>
             {Array.from(value.trim()).map((ch, i) => (
               <span key={i} style={{ color: matches[i] ? 'var(--color-text-primary)' : 'var(--color-danger)' }}>{ch}</span>
             ))}

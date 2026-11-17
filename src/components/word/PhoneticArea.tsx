@@ -6,6 +6,7 @@ import { fieldState, FIELD_STATE_BG } from '../../lib/fieldState'
 import { FIELD_LABEL_STYLE, BAND_LABEL_COLUMN, BAND_LABEL_GAP } from '../../lib/labelStyle'
 import { MEASURE_STYLE, MEASURE_MIN_WIDTH, measureTextWidth } from '../../lib/measureText'
 import { hitAreaStyle } from '../../lib/mobileHitArea'
+import { touchInputStyles } from '../../lib/touchInput'
 import { unitSheetItems } from '../../lib/mobileSheets'
 import { useTouchLongPress } from '../../lib/useTouchLongPress'
 import MobileActionSheet from '../layout/mobile/MobileActionSheet'
@@ -107,6 +108,9 @@ function ChipBody(props: {
   // 增长；量 `fv.value` 的话整个编辑过程宽度一动不动（那是评审抓到的 bug）。音标模式显示的是
   // `formatPhonetic` 的产物（比 `fv.value` 宽：`[` `]` 等），也要照样格式化后再量。
   const displayText = plain ? editValue : formatPhonetic(editValue)
+  // 触摸输入档（v0.7.10 §7.4）：本组件已有 `touch` prop（手机 / 平板），直接用它。
+  // 探针与输入框展开同一份样式——量出来的 border-box 才是输入框真实占的那一段。
+  const touchStyle = touchInputStyles(touch)
   const probeRef = useRef<HTMLSpanElement>(null)
   const [textWidth, setTextWidth] = useState(0)
   useLayoutEffect(() => { if (isEditing) setTextWidth(measureTextWidth(probeRef.current)) }, [isEditing, editValue])
@@ -156,7 +160,7 @@ function ChipBody(props: {
     >
       {isEditing ? (
         <>
-          <span ref={probeRef} aria-hidden="true" style={{ ...MEASURE_STYLE, ...displayFont, padding: INPUT_PADDING }}>{displayText}</span>
+          <span ref={probeRef} aria-hidden="true" style={{ ...MEASURE_STYLE, ...displayFont, padding: INPUT_PADDING, ...touchStyle }}>{displayText}</span>
           <input
             autoFocus
             value={editValue}
@@ -169,6 +173,7 @@ function ChipBody(props: {
               border: '1px solid var(--color-brand)', borderRadius: 4, padding: INPUT_PADDING,
               background: 'var(--color-surface)', outline: 'none',
               minWidth: MEASURE_MIN_WIDTH, ...(textWidth ? { width: textWidth } : null),
+              ...touchStyle,
             }}
           />
         </>

@@ -4,6 +4,8 @@ import { useWordStore } from '../../stores/wordStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useFocusTrap } from '../../lib/useFocusTrap'
 import { useMobilePopup } from '../../lib/mobilePopups'
+import { hasCoarsePointer } from '../../lib/pointer'
+import { touchInputStyles } from '../../lib/touchInput'
 import { selectAll } from '../../lib/selection'
 import CheckBox from '../ui/CheckBox'
 import { Button } from '../ui/Button'
@@ -74,6 +76,9 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
   const [query, setQuery] = useState('')
   const [checked, setChecked] = useState<Set<string>>(new Set())
   const members = useMemo(() => new Set(memberIds), [memberIds])
+  // 触摸输入档（v0.7.10 §7.4）：本弹窗桌面与手机外壳共用、没有 `touch` prop，按主指针判断；
+  // 桌面鼠标环境为空对象，搜索框样式逐字不变。
+  const touch = hasCoarsePointer()
 
   // 预勾选的来源：**实际会被渲染出来的候选**，不是 memberIds 本身。
   //
@@ -139,7 +144,7 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
             placeholder="搜索单词…"
             value={query}
             onChange={e => setQuery(e.target.value)}
-            style={{ flex: 1, minWidth: 0, height: '32px', padding: '0 10px', fontSize: 'var(--text-sm)', fontFamily: 'var(--font-sans)', color: 'var(--color-text-primary)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', outline: 'none' }}
+            style={{ flex: 1, minWidth: 0, height: '32px', padding: '0 10px', fontSize: 'var(--text-sm)', fontFamily: 'var(--font-sans)', color: 'var(--color-text-primary)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', outline: 'none', ...touchInputStyles(touch), ...(touch ? { height: 'auto' } : null) }}
           />
           {/* 全选是**替换**（selectAll 的契约），只覆盖当前列出来的行：搜索态下点它会把
               筛选外的成员移出勾选集。方向是「少移」而非「多移」，确认键的数字永远是真的，
