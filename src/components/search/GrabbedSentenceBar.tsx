@@ -4,14 +4,10 @@ import RadioMark from '../ui/RadioMark'
 import Icon from '../icons'
 import { DashMark } from '../entry/Mark'
 import { FIELD_LABEL_STYLE } from '../../lib/labelStyle'
-import {
-  collectorMergeInputs,
-  defaultAttachKey,
-  definitionGroups,
-  type DefinitionLeaf,
-} from '../../lib/collectorTree'
-import { ensureWord } from '../../lib/ensureWord'
+import { defaultAttachKey, definitionGroups, type DefinitionLeaf } from '../../lib/collectorTree'
+import { libraryLocationIn } from '../../lib/collected'
 import { appendExampleUnderDefinition } from '../../services/wordService'
+import { getWordByLemma } from '../../db/words'
 import { usePendingExampleStore } from '../../stores/pendingExampleStore'
 import { useWordStore } from '../../stores/wordStore'
 import type { DictionaryField } from '../../types/dictionary'
@@ -21,23 +17,26 @@ import type { DictionaryField } from '../../types/dictionary'
  *
  * 句子模式下小窗点「打开详情页」时，Rust 的 `open-dict` 事件带着整句原文一起来；
  * `App` 把它存进 `pendingExampleStore`，本组件在详情页顶部出一条横幅：句子 + 释义单选 +
- * 「加入此释义的例句」——小窗里能做的事（把整句挂到某条释义下），详情页里同样能做。
+ * 「作为例句加入此释义」——小窗里能做的事（把整句挂到某条释义下），详情页里同样能做。
  *
- * 写入顺序与「父级必须存在」的约束：
- * 1. `ensureWord`：词条不存在就先建（与搜索结果页的收录同一条路径）；
- * 2. `collectorMergeInputs` 只带所选那一枚释义（含祖先词性）走 `mergeWordFields`——
- *    merge 按「父作用域 + 字段 + 值」去重，既有释义是幂等的，缺的释义则补上；
- * 3. `appendExampleUnderDefinition` 按 `(字段, 值)` 找到那条释义行，把
- *    `example_sentence > example` 挂到它下面（同一例句重复挂是幂等的）。
+ * **本条的按钮只写例句，绝不收录 / 合并任何东西**（用户裁定）：不 `ensureWord`、
+ * 不 `mergeWordFields`——「把词或释义加进工作台」是导航栏右上角「添加至…」的职责。
+ * 因此加入的前提是词条与那条释义都已在库里：
+ * - 词不在库 → 行内提示先去「添加至…」收录，按钮不可用；
+ * - 词在库但没有这条释义（词典有这个义项、用户当年没收）→ `appendExampleUnderDefinition`
+ *   返回 false，行内提示先收录该释义。
  *
- * 不碰熟悉度：这不是一次「收录」，只是给既有释义补一条例句；新词的熟悉度走默认档，
- * 与收录流程在同一处（`setInitialFamiliarity`）保持一致。
+ * 关闭（右上角 ×）＝不添加：只清掉 pending，不写任何东西。
  */
 
 const STATUS_COPY = {
-  error: '加入例句失败，请重试',
-  done: '已加入此释义的例句',
+  done: '已作为例句加入此释义',
+  noWord: '该词还没有加入词库，请先用右上角的「添加至…」收录，再来挂例句',
+  noDefinition: '该词条中还没有这条释义，请先用「添加至…」收录该释义，再来挂例句',
+  failed: '加入例句失败，请重试',
 } as const
+
+type Status = 'idle' | keyof typeof STATUS_COPY
 
 export default function GrabbedSentenceBar({ word, fields }: {
   word: string
@@ -47,14 +46,15 @@ export default function GrabbedSentenceBar({ word, fields }: {
   const groups = useMemo(() => definitionGroups(fields).filter(g => g.leaves.length > 0), [fields])
   const [attachKey, setAttachKey] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState(false)
-  const [done, setDone] = useState(false)
+  const [status, setStatus] = useState<Status>('idle')
+  // 词是否已在库（活订阅）：不在库时本条只展示、不提供动作——「加进工作台」归导航栏的
+  // 「添加至…」，这里绝不代劳（用户裁定）。
+  const inLibrary = useWordStore(s => libraryLocationIn(s.libraryIndex, word) !== null)
 
   // 换词 / 换一次抓取：默认归属与状态都重新开始（本组件常驻在详情页里，word 会变）。
   useEffect(() => {
     setAttachKey(defaultAttachKey(groups))
-    setError(false)
-    setDone(false)
+    setStatus('idle')
   }, [groups])
 
   const leaf: DefinitionLeaf | null = useMemo(() => {
@@ -71,24 +71,17 @@ export default function GrabbedSentenceBar({ word, fields }: {
   const handleAttach = useCallback(async () => {
     if (!pending || !leaf || busy) return
     setBusy(true)
-    setError(false)
+    setStatus('idle')
     try {
-      const target = await ensureWord(word)
-      if (!target) {
-        setError(true)
+      // 只取库里的词条，**不创建**：ensureWord 会顺手把词加进工作台，那是导航栏的职责。
+      // 全库按 normalized_lemma 查（当前模块的词表可能只装了工作区或储藏库一侧）。
+      const found = await getWordByLemma(word)
+      if (!found.ok || !found.data) {
+        setStatus('noWord')
         return
       }
-      // 先保证父级释义在库里（新建词 / 该释义尚未合并过）：merge 幂等，既有释义不会重复。
-      const inputs = collectorMergeInputs(fields, new Set([leaf.key]))
-      if (inputs.length > 0) {
-        const merged = await useWordStore.getState().mergeWordFields(target.id, inputs)
-        if (!merged) {
-          setError(true)
-          return
-        }
-      }
       const attached = await appendExampleUnderDefinition(
-        target.id,
+        found.data.id,
         {
           key: leaf.label === '中文释义' ? 'chinese_definition' : 'english_definition',
           value: leaf.value,
@@ -96,19 +89,22 @@ export default function GrabbedSentenceBar({ word, fields }: {
         pending.sentence,
       )
       if (!attached) {
-        setError(true)
+        // 词典有这个义项、但用户当年没收进词条：不做隐式合并，提示先走「添加至…」。
+        setStatus('noDefinition')
         return
       }
-      // 词表 / 索引刷新：词条卡片与工作区要能看到这条例句（同一 webview，直接走 store；
-      // 另一个窗口的同步由下一次 loadWords 覆盖，不额外 emit）。
+      // 词表 / 索引刷新（只读刷新，不新增词条）：词条卡片与工作区能看到这条例句。
       await useWordStore.getState().loadWords().catch(() => {})
-      setDone(true)
+      setStatus('done')
       // 让成功态停留一瞬再收起：立刻卸载会让用户看不到「刚才那一下发生了什么」。
       setTimeout(() => usePendingExampleStore.getState().clear(), 1100)
+    } catch (e) {
+      console.error('[detail] 加入划词例句失败', e)
+      setStatus('failed')
     } finally {
       setBusy(false)
     }
-  }, [pending, leaf, busy, word, fields])
+  }, [pending, leaf, busy, word])
 
   // 只在「带句子的抓取」打开的那个词上出现；fields 没到时先不出（组还没算）。
   if (!pending || pending.word.toLowerCase() !== word.toLowerCase() || groups.length === 0) {
@@ -191,12 +187,22 @@ export default function GrabbedSentenceBar({ word, fields }: {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-border)' }}>
-          <span style={{ fontSize: 11.5, color: error ? 'var(--color-danger)' : 'var(--color-success)' }}>
-            {error ? STATUS_COPY.error : done ? STATUS_COPY.done : ''}
+          <span style={{
+            fontSize: 11.5, lineHeight: 1.45, minWidth: 0,
+            color: status === 'failed' ? 'var(--color-danger)'
+              : status === 'done' ? 'var(--color-success)'
+              : 'var(--color-text-secondary)',
+          }}>
+            {!inLibrary
+              ? STATUS_COPY.noWord
+              : status === 'idle' ? '' : STATUS_COPY[status]}
           </span>
-          <span style={{ marginLeft: 'auto', display: 'inline-flex' }}>
-            <Button onClick={() => { void handleAttach() }} disabled={busy || done || leaf === null}>
-              加入此释义的例句
+          <span style={{ marginLeft: 'auto', display: 'inline-flex', flexShrink: 0 }}>
+            <Button
+              onClick={() => { void handleAttach() }}
+              disabled={busy || status === 'done' || leaf === null || !inLibrary}
+            >
+              作为例句加入此释义
             </Button>
           </span>
         </div>
