@@ -13,6 +13,9 @@ import { moveActionLabel } from '../../lib/archiveMove'
 import { collectedLabel } from '../../lib/collected'
 import { LABEL_ON_THEME } from '../../lib/labelStyle'
 import { NAV_HEIGHT, NAV_CONTROL_HEIGHT } from '../../lib/layout'
+import { isAndroidTablet } from '../../lib/platform'
+import { usePlatformClass } from '../../lib/usePlatform'
+import { openFind } from '../ui/FindBar'
 
 interface WorkbenchNavBarProps {
   /** 所在区域：工作台显示编者/删除，搜索返回页显示返回/合并添加 */
@@ -82,6 +85,11 @@ export default function WorkbenchNavBar({
   const setEditorMode = useViewStore(s => s.setEditorMode)
   // 前进 / 后退（Task 5）：顺序与解析器收在 `useWorkbenchNavigation`，手机顶栏共用同一份。
   const { canBack, canForward, goBack, goForward } = useWorkbenchNavigation()
+  // 查找入口（v0.7.10 Task 28）：只给 Android 平板——桌面有 Ctrl+F、手机有顶栏 ⋯ 菜单，
+  // 都已有入口，这里再出一枚会在桌面上凭空多一个按钮。判据走 `lib/platform` 谓词，
+  // 不在组件里手写平台字符串。
+  const platform = usePlatformClass()
+  const showFind = isAndroidTablet(platform)
   // 「＋」分类下拉的开关（仅 dict 区用），以及那对按钮所在的容器——浮层的锚点
   // （v0.6.5 修订：浮层已是 fixed 落位，锚点由它现算。原来这里靠 position: relative
   //  让面板按容器下沿展开，那条契约已被 popoverPosition 取代）。
@@ -176,6 +184,21 @@ export default function WorkbenchNavBar({
         <SquareButton size="nav" tone="canvas" onClick={onMoveWord}>
           {moveActionLabel(location)}
         </SquareButton>
+      )}
+      {/* 查找（v0.7.10 Task 28）：平板专属，排在左簇末尾——工作台里在「移入 / 移回」之后，
+          返回页里在「已选 N 项」之后。形态与同排箭头同族（`navBtn`：28×22、hover 起底色），
+          只出图标、可及名走 `aria-label`（不新增原生 title）。`openFind()` 无实例时空操作。 */}
+      {showFind && (
+        <button
+          type="button"
+          aria-label="查找"
+          onClick={() => openFind()}
+          onMouseEnter={hoverOn}
+          onMouseLeave={hoverOff}
+          style={navBtn()}
+        >
+          <Icon name="search" size={15} />
+        </button>
       )}
 
       {/* ⋯ 更多操作（普通模式可见）本轮不实现：⋯ 菜单内容与「删除此标签页」收进菜单是 v0.7.0 段二的独立项，

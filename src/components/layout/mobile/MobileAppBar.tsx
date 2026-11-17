@@ -11,6 +11,7 @@ import Icon from '../../icons'
 import SquareButton from '../../ui/SquareButton'
 import HitArea, { useMobileShellHitArea } from '../../ui/HitArea'
 import MobileActionSheet from './MobileActionSheet'
+import { openFind } from '../../ui/FindBar'
 
 /** 顶栏高度（spec §4.1：约 52dp）。不含状态栏——刘海 / 挖孔由 `paddingTop` 的安全区另加。 */
 const BAR_HEIGHT = 52
@@ -52,10 +53,11 @@ interface Props {
  * - 返回 / 前进走 `useWorkbenchNavigation`——与桌面 `WorkbenchNavBar` 共用同一份
  *   「先切模块 → 再切数据集 → 最后选词」的实现（Task 5 抽出），两处入口顺序不可能分家。
  * - 「编者」按钮已撤（v0.7.7 Task 12，spec §3.8）：`editorMode` 在手机上只剩「显示来源色」
- *   一个语义，开关收进 ⋯ 表的第一项（`appBarMenuItems`）。桌面 `WorkbenchNavBar` 不受影响。
+ *   一个语义，开关收进 ⋯ 表（`appBarMenuItems`）。桌面 `WorkbenchNavBar` 不受影响。
  * - ⋯ 打开的是 `MobileActionSheet`（Task 3），不再是桌面那枚 `ContextMenu`：手机上所有
- *   「长按 / ⋯ 弹出的表」都走同一张底部表。条目来自 `appBarMenuItems`——首项来源色开关，
- *   有选中词时再接移动 / 删除。没有选中词也出 ⋯（否则来源色开关无处可去，Ruling 3）。
+ *   「长按 / ⋯ 弹出的表」都走同一张底部表。条目来自 `appBarMenuItems`——首项「查找」
+ *   （v0.7.10 Task 28），随后来源色开关，有选中词时再接移动 / 删除。没有选中词也出 ⋯
+ *   （否则来源色开关无处可去，Ruling 3）。
  * - 移动复用 `lib/archiveMove` 的文案与 `useWordStore` 的 `moveToArchive` / `moveToWorkspace`，
  *   删除复用 `useWordStore.deleteWord` 与同一句确认文案（`WordWorkbench.handleDelete` 的逐字副本
  *   ——两处都在「当前选中词」上操作，动作与确认文案必须一致，故确认文案抽成
@@ -115,16 +117,17 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
     await deleteWord(selectedWord.id)
   }
 
-  // 表的条目由纯函数给出（首项来源色开关，有选中词再接移动 / 删除）。
+  // 表的条目由纯函数给出（首项查找，随后来源色开关，有选中词再接移动 / 删除）。
   const menuItems = appBarMenuItems({
     sourceColorsOn: editorMode,
     moveLabel: moveActionLabel(location),
     hasWord: !!selectedWord,
   })
 
-  // 三个分支都先关表再执行：确认框由 `uiStore.confirm` 自己弹，不依赖本表还在。
+  // 四个分支都先关表再执行：确认框由 `uiStore.confirm` 自己弹，不依赖本表还在。
   const handleMenuPick = (key: string) => {
     setMenuOpen(false)
+    if (key === 'find') { openFind(); return }
     if (key === 'sourceColors') { setEditorMode(!editorMode); return }
     if (key === 'move') { void onMove(); return }
     if (key === 'delete') { void onDelete(); return }

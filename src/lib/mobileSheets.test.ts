@@ -76,14 +76,16 @@ describe('categoryAssignItems', () => {
 })
 
 describe('appBarMenuItems', () => {
-  it('首项是来源色开关，随后是移动与删除', () => {
+  it('查找排首位，随后是来源色开关、移动与删除', () => {
     expect(appBarMenuItems({ sourceColorsOn: false, moveLabel: '移入储藏库', hasWord: true }).map(i => i.label))
-      .toEqual(['显示来源色', '移入储藏库', '删除词条'])
-    expect(appBarMenuItems({ sourceColorsOn: true, moveLabel: '移入储藏库', hasWord: true })[0].label).toBe('隐藏来源色')
+      .toEqual(['查找', '显示来源色', '移入储藏库', '删除词条'])
+    expect(appBarMenuItems({ sourceColorsOn: true, moveLabel: '移入储藏库', hasWord: true })[1].label).toBe('隐藏来源色')
   })
-  it('没有选中词时只出来源色开关', () => {
+  it('查找不依赖选中词：没有选中词时仍有查找与来源色开关', () => {
     expect(appBarMenuItems({ sourceColorsOn: false, moveLabel: '移入储藏库', hasWord: false }).map(i => i.label))
-      .toEqual(['显示来源色'])
+      .toEqual(['查找', '显示来源色'])
+    expect(appBarMenuItems({ sourceColorsOn: false, moveLabel: '移入储藏库', hasWord: false })[0])
+      .toEqual({ key: 'find', label: '查找' })
   })
 })
 

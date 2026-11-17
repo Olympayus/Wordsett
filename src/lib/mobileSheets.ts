@@ -154,11 +154,13 @@ export function pageAddSheetItems(a: {
 }
 
 /**
- * 顶栏 ⋯ 的表。首项是来源色开关（`sourceColorsOn` 即编者模式），
- * 移动与删除只在选中词时出现；没有选中词时只剩开关（Ruling 3）。
+ * 顶栏 ⋯ 的表。首项是「查找」（v0.7.10 Task 28，不依赖选中词），
+ * 随后是来源色开关（`sourceColorsOn` 即编者模式）；移动与删除只在选中词时出现——
+ * 没有选中词时只剩查找与开关（Ruling 3）。
  */
 export function appBarMenuItems(a: { sourceColorsOn: boolean; moveLabel: string; hasWord: boolean }): SheetItem[] {
   const items: SheetItem[] = [
+    { key: 'find', label: '查找' },
     { key: 'sourceColors', label: a.sourceColorsOn ? '隐藏来源色' : '显示来源色' },
   ]
   if (a.hasWord) {
