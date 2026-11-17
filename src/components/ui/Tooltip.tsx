@@ -10,6 +10,12 @@ interface Props {
   children: ReactNode
   width?: number
   /**
+   * v0.7.10：面板最小宽（px），默认不设。`width` 是 maxWidth，气泡按内容收缩；
+   * 多行说明面板（设置页 §7.3）沿用旧的固定 320，传 `minWidth` 与 `width` 同值即可钉住。
+   * 其余调用点不传，行为不变。
+   */
+  minWidth?: number
+  /**
    * v0.6.3 条目 10：true = 点击开合（并支持 Esc / 点外面关闭），false = 仅悬停。
    * 默认 false 保持既有各调用点（`FreeScopePanel` 的不计分提示、`SemanticNetwork` 的
    * 三处 gloss / 关系说明、`WorkbenchNavBar` 的合并添加等）行为与改前逐字不变。
@@ -32,7 +38,7 @@ interface Props {
 }
 
 // 统一悬浮说明：定位 + 样式与语义网络既有 glossPop 一致（spec §4a）
-export default function Tooltip({ content, children, width = 300, click = false, tapOpen = false }: Props) {
+export default function Tooltip({ content, children, width = 300, minWidth, click = false, tapOpen = false }: Props) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   // 「已被用户显式关掉、指针还没离开触发器」。Esc 与点回触发器都置位，
   // **只由指针进出触发器（mouseEnter / mouseLeave）或再次点开来解除**——
@@ -159,7 +165,7 @@ export default function Tooltip({ content, children, width = 300, click = false,
           return (
             <div style={{
               position: 'fixed', left: p.x, top: p.y, zIndex: 'var(--z-dropdown)',
-              maxWidth: width, padding: '8px 12px',
+              maxWidth: width, minWidth, padding: '8px 12px',
               background: 'var(--color-surface)', border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-overlay)',
               fontSize: 12, lineHeight: 1.6, color: 'var(--color-text-primary)', fontFamily: 'var(--font-sans)',

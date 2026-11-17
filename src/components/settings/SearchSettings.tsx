@@ -1,9 +1,7 @@
-import { useRef, useState, useLayoutEffect, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 import { useSettingsStore, type TitleInfoKey } from '../../stores/settingsStore'
 import { Toggle } from '../ui/Toggle'
+import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
-import { tooltipPosition, clampTooltipY } from '../../lib/tooltipPosition'
 import { FIELD_TREE, isAncestorOff, type FieldTreeNode } from '../../lib/fieldTree'
 
 // 标题信息开关（v0.5：词条标题行下的信息展示）
@@ -23,72 +21,6 @@ const TOOLTIP_DICTS: { name: string; lines: string[] }[] = [
 
 // v0.5.3 §4.1（第 11 条）：小标题字号 +2（--text-sm 13px → --text-base 15px）并加粗
 const SECTION_TITLE: React.CSSProperties = { fontSize: 'var(--text-base)', fontWeight: 'var(--weight-bold)', color: 'var(--color-text-primary)' }
-
-// 悬浮框几何：宽度固定，与锚点留 8px 间隙。两处（定位与纵向修正）都要用，故提到模块级。
-const PANEL_WIDTH = 320
-const PANEL_GAP = 8
-
-// 信息悬浮框：Hover 300ms 显示、100ms 消失（规格 §7.3）；多处以 info 图标触发，独立管理自身状态
-function HoverInfo({ content }: { content: ReactNode }) {
-  const [tooltip, setTooltip] = useState<{ visible: boolean; x: number; y: number; anchorTop: number }>(
-    { visible: false, x: 0, y: 0, anchorTop: 0 }
-  )
-  const showTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
-  const infoRef = useRef<HTMLSpanElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
-
-  const handleEnter = () => {
-    clearTimeout(hideTimer.current)
-    showTimer.current = setTimeout(() => {
-      const rect = infoRef.current?.getBoundingClientRect()
-      if (!rect) return
-      const pos = tooltipPosition({ left: rect.left, right: rect.right, top: rect.top }, PANEL_WIDTH, PANEL_GAP, window.innerWidth)
-      setTooltip({ visible: true, x: pos.x, y: pos.y, anchorTop: rect.top })
-    }, 300)
-  }
-  const handleLeave = () => {
-    clearTimeout(showTimer.current)
-    hideTimer.current = setTimeout(() => setTooltip(t => ({ ...t, visible: false })), 100)
-  }
-
-  // 纵向修正：tooltipPosition 只按锚点给起点 y，面板高度要渲染后才量得到。
-  // 用 useLayoutEffect 在绘制前同步量并改，用户看不到中间态；y 已被修正时提前返回，不会来回抖动。
-  useLayoutEffect(() => {
-    const el = panelRef.current
-    if (!tooltip.visible || !el) return
-    const height = el.getBoundingClientRect().height
-    const vh = window.innerHeight
-    if (tooltip.y + height + PANEL_GAP <= vh) return
-    const nextY = clampTooltipY(tooltip.anchorTop, tooltip.y, height, vh, PANEL_GAP)
-    if (nextY !== tooltip.y) setTooltip(t => ({ ...t, y: nextY }))
-  }, [tooltip.visible, tooltip.y, tooltip.anchorTop])
-
-  return (
-    <>
-      <span
-        ref={infoRef}
-        onMouseEnter={handleEnter}
-        onMouseLeave={handleLeave}
-        style={{ display: 'inline-flex', verticalAlign: 'middle', color: 'var(--color-text-tertiary)', cursor: 'help', marginLeft: '4px' }}
-      >
-        <Icon name="info" size={16} />
-      </span>
-      {/* 悬浮框：createPortal 到 body，脱离抽屉 transform 容器（§7.3） */}
-      {tooltip.visible && createPortal(
-        <div ref={panelRef} style={{
-          position: 'fixed', left: tooltip.x, top: tooltip.y, zIndex: 'var(--z-toast)',
-          background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)', boxShadow: 'var(--shadow-overlay)',
-          padding: '16px', width: `${PANEL_WIDTH}px`, fontSize: 'var(--text-sm)',
-        }}>
-          {content}
-        </div>,
-        document.body
-      )}
-    </>
-  )
-}
 
 // 树形开关行：父级行名加粗，子条目装入分块外框；父关 → 后代置灰禁用（Model B，不改存储）
 function FieldRow({ node, nested = false }: { node: FieldTreeNode; nested?: boolean }) {
@@ -178,22 +110,28 @@ export default function SearchSettings() {
       <div style={{ marginBottom: '24px' }}>
         <div style={{ ...SECTION_TITLE, marginBottom: '12px' }}>
           词典返回词条
-          <HoverInfo content={
-            <>
-              <div style={{ fontWeight: 'var(--weight-semibold)', marginBottom: '8px', color: 'var(--color-text-primary)' }}>词典字段覆盖说明</div>
-              {TOOLTIP_DICTS.map(d => (
-                <div key={d.name} style={{ marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid var(--color-border)' }}>
-                  <div style={{ fontWeight: 'var(--weight-medium)', color: 'var(--color-text-primary)', marginBottom: '4px' }}>{d.name}</div>
-                  <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
-                    {d.lines.map(l => <div key={l}>{l}</div>)}
+          {/* v0.7.10 §7.4：设置说明并入统一 Tooltip（悬停即时、触摸端点按开合）；
+              宽沿用旧说明面板的 320。外层 span 保留旧触发器的对齐与光标样式（Tooltip 宿主是内层 span）。 */}
+          <span style={{ display: 'inline-flex', verticalAlign: 'middle', color: 'var(--color-text-tertiary)', cursor: 'help', marginLeft: '4px' }}>
+            <Tooltip tapOpen width={320} minWidth={320} content={
+              <>
+                <div style={{ fontWeight: 'var(--weight-semibold)', marginBottom: '8px', color: 'var(--color-text-primary)' }}>词典字段覆盖说明</div>
+                {TOOLTIP_DICTS.map(d => (
+                  <div key={d.name} style={{ marginBottom: '8px', paddingBottom: '8px', borderBottom: '1px solid var(--color-border)' }}>
+                    <div style={{ fontWeight: 'var(--weight-medium)', color: 'var(--color-text-primary)', marginBottom: '4px' }}>{d.name}</div>
+                    <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-secondary)', lineHeight: 1.6 }}>
+                      {d.lines.map(l => <div key={l}>{l}</div>)}
+                    </div>
                   </div>
+                ))}
+                <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', marginTop: '8px', fontStyle: 'italic' }}>
+                  ✗ 表示该词典本身不包含此字段。
                 </div>
-              ))}
-              <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', marginTop: '8px', fontStyle: 'italic' }}>
-                ✗ 表示该词典本身不包含此字段。
-              </div>
-            </>
-          } />
+              </>
+            }>
+              <Icon name="info" size={16} />
+            </Tooltip>
+          </span>
         </div>
         {/* 音标/词根（v0.5.3 §4.1 第 12 条）：属标题信息键（写 titleInfo 而非 displayFields），
             键类型不符不能进 FIELD_TREE，故作为兄弟行排在字段树之前；sub「标题行」表示作用界面，
