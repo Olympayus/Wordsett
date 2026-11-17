@@ -4,6 +4,7 @@ import { getConfig, setConfig } from '../../lib/config'
 import { subscribe, getProbe } from '../../lib/review/ttsGate'
 import NumberRow from './NumberRow'
 import SpeakButton from '../ui/SpeakButton'
+import Select from '../ui/Select'
 
 interface VoiceInfo { name: string; language: string | null }
 
@@ -139,19 +140,17 @@ export default function VoiceSettings({ variant = 'desktop' }: { variant?: 'desk
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: '13px' }}>朗读音色</div>
               </div>
-              <select
-                aria-label="朗读音色"
+              {/* v0.7.10 Task 14：原生 select 换自绘下拉（触发器尺寸/样式沿用原控件；
+                  展开面板走 portal + --shadow-overlay）。'' ↔ null 的配置语义不变。 */}
+              <Select
+                ariaLabel="朗读音色"
                 value={voice ?? ''}
-                onChange={e => patch({ voice: e.target.value || null })}
-                style={{
-                  width: 240, padding: '5px 8px', borderRadius: 'var(--radius-lg)',
-                  border: '1px solid var(--color-border-strong)', background: 'var(--color-surface)',
-                  fontSize: 13, fontFamily: 'var(--font-sans)', color: 'var(--color-text-primary)',
-                }}
-              >
-                <option value="">系统默认</option>
-                {voices.map(v => <option key={v.name} value={v.name}>{v.name}{v.language ? `（${v.language}）` : ''}</option>)}
-              </select>
+                options={[
+                  { value: '', label: '系统默认' },
+                  ...voices.map(v => ({ value: v.name, label: v.name + (v.language ? `（${v.language}）` : '') })),
+                ]}
+                onChange={v => patch({ voice: v || null })}
+              />
             </div>
           )}
 
