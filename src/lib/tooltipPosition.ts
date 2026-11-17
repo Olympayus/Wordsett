@@ -1,4 +1,8 @@
 // src/lib/tooltipPosition.ts
+//
+// 坐标一律是视口 CSS 像素。v0.7.10 先不动平板缩放：`IndexPage` 的缩放宿主会让
+// `zoom !== 1` 下的 `getBoundingClientRect` 与 `position: fixed` 的落点对不上，
+// Task 18 会给这里加可选的 `zoom` 参数（默认 1，桌面逐字不变），届时再改行为。
 export interface RectLike { left: number; right: number; top: number }
 
 export function tooltipPosition(
