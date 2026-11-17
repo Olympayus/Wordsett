@@ -10,7 +10,7 @@
 // `zoom === 1` 时所有函数都退化为恒等，桌面渲染路径逐字不变。
 
 /** 面板与锚点之间的缝隙；面板与视口边缘之间的最小余量。 */
-const OVERLAY_GAP = 4
+export const OVERLAY_GAP = 4
 const OVERLAY_MARGIN = 4
 
 export interface OverlayRect { left: number; top: number; right: number; bottom: number }
@@ -77,7 +77,9 @@ function viewportSize(): OverlaySize {
  * - `flip` 优先右侧，放不下改走下方；两边都放不下时选余量更大的一侧；
  * - 最后整体钳回视口（`OVERLAY_MARGIN`），面板比视口还大时停在左上余量处。
  *
- * `zoom === 1` 且面板尺寸已知时，结果与 `clampMenuPosition` 逐字一致。
+ * 钳制公式与 `clampMenuPosition` 相同，但落点本身还要按 placement 加上 `OVERLAY_GAP`：
+ * 想复现旧 `clampMenuPosition(x, y, …)` 的落点，锚点右缘 / 下缘应传 `x − OVERLAY_GAP` /
+ * `y − OVERLAY_GAP`（`Tooltip` 就是这么做的）。
  */
 export function positionFor(
   anchorRect: OverlayRect,

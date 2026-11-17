@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { positionFor, scaleForAnchor, zoomOf } from '../../lib/overlayZoom'
+import { OVERLAY_GAP, positionFor, scaleForAnchor, zoomOf } from '../../lib/overlayZoom'
 import { hasCoarsePointer } from '../../lib/pointer'
 import { useMobilePopup } from '../../lib/mobilePopups'
 
@@ -172,10 +172,10 @@ export default function Tooltip({ content, children, width = 300, minWidth, styl
           const anchorEl = hostRef.current
           const x = pos!.x + 14
           const y = pos!.y + 16
-          // 锚点取指针右下 (14, 16) 处的那一点：'right' 把面板左上角放在那里，
-          // 再按视觉尺寸钳回视口（与旧的 clampMenuPosition(x + 14, y + 16, …) 等价）。
+          // 'right' 还会在锚点右缘之外加 OVERLAY_GAP，故锚点右缘先退一个缝隙，
+          // 落点才仍是指针 + (14, 16)——与旧的 clampMenuPosition(pos.x + 14, pos.y + 16, …) 逐字相同。
           const p = positionFor(
-            { left: x, top: y, right: x, bottom: y },
+            { left: x - OVERLAY_GAP, top: y, right: x - OVERLAY_GAP, bottom: y },
             { width, height: 160 },
             'right',
             zoomOf(anchorEl),

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { positionFor, scaleForAnchor, zoomOf } from './overlayZoom'
+import { clampMenuPosition } from './menuPosition'
 
 /**
  * 浮层缩放补偿（v0.7.10 Task 18）。
@@ -113,10 +114,23 @@ describe('positionFor', () => {
     })
   })
 
-  it('zoom = 1 与 clampMenuPosition 的桌面结果逐字一致', () => {
+  it('钳制路径：zoom = 1 与 clampMenuPosition 的钳制结果一致', () => {
     withViewport(800, 600, () => {
       expect(positionFor({ left: 700, top: 560, right: 700, bottom: 560 }, { width: 168, height: 100 }, 'right', 1))
         .toEqual({ x: 628, y: 496 })
+      expect(positionFor({ left: 700, top: 560, right: 700, bottom: 560 }, { width: 168, height: 100 }, 'right', 1))
+        .toEqual(clampMenuPosition(704, 560, 168, 100, 800, 600))
+    })
+  })
+
+  it('未钳制路径：锚点右缘退一个缝隙后与 clampMenuPosition 逐字一致（Tooltip 桌面落点）', () => {
+    withViewport(1000, 800, () => {
+      // 指针 (100, 40) → 期望面板左上 (114, 56)；'right' 自带 OVERLAY_GAP，故锚点右缘传 110。
+      const anchor = { left: 110, top: 56, right: 110, bottom: 56 }
+      expect(positionFor(anchor, { width: 300, height: 160 }, 'right', 1))
+        .toEqual(clampMenuPosition(114, 56, 300, 160, 1000, 800))
+      // 这条是回归钉：未钳制时也不能被 +4 缝隙推走
+      expect(positionFor(anchor, { width: 300, height: 160 }, 'right', 1)).toEqual({ x: 114, y: 56 })
     })
   })
 
