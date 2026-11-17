@@ -20,7 +20,8 @@ import { libraryLocationIn } from '../../lib/collected'
 import { dictActionModel } from '../../lib/mobileDictActions'
 import { countAllDefinitions } from '../../lib/dictPlan'
 import { ENTRY_BAND_WIDTH, ENTRY_COLUMN_PADDING_X, TAB_ITEM_PADDING_X } from '../../lib/layout'
-import { setInitialFamiliarity, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
+import { setInitialFamiliarity, appendExampleUnderDefinition, type MergeFieldInput, type InitialFamiliarityChoice } from '../../services/wordService'
+import { usePendingExampleStore } from '../../stores/pendingExampleStore'
 import type { TitleMeta } from '../../providers/titleMeta'
 import type { DictionaryField } from '../../types/dictionary'
 
@@ -179,6 +180,23 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
     if (!ok) {
       setMergeError(true)
       return
+    }
+    // 划词例句（v0.7.9）：用户没点横幅的「添加」，而是在树里勾了释义、用导航条的
+    // 「添加」合并——同一件事也应完成。把待挂例句挂到**选中的第一条定义**下
+    // （树序：词性分组里中文在前、英文在后，`inputs` 保持同一顺序）。
+    // 挂入失败不阻断合并：释义已经落库，例句可以回详情页再挂一次（横幅仍在）。
+    const pendingExample = usePendingExampleStore.getState().pending
+    if (pendingExample && pendingExample.word.toLowerCase() === word.toLowerCase()) {
+      const def = inputs.find(i => i.key === 'chinese_definition' || i.key === 'english_definition')
+      if (def && (def.key === 'chinese_definition' || def.key === 'english_definition')) {
+        const attached = await appendExampleUnderDefinition(
+          target.id,
+          { key: def.key, value: def.value },
+          pendingExample.sentence,
+        )
+        if (attached) usePendingExampleStore.getState().clear()
+        else console.error('[dict] 划词例句挂入失败')
+      }
     }
     // 熟悉度随收录一并写入，但**只在用户被问过时才写**（spec §4.6：单选与本写入同一个条件）。
     // 在库词这里显示的是「已在工作台 / 已在储藏库」、familiarity 恒为重置默认值 1，无条件写就会把用户当初选的档
