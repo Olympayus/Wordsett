@@ -22,7 +22,7 @@ import { getDefinitions } from '../../services/fieldService'
 import { sortTreeByTemplate, ALLOWED_CHILD_KEYS } from '../../lib/fieldOrder'
 import { visibleTabs, defaultTab, missingTabs, groupRootsByTab, addableLeafKeys, isGroupedTab, TAB_GROUPS, type TabKey } from '../../lib/tabs'
 import { hasFieldChanges } from '../../lib/fieldChanges'
-import { insertBefore, dropY, reorderSiblingIds, dropVerdict, type DropVerdict } from '../../lib/dragReorder'
+import { insertBefore, dropY, reorderSiblingIds, dropVerdict, appendSiblingIds, endZoneId, parseEndZoneId, endZoneVerdict, type DropVerdict } from '../../lib/dragReorder'
 import { selectWordRootItems } from '../../lib/phonetic'
 import { fieldState, containerState, unitState, type FieldState } from '../../lib/fieldState'
 import EmptyState from '../ui/EmptyState'
@@ -179,6 +179,9 @@ interface FieldCardCtx {
   editingId: string | null
   editValue: string
   insertIndicator: InsertIndicator | null
+  /** 当前悬停的组末尾 / 整页末尾落点区 id（v0.7.10 任务 7）：`end-<parentId>` / `end-root`。
+   *  与 `insertIndicator` 互斥——行落点时它为 null，末尾区落点时 `insertIndicator` 为 null。 */
+  endZoneOverId: string | null
   /** 当前落点的三态（v0.7.10 任务 6，规格 §7.3）：`insertIndicator.overId` 是目标、本值决定
    *  目标行出哪一种态（valid → 极浅品牌底、invalid → 暖灰底 + 描边、none → 无行态）。
    *  只在 `activeDragId` 非空时有意义；松手 / 取消即回 `'none'`。 */
@@ -303,6 +306,77 @@ const DROP_FORBIDDEN_STYLE: CSSProperties = {
   boxShadow: 'inset 0 0 0 1px var(--color-border-strong)',
   borderRadius: 'var(--radius-md)',
   background: 'var(--color-surface-hover-recessed)',
+}
+
+/**
+ * 组末尾 / 整页末尾落点区（v0.7.10 任务 7，规格 §7.3）。
+ *
+ * 拖动进行中，每个**同级组**的末尾出现一条虚线区；根级组没有自己的行容器（根行是各组的
+ * run-in 头、子树夹在中间），故它的末尾区就是**整页末尾区**（droppable id `end-root`，
+ * 落在列表最末）。落上去按三态换色，与行态同一族、同一批 token：
+ * - valid（被拖行属于该 parentId 组）：品牌色虚线 + 极浅品牌底，与行的 `is-target` 同族；
+ * - invalid（其它组的末尾区）：暖灰底 + 强描边，与行的 `is-forbidden` 同族；
+ * - 未悬停：三级灰虚线，只说「这里有一个可落的区」。
+ * 都取既有 token（`--color-brand` / `--color-brand-softer` / `--color-border` /
+ * `--color-border-strong` / `--color-surface-hover-recessed`），深浅两套主题自动跟随。
+ */
+const DROP_ZONE_STYLE: CSSProperties = {
+  padding: '9px 10px',
+  border: '1.5px dashed var(--color-border)',
+  borderRadius: '7px',
+  color: 'var(--color-text-tertiary)',
+  fontSize: '12.5px',
+  lineHeight: '18px',
+  textAlign: 'center',
+  transition: 'border-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth), background-color var(--duration-fast) var(--ease-smooth)',
+}
+
+const DROP_ZONE_TARGET_STYLE: CSSProperties = {
+  borderColor: 'var(--color-brand)',
+  color: 'var(--color-brand)',
+  background: 'var(--color-brand-softer)',
+}
+
+const DROP_ZONE_FORBIDDEN_STYLE: CSSProperties = {
+  borderColor: 'var(--color-border-strong)',
+  color: 'var(--color-text-secondary)',
+  background: 'var(--color-surface-hover-recessed)',
+}
+
+/**
+ * 组末尾 / 整页末尾落点区（v0.7.10 任务 7）：只负责注册 droppable 与画。
+ * `parentId === null` 即根级组（`end-root`）。悬停态读页面级的 `overId` + `verdict`——
+ * 与行落点共用同一个 `dragVerdictState`，故「同一组 → 生效 / 其它组 → 禁止」只有一套判据。
+ *
+ * `data-end-zone` 与行的 `data-field-id` 同族：终归是给源码级检查与将来的手检一个落点标记。
+ */
+function EndZone({ parentId, overId, verdict, label, inset = 11, gapTop = 0 }: {
+  parentId: string | null
+  overId: string | null
+  verdict: DropVerdict
+  label: string
+  /** 虚线区左缘相对内容列的内缩：子行与 FlowRow 同一条 11px 内边距；整页末尾区不缩。 */
+  inset?: number
+  /** 与上方内容之间的额外间距（整页末尾区与正文流之间留 8px）。 */
+  gapTop?: number
+}) {
+  const id = endZoneId(parentId)
+  const { setNodeRef } = useDroppable({ id })
+  const hot = overId === id
+  return (
+    <div
+      ref={setNodeRef}
+      data-end-zone={parentId ?? 'root'}
+      style={{
+        ...DROP_ZONE_STYLE,
+        margin: `${gapTop}px 0 2px ${inset}px`,
+        ...(hot && verdict === 'valid' ? DROP_ZONE_TARGET_STYLE : null),
+        ...(hot && verdict === 'invalid' ? DROP_ZONE_FORBIDDEN_STYLE : null),
+      }}
+    >
+      {label}
+    </div>
+  )
 }
 
 /**
@@ -462,7 +536,7 @@ function MeasuredInput({ value, font, mark, onChange, onKeyDown }: {
 // v0.7.3：行尾那枚 6px 方点（SourceMark）整个退场，来源只剩左缘那根条（SourceBar，由 FlowRow / LeafFlow 渲染）。
 function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false, barState, barFirst = true, barLast = true, inheritedUser = false, ...ctx }: FieldCardProps) {
   const {
-    defs, editorMode, touch, sheetTargetId, onOpenRowSheet, onOpenUnitSheet, editingId, editValue, insertIndicator, dragVerdict, activeDragId, addMenu,
+    defs, editorMode, touch, sheetTargetId, onOpenRowSheet, onOpenUnitSheet, editingId, editValue, insertIndicator, dragVerdict, endZoneOverId, activeDragId, addMenu,
     onStartEdit, onEditValueChange, onSave, onCancelEdit, onDelete,
     onToggleAddMenu, onPickAdd, hoveredId, onHover, isInLibrary, onJump,
   } = ctx
@@ -1138,6 +1212,19 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
             />
           )}
           {renderedChildren}
+          {/* 组末尾落点区（v0.7.10 任务 7）：拖动进行中、且本行确实有子行时才渲染——
+              「只在该 parentId 组存在时渲染」。根容器行（asGroupHead）的子行由 SenseFlow 组装配
+              渲染，它的末尾区在 `flowGroups` 的 items 里，不经过这里。 */}
+          {activeDragId && (
+            <EndZone
+              parentId={fv.id}
+              overId={endZoneOverId}
+              verdict={dragVerdict}
+              label="拖到这里放到这组末尾"
+              // 与子行同一条 11px 内边距；多列块（LeafFlow）的子项在 25px，虚线区跟它对齐。
+              inset={leafFlow ? LEAF_FLOW_INSET : 11}
+            />
+          )}
         </div>
       )}
     </div>
@@ -1203,6 +1290,9 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   // 落点三态（v0.7.10 任务 6，规格 §7.3）：'valid' 画插入线 + 目标行品牌底、'invalid' 目标行暖灰禁止态、
   // 'none' 无行态。与 `insertIndicator` 同步置位——后者在 invalid 时仍记 overId，只是不画线。
   const [dragVerdictState, setDragVerdictState] = useState<DropVerdict>('none')
+  // 末尾区当前 hover 的 droppable id（v0.7.10 任务 7）：`end-<parentId>` / `end-root`。
+  // 与 `insertIndicator` 互斥——末尾区上不画行插入线，行上不出区的悬停态。
+  const [endZoneOverId, setEndZoneOverId] = useState<string | null>(null)
   // 正在被拖动的节点 id（v0.7.4 任务 12 的单位、任务 16 的行）：LeafFlow 的 `drag.isDragging`
   // 由它派生——选中框只画在被拖的那一枚上；页面级 `dragGhost` 也用它解析副本内容。不从
   // dnd-kit 的 `useDraggable().isDragging` 取：LeafFlow 是哑组件，拖拽态经 props 进。
@@ -1629,6 +1719,7 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   const clearDropFeedback = () => {
     setInsertIndicator(null)
     setDragVerdictState('none')
+    setEndZoneOverId(null)
   }
 
   // 拖拽重排（规格 §5.5）：仅同级；拖动中行原位淡出（opacity 0.35 + 极浅品牌底，不缩放、
@@ -1656,15 +1747,30 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     const { active, over } = event
     if (!over) { clearDropFeedback(); return }
     const draggedId = String(active.id)
-    const targetId = String(over.id).replace(/^drop-/, '')
+    const overId = String(over.id)
     const dragged = findFieldValueById(draggedId)
+    if (!dragged) { clearDropFeedback(); return }
+    // 组末尾 / 整页末尾落点区（v0.7.10 任务 7）：droppable id 里编码着 parentId
+    // （`end-<parentId>` / `end-root`），判定与行落点同一口径——被拖行属于该组 → valid；
+    // 落到**其它组**的末尾区 → invalid（暖灰禁止态 + chip「仅可同级排序」），不静默清空。
+    // 末尾区上不画插入线，故这里只置区自己的悬停态、`insertIndicator` 保持 null。
+    const zoneVerdict = endZoneVerdict(dragged.parentId, overId)
+    if (zoneVerdict !== null) {
+      setDragVerdictState(zoneVerdict)
+      setEndZoneOverId(overId)
+      setInsertIndicator(null)
+      return
+    }
+    const targetId = overId.replace(/^drop-/, '')
     const target = findFieldValueById(targetId)
-    if (!dragged || !target) { clearDropFeedback(); return }
+    if (!target) { clearDropFeedback(); return }
     // 三态判定归 `lib/dragReorder`（v0.7.10 任务 5）：落到自身 → none；父级不同 → invalid；否则 valid。
     // `sameRow` 的口径就是「落点 id 等于被拖 id」，与 `reorderSiblingIds` 放弃写入的那一条一致。
     const verdict = dropVerdict(dragged.parentId, target.parentId, targetId === draggedId)
     if (verdict === 'none') { clearDropFeedback(); return }
     setDragVerdictState(verdict)
+    // 行落点：末尾区的悬停态必须撤掉，两者互斥。
+    setEndZoneOverId(null)
     // invalid 也记 overId（目标行据此出禁止态），只是渲染层不画插入线；valid 的 before 仍按指针中线算，
     // 桌面 Pointer / Keyboard 的落点判定与写库路径一字未动。
     setInsertIndicator({ overId: targetId, before: insertBefore(dropYOf(event), over.rect) })
@@ -1682,10 +1788,24 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     setActiveDragId(null)
     const { active, over } = event
     if (!over) return
-    const targetId = String(over.id).replace(/^drop-/, '')
     const dragged = findFieldValueById(String(active.id))
+    if (!dragged) return
+    // 组末尾 / 整页末尾落点区（v0.7.10 任务 7）：落到**本组**的区上 → 用 `appendSiblingIds`
+    // 算出组末尾顺序并走既有 `reorderFieldValues` 写库路径（调用形态与行落点逐字相同）；
+    // 落到其它组的末尾区（拖动中仍可见，hover 已被判为 invalid）→ 不写。
+    const zone = parseEndZoneId(String(over.id))
+    if (zone) {
+      if (dragged.parentId !== zone.parentId) return  // 仅同级：其它组的末尾区只出禁止态
+      const siblings = dragged.parentId
+        ? (findFieldValueById(dragged.parentId)?.children ?? [])
+        : fieldValues.filter(fv => !fv.parentId)
+      const nextIds = appendSiblingIds(siblings.map(s => s.id), dragged.id)
+      await reorderFieldValues(nextIds.map((id, i) => ({ id, displayOrder: i })))
+      return
+    }
+    const targetId = String(over.id).replace(/^drop-/, '')
     const target = findFieldValueById(targetId)
-    if (!dragged || !target || dragged.parentId !== target.parentId) return  // 仅同级重排
+    if (!target || dragged.parentId !== target.parentId) return  // 仅同级重排
     const siblings = (dragged.parentId
       ? (findFieldValueById(dragged.parentId)?.children ?? [])
       : fieldValues.filter(fv => !fv.parentId))
@@ -1738,6 +1858,8 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     insertIndicator,
     // 落点三态（v0.7.10 任务 6）：行态与 chip 都读它；`insertIndicator.overId` 只是目标 id。
     dragVerdict: dragVerdictState,
+    // 末尾区悬停（v0.7.10 任务 7）：与 `insertIndicator` 互斥，组的虚线区据此换三态色。
+    endZoneOverId,
     activeDragId,
     addMenu,
     onStartEdit: handleStartEdit,
@@ -1809,21 +1931,32 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     .flatMap(root => (root.children ?? []).map(child => ({ fv: child, parentFv: root, depth: isGroupTab ? 0 : 1 })))
   const flowGroups: SenseGroup[] = isFlatTab
     ? (flatRows.length > 0
-        ? [{ pos: tabLabel, items: flatRows.map(({ fv, parentFv, depth }) => (
-            // 平铺分支也要回答「这一行该印什么」：辨析组取组描述、项类型留空——与分组分支同一函数，
-            // 否则组行回落 def.name，印出字段名「近义词辨析组」。
-            <FieldCard
-              key={fv.id} fv={fv} depth={depth} parentFv={parentFv}
-              labelOverride={rowTitle(keyOfFv(fv), fv.value, defs.find(d => d.id === fv.fieldId)?.name ?? '')}
-              // 平铺标签页的行走廊不在任何释义子树里（根容器只以页签名作 run-in 头、自己不出条），
-              // 故每行独立成段：first/last 都是 true，颜色取根容器的聚合态（决定九）。
-              barState={containerState(parentFv, false)}
-              barFirst
-              barLast
-              inheritedUser={parentFv.source === 'user'}
-              {...cardCtx}
-            />
-          )) }]
+        ? [{ pos: tabLabel, items: sortedTabValues.flatMap(root => [
+            ...(root.children ?? []).map(child => (
+              // 平铺分支也要回答「这一行该印什么」：辨析组取组描述、项类型留空——与分组分支同一函数，
+              // 否则组行回落 def.name，印出字段名「近义词辨析组」。
+              <FieldCard
+                key={child.id} fv={child} depth={isGroupTab ? 0 : 1} parentFv={root}
+                labelOverride={rowTitle(keyOfFv(child), child.value, defs.find(d => d.id === child.fieldId)?.name ?? '')}
+                // 平铺标签页的行走廊不在任何释义子树里（根容器只以页签名作 run-in 头、自己不出条），
+                // 故每行独立成段：first/last 都是 true，颜色取根容器的聚合态（决定九）。
+                barState={containerState(root, false)}
+                barFirst
+                barLast
+                inheritedUser={root.source === 'user'}
+                {...cardCtx}
+              />
+            )),
+            // 组末尾落点区（v0.7.10 任务 7）：平铺标签页的每个根容器各成一组，末尾区跟在
+            // **它自己那批子行**之后（根容器本身不作为行渲染，它的组由这些子行构成）。
+            ...(activeDragId && (root.children?.length ?? 0) > 0
+              ? [<EndZone
+                  key={endZoneId(root.id)} parentId={root.id}
+                  overId={endZoneOverId} verdict={dragVerdictState}
+                  label="拖到这里放到这组末尾"
+                />]
+              : []),
+          ]) }]
         : [])
     : sortedTabValues.map(root => {
         const counters = { zh: 0, en: 0 }
@@ -1837,19 +1970,30 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
         const segmented = rootKey === 'part_of_speech'
         return {
           head: <FieldCard key={root.id} fv={root} depth={0} parentFv={null} asGroupHead {...cardCtx} />,
-          items: (root.children ?? []).map(child => (
-            <FieldCard
-              key={child.id} fv={child} depth={1} parentFv={root}
-              labelOverride={childLabelOverride(rootKey, keyOfFv(child), child, counters)}
-              barState={rootBarState}
-              // 释义行（词性窗格的每个直属子项）是段首；它有子级时自己不能在下面收口，
-              // 末行交给最后一个后代叶子。无子级则单行成段（barLast 默认 true）。
-              barFirst
-              barLast={!(segmented && (child.children?.length ?? 0) > 0)}
-              inheritedUser={rootInheritedUser}
-              {...cardCtx}
-            />
-          )),
+          items: [
+            ...(root.children ?? []).map(child => (
+              <FieldCard
+                key={child.id} fv={child} depth={1} parentFv={root}
+                labelOverride={childLabelOverride(rootKey, keyOfFv(child), child, counters)}
+                barState={rootBarState}
+                // 释义行（词性窗格的每个直属子项）是段首；它有子级时自己不能在下面收口，
+                // 末行交给最后一个后代叶子。无子级则单行成段（barLast 默认 true）。
+                barFirst
+                barLast={!(segmented && (child.children?.length ?? 0) > 0)}
+                inheritedUser={rootInheritedUser}
+                {...cardCtx}
+              />
+            )),
+            // 组末尾落点区（v0.7.10 任务 7）：根容器行走 run-in 头（asGroupHead 时 FieldCard 不渲染
+            // 子行盒），它的直属子项由本处映射，末尾区因此也落在这里——只在该组有子行时渲染。
+            ...(activeDragId && (root.children?.length ?? 0) > 0
+              ? [<EndZone
+                  key={endZoneId(root.id)} parentId={root.id}
+                  overId={endZoneOverId} verdict={dragVerdictState}
+                  label="拖到这里放到这组末尾"
+                />]
+              : []),
+          ],
         }
       })
 
@@ -1953,12 +2097,19 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     return { text, kind }
   })()
 
-  // 跟手提示 chip 的文案（v0.7.10 任务 6，规格 §7.3）：valid 报「插到 / 放到「X」之前 / 之后」，
-  // invalid 报原因；none 不渲染。X 取与副本同一套「用户看到的文字」（值优先、空值回落字段名），
-  // 故行与单位两种落点共用这一处解析。链接标记同样先剥掉。
+  // 跟手提示 chip 的文案（v0.7.10 任务 6 / 7，规格 §7.3）：valid 报「插到 / 放到「X」之前 / 之后」，
+  // 末尾区报「放到这组末尾 / 放到整页末尾」；invalid 报原因；none 不渲染。X 取与副本同一套
+  // 「用户看到的文字」（值优先、空值回落字段名），故行与单位两种落点共用这一处解析。
+  // 链接标记同样先剥掉。
   const dragChip = (() => {
-    if (!activeDragId || dragVerdictState === 'none' || !insertIndicator) return null
+    if (!activeDragId || dragVerdictState === 'none') return null
     if (dragVerdictState === 'invalid') return { text: '仅可同级排序', invalid: true }
+    // 末尾区（v0.7.10 任务 7）：目标是「组 / 整页」而不是某一行，故不印目标文字。
+    if (endZoneOverId) {
+      const zone = parseEndZoneId(endZoneOverId)
+      return { text: zone?.parentId ? '放到这组末尾' : '放到整页末尾', invalid: false }
+    }
+    if (!insertIndicator) return null
     const target = findFieldValueById(insertIndicator.overId)
     const def = target ? defs.find(d => d.id === target.fieldId) : undefined
     if (!target || !def) return null
@@ -2204,6 +2355,20 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
                 </div>
               )}
           </div>
+          {/* 整页末尾落点区（v0.7.10 任务 7，规格 §7.3）：根级组没有自己的行容器——根行是各组的
+              run-in 头、子树夹在中间——故根行的「组末尾」就是整页末尾区，落在列表最末。
+              只在主标签页（根行真的在渲染）且拖动进行中时出现；平铺标签页的根容器不渲染，
+              那一侧的同级组由各根容器的子行构成，末尾区在 `flowGroups` 里。 */}
+          {!isFlatTab && sortedTabValues.length > 0 && activeDragId && (
+            <EndZone
+              parentId={null}
+              overId={endZoneOverId}
+              verdict={dragVerdictState}
+              label="拖到这里放到整页末尾"
+              inset={0}
+              gapTop={8}
+            />
+          )}
           {/* 拖拽副本（v0.7.4 任务 16）：DragOverlay 自己跟随指针，副本只画内容。
               `dragGhost` 已按 activeDragId 解析好；解析不到时为空，overlay 不渲染任何东西。
               v0.7.10 任务 6：副本下方挂跟手 chip（valid / invalid 两态），副本本身按 invalid 换灰；

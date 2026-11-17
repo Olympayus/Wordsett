@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { insertBefore, dropY, reorderSiblingIds, dropVerdict, appendSiblingIds } from './dragReorder'
+import {
+  insertBefore, dropY, reorderSiblingIds, dropVerdict, appendSiblingIds,
+  endZoneId, parseEndZoneId, endZoneVerdict,
+} from './dragReorder'
 
 // 例句项 / 近义词项的真实几何（WordWorkbench.tsx FieldCard）：
 // 卡片 padding 6px×2 + 行高 24px（行内垃圾桶按钮 24px 撑起行高）= 36px；相邻卡片间距 2px。
@@ -109,5 +112,36 @@ describe('dropVerdict / appendSiblingIds（v0.7.10 任务 5）', () => {
   it('appendSiblingIds_moves_to_end', () => {
     expect(appendSiblingIds(['a', 'b', 'c'], 'a')).toEqual(['b', 'c', 'a'])
     expect(appendSiblingIds(['a'], 'a')).toEqual(['a'])
+  })
+})
+
+describe('组末尾 / 整页末尾落点区（v0.7.10 任务 7）', () => {
+  it('endZoneId_uses_parent_id_or_root', () => {
+    expect(endZoneId('r1')).toBe('end-r1')
+    expect(endZoneId(null)).toBe('end-root')
+  })
+
+  it('parseEndZoneId_ignores_row_ids_and_decodes_root', () => {
+    // 行 / 单位的 droppable id 是 `drop-<id>`，不能误认成末尾区
+    expect(parseEndZoneId('drop-abc')).toBeNull()
+    expect(parseEndZoneId('abc')).toBeNull()
+    expect(parseEndZoneId('end-r1')).toEqual({ parentId: 'r1' })
+    expect(parseEndZoneId('end-root')).toEqual({ parentId: null })
+  })
+
+  it('endZoneVerdict_only_matches_the_dragged_rows_group', () => {
+    // 同一父级组 → 可以放到组末尾（根级双方 parentId 都是 null）
+    expect(endZoneVerdict('r1', 'end-r1')).toBe('valid')
+    expect(endZoneVerdict(null, 'end-root')).toBe('valid')
+    // 其它组的末尾区 → 禁止态（不静默清空）
+    expect(endZoneVerdict('r1', 'end-r2')).toBe('invalid')
+    expect(endZoneVerdict('r1', 'end-root')).toBe('invalid')
+    expect(endZoneVerdict(null, 'end-r2')).toBe('invalid')
+    // 不是末尾区 → null，调用方回落行落点判定
+    expect(endZoneVerdict('r1', 'drop-x')).toBeNull()
+  })
+
+  it('末尾区落点 = appendSiblingIds 的组末尾顺序', () => {
+    expect(appendSiblingIds(['a', 'b', 'c'], 'b')).toEqual(['a', 'c', 'b'])
   })
 })

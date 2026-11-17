@@ -67,3 +67,35 @@ export function appendSiblingIds(siblingIds: readonly string[], draggedId: strin
   if (!siblingIds.includes(draggedId)) return [...siblingIds]
   return [...siblingIds.filter(id => id !== draggedId), draggedId]
 }
+
+/**
+ * 组末尾 / 整页末尾落点区的 droppable id（v0.7.10 任务 7）。
+ * 与行的 `drop-<id>` 同族：`end-<parentId>` 是某个同级组的末尾区，根级组固定为 `end-root`
+ * （根行没有自己的行容器，它的「组末尾」就是整页末尾）。节点 id 是 `crypto.randomUUID()`，
+ * 不可能以 `end-` 开头，故两个前缀不会互相误认。
+ */
+export function endZoneId(parentId: string | null): string {
+  return `end-${parentId ?? 'root'}`
+}
+
+/**
+ * 解析组末尾落点区的 id：不是 `end-` 前缀 → null（调用方按行 / 单位落点处理）；
+ * `end-root` → 根级组（parentId 为 null）。返回的 parentId 直接喂 `dropVerdict` 的
+ * targetParentId——末尾区与行落点同一套父级口径。
+ */
+export function parseEndZoneId(overId: string): { parentId: string | null } | null {
+  if (!overId.startsWith('end-')) return null
+  const raw = overId.slice('end-'.length)
+  return { parentId: raw === 'root' ? null : raw }
+}
+
+/**
+ * 组末尾区的三态：over 不是末尾区 → null（交给行落点判定）；是 → 与 `dropVerdict` 同一口径，
+ * 被拖行属于该 parentId 组 → 'valid'，落到其它组的末尾区 → 'invalid'。
+ * `sameRow` 恒为 false：末尾区永远不是「被拖的那一行」。
+ */
+export function endZoneVerdict(draggedParentId: string | null, overId: string): Exclude<DropVerdict, 'none'> | null {
+  const zone = parseEndZoneId(overId)
+  if (!zone) return null
+  return dropVerdict(draggedParentId, zone.parentId, false) === 'invalid' ? 'invalid' : 'valid'
+}
