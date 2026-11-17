@@ -5,6 +5,7 @@ import type { QueueCandidate } from '../lib/review/queue'
 const {
   invokeMock, getStateMock, applyReviewMock, insertPracticeLogMock,
   registerAllWordsMock, getCandidatesMock, getWordContentMock, getStatsMock,
+  getPracticeTodayMock,
   getWeakWordsWithCountsMock, getAllCandidatesMock, getAbsentWordsMock,
   getAllWordCategoryMapMock, getStrategyCountsMock, getWeakWordIdsMock,
 } = vi.hoisted(() => ({
@@ -16,6 +17,7 @@ const {
   getCandidatesMock: vi.fn(),
   getWordContentMock: vi.fn(),
   getStatsMock: vi.fn(),
+  getPracticeTodayMock: vi.fn(),
   getWeakWordsWithCountsMock: vi.fn(),
   getAllCandidatesMock: vi.fn(),
   getAbsentWordsMock: vi.fn(),
@@ -25,7 +27,7 @@ const {
 }))
 
 // rateCard 只碰这三个 db 入口，直接打桩；fsrs_next 走 Tauri invoke，单独打桩。
-// getOverview 另走 registerAllWords / getCandidates / getWordContent / getStrategyCounts / getStats。
+// getOverview 另走 registerAllWords / getCandidates / getWordContent / getStrategyCounts / getStats / getPracticeToday。
 // getQueue 走自由练习那一路：getAllCandidates 取池、getWordContent 取题面、
 // getAbsentWords 收尾；分类范围还要 getAllWordCategoryMap（另一个 db 模块，动态 import）。
 vi.mock('../db/review', () => ({
@@ -36,6 +38,7 @@ vi.mock('../db/review', () => ({
   getCandidates: getCandidatesMock,
   getWordContent: getWordContentMock,
   getStats: getStatsMock,
+  getPracticeToday: getPracticeTodayMock,
   getWeakWordsWithCounts: getWeakWordsWithCountsMock,
   getAllCandidates: getAllCandidatesMock,
   getAbsentWords: getAbsentWordsMock,
@@ -58,6 +61,7 @@ beforeEach(() => {
   getStateMock.mockResolvedValue({ ok: true, data: { stability: 10, difficulty: 5, reps: 3, lapses: 0, lastReviewAt: null } })
   applyReviewMock.mockResolvedValue({ ok: true, data: undefined })
   insertPracticeLogMock.mockResolvedValue({ ok: true, data: undefined })
+  getPracticeTodayMock.mockResolvedValue({ ok: true, data: 0 })
 })
 
 describe('reviewService.rateCard 落库结果', () => {

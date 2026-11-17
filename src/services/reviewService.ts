@@ -508,6 +508,10 @@ export async function getOverview(params: ReviewParams) {
   // ——这正是「轮次上限只影响单次学多少个词」的读法。见 DueBadge 的同款说明。
   // **注意：它不再是空态判据**（v0.7.1 起看 deliverable），别再把 UI 的 empty 接到它上面。
   const { today, todayWordIds } = await getStrategyCounts(params)
+  // 今日已练（spec §7.7）：当日 mode='practice' 的日志条数，自由练习页的读数。
+  // now 与 todayQueue 同源（本次 overview 的同一个 Date.now()），日界与 getStats 同式。
+  // 取数失败按 0 兜底：这是展示数，不该让整页 overview 跟着失败（与上面 getStats 的兜底同理）。
+  const practice = await reviewDb.getPracticeToday(now)
   return {
     total: today,
     // 到期积压摊平到词：用户看到的「19 张待复习」是**卡**数，而本轮要给几个词还账是另一回事。
@@ -523,6 +527,8 @@ export async function getOverview(params: ReviewParams) {
     deliverable: queue.length,
     // 三图与近 14 天趋势都要 dueByDay / recentRatings，故整包透出而非只给 masteryBuckets
     stats,
+    // 当日自由练习条数（spec §7.7）。只增字段：既有消费方读的是解构/具名键，不受影响。
+    practiceToday: practice.ok ? practice.data : 0,
   }
 }
 

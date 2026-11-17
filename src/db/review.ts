@@ -812,6 +812,28 @@ export async function getStats(now: number = Date.now(), h?: DbHandle, opts: Can
   }
 }
 
+/** 今日自由练习计数（spec §7.7）：当日 `mode = 'practice'` 的 `review_logs` 条数。
+ *
+ * 日界与 getStats 的 recentRatings **逐字一致**（`date(reviewed_at / 1000, 'unixepoch', 'localtime')`），
+ * 两处因此不会在跨日边界上说两套话。
+ *
+ * 刻意**不** join words：practice 只在工作区词上产生（归档词不参与复习），
+ * spec §7.7 只要求「当日 mode='practice' 的 review_logs 条数」。
+ */
+export async function getPracticeToday(now: number = Date.now(), h?: DbHandle): Promise<DbResult<number>> {
+  const d = db(h)
+  try {
+    const rows = await d.select<Record<string, any>>(
+      `SELECT count(*) AS c FROM review_logs l
+       WHERE l.mode = 'practice'
+         AND date(l.reviewed_at / 1000, 'unixepoch', 'localtime') = date(?1 / 1000, 'unixepoch', 'localtime')`,
+      [now])
+    return { ok: true, data: Number(rows[0]?.c ?? 0) }
+  } catch (e: any) {
+    return { ok: false, error: e.toString() }
+  }
+}
+
 /** 缺内容词条：已注册卡但当前无任何可用模板。 */
 export async function getAbsentWords(h?: DbHandle, opts: CandidateOpts = {}): Promise<DbResult<{ wordId: string; lemma: string }[]>> {
   const d = db(h)
