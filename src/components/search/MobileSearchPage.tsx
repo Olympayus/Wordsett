@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { useViewStore } from '../../stores/viewStore'
 import { useWordStore } from '../../stores/wordStore'
 import { useSearchSuggestions } from '../../services/useSearchSuggestions'
-import { searchRows } from '../../lib/mobileSearch'
+import { highlightSegments, searchRows } from '../../lib/mobileSearch'
 import { isChineseQuery } from '../../lib/chineseSearch'
 import { touchInputStyles } from '../../lib/touchInput'
 import Icon from '../icons'
@@ -25,6 +25,9 @@ import HitArea, { useMobileShellHitArea } from '../ui/HitArea'
  *   `showSearchResults`），回到本页时输入框里还是刚才的查询。
  * - 建议取数走 `useSearchSuggestions`——与桌面顶栏 `TopBar` **同一份**（300ms 防抖 / 中文分流 /
  *   输入法合成期守卫），两个界面不可能分家。
+ * - 取数失败时列表上方出一行「搜索失败，请检查词典文件」（与桌面错误条同一条 `failed` 判据），
+ *   **不清空已有建议**；建议行的词面与释义按查询分段，命中段用 `<mark>` 标出
+ *   （`highlightSegments` 纯函数，`mobileSearch.test.ts` 钉住大小写不敏感与重叠规则）。
  * - 软键盘：内容区是 `flex: 1 + minHeight: 0`，列表在键盘弹起（视口收缩）时跟着缩短而不是被
  *   盖住；左右内边距走 `safe-area-inset-*`，刘海 / 挖孔屏下不贴边。
  *
@@ -42,6 +45,25 @@ const BAR_HEIGHT = 52
 const TOUCH_INPUT = touchInputStyles(true)
 /** 建议行高：44dp 是触摸目标的下限（spec §10），行内两行文字仍读得开。 */
 const ROW_HEIGHT = 44
+
+/**
+ * 命中段底（Task 25）：`--color-brand-soft`，不新造 token。
+ *
+ * `<mark>` 的 UA 样式同时给了黄底与黑字，这里两样都显式覆盖——底色走 token、
+ * 文字 `inherit` 跟随行内墨色，深色模式下才不会落在黑字压深蓝底上。
+ * 只改颜色、不加 padding / 字重：`<mark>` 仍是 inline 盒，不改变行高与折行。
+ */
+const MARK_STYLE: CSSProperties = {
+  background: 'var(--color-brand-soft)',
+  color: 'inherit',
+}
+
+/** 词面 / 释义按命中切分：命中段包 `<mark>`，其余原样输出。 */
+function highlightNodes(text: string, query: string): ReactNode[] {
+  return highlightSegments(text, query).map((seg, i) =>
+    seg.hit ? <mark key={i} style={MARK_STYLE}>{seg.text}</mark> : seg.text
+  )
+}
 
 /** 无边框无底色的图标键（返回）：与 `MobileAppBar` 的 `iconBtn` 同形同尺寸。
  *  44dp 命中区由 `HitArea` 覆盖层补足（v0.7.10 Task 16），32px 视觉尺寸不变。 */
@@ -68,7 +90,7 @@ export default function MobileSearchPage() {
   const showHitArea = useMobileShellHitArea()
 
   const [query, setQuery] = useState('')
-  const { suggestions, glosses, isComposing, setComposing } = useSearchSuggestions(query)
+  const { suggestions, glosses, isComposing, setComposing, failed } = useSearchSuggestions(query)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // 进页面即聚焦（软键盘随页面一起弹出，用户直接就能打字）。挂载一次即可：
@@ -97,6 +119,9 @@ export default function MobileSearchPage() {
   }, [showSearchResults, closeSearch])
 
   const rows = searchRows(suggestions, libraryIndex, glosses)
+  // `failed` 的复位在 hook 的 effect 里，清空输入后的那一帧它可能还是 true——
+  // 加一道查询非空的渲染期守卫，避免「空查询 + 搜索失败」这种自相矛盾的瞬间。
+  const showFailure = failed && query.trim().length > 0
 
   // 清除：清空输入并把焦点还给输入框（与桌面顶栏的 ClearButton 同一行为）。
   const clearQuery = useCallback(() => { setQuery(''); inputRef.current?.focus() }, [])
@@ -187,6 +212,21 @@ export default function MobileSearchPage() {
         </div>
       </div>
 
+      {/* 取数失败（Task 25）：`failed` 与桌面顶栏错误条同一条判据（`useSearchSuggestions`），
+          这里只在列表上方多一行提示——**不清空已有建议**，用户仍可点上一次的结果。
+          提示行常驻在滚动区之外，键盘弹起时不跟着列表滚走。 */}
+      {showFailure && (
+        <div style={{
+          flexShrink: 0, padding: '8px 16px',
+          fontSize: 'var(--text-xs)', fontFamily: 'var(--font-sans)',
+          color: 'var(--color-accent)',
+          background: 'var(--color-surface)',
+          borderBottom: '1px solid var(--color-border)',
+        }}>
+          搜索失败，请检查词典文件
+        </div>
+      )}
+
       {/* 建议列表：单列、即时跟随输入（无「搜索」按钮）。`flex:1 + minHeight:0` 让它在
           软键盘弹起、视口收缩时真的变短——否则列表下半截被键盘盖住且滚不到。 */}
       <div
@@ -194,13 +234,16 @@ export default function MobileSearchPage() {
         style={{ minHeight: 0, WebkitOverflowScrolling: 'touch' }}
       >
         {rows.length === 0 ? (
-          <div style={{
-            padding: '24px 16px', textAlign: 'center',
-            fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)',
-            fontFamily: 'var(--font-sans)',
-          }}>
-            {query.trim() ? '没有匹配的单词' : '输入单词或中文释义开始搜索'}
-          </div>
+          // 失败时不再补一句「没有匹配的单词」——那不是「没搜到」，是没搜成。
+          showFailure ? null : (
+            <div style={{
+              padding: '24px 16px', textAlign: 'center',
+              fontSize: 'var(--text-sm)', color: 'var(--color-text-tertiary)',
+              fontFamily: 'var(--font-sans)',
+            }}>
+              {query.trim() ? '没有匹配的单词' : '输入单词或中文释义开始搜索'}
+            </div>
+          )
         ) : rows.map(row => (
           <button
             key={row.lemma}
@@ -216,14 +259,15 @@ export default function MobileSearchPage() {
               WebkitTapHighlightColor: 'transparent',
             }}
           >
-            {/* 词面 + 中文释义（释义缺失时第二行整行不渲染，词面仍居中在同一行高里） */}
+            {/* 词面 + 中文释义（释义缺失时第二行整行不渲染，词面仍居中在同一行高里）。
+                两行都按查询分段：命中段包 `<mark>`（Task 25）。 */}
             <span style={{ flex: 1, minWidth: 0 }}>
               <span style={{
                 display: 'block', fontSize: 15, fontFamily: 'var(--font-serif)',
                 color: 'var(--color-text-primary)', overflow: 'hidden',
                 textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>
-                {row.lemma}
+                {highlightNodes(row.lemma, query)}
               </span>
               {row.gloss && (
                 <span style={{
@@ -231,7 +275,7 @@ export default function MobileSearchPage() {
                   color: 'var(--color-text-tertiary)', overflow: 'hidden',
                   textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                 }}>
-                  {row.gloss}
+                  {highlightNodes(row.gloss, query)}
                 </span>
               )}
             </span>

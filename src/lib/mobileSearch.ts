@@ -32,3 +32,36 @@ export function searchRows(
     collected: collectedLabel(libraryLocationIn(libraryIndex, lemma)),
   }))
 }
+
+/** 建议行里的一段文字：`hit` 为真表示命中查询词，由调用方包 `<mark>`。 */
+export interface TextSegment {
+  text: string
+  hit: boolean
+}
+
+/**
+ * 词面 / 释义 → 命中段与普通段（Task 25）。
+ *
+ * - **大小写不敏感**（`Vocab` 能被 `vocab` 命中），命中段保留原文大小写。
+ * - **重叠不重复**：上一段命中结束后才继续找，`aaaa` 查 `aa` 得到 `[aa][aa]` 两段。
+ * - **空查询**（含纯空白）返回单段 `{ text, hit: false }`——调用方不必先判空。
+ * - 查询先 `trim`，与 `searchLemmas` / `searchChinese` 的取数口径一致，避免输入框尾随空格
+ *   命中不了实际返回的建议词。
+ */
+export function highlightSegments(text: string, query: string): TextSegment[] {
+  const needle = query.trim().toLowerCase()
+  if (!needle || !text) return [{ text, hit: false }]
+  const haystack = text.toLowerCase()
+  const segments: TextSegment[] = []
+  let from = 0
+  for (;;) {
+    const at = haystack.indexOf(needle, from)
+    if (at === -1) break
+    if (at > from) segments.push({ text: text.slice(from, at), hit: false })
+    segments.push({ text: text.slice(at, at + needle.length), hit: true })
+    from = at + needle.length
+  }
+  if (from === 0) return [{ text, hit: false }]  // 一段都没命中
+  if (from < text.length) segments.push({ text: text.slice(from), hit: false })
+  return segments
+}
