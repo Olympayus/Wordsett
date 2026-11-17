@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react'
+import type { ReactNode } from 'react'
 import FreeScopeTabs from './FreeScopeTabs'
 import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
-import SquareButton from '../ui/SquareButton'
 import CheckBox from '../ui/CheckBox'
 import { getWeakWords, getDueWordIds, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import { getWordCategoryMap } from '../../services/categoryService'
-import { aggregateCategoryCounts, canStartFreeScope, freeScopeEmptyText, freeScopeSummaryText } from '../../lib/review/categoryCounts'
+import { aggregateCategoryCounts, freeScopeEmptyText, freeScopeSummaryText } from '../../lib/review/categoryCounts'
 import type { FreeScopeKind } from '../../lib/review/types'
+import type { FreeScopeSelection } from '../../lib/review/startButton'
 import { FREE_SCOPE_LABEL } from '../../lib/review/scopeLabel'
 import { jumpToWord } from '../../lib/review/jumpToWord'
 import { hasCoarsePointer } from '../../lib/pointer'
@@ -38,16 +39,27 @@ const MOBILE_SCOPE_DESC: Record<FreeScopeKind, string> = {
   random: '工作台全部词条',
 }
 
-export default function FreeScopePanel({ categories, onStart, variant = 'desktop' }: {
+export default function FreeScopePanel({ categories, variant = 'desktop', value, onChange, start }: {
   // color 一并带进来（v0.6.3 条目 6）：分类行的勾选框要按分类走色，
   // 写进 prop 类型而不是在面板里另取一份，是为了让别的调用点漏传时编译器先叫。
   categories: { id: string; name: string; color: string }[]
-  onStart: (scope: { kind: FreeScopeKind; categoryIds?: string[]; limit: number }) => void
   /**
    * 外壳形态（v0.7.6 §3.8）。缺省 `desktop`；手机外壳由 `ReviewModule` 传 `mobile`，
    * 桌面调用点不传，行为不变。
    */
   variant?: 'desktop' | 'mobile'
+  /**
+   * 当前范围选择（v0.7.10 §7.7）。状态由 `ReviewModule` 顶层持有：左栏开始按钮与
+   * 本面板必须读同一份选择，本组件只做受控渲染（props in / events out）。
+   */
+  value: FreeScopeSelection
+  onChange: (next: FreeScopeSelection) => void
+  /**
+   * 手机端「开始练习」插槽（v0.7.10 §7.7）。按钮仍在范围卡下方、内容清单之前，位置与
+   * 几何不变；按钮本身由 `ReviewModule` 组装——开一轮会话要读写库与 store，受控面板
+   * 不复制那套逻辑。桌面不传（按钮已统一到左栏控制台下方）。
+   */
+  start?: ReactNode
 }) {
   const mobile = variant === 'mobile'
   // 触摸输入档（v0.7.10 §7.4）：本组件桌面与手机外壳共用、没有 `touch` prop，按主指针判断；
@@ -59,15 +71,13 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
   // 后者跟着侧栏当前模块走（在储藏库模块下会显示储藏库的词数），而复习只认工作区。
   // 计数由 useWordStore 的 loadWords 顺带刷新，不新增 db 查询。
   const wordCount = useWordStore(s => s.counts.workspace)
-  const [kind, setKind] = useState<FreeScopeKind>('random')
-  const [categoryIds, setCategoryIds] = useState<string[]>([])
+  const { kind, categoryIds, limit } = value
   const [rows, setRows] = useState<{ id: string; name: string; color: string; wordCount: number; dueCount: number }[]>([])
   // 分类计数读失败：与「库里没有分类」分开讲——前者用户只能重试或换个范围，
   // 后者要去工作台建分类，混成同一个空盒子两边都答不上来。
   // 三态判据抽在 freeScopeEmptyText 里（见下）：读失败 / 库里确实没有分类 / 还在读。
   // 最后一支必须**不说话**——rows 初值是 []，把它当「空」会在读到之前先闪一句假话。
   const [rowsFailed, setRowsFailed] = useState(false)
-  const [limit, setLimit] = useState(20)
   const [weak, setWeak] = useState<Awaited<ReturnType<typeof getWeakWords>>>([])
 
   // 薄弱词列表按当前阈值实时取；只在切到该页时拉
@@ -125,22 +135,6 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
     </Tooltip>
   )
 
-  // 「开始练习」只有一处定义：手机端外面多包一层 flex 让它撑满，桌面端保持原样的行内按钮。
-  const startButton = (
-    <SquareButton
-      tone="surface"
-      grow={mobile}
-      disabled={!canStartFreeScope(kind, categoryIds)}
-      onClick={() => onStart({
-        kind,
-        categoryIds: kind === 'category' ? categoryIds : undefined,
-        limit,
-      })}
-    >
-      开始练习
-    </SquareButton>
-  )
-
   return (
     <div className="flex flex-col" style={{ minHeight: '100%' }}>
       {mobile ? (
@@ -159,7 +153,7 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
                 key={key}
                 type="button"
                 aria-pressed={on}
-                onClick={() => setKind(key)}
+                onClick={() => onChange({ ...value, kind: key })}
                 style={{
                   minWidth: 0, padding: 12, borderRadius: 8, textAlign: 'left', cursor: 'pointer',
                   border: '1px solid transparent', fontFamily: 'var(--font-sans)', color: 'inherit',
@@ -178,15 +172,17 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
           })}
         </div>
       ) : (
-        <FreeScopeTabs active={kind} onSelect={setKind} right={infoTip} />
+        <FreeScopeTabs active={kind} onSelect={k => onChange({ ...value, kind: k })} right={infoTip} />
       )}
 
       {/* 手机：开始练习紧贴 2×2 范围卡下方（v0.7.6 收尾，用户确认）。它回答的是
           「按当前范围开一轮」，与范围卡是同一件事，故排在分类 / 薄弱词清单与题数之前，
           不必滚过整张清单才够得着。桌面仍在内容区末尾，那里有 620px 限宽、一屏看得下。
-          宽度与范围卡同宽，用同一侧的内边距 16。 */}
-      {mobile && (
-        <div style={{ display: 'flex', width: '100%', padding: '12px 16px 0' }}>{startButton}</div>
+          宽度与范围卡同宽，用同一侧的内边距 16。
+          v0.7.10 §7.7：按钮节点改由 `ReviewModule` 经 `start` 插槽传入——开一轮要读库与
+          store，受控面板不复制那套逻辑；位置与包裹层逐字不变。 */}
+      {mobile && start !== undefined && (
+        <div style={{ display: 'flex', width: '100%', padding: '12px 16px 0' }}>{start}</div>
       )}
 
       <div
@@ -288,7 +284,10 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
                       checked={on}
                       disabled={disabled}
                       color={r.color}
-                      onChange={() => setCategoryIds(prev => on ? prev.filter(x => x !== r.id) : [...prev, r.id])}
+                      onChange={() => onChange({
+                        ...value,
+                        categoryIds: on ? categoryIds.filter(x => x !== r.id) : [...categoryIds, r.id],
+                      })}
                       label={`选择分类 ${r.name}`}
                     />
                     {/* 分类色圈（v0.6.3 打磨）：勾选框只在**勾上**时才显示分类色，
@@ -327,16 +326,12 @@ export default function FreeScopePanel({ categories, onStart, variant = 'desktop
           数量
           <input
             type="number" min={1} max={100} value={limit}
-            onChange={e => setLimit(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+            onChange={e => onChange({ ...value, limit: Math.min(100, Math.max(1, Number(e.target.value) || 1)) })}
             style={{ width: '80px', padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)', background: 'transparent', color: 'inherit', fontSize: '13px', ...touchInputStyles(touch) }}
           />
         </label>
 
-        {/* 判据抽在 canStartFreeScope 里（Review Focus 3），组件只消费结果；
-            禁用观感（灰底 + 0.55 不透明度 + default 光标）交给 SquareButton 自带的
-            BUTTON_DISABLED，不再在本处另写一份 opacity。
-            手机端（v0.7.6 收尾）把按钮提到范围卡下方，这里只出桌面那一份。 */}
-        {!mobile && startButton}
+        {/* 桌面的「开始练习」已统一到左栏控制台下方（v0.7.10 §7.7），本组件不再渲染。 */}
       </div>
     </div>
   )

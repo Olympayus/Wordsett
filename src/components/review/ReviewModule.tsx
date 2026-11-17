@@ -9,6 +9,7 @@ import ArenaNavBar from './ArenaNavBar'
 import SessionGuard from './SessionGuard'
 import SummaryPanel from './SummaryPanel'
 import ReviewConsole from './ReviewConsole'
+import SquareButton from '../ui/SquareButton'
 import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useCategoryStore } from '../../stores/categoryStore'
@@ -17,6 +18,8 @@ import { usePlatformClass } from '../../lib/usePlatform'
 import { usesMobileShell } from '../../lib/platform'
 import { getStrategyCounts, getOverview, getQueue, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import type { ReviewStrategy } from '../../lib/review/types'
+import type { FreeScopeSelection } from '../../lib/review/startButton'
+import { canStartFreeScope } from '../../lib/review/categoryCounts'
 import { isSessionLive } from '../../lib/review/sessionGuard'
 import { canGoBack, canGoForward, answeredCount } from '../../lib/review/nav'
 import { scopeLabel, correctCount, TEMPLATE_LABEL } from '../../lib/review/scopeLabel'
@@ -33,6 +36,10 @@ export default function ReviewModule() {
 
   const [counts, setCounts] = useState({ today: 0, weak: 0 })
   const [overview, setOverview] = useState<Awaited<ReturnType<typeof getOverview>> | null>(null)
+  // 自由练习的范围选择（v0.7.10 §7.7）：从 FreeScopePanel 提升上来，桌面左栏开始按钮与
+  // 右栏范围面板（以及手机分支）共用同一份编辑态。它刻意不叫 store 里的 freeScope——那个
+  // 只描述「已开始会话」的范围，语义不变。
+  const [freeSelection, setFreeSelection] = useState<FreeScopeSelection>({ kind: 'random', categoryIds: [], limit: 20 })
   // 组卷为空时的就地提示：先前是静默 return，用户按了按钮却什么都没发生
   const [emptyNotice, setEmptyNotice] = useState<string | null>(null)
   // 跨 effect 轮次共享的单调请求号：只有最后一次请求的结果允许落地
@@ -102,8 +109,15 @@ export default function ReviewModule() {
     startSession(q, null)
   }
 
-  const handleFreeStart = async (scope: { kind: 'category' | 'random' | 'today' | 'weak'; categoryIds?: string[]; limit: number }) => {
+  const handleFreeStart = async (selection: FreeScopeSelection) => {
     setEmptyNotice(null)
+    // 今日队列无数量，全量出题：buildQueue 仅用它做上限截断，MAX_SAFE_INTEGER 即「不截断」。
+    // （面板的数量框只对 random / category / weak 有意义；今日复习页不渲染它，见 T22。）
+    const scope = {
+      kind: selection.kind,
+      categoryIds: selection.kind === 'category' ? selection.categoryIds : undefined,
+      limit: selection.kind === 'today' ? Number.MAX_SAFE_INTEGER : selection.limit,
+    }
     const { queue: q } = await getQueue('free', params, scope)
     if (q.length === 0) { setEmptyNotice(NO_CARDS); return }
     // 控制台的「范围」读的是 store 里的 freeScope（spec §4.1 的四个自由练习名）。
@@ -124,6 +138,19 @@ export default function ReviewModule() {
     })
     if (ok) reset()
   }
+
+  // 手机端「开始练习」仍紧贴范围卡下方（v0.7.10 §7.7，布局不变）。按钮节点在模块层组装：
+  // 开一轮要读库并写 store，FreeScopePanel 只接收 `start` 插槽、不复制这套逻辑。
+  const mobileFreeStart = (
+    <SquareButton
+      tone="surface"
+      grow
+      disabled={!canStartFreeScope(freeSelection.kind, freeSelection.categoryIds)}
+      onClick={() => void handleFreeStart(freeSelection)}
+    >
+      开始练习
+    </SquareButton>
+  )
 
   // 手机分支（v0.7.6 §4）：不渲染 220px 左侧策略栏，改为标题行 + 分段控件 + 概览内容。
   // 数据逻辑全部复用上面的推导（live / showOverview / summaryVisible …），这里只换布局——
@@ -186,7 +213,9 @@ export default function ReviewModule() {
                 <FreeScopePanel
                   variant="mobile"
                   categories={categories.map(c => ({ id: c.id, name: c.name, color: c.color }))}
-                  onStart={handleFreeStart}
+                  value={freeSelection}
+                  onChange={setFreeSelection}
+                  start={mobileFreeStart}
                 />
               )}
               {showOverview && strategy === 'today' && (
@@ -225,7 +254,8 @@ export default function ReviewModule() {
         {showOverview && strategy === 'free' && (
           <FreeScopePanel
             categories={categories.map(c => ({ id: c.id, name: c.name, color: c.color }))}
-            onStart={handleFreeStart}
+            value={freeSelection}
+            onChange={setFreeSelection}
           />
         )}
         {showOverview && strategy === 'today' && (
