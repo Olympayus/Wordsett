@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Button } from '../ui/Button'
 import RadioMark from '../ui/RadioMark'
 import Icon from '../icons'
 import { DashMark } from '../entry/Mark'
 import { FIELD_LABEL_STYLE } from '../../lib/labelStyle'
-import { defaultAttachKey, definitionGroups, type DefinitionLeaf } from '../../lib/collectorTree'
+import {
+  collectorMergeInputs,
+  definitionGroups,
+  type DefinitionLeaf,
+} from '../../lib/collectorTree'
+import { ensureWord } from '../../lib/ensureWord'
 import { appendExampleUnderDefinition } from '../../services/wordService'
-import { getWordByLemma } from '../../db/words'
 import { usePendingExampleStore } from '../../stores/pendingExampleStore'
 import { useWordStore } from '../../stores/wordStore'
 import type { DictionaryField } from '../../types/dictionary'
@@ -15,28 +18,23 @@ import type { DictionaryField } from '../../types/dictionary'
  * 词典详情页的「划词例句」条（v0.7.9）。
  *
  * 句子模式下小窗点「打开详情页」时，Rust 的 `open-dict` 事件带着整句原文一起来；
- * `App` 把它存进 `pendingExampleStore`，本组件在详情页顶部出一条横幅：句子 + 释义单选 +
- * 「作为例句加入此释义」——小窗里能做的事（把整句挂到某条释义下），详情页里同样能做。
+ * `App` 把它存进 `pendingExampleStore`，本组件在详情页顶部出一条横幅：句子 + 释义选项 +
+ * 「不添加」，让这句话也能在详情页挂到某条释义下（与小窗内的能力对齐）。
  *
- * **本条的按钮只写例句，绝不收录 / 合并任何东西**（用户裁定）：不 `ensureWord`、
- * 不 `mergeWordFields`——「把词或释义加进工作台」是导航栏右上角「添加至…」的职责。
- * 因此加入的前提是词条与那条释义都已在库里；不满足时按钮**仍然可点**，点击后在
- * 条内给出带图标的说明（词不在库 / 词条缺这条释义），而不是一个没有反馈的禁用态：
- * - 词不在库 → 提示先用「添加至…」收录；
- * - 词在库但没有这条释义（词典有这个义项、用户当年没收）→ `appendExampleUnderDefinition`
- *   返回 false，提示先收录该释义。
+ * 交互（用户裁定）：**唯一的动作按钮是右上角的「添加」**。选项列表只有释义单选与
+ * 「不添加」两项，默认停在「不添加」——没选释义时「添加」不可点；右上角的 × 关闭
+ * 同样表示不添加。挂入之后「添加」变为「已加入」，随即整条收起。
  *
- * 关闭（右上角 ×）＝不添加：只清掉 pending，不写任何东西。
+ * 写入顺序与「父级必须存在」的约束：
+ * 1. `ensureWord`：词条不存在就先建（与搜索结果页的收录同一条路径）；
+ * 2. `collectorMergeInputs` 只带所选那一枚释义（含祖先词性）走 `mergeWordFields`——
+ *    merge 按「父作用域 + 字段 + 值」去重，既有释义是幂等的，缺的释义则补上；
+ * 3. `appendExampleUnderDefinition` 按 `(字段, 值)` 找到那条释义行，把
+ *    `example_sentence > example` 挂到它下面（同一例句重复挂是幂等的）。
+ *
+ * 不碰熟悉度：这不是一次「收录」，只是给既有释义补一条例句；新词的熟悉度走默认档，
+ * 与收录流程在同一处写（`setInitialFamiliarity`），这里不越权。
  */
-
-const STATUS_COPY = {
-  done: '已作为例句加入此释义',
-  noWord: '该词还没有加入词库，请先用右上角的「添加至…」收录，再来挂例句',
-  noDefinition: '该词条中还没有这条释义，请先用「添加至…」收录该释义，再来挂例句',
-  failed: '加入例句失败，请重试',
-} as const
-
-type Status = 'idle' | keyof typeof STATUS_COPY
 
 export default function GrabbedSentenceBar({ word, fields }: {
   word: string
@@ -44,15 +42,18 @@ export default function GrabbedSentenceBar({ word, fields }: {
 }) {
   const pending = usePendingExampleStore(s => s.pending)
   const groups = useMemo(() => definitionGroups(fields).filter(g => g.leaves.length > 0), [fields])
+  /** 当前选择：`null` = 不添加（默认）。 */
   const [attachKey, setAttachKey] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [status, setStatus] = useState<Status>('idle')
+  const [error, setError] = useState(false)
+  const [done, setDone] = useState(false)
 
-  // 换词 / 换一次抓取：默认归属与状态都重新开始（本组件常驻在详情页里，word 会变）。
+  // 换词 / 换一次抓取：选择与状态都重新开始（本组件常驻在详情页里，word 会变）。
   useEffect(() => {
-    setAttachKey(defaultAttachKey(groups))
-    setStatus('idle')
-  }, [groups])
+    setAttachKey(null)
+    setError(false)
+    setDone(false)
+  }, [word, groups])
 
   const leaf: DefinitionLeaf | null = useMemo(() => {
     if (attachKey === null) return null
@@ -68,17 +69,24 @@ export default function GrabbedSentenceBar({ word, fields }: {
   const handleAttach = useCallback(async () => {
     if (!pending || !leaf || busy) return
     setBusy(true)
-    setStatus('idle')
+    setError(false)
     try {
-      // 只取库里的词条，**不创建**：ensureWord 会顺手把词加进工作台，那是导航栏的职责。
-      // 全库按 normalized_lemma 查（当前模块的词表可能只装了工作区或储藏库一侧）。
-      const found = await getWordByLemma(word)
-      if (!found.ok || !found.data) {
-        setStatus('noWord')
+      const target = await ensureWord(word)
+      if (!target) {
+        setError(true)
         return
       }
+      // 先保证父级释义在库里（新建词 / 该释义尚未合并过）：merge 幂等，既有释义不会重复。
+      const inputs = collectorMergeInputs(fields, new Set([leaf.key]))
+      if (inputs.length > 0) {
+        const merged = await useWordStore.getState().mergeWordFields(target.id, inputs)
+        if (!merged) {
+          setError(true)
+          return
+        }
+      }
       const attached = await appendExampleUnderDefinition(
-        found.data.id,
+        target.id,
         {
           key: leaf.label === '中文释义' ? 'chinese_definition' : 'english_definition',
           value: leaf.value,
@@ -86,27 +94,26 @@ export default function GrabbedSentenceBar({ word, fields }: {
         pending.sentence,
       )
       if (!attached) {
-        // 词典有这个义项、但用户当年没收进词条：不做隐式合并，提示先走「添加至…」。
-        setStatus('noDefinition')
+        setError(true)
         return
       }
-      // 词表 / 索引刷新（只读刷新，不新增词条）：词条卡片与工作区能看到这条例句。
+      // 词表 / 索引刷新：词条卡片与工作区要能看到这条例句（同一 webview，直接走 store）。
       await useWordStore.getState().loadWords().catch(() => {})
-      setStatus('done')
-      // 让成功提示停留一瞬再收起：立刻卸载会让用户看不到「刚才那一下发生了什么」。
-      setTimeout(() => usePendingExampleStore.getState().clear(), 1400)
-    } catch (e) {
-      console.error('[detail] 加入划词例句失败', e)
-      setStatus('failed')
+      setDone(true)
+      // 让「已加入」停留一瞬再收起：立刻卸载会让用户看不到刚才那一下发生了什么。
+      setTimeout(() => usePendingExampleStore.getState().clear(), 1100)
     } finally {
       setBusy(false)
     }
-  }, [pending, leaf, busy, word])
+  }, [pending, leaf, busy, word, fields])
 
   // 只在「带句子的抓取」打开的那个词上出现；fields 没到时先不出（组还没算）。
   if (!pending || pending.word.toLowerCase() !== word.toLowerCase() || groups.length === 0) {
     return null
   }
+
+  const addDisabled = busy || done || leaf === null
+  const addLabel = done ? '已加入' : busy ? '加入中…' : '添加'
 
   return (
     <div style={{
@@ -114,22 +121,38 @@ export default function GrabbedSentenceBar({ word, fields }: {
       border: '1px solid var(--color-border)', borderRadius: 8,
       background: 'var(--color-surface-sunken)', overflow: 'hidden',
     }}>
+      {/* 头：左标题；右上角是**唯一的动作**（添加）与关闭（同样表示不添加）。 */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '6px 10px 6px 12px',
         borderBottom: '1px solid var(--color-border)',
       }}>
-        <span style={{ ...FIELD_LABEL_STYLE, fontSize: '10.5px' }}>划词例句</span>
-        <span style={{ fontSize: '11.5px', color: 'var(--color-text-tertiary)' }}>
-          选择要挂入的释义
-        </span>
+        <span style={FIELD_LABEL_STYLE}>划词例句</span>
+        <button
+          type="button"
+          onClick={() => { void handleAttach() }}
+          disabled={addDisabled}
+          style={{
+            marginLeft: 'auto', padding: '3px 10px', flexShrink: 0,
+            border: 'none', borderRadius: 'var(--radius-sm)', background: 'transparent',
+            fontFamily: 'var(--font-sans)', fontSize: 12, fontWeight: 600, lineHeight: '18px',
+            cursor: addDisabled ? 'default' : 'pointer',
+            color: done
+              ? 'var(--color-success)'
+              : addDisabled ? 'var(--color-text-tertiary)' : 'var(--color-brand)',
+          }}
+          onMouseEnter={e => { if (!addDisabled) e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+        >
+          {addLabel}
+        </button>
         <button
           type="button"
           title="关闭，不加入例句"
           aria-label="关闭划词例句"
           onClick={dismiss}
           style={{
-            marginLeft: 'auto', width: 22, height: 22, flexShrink: 0, padding: 0,
+            width: 22, height: 22, flexShrink: 0, padding: 0,
             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
             border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
             cursor: 'pointer', color: 'var(--color-text-tertiary)',
@@ -141,7 +164,7 @@ export default function GrabbedSentenceBar({ word, fields }: {
         </button>
       </div>
 
-      <div style={{ padding: '10px 12px 12px' }}>
+      <div style={{ padding: '10px 12px 10px' }}>
         {/* 例句用返回页例句行的同一副字形（衬线斜体 14 / 23 + 短破折号），
             让用户看到的就是「加入之后会长成什么样」。 */}
         <div style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 14, lineHeight: '23px', color: 'var(--ink-2)' }}>
@@ -149,7 +172,7 @@ export default function GrabbedSentenceBar({ word, fields }: {
           {pending.sentence}
         </div>
 
-        <div role="radiogroup" aria-label="例句归入哪个释义" style={{ marginTop: 8, maxHeight: 176, overflowY: 'auto' }}>
+        <div role="radiogroup" aria-label="例句归入哪个释义" style={{ marginTop: 6, maxHeight: 176, overflowY: 'auto' }}>
           {groups.map(group => group.leaves.map(item => {
             const active = item.key === attachKey
             return (
@@ -181,43 +204,31 @@ export default function GrabbedSentenceBar({ word, fields }: {
               </button>
             )
           }))}
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-          <span style={{ marginLeft: 'auto', display: 'inline-flex' }}>
-            <Button
-              onClick={() => { void handleAttach() }}
-              disabled={busy || status === 'done' || leaf === null}
-            >
-              {busy ? '正在加入…' : '作为例句加入此释义'}
-            </Button>
-          </span>
-        </div>
-
-        {/* 点击反馈（role=status + aria-live）：按钮**始终可点**——不满足前提时点击也
-            给出明确原因，而不是一个按不动的灰按钮。成功 / 失败 / 缺词条 / 缺释义
-            各自一条带图标的提示，文字走正文档而不是 11.5px 的边角小字。 */}
-        {status !== 'idle' && (
-          <div
-            role="status"
-            aria-live="polite"
+          {/* 「不添加」是列表里的正式选项（默认选中）：它让「什么都不做」也是一个明确的
+              选择，而不是只能靠右上角的 × 猜。 */}
+          <button
+            type="button"
+            role="radio"
+            aria-checked={attachKey === null}
+            aria-label="不添加"
+            onClick={() => setAttachKey(null)}
             style={{
-              marginTop: 8, display: 'flex', alignItems: 'flex-start', gap: 6,
-              padding: '6px 8px', borderRadius: 'var(--radius-sm)',
-              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
+              padding: '5px 8px', border: 'none', borderRadius: 'var(--radius-sm)',
+              background: 'transparent', cursor: 'pointer', textAlign: 'left',
+              color: 'var(--color-text-secondary)', fontFamily: 'var(--font-sans)', fontSize: 12.5, lineHeight: 1.5,
             }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
           >
-            <span style={{
-              display: 'inline-flex', paddingTop: 1,
-              color: status === 'done' ? 'var(--color-success)'
-                : status === 'failed' ? 'var(--color-danger)'
-                : 'var(--color-text-tertiary)',
-            }}>
-              <Icon name={status === 'done' ? 'check-square' : status === 'failed' ? 'alert' : 'info'} size={13} />
-            </span>
-            <span style={{ fontSize: 12, lineHeight: 1.5, color: 'var(--color-text-secondary)' }}>
-              {STATUS_COPY[status]}
-            </span>
+            <RadioMark active={attachKey === null} />
+            <span>不添加</span>
+          </button>
+        </div>
+
+        {error && (
+          <div style={{ marginTop: 6, fontSize: 11.5, color: 'var(--color-danger)' }}>
+            加入例句失败，请重试
           </div>
         )}
       </div>
