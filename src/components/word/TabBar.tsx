@@ -4,6 +4,7 @@ import { TAB_GROUPS } from '../../lib/tabs'
 import { ENTRY_COLUMN_PADDING_X, TAB_ITEM_PADDING_X } from '../../lib/layout'
 import { useTouchLongPress } from '../../lib/useTouchLongPress'
 import { tabSheetItems } from '../../lib/mobileSheets'
+import { useMobilePopup } from '../../lib/mobilePopups'
 import ContextMenu from '../ui/ContextMenu'
 import MobileActionSheet from '../layout/mobile/MobileActionSheet'
 import Icon from '../icons'
@@ -129,6 +130,9 @@ export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, o
   const [ctx, setCtx] = useState<{ tab: TabKey; x: number; y: number } | null>(null)
   // 长按弹表的目标页签（v0.7.7 Task 8）。只在触屏下可能置位；关表三条路径都要清。
   const [sheetTab, setSheetTab] = useState<TabKey | null>(null)
+
+  // 「＋」下拉开着时登记给外壳：安卓返回键先关下拉，而不是切模块 / 退应用。
+  useMobilePopup(addOpen, () => setAddOpen(false))
 
   return (
     // 条面底 = --color-surface-sunken：**刻意偏离设计稿**——设计稿 .tabs 用 --paper（showcase-v2:172），

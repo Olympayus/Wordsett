@@ -3,6 +3,7 @@ import type { WordWithPreview } from '../../types/word'
 import { useWordStore } from '../../stores/wordStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useFocusTrap } from '../../lib/useFocusTrap'
+import { useMobilePopup } from '../../lib/mobilePopups'
 import { selectAll } from '../../lib/selection'
 import CheckBox from '../ui/CheckBox'
 import { Button } from '../ui/Button'
@@ -67,6 +68,8 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
   const wordCategoryMap = useCategoryStore(s => s.wordCategoryMap)
   const panelRef = useRef<HTMLDivElement>(null)
   useFocusTrap(open, panelRef)
+  // 弹层开着时登记给外壳：安卓返回键先关弹层，而不是退出设置页。
+  useMobilePopup(open, onClose)
 
   const [query, setQuery] = useState('')
   const [checked, setChecked] = useState<Set<string>>(new Set())

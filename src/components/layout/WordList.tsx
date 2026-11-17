@@ -18,6 +18,7 @@ import { vocabularySearch } from '../../lib/search'
 import { moveActionLabel, moveBatchConfirmRequest, moveConfirmRequest, moveTarget } from '../../lib/archiveMove'
 import { drawerWordSheetItems, categorySheetItems, type SheetItem } from '../../lib/mobileSheets'
 import { useTouchLongPress } from '../../lib/useTouchLongPress'
+import { useMobilePopup } from '../../lib/mobilePopups'
 import { groupByLetter, groupByCategory, SIDEBAR_ROW_HEIGHT, SIDEBAR_ROW_HEIGHT_COLLAPSED, type SidebarMode } from '../../lib/sidebar'
 import { rangeSelect, selectAll, pruneToRows, selectedWordIdsFromRows } from '../../lib/selection'
 import { SMART_VIEW_ORDER, filterBySmartView, sidebarViews, smartViewCount } from '../../lib/smartViews'
@@ -307,6 +308,9 @@ const WordList = forwardRef(function WordList({
   useImperativeHandle(ref, () => ({
     toggleSelectMode: () => setSelectMode(true),
   }), [])
+
+  // 批量条的分类下拉开着时登记给外壳：安卓返回键先关下拉，而不是退选择模式 / 抽屉。
+  useMobilePopup(batchPopover !== null, () => setBatchPopover(null))
 
   useEffect(() => {
     if (!selectMode) return

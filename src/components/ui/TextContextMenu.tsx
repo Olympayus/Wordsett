@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useMobilePopup } from '../../lib/mobilePopups'
 import ContextMenu from './ContextMenu'
 
 interface TextMenuState {
@@ -33,6 +34,9 @@ export default function TextContextMenu() {
   }, [])
 
   const close = () => setMenu(null)
+
+  // 文本菜单开着时登记给外壳：安卓返回键先关菜单，而不是把整个页面退掉。
+  useMobilePopup(menu !== null, close)
 
   const handleCopy = async () => {
     if (!menu) return
