@@ -118,7 +118,7 @@ export default function MobileShell() {
   // 到达，而这条路径的代价是一次 store 读，远小于「栈与真实状态不同步」这种只在真机上出现的错。
   //
   // 优先级（高 → 低）：动作表 sheet（Plan 2，本版无来源）→ 编辑 → 抽屉 → 词典详情 → 搜索
-  // → 复习会话 → 设置子页 → 词条导航。栈顶在数组第 0 位（`backAction` 只看这一个）。
+  // → 复习会话 → 设置子页 → 模块主页 → 词条导航。栈顶在数组第 0 位（`backAction` 只看这一个）。
   //
   // 「词条导航」只在**词条页真的还有上一个词条**时才进栈：它在栈底时对应「返回上一词条」，
   // 与「返回上一页」是同一件事（顶栏那枚返回箭头就是它）。没有上一个词条时返回要往上走
@@ -177,6 +177,11 @@ export default function MobileShell() {
         return
       case 'closeSettingsSub':
         setSettingsSection(null)
+        return
+      case 'goHome':
+        // 模块主页（复习概览 / 结算、设置目录）按返回回工作台。**不** reset 复习会话：
+        // 结算页离开后会话仍保留，重新开始由结算页自己的按钮负责。
+        useViewStore.getState().showWorkbench()
         return
       case 'leaveReview': {
         // 与 `SessionGuard` 同一条确认文案（`leaveMessage`）与同一个 store：桌面点别的模块时

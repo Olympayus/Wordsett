@@ -5,7 +5,7 @@
  * 交给 `backAction`，自己不写任何 if/else 判断该关哪一层。这样加一层（或调一次优先级）只动这里。
  *
  * 层按优先级从高到低：动作表（sheet，Plan 2）→ 编辑 → 抽屉 → 词典详情 → 搜索
- * → 复习会话 → 设置子页 → 词条导航。
+ * → 复习会话 → 设置子页 → 模块主页 → 词条导航。
  * 栈底的「词条导航」是**可选层**：它只在真的还有上一个词条时才进栈（否则返回会去关模块，
  * 那是另一件事，见 `MobileShell` 的 `layers`）。
  *
@@ -13,7 +13,7 @@
  * 故不需要也无法从函数内部知道栈有多深。
  */
 
-export type BackLayerKind = 'sheet' | 'edit' | 'drawer' | 'dict' | 'search' | 'review' | 'settings-sub' | 'module'
+export type BackLayerKind = 'sheet' | 'edit' | 'drawer' | 'dict' | 'search' | 'review' | 'settings-sub' | 'moduleHome' | 'module'
 
 export type BackAction =
   | { type: 'closeSheet' }
@@ -25,6 +25,8 @@ export type BackAction =
   | { type: 'leaveReview' }
   /** 设置页的「目录 → 子页」：返回键先回目录，而不是直接把整个设置模块退掉。 */
   | { type: 'closeSettingsSub' }
+  /** 模块主页（复习概览 / 结算、设置目录）：返回键回工作台，而不是退出应用。 */
+  | { type: 'goHome' }
   | { type: 'popModule' }
   | { type: 'exit' }
 
@@ -37,6 +39,7 @@ const ACTION_FOR_LAYER: Record<BackLayerKind, BackAction> = {
   search: { type: 'closeSearch' },
   review: { type: 'leaveReview' },
   'settings-sub': { type: 'closeSettingsSub' },
+  moduleHome: { type: 'goHome' },
   module: { type: 'popModule' },
 }
 
@@ -88,6 +91,9 @@ export function backLayers(input: BackLayerInput): BackLayerKind[] {
     ...(input.module === 'search' && input.view !== 'dict' ? ['search' as const] : []),
     ...(input.module === 'review' && input.reviewLive ? ['review' as const] : []),
     ...(input.module === 'settings' && input.settingsSection ? ['settings-sub' as const] : []),
+    // 复习概览 / 结算与设置目录是「模块主页」：返回键回工作台，不是退出应用。
+    ...(input.module === 'review' && !input.reviewLive ? ['moduleHome' as const] : []),
+    ...(input.module === 'settings' && !input.settingsSection ? ['moduleHome' as const] : []),
     // 词条导航只在词条视图里算：详情态已在上一步被吃掉，此时它是「关闭详情」，不是「换词」。
     ...(wordPage && input.view === 'workbench' && input.canBack ? ['module' as const] : []),
   ]

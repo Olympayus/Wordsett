@@ -40,7 +40,7 @@ describe('backLayers（层集合的组装判据）', () => {
   })
 
   it('详情只出现在词条页与搜索：设置模块带着 detail 状态不算', () => {
-    expect(backLayers({ ...base, module: 'settings', view: 'dict', dictWord: 'apple' })).toEqual([])
+    expect(backLayers({ ...base, module: 'settings', view: 'dict', dictWord: 'apple' })).toEqual(['moduleHome'])
   })
 
   it('搜索模块：详情优先于搜索列表', () => {
@@ -49,14 +49,22 @@ describe('backLayers（层集合的组装判据）', () => {
     expect(backLayers({ ...base, module: 'search' })).toEqual(['search'])
   })
 
-  it('复习只在会话进行中算一层（概览 / 结算不算）', () => {
+  it('复习会话层只在会话进行中算；概览 / 结算回工作台', () => {
     expect(backLayers({ ...base, module: 'review', reviewLive: true })).toEqual(['review'])
-    expect(backLayers({ ...base, module: 'review', reviewLive: false })).toEqual([])
+    expect(backLayers({ ...base, module: 'review', reviewLive: false })).toEqual(['moduleHome'])
   })
 
   it('设置子页只在真的进了子页时算一层', () => {
     expect(backLayers({ ...base, module: 'settings', settingsSection: 'general' }))
       .toEqual(['settings-sub'])
-    expect(backLayers({ ...base, module: 'settings' })).toEqual([])
   })
+})
+
+it('backLayers_puts_moduleHome_after_review_and_settings_sub', () => {
+  const base = { view: 'workbench' as const, dictWord: null, editing: false, drawerOpen: false, canBack: false }
+  expect(backLayers({ ...base, module: 'review', settingsSection: null, reviewLive: false })).toEqual(['moduleHome'])
+  expect(backLayers({ ...base, module: 'review', settingsSection: null, reviewLive: true })).toEqual(['review'])
+  expect(backLayers({ ...base, module: 'settings', settingsSection: 'general', reviewLive: false })).toEqual(['settings-sub'])
+  expect(backLayers({ ...base, module: 'settings', settingsSection: null, reviewLive: false })).toEqual(['moduleHome'])
+  expect(backAction(['moduleHome'])).toEqual({ type: 'goHome' })
 })
