@@ -1,6 +1,8 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useUiStore } from '../../stores/uiStore'
+import { scaleForAnchor, zoomOf } from '../../lib/overlayZoom'
 import Icon from '../icons'
 
 /**
@@ -11,8 +13,16 @@ import Icon from '../icons'
  * 一个分类都没有时给空态 + 「新建分类」，点它只开分类编辑器，**不接着执行原动作**——
  * 避免「建完分类后要不要继续」这种半途状态。
  *
- * **定位契约（v0.6.5 修订：absolute → fixed + 锚点元素）**：
- * 面板是 `position: fixed`，落点由 `anchor` 这个 DOM 元素的视口矩形现算（popoverPosition）。
+ * **定位契约（v0.7.10 修订：portal + 视觉坐标 + zoom 补偿）**：
+ * 面板与全屏遮罩一律 `createPortal(document.body)`，落点由 `anchor` 元素现算的**视觉**
+ * 矩形（`getBoundingClientRect`）交给 popoverPosition 算出。
+ * v0.6.5 的 `fixed` 版本仍留在 zoom 子树内：`getBoundingClientRect` 已是缩放后的视觉坐标，
+ * 而祖先 zoom 又会对面板再做一次缩放 → 平板 1024 宽（zoom 0.85）下面板落点与尺寸双重错位，
+ * 这是全仓最后一个非 portal 浮层。搬到 body 后面板不再被祖先缩放，位置直接用视觉坐标，
+ * 尺寸靠 `scale(zoom)` 补回；`transform-origin` 取靠近锚点的一角（右对齐 → 右上 / 右下，
+ * 向上展开 → 下缘），非左上原点还要反向补偿 `left/top`，视觉矩形才落在算好的位置。
+ * 桌面 zoom === 1 → 无 transform，逐字不变。
+ *
  * 旧版是 `absolute` + 「调用方必须把自己包在 position: relative 的容器里」，那个契约
  * 有两个改不掉的结果：
  *   1. **被祖先裁掉**。词条卡的根节点是 `overflow-hidden`（圆角描边需要），而「＋」在卡内，
@@ -21,9 +31,6 @@ import Icon from '../icons'
  *   2. **宽度被容器绑架**。面板 maxWidth: 100% 按包含块解析，于是两个调用点各自要塞一个
  *      `minWidth: 220` 的空壳撑宽度，而那空壳里按钮靠左排 → 「＋」离右边缘还差 190px，
  *      看着像没有右对齐。
- * fixed 的包含块是视口（祖先里没有 transform / will-change / contain: paint），
- * 因此既不吃祖先的 overflow 裁剪，也不再需要撑宽度的空壳。落点自己收口：
- * 放不下就翻到对面，两边都不够就在视口内推回并压低高度，见 popoverPosition。
  *
  * 全屏透明遮罩仍用 position: fixed：它只负责捕获外部点击，不需要跟着锚点走。
  *
@@ -90,6 +97,14 @@ export function popoverPosition({
   return { left, top, maxHeight }
 }
 
+interface PlacedPopover {
+  left: number
+  top: number
+  maxHeight: number
+  transform: string | null
+  transformOrigin?: string
+}
+
 export default function CategoryPickerPopover({ anchor, onPick, onClose, align = 'right', placement = 'bottom' }: {
   /** 面板贴着哪个元素落位。三处调用点都传自己那颗「＋」按钮（或它所在的紧贴容器）。 */
   anchor: HTMLElement | null
@@ -104,7 +119,7 @@ export default function CategoryPickerPopover({ anchor, onPick, onClose, align =
   const openEditor = useUiStore(s => s.openEditor)
   const panelRef = useRef<HTMLDivElement>(null)
   // null = 还没量到（首帧以 visibility: hidden 渲染，量完再落位），避免面板先闪在左上角再跳走
-  const [pos, setPos] = useState<{ left: number; top: number; maxHeight: number } | null>(null)
+  const [pos, setPos] = useState<PlacedPopover | null>(null)
 
   useLayoutEffect(() => {
     if (!anchor) return
@@ -112,14 +127,35 @@ export default function CategoryPickerPopover({ anchor, onPick, onClose, align =
       const el = panelRef.current
       if (!el) return
       const r = anchor.getBoundingClientRect()
+      // 平板 zoom：锚点矩形已是视觉坐标；面板脱离 zoom 子树后按 1:1 渲染，
+      // 几何一律按「布局尺寸 × zoom = 视觉尺寸」换算。
+      const zoom = zoomOf(anchor)
+      const scale = scaleForAnchor(anchor)
+      const layoutWidth = el.offsetWidth
+      const layoutHeight = el.offsetHeight
       const next = popoverPosition({
         anchor: { left: r.left, top: r.top, right: r.right, bottom: r.bottom },
-        panel: { width: el.offsetWidth, height: el.offsetHeight },
+        panel: { width: layoutWidth * zoom, height: layoutHeight * zoom },
         viewport: { width: window.innerWidth, height: window.innerHeight },
         align, placement,
       })
+      // maxHeight 套在布局盒上，视觉可用高度要换回布局高度；实际布局高度取两者较小值。
+      const layoutMaxHeight = next.maxHeight / zoom
+      const layoutPlacedHeight = Math.min(layoutHeight, layoutMaxHeight)
+      // transform-origin 取靠近锚点的一角：右对齐从右边缩，向上展开从下边缩。
+      // 原点不在左上时，布局盒要反向让出（布局 − 视觉）的差值，视觉矩形才落在 next 上。
+      const originX = align === 'right' ? 'right' : 'left'
+      const originY = next.top >= r.bottom ? 'top' : 'bottom'
+      const left = next.left - (originX === 'right' ? layoutWidth * (1 - zoom) : 0)
+      const top = next.top - (originY === 'bottom' ? layoutPlacedHeight * (1 - zoom) : 0)
+      const transform = scale ? scale.transform : null
+      const transformOrigin = scale ? `${originY} ${originX}` : undefined
       // 值没变就不落新对象：这三条监听在滚动时按帧触发，无谓的 setState 会让面板每帧重渲染
-      setPos(prev => prev && prev.left === next.left && prev.top === next.top && prev.maxHeight === next.maxHeight ? prev : next)
+      setPos(prev => prev
+        && prev.left === left && prev.top === top && prev.maxHeight === layoutMaxHeight
+        && prev.transform === transform && prev.transformOrigin === transformOrigin
+        ? prev
+        : { left, top, maxHeight: layoutMaxHeight, transform, transformOrigin })
     }
     place()
     // 面板已脱离祖先的裁剪，锚点却会随滚动 / 窗口改宽而移动，所以重算得由这几条触发。
@@ -147,10 +183,11 @@ export default function CategoryPickerPopover({ anchor, onPick, onClose, align =
     return new Map([...counts].map(([cid, set]) => [cid, set.size]))
   }, [wordCategoryMap])
 
-  return (
+  return createPortal(
     <>
       {/* 点外面关闭：全屏透明遮罩，fixed + 独立 z-index（比面板低一层）。
-          面板是它的兄弟节点而非子节点，所以点面板本身不会冒泡到这里；点面板外任意处则命中遮罩。 */}
+          面板是它的兄弟节点而非子节点，所以点面板本身不会冒泡到这里；点面板外任意处则命中遮罩。
+          整组都 portal 到 body：祖先的 overflow: hidden 与平板 zoom 都够不到它。 */}
       <div
         style={{ position: 'fixed', inset: 0, zIndex: 'var(--z-dropdown)' }}
         onClick={onClose}
@@ -161,6 +198,9 @@ export default function CategoryPickerPopover({ anchor, onPick, onClose, align =
         style={{
           position: 'fixed',
           zIndex: 'calc(var(--z-dropdown) + 1)',
+          // 平板 zoom：位置是视觉坐标，尺寸由 scale(zoom) 补回；桌面为 undefined，无 transform。
+          transform: pos?.transform ?? undefined,
+          transformOrigin: pos?.transformOrigin,
           left: pos ? pos.left : 0,
           top: pos ? pos.top : 0,
           // 首帧先隐形量尺寸：不先量就落位，面板会从左上角跳到锚点旁。
@@ -222,6 +262,7 @@ export default function CategoryPickerPopover({ anchor, onPick, onClose, align =
           新建分类
         </button>
       </div>
-    </>
+    </>,
+    document.body,
   )
 }

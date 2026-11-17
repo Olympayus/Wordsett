@@ -1,18 +1,19 @@
 // src/lib/tooltipPosition.ts
 //
-// 坐标一律是视口 CSS 像素。v0.7.10 先不动平板缩放：`IndexPage` 的缩放宿主会让
-// `zoom !== 1` 下的 `getBoundingClientRect` 与 `position: fixed` 的落点对不上，
-// Task 18 会给这里加可选的 `zoom` 参数（默认 1，桌面逐字不变），届时再改行为。
+// 坐标一律是视口视觉 CSS 像素（v0.7.10 Task 18）。平板 `zoom` 宿主下，`getBoundingClientRect`
+// 已经给出缩放后的视觉坐标，而 portal 面板的布局尺寸要乘 `zoom` 才是视觉尺寸——翻边与收纳
+// 都必须按视觉尺寸判断。`zoom` 可选，默认 1 → 桌面逐字不变。
 export interface RectLike { left: number; right: number; top: number }
 
 export function tooltipPosition(
-  rect: RectLike, panelWidth: number, gap: number, vw: number
+  rect: RectLike, panelWidth: number, gap: number, vw: number, zoom = 1
 ): { x: number; y: number } {
-  const canOpenLeft = rect.left - gap - panelWidth > 4
-  const overflowRight = rect.right + gap + panelWidth > vw - 4
+  const visualWidth = panelWidth * zoom
+  const canOpenLeft = rect.left - gap - visualWidth > 4
+  const overflowRight = rect.right + gap + visualWidth > vw - 4
   const flipLeft = canOpenLeft && overflowRight
   return {
-    x: flipLeft ? rect.left - gap - panelWidth : rect.right + gap,
+    x: flipLeft ? rect.left - gap - visualWidth : rect.right + gap,
     y: Math.max(4, rect.top),
   }
 }
@@ -26,10 +27,11 @@ export function tooltipPosition(
  * 面板比视口还高时兜底留在顶部 8px（宁可下缘超出，也不让顶部跑到窗口外）。
  */
 export function clampTooltipY(
-  anchorTop: number, y: number, panelHeight: number, vh: number, gap: number
+  anchorTop: number, y: number, panelHeight: number, vh: number, gap: number, zoom = 1
 ): number {
-  if (y + panelHeight + gap <= vh) return y
-  const above = anchorTop - gap - panelHeight
+  const visualHeight = panelHeight * zoom
+  if (y + visualHeight + gap <= vh) return y
+  const above = anchorTop - gap - visualHeight
   if (above >= 8) return above
-  return Math.max(8, vh - gap - panelHeight)
+  return Math.max(8, vh - gap - visualHeight)
 }

@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import Icon from '../icons'
 import { useMobilePopup } from '../../lib/mobilePopups'
+import { scaleForAnchor, zoomOf } from '../../lib/overlayZoom'
 import { nextIndex } from './selectNav'
 
 export interface SelectOption { value: string; label: string }
@@ -16,20 +17,25 @@ const LISTBOX_GAP = 4
 const LISTBOX_MARGIN = 8
 
 /**
- * 浮层落点（纯函数，坐标一律是视口 CSS 像素）。
+ * 浮层落点（纯函数，坐标一律是视口视觉 CSS 像素）。
  *
- * 本任务先按普通 portal 定位：贴着触发器的视口矩形下方，横向左对齐并在窄窗口下推回视口内。
- * **Task 18 的接入点**：平板缩放宿主会让 `zoom !== 1` 下 `getBoundingClientRect` 与
- * `position: fixed` 的坐标系对不上，届时给这里加可选的 `zoom` 参数并换算锚点矩形，
- * 组件其余部分不必改（与 `lib/tooltipPosition.ts` 留的是同一种口子）。
+ * 贴着触发器的视口矩形下方，横向左对齐并在窄窗口下推回视口内。
+ *
+ * **平板 zoom（v0.7.10 Task 18）**：锚点矩形是视觉坐标，而 portal 面板的 `width` /
+ * `maxHeight` 是布局尺寸、会被 `scale(zoom)` 缩回视觉尺寸——故布局宽度按 `1 / zoom`
+ * 放大，视觉宽度才与触发器一致；可用高度同理换算回布局高度。`zoom` 默认 1，桌面不变。
  */
 export function selectListboxPosition(
-  anchor: { left: number; right: number; bottom: number }, vw: number, vh: number,
+  anchor: { left: number; right: number; bottom: number }, vw: number, vh: number, zoom = 1,
 ): SelectPosition {
-  const width = Math.min(anchor.right - anchor.left, Math.max(0, vw - LISTBOX_MARGIN * 2))
-  const left = Math.max(LISTBOX_MARGIN, Math.min(anchor.left, vw - LISTBOX_MARGIN - width))
+  const width = Math.min(
+    (anchor.right - anchor.left) / zoom,
+    Math.max(0, vw - LISTBOX_MARGIN * 2) / zoom,
+  )
+  const visualWidth = width * zoom
+  const left = Math.max(LISTBOX_MARGIN, Math.min(anchor.left, vw - LISTBOX_MARGIN - visualWidth))
   const top = anchor.bottom + LISTBOX_GAP
-  return { left, top, width, maxHeight: Math.max(0, vh - top - LISTBOX_MARGIN) }
+  return { left, top, width, maxHeight: Math.max(0, vh - top - LISTBOX_MARGIN) / zoom }
 }
 
 /**
@@ -65,6 +71,9 @@ export default function Select({ value, options, onChange, disabled = false, ari
 
   const selected = options.findIndex(o => o.value === value)
   const currentLabel = selected >= 0 ? options[selected].label : value
+  // 平板 zoom：面板脱离缩放子树后按 1:1 渲染，套上 scale(zoom) 才与周围同尺寸；
+  // 桌面 zoom === 1 时为 null，不产生 transform（逐字不变）。
+  const scale = open ? scaleForAnchor(triggerRef.current) : null
 
   const close = useCallback(() => setOpen(false), [])
   useMobilePopup(open, close)
@@ -84,12 +93,15 @@ export default function Select({ value, options, onChange, disabled = false, ari
   }
 
   // 落点：打开时量一次，滚动 / 改宽时重算（锚点会跟着设置页的滚动容器移动）。
+  // 平板 zoom 下锚点矩形已是视觉坐标，再补一个 zoom 让面板尺寸换算正确。
   useLayoutEffect(() => {
     if (!open) return
     const place = () => {
       const el = triggerRef.current
       if (!el) return
-      setPos(selectListboxPosition(el.getBoundingClientRect(), window.innerWidth, window.innerHeight))
+      setPos(selectListboxPosition(
+        el.getBoundingClientRect(), window.innerWidth, window.innerHeight, zoomOf(el),
+      ))
     }
     place()
     window.addEventListener('resize', place)
@@ -200,6 +212,7 @@ export default function Select({ value, options, onChange, disabled = false, ari
           onMouseDown={e => e.preventDefault()}
           style={{
             position: 'fixed',
+            ...(scale ? { transform: scale.transform, transformOrigin: scale.transformOrigin } : null),
             zIndex: 'var(--z-dropdown)',
             left: pos ? pos.left : 0,
             top: pos ? pos.top : 0,

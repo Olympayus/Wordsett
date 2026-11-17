@@ -15,6 +15,17 @@ describe('tooltipPosition', () => {
     const p = tooltipPosition({ left: 100, right: 116, top: 1 }, 320, 8, 1200)
     expect(p.y).toBe(4)
   })
+
+  // 平板 zoom（v0.7.10 Task 18）：翻边判据要用缩放后的视觉宽度。
+  it('zoom：按视觉宽度判断右侧是否放得下并翻到左侧', () => {
+    const p = tooltipPosition({ left: 900, right: 916, top: 100 }, 320, 8, 1100, 0.85)
+    expect(p.x).toBeCloseTo(900 - 8 - 320 * 0.85)
+  })
+
+  it('zoom 省略时与 zoom = 1 逐字一致（桌面不变）', () => {
+    const rect = { left: 300, right: 316, top: 100 }
+    expect(tooltipPosition(rect, 320, 8, 1200)).toEqual(tooltipPosition(rect, 320, 8, 1200, 1))
+  })
 })
 
 // 纵向：tooltipPosition 只给起点 y，面板高度要渲染后才量得到，故单独一步修正。
@@ -39,5 +50,15 @@ describe('clampTooltipY 纵向收纳（面板不得超出视口）', () => {
 
   it('面板比视口还高 → 至少留在顶部 8px（不返回负数）', () => {
     expect(clampTooltipY(20, 20, 1000, 900, 8)).toBe(8)
+  })
+
+  // 平板 zoom：面板视觉高度 = 布局高度 × zoom。
+  it('zoom：按缩放后的视觉高度收纳', () => {
+    // 800 + 300×0.85 + 8 > 900，上翻到 800 − 8 − 255
+    expect(clampTooltipY(800, 800, 300, 900, 8, 0.85)).toBeCloseTo(537)
+  })
+
+  it('zoom 省略时与 zoom = 1 逐字一致（桌面不变）', () => {
+    expect(clampTooltipY(800, 800, 300, 900, 8)).toBe(clampTooltipY(800, 800, 300, 900, 8, 1))
   })
 })

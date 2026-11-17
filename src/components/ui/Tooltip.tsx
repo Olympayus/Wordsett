@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { clampMenuPosition } from '../../lib/menuPosition'
+import { positionFor, scaleForAnchor, zoomOf } from '../../lib/overlayZoom'
 import { hasCoarsePointer } from '../../lib/pointer'
 import { useMobilePopup } from '../../lib/mobilePopups'
 
@@ -167,10 +167,24 @@ export default function Tooltip({ content, children, width = 300, minWidth, styl
       {children}
       {open && content && createPortal(
         (() => {
-          const p = clampMenuPosition(pos!.x + 14, pos!.y + 16, width, 160)
+          // 平板 zoom（v0.7.10 Task 18）：指针坐标已是视觉坐标，落点直接可用；
+          // 面板脱离缩放子树后按 1:1 渲染，套 scale(zoom) 才与周围同尺寸。
+          const anchorEl = hostRef.current
+          const x = pos!.x + 14
+          const y = pos!.y + 16
+          // 锚点取指针右下 (14, 16) 处的那一点：'right' 把面板左上角放在那里，
+          // 再按视觉尺寸钳回视口（与旧的 clampMenuPosition(x + 14, y + 16, …) 等价）。
+          const p = positionFor(
+            { left: x, top: y, right: x, bottom: y },
+            { width, height: 160 },
+            'right',
+            zoomOf(anchorEl),
+          )
+          const scale = scaleForAnchor(anchorEl)
           return (
             <div style={{
               position: 'fixed', left: p.x, top: p.y, zIndex: 'var(--z-dropdown)',
+              ...(scale ? { transform: scale.transform, transformOrigin: scale.transformOrigin } : null),
               maxWidth: width, minWidth, padding: '8px 12px',
               background: 'var(--color-surface)', border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-overlay)',
