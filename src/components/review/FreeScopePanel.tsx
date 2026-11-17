@@ -41,6 +41,14 @@ const MOBILE_SCOPE_DESC: Record<FreeScopeKind, string> = {
   random: '工作台全部词条',
 }
 
+/**
+ * 数量速选（v0.7.10 §7.7）：10 / 20 / 50，自定义走右侧数字输入。
+ * `random` / `category` / `weak` 共用同一组；`today` 不渲染数量（按当前到期队列全量出题）。
+ * 选中的速选值就是 `limit` 本身，不另存一个「当前速选」状态——自定义输入改了 limit 后，
+ * 与某个速选值相等时那枚按钮自然亮起。
+ */
+const QUICK_LIMITS = [10, 20, 50] as const
+
 export default function FreeScopePanel({ categories, variant = 'desktop', value, onChange, start, overview, stats }: {
   // color 一并带进来（v0.6.3 条目 6）：分类行的勾选框要按分类走色，
   // 写进 prop 类型而不是在面板里另取一份，是为了让别的调用点漏传时编译器先叫。
@@ -336,17 +344,49 @@ export default function FreeScopePanel({ categories, variant = 'desktop', value,
           <FreeScopeStats kind="today" workspaceCount={wordCount} stats={stats} overview={overview} />
         )}
 
-        {/* 数量控件只对 random / category / weak 有意义（spec §7.7）：今日队列重练按当前到期队列
-            全量出题，不渲染数量。共享的这一条 label 因此按 kind 门控，不再复制第二份。 */}
+        {/* 数量：10 / 20 / 50 速选 + 自定义输入（spec §7.7；沿用受控 `limit` 与 min/max 语义）。
+            只对 random / category / weak 有意义：今日队列重练按当前到期队列全量出题，整块不渲染。
+            选中态与策略列表同一套语言——白面 + 强描边 + 600；不新增色值。 */}
         {kind !== 'today' && (
-          <label className="flex items-center gap-2" style={{ fontSize: '13px' }}>
-            数量
-            <input
-              type="number" min={1} max={100} value={limit}
-              onChange={e => onChange({ ...value, limit: Math.min(100, Math.max(1, Number(e.target.value) || 1)) })}
-              style={{ width: '80px', padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)', background: 'transparent', color: 'inherit', fontSize: '13px', ...touchInputStyles(touch) }}
-            />
-          </label>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: '13px' }}>
+            <span>数量</span>
+            <div role="group" aria-label="数量速选" style={{ display: 'flex', gap: 6 }}>
+              {QUICK_LIMITS.map(n => {
+                const on = limit === n
+                return (
+                  <button
+                    key={n}
+                    type="button"
+                    aria-pressed={on}
+                    onClick={() => onChange({ ...value, limit: n })}
+                    style={{
+                      minWidth: touch ? 44 : undefined,
+                      minHeight: touch ? 40 : undefined,
+                      padding: '4px 10px',
+                      borderRadius: 'var(--radius-lg)',
+                      border: `1px solid ${on ? 'var(--color-border-strong)' : 'var(--color-border)'}`,
+                      background: on ? 'var(--color-surface)' : 'transparent',
+                      color: 'inherit',
+                      fontWeight: on ? 600 : 400,
+                      fontFamily: 'var(--font-sans)',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      touchAction: 'manipulation',
+                    }}
+                  >{n}</button>
+                )
+              })}
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>自定义</span>
+              <input
+                type="number" min={1} max={100} value={limit}
+                aria-label="自定义数量"
+                onChange={e => onChange({ ...value, limit: Math.min(100, Math.max(1, Number(e.target.value) || 1)) })}
+                style={{ width: '80px', padding: '4px 8px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border-strong)', background: 'transparent', color: 'inherit', fontSize: '13px', ...touchInputStyles(touch) }}
+              />
+            </label>
+          </div>
         )}
 
         {/* 桌面的「开始练习」已统一到左栏控制台下方（v0.7.10 §7.7），本组件不再渲染。 */}

@@ -29,7 +29,8 @@ import { scopeLabel, correctCount, TEMPLATE_LABEL } from '../../lib/review/scope
 /**
  * 概览尚未读到 / 读失败时传给统计组件的空值（v0.7.10 Task 22）。
  * `masteryBuckets` 给空数组即可：消费方按桶总和归一，全空时条为零宽、由底轨兜住。
- * 三处统计消费点（自由练习读数块、桌面 / 手机概览）共用这一份，免得同一个空值抄三遍。
+ * 四处统计消费点（自由练习读数块的桌面 / 手机两个调用点、桌面 / 手机概览）共用这一份，
+ * 免得同一个空值抄四遍。
  */
 const EMPTY_STATS: ReviewStats = { masteryBuckets: [], dueByDay: [], recentRatings: [] }
 

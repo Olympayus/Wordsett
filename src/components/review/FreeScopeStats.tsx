@@ -1,4 +1,4 @@
-import { dayTotal, dayAccuracy } from '../../lib/review/trend'
+import { dayTotal, dayAccuracy, type DayRating } from '../../lib/review/trend'
 import { MASTERY_COLORS, MASTERY_TIER_NAMES } from '../../lib/review/masteryScale'
 import type { ReviewStats } from './StatsMini'
 
@@ -25,8 +25,9 @@ export interface FreeOverview {
  * （由 `FreeScopePanel` 取），`stats` / `overview` 来自 `ReviewModule` 的 `getOverview`。
  * 本组件不发查询、不读 store，桌面上是内容区里的一块静态读数。
  *
- * **口径（规格 §7.7）**：近 7 天题数与记得率取自 `stats.recentRatings`，这份数据来自
- * `review_logs.rating`，**只反映计分复习**（与 `StatsMini` 的「复习量 / 记得率」同源）；
+ * **口径（规格 §7.7）**：近 7 天题数与记得率取自 `stats.recentRatings`（原窗口 14 天，
+ * 这里过滤到最近 7 个本地日历日），这份数据来自 `review_logs.rating`，**只反映计分复习**
+ * （与 `StatsMini` 的「复习量 / 记得率」同源）；
  * 自由练习本身**不计分、不写 rating**，它的量由「今日已练」（`practiceToday`）单独表达。
  * 两处不是同一个分母，别把它们相加或互相折算。
  */
@@ -70,18 +71,45 @@ function Tile({ value, label }: { value: number | string; label: string }) {
 }
 
 /**
+ * 本地日期串（YYYY-MM-DD），与 `db/review.ts` 的 `date(..., 'localtime')` 同形，
+ * 因此可以直接按字符串比较先后（零填充定长）。
+ */
+function localDayKey(d: Date): string {
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${day}`
+}
+
+/**
+ * 最近 7 个本地日历日（含今天）内的评分。
+ *
+ * `stats.recentRatings` 本身是 **14 天**窗口（`db/review.ts` 的 `now - 14 天`），
+ * 而本块瓦片的标签是「近 7 天」——标签与数据窗口必须一致，故先用 `day` 串过滤再求和。
+ * 起算点是本地日历日而非 24 小时滑窗：与 `getStats` / `practiceToday` 的日界口径一致。
+ * `now` 参数只为可测性留出注入点，生产调用不传。
+ */
+function lastSevenDays(ratings: DayRating[], now: Date = new Date()): DayRating[] {
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6)
+  const startKey = localDayKey(start)
+  const endKey = localDayKey(now)
+  return ratings.filter(r => r.day >= startKey && r.day <= endKey)
+}
+
+/**
  * `random`：工作区词数 / 近 7 天题数 / 近 7 天记得率 + 熟悉度 6 档条。
  *
  * 记得率＝`trend.ts` 的 `dayAccuracy`（good / 总评分数，v0.7.2 起「记得率」= rating 3 占比），
  * 按当日题量加权汇总——与 `StatsMini` 的趋势卡副标题同一算法、同一口径。规格 §7.7 要求
  * 本块与 `StatsMini`「复习量 / 记得率」同源，故这里不另写一套公式。
- * 0 条时显示「—」而不是 0%——0/0 是未定义，写成 0% 会被读成「全忘了」。
+ * 题数与记得率都**先过滤到最近 7 个本地日历日**（`recentRatings` 原窗口是 14 天），标签与
+ * 数据窗口一致。0 条时显示「—」而不是 0%——0/0 是未定义，写成 0% 会被读成「全忘了」。
  */
 function RandomStats({ workspaceCount, stats }: { workspaceCount: number; stats: ReviewStats }) {
-  const total = stats.recentRatings.reduce((n, r) => n + dayTotal(r), 0)
+  const recent = lastSevenDays(stats.recentRatings)
+  const total = recent.reduce((n, r) => n + dayTotal(r), 0)
   // 按当日题量加权，不能对每日记得率取简单平均——那会让只有 1 张的日子与 20 张的日子等权。
   const accuracy = total > 0
-    ? stats.recentRatings.reduce((n, r) => n + dayAccuracy(r) * dayTotal(r), 0) / total
+    ? recent.reduce((n, r) => n + dayAccuracy(r) * dayTotal(r), 0) / total
     : null
   const rateText = accuracy === null ? '—' : `${Math.round(accuracy * 100)}%`
   const masteryTotal = stats.masteryBuckets.reduce((a, b) => a + b, 0)
@@ -141,7 +169,7 @@ function TodayStats({ stats, overview }: { stats: ReviewStats; overview: FreeOve
         <Tile value={overview?.practiceToday ?? 0} label="今日已练" />
       </div>
 
-      <div style={BLOCK_LABEL}>未来 7 天到期分布</div>
+      <div style={BLOCK_LABEL}>今日与未来 7 天到期分布</div>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, width: '100%', paddingTop: 2 }}>
         {days.map((n, i) => (
           <div key={i} style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
