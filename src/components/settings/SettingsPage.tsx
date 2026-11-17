@@ -22,6 +22,7 @@ import {
   type SettingsSectionKey,
 } from '../../lib/mobileSettings'
 import { usePlatformClass } from '../../lib/usePlatform'
+import { isDesktop } from '../../lib/platform'
 
 /** 内容列限宽 720px（工作台内容列 v0.7.2 起是 ENTRY_BAND_WIDTH = 900px，两者不再等值，
  *  但仍属同一量级）；不限宽时窗口越宽、标签与开关之间离得越远，两侧留白也随之失控。 */
@@ -94,16 +95,18 @@ export default function SettingsPage({ variant = 'desktop', mobileSection: contr
     // 受控时由外壳在离开设置模块时归零（见 `MobileShell`），这里不替它做。
   }, [mobile, sectionControlled])
   useEffect(() => {
-    // `accessibility_status` 只在桌面形态有意义：手机目录已按形态滤掉「平台权限」
-    // （`visibleSettingsSections`），再发一次 IPC 只是白跑一趟。
-    if (mobile) return
+    // `accessibility_status` 只在桌面形态有意义：非桌面（Android 手机与平板）目录已按平台
+    // 滤掉「平台权限」（`visibleSettingsSections`），再发一次 IPC 只是白跑一趟——而且 Android
+    // 上根本没有这个命令，invoke 会以未处理的 rejection 收场。
+    if (!isDesktop(platform)) { setPlatformSupported(false); return }
     void invoke<{ supported: boolean }>('accessibility_status').then(s => setPlatformSupported(s.supported))
-  }, [mobile])
+  }, [platform])
   useEffect(() => {
-    // 划词分区同样只在桌面形态存在（手机目录已剔除该项）。
-    if (mobile) return
+    // 划词分区同样只在桌面形态存在（非桌面目录已剔除该项）：Android 上 `collector_supported`
+    // 不存在，不发。
+    if (!isDesktop(platform)) { setCollectorSupported(false); return }
     void invoke<boolean>('collector_supported').then(setCollectorSupported)
-  }, [mobile])
+  }, [platform])
   const sections: SettingsSection[] = mobile
     ? visibleSettingsSections(platform)
     : SETTINGS_SECTIONS.filter(s =>
@@ -278,13 +281,19 @@ export default function SettingsPage({ variant = 'desktop', mobileSection: contr
               <SectionHeading>外观</SectionHeading>
               <AppearanceSettings />
               <div style={{ marginTop: '24px' }}><SidebarSettings /></div>
-              <div style={{ marginTop: '24px' }}><SectionHeading>托盘与窗口</SectionHeading></div>
-              <TrayWindowSettings />
+              {/* 托盘与窗口是桌面窗口的概念：平板复用桌面外壳，但既没有托盘、也没有可拖拽窗口，
+                  故标题与组件一起不渲染（标题在这里，组件不自画标题）。 */}
+              {isDesktop(platform) && (
+                <>
+                  <div style={{ marginTop: '24px' }}><SectionHeading>托盘与窗口</SectionHeading></div>
+                  <TrayWindowSettings />
+                </>
+              )}
             </>
           )}
           {active === 'search' && <SearchSettings />}
           {active === 'review' && <ReviewSettings />}
-          {active === 'voice' && <VoiceSettings />}
+          {active === 'voice' && <VoiceSettings variant={isDesktop(platform) ? 'desktop' : 'mobile'} />}
           {active === 'category' && <CategorySettings />}
           {active === 'links' && <LinkSettings />}
           {active === 'collect' && <CollectSettings />}
@@ -294,7 +303,7 @@ export default function SettingsPage({ variant = 'desktop', mobileSection: contr
               <SectionHeading>版本与更新</SectionHeading>
               <AboutSettings />
               <div style={{ marginTop: '24px' }}><SectionHeading>数据</SectionHeading></div>
-              <DataSettings />
+              <DataSettings variant={isDesktop(platform) ? 'desktop' : 'mobile'} />
             </>
           )}
         </div>

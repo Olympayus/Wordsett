@@ -34,9 +34,10 @@ function errText(e: unknown): string {
  * 于是「音色被系统卸载」这条错误只可能在点喇叭时浮现——那正是一个用户主动动作，
  * 比原先「改一下就自动播」更容易把红字和它的起因联系起来。
  *
- * Task 14：手机形态（`variant="mobile"`）。Android 的 TTS 只到 locale 级，没有可枚举的
- * 音色名，音色选择本就是空下拉——故手机不渲染 `<select>`，改一行「系统默认（在系统设置
- * 中更换）」。系统语音探测失败时把 `probe.reason` 与一条系统设置指引摆出来，并把语速与
+ * Task 14：移动形态（`variant="mobile"`；v0.7.10 起语义从「手机」扩为「Android 手机或平板」，
+ * 平板复用桌面外壳但调用点按 `isDesktop` 传 mobile）。Android 的 TTS 只到 locale 级，没有可
+ * 枚举的音色名，音色选择本就是空下拉——故移动形态不渲染 `<select>`，改一行「系统默认（在
+ * 系统设置中更换）」。系统语音探测失败时把 `probe.reason` 与一条系统设置指引摆出来，并把语速与
  * 试听置灰：这两项在系统 TTS 不可用时改了也不会出声。`probe === null` 是启动瞬间的
  * 「尚未探测」，按中性处理（不报警、不置灰），与 `ListenStatus` 的三态判据一致。
  */
@@ -64,7 +65,7 @@ export default function VoiceSettings({ variant = 'desktop' }: { variant?: 'desk
     // `voice` 为 null 是**合法值**（「系统默认」），故「配置读回来了没有」另用一个 `ready`
     // 标记——拿 voice 当门会让「系统默认」这一档永不渲染。
     void getConfig().then(c => { setVoice(c.tts.voice); setRate(c.tts.rate); setReady(true) })
-    // 手机形态没有音色下拉，枚举结果无人消费；Android 侧本来也恒返回空表，省掉这趟 IPC。
+    // 移动形态（Android 手机与平板）没有音色下拉，枚举结果无人消费；Android 侧本来也恒返回空表，省掉这趟 IPC。
     if (mobile) return
     void invoke<VoiceInfo[]>('list_english_voices').then(setVoices).catch(() => setVoices([]))
   }, [mobile])
@@ -114,7 +115,7 @@ export default function VoiceSettings({ variant = 'desktop' }: { variant?: 'desk
         />
       </div>
 
-      {/* 手机：系统 TTS 只到 locale 级，没有可选音色；固定一行说明设置入口在系统里。 */}
+      {/* 移动形态：系统 TTS 只到 locale 级，没有可选音色；固定一行说明设置入口在系统里。 */}
       {mobile && (
         <div style={{ fontSize: '13px' }}>音色：系统默认（在系统设置中更换）</div>
       )}

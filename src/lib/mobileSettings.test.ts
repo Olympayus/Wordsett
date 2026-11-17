@@ -9,6 +9,10 @@ describe('visibleSettingsSections', () => {
   it('桌面保留平台权限', () => {
     expect(visibleSettingsSections('desktop').map(s => s.key)).toContain('platform')
   })
+  // v0.7.10 Task 10：平台权限是桌面（macOS）独有，平板复用桌面外壳但同样没有这一项。
+  it('tablet hides platform section', () => {
+    expect(visibleSettingsSections('android-tablet').map(s => s.key)).not.toContain('platform')
+  })
   // v0.7.9 Task 16：划词只在桌面出现——Android 手机与平板都不出这一项。
   it('android 手机与平板都没有划词分区', () => {
     expect(visibleSettingsSections('android-phone').map(s => s.key)).not.toContain('collect')

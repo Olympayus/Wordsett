@@ -15,11 +15,12 @@ const SECTION_TITLE: React.CSSProperties = { fontSize: 'var(--text-base)', fontW
 /**
  * 数据（导出 / 导入 / 数据目录）。
  *
- * `variant="mobile"`（Task 11）：隐藏「浏览」按钮——它调 `open_data_dir` →
- * `tauri-plugin-opener` 的 `reveal_item_in_dir`，而后者在 Android 上恒返回
+ * `variant="mobile"`（Task 11；v0.7.10 起判据语义扩为「非桌面」）：隐藏「浏览」按钮——它调
+ * `open_data_dir` → `tauri-plugin-opener` 的 `reveal_item_in_dir`，而后者在 Android 上恒返回
  * `UnsupportedPlatform`（opener-2.5.5/src/reveal_item_in_dir.rs:35），点了只会弹一行
  * 「打开数据目录失败」。手机上也没有「在文件管理器里选中」这个动作可言。
  * 导出 / 导入两条路在手机上是有意义的（走 SAF），照旧保留。
+ * 平板复用桌面外壳，但同样是 Android：调用点按 `isDesktop` 传 mobile，这一行在平板上也不渲染。
  */
 export default function DataSettings({ variant = 'desktop' }: { variant?: 'desktop' | 'mobile' }) {
   const [busy, setBusy] = useState(false)
@@ -84,7 +85,7 @@ export default function DataSettings({ variant = 'desktop' }: { variant?: 'deskt
       {/* 本地数据存储位置（v0.5.3 §4.1 第 14 条）：首行，黑色字体，附浏览按钮。
           浏览按钮用 SquareButton 的 row 尺寸（不限最小宽），紧跟文字其后。
           中间不留 flex:1 撑开占位——那会把按钮推到行尾，与「跟随其后」的意图相反。
-          手机形态整行不渲染：没有「在文件管理器里选中」这个动作，留一行只有标签的
+          手机与平板形态整行不渲染：没有「在文件管理器里选中」这个动作，留一行只有标签的
           文字反而让人以为哪里能点（见组件头注释）。 */}
       {variant === 'desktop' && (
         <div style={{
