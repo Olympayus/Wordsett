@@ -10,7 +10,7 @@ import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
 import HitArea, { useMobileShellHitArea } from '../ui/HitArea'
 import { usePlatformClass } from '../../lib/usePlatform'
-import { isDesktop } from '../../lib/platform'
+import { isDesktop, usesMobileShell } from '../../lib/platform'
 
 // 选择器没开时的稳定空数组：写在模块作用域，`useMemo` 的回落分支才不会每次渲染造新引用
 const EMPTY_MEMBERS: string[] = []
@@ -110,6 +110,9 @@ export default function CategorySettings() {
   const platform = usePlatformClass()
   const touch = !isDesktop(platform)
   const showHitArea = useMobileShellHitArea()
+  // 批量选词弹窗的手机形态只给**手机外壳**（v0.7.10 裁定）：平板保持居中弹窗，
+  // 与桌面共用 desktop 变体（弹窗留在 zoom 子树内，规格 §7.4 / §7.5）。
+  const pickerVariant: 'desktop' | 'mobile' = usesMobileShell(platform) ? 'mobile' : 'desktop'
   // 打开中的选择器：一次只有一个，方向固定由入口决定（不再让用户在弹层里二选一）
   const [picker, setPicker] = useState<{ cat: Category; direction: 'add' | 'remove' } | null>(null)
   // 提到 memo 的 key 里：开着的那个分类的 id（关着时为 null）
@@ -184,6 +187,7 @@ export default function CategorySettings() {
           categoryName={picker.cat.name}
           memberIds={pickerMemberIds}
           direction={picker.direction}
+          variant={pickerVariant}
           onConfirm={async (ids) => {
             if (picker.direction === 'add') await assignMany(ids, picker.cat.id)
             else await unassignMany(ids, picker.cat.id)

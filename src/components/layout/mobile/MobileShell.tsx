@@ -248,9 +248,10 @@ export default function MobileShell() {
           category={editorTarget.category}
           wordId={editorTarget.wordId ?? ''}
           onClose={closeModals}
+          variant="mobile"
         />
       )}
-      <ConfirmDialog />
+      <ConfirmDialog variant="mobile" />
     </div>
   )
 }

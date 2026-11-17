@@ -24,19 +24,41 @@ const normalizeColor = (c: string): string => {
   return i >= 0 ? CATEGORY_COLORS[i] : c
 }
 
+/**
+ * 手机形态的脚键（v0.7.10 Task 17）：44dp、等分、发丝分隔。与 `MobileActionSheet`
+ * 底栏同一份配方——删除 / 移除这类次要动作用文字色，主次由颜色与字重区分。
+ */
+function sheetButtonStyle(divider: boolean, color: string, weight = 400): CSSProperties {
+  return {
+    flex: '1 1 0', minWidth: 0, height: 44, padding: '0 12px',
+    appearance: 'none', border: 'none',
+    borderLeft: divider ? '1px solid var(--color-border)' : 'none',
+    background: 'transparent', color, fontSize: 15, fontWeight: weight,
+    fontFamily: 'var(--font-sans)', cursor: 'pointer', whiteSpace: 'nowrap',
+    touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+  }
+}
+
 interface Props {
   open: boolean
   category: Category | null   // null = 新建模式；非 null = 编辑已有分类
   wordId?: string             // 当前单词（编辑模式「从此单词移除」用）；standalone 模式省略
   onClose: () => void
   onSaved?: (category: Category) => void
+  /**
+   * `mobile`（v0.7.10 Task 17）：底部表表单——遮罩 + 下缘圆角白面、可滚的表体、
+   * 44dp 脚键、16px 字段（触摸输入档强制开）、32px 色板、`autoFocus` 保留。
+   * **只有手机外壳传**；平板与桌面默认 `desktop`，居中弹窗的 DOM 与样式逐字不变。
+   */
+  variant?: 'desktop' | 'mobile'
 }
 
-export default function CategoryEditorModal({ open, category, wordId, onClose, onSaved }: Props) {
+export default function CategoryEditorModal({ open, category, wordId, onClose, onSaved, variant = 'desktop' }: Props) {
   const { createCategory, updateCategory, deleteCategory, assignToWord, removeFromWord } = useCategoryStore()
+  const isMobile = variant === 'mobile'
   // 触摸输入档（v0.7.10 §7.4）：桌面临窗与手机外壳（Task 17 的底部表形态）共用本组件，
-  // 没有 `touch` prop，判据取主指针；桌面鼠标环境为空对象。
-  const touch = hasCoarsePointer()
+  // 没有 `touch` prop，判据取主指针；手机形态直接强制开（16px / 40px）。
+  const touch = isMobile || hasCoarsePointer()
   const [name, setName] = useState('')
   const [color, setColor] = useState(CATEGORY_COLORS[0])
   const [description, setDescription] = useState('')
@@ -62,7 +84,9 @@ export default function CategoryEditorModal({ open, category, wordId, onClose, o
   }, [open, onClose])
 
   const panelRef = useRef<HTMLDivElement>(null)
-  useFocusTrap(open, panelRef)
+  // 手机版是底部表：没有居中的焦点容器，不该把焦点锁在表里（与 `CategoryAssignModal`
+  // 同一取舍），`autoFocus` 仍由输入框自己完成。
+  useFocusTrap(open && !isMobile, panelRef)
 
   if (!open) return null
 
@@ -107,6 +131,121 @@ export default function CategoryEditorModal({ open, category, wordId, onClose, o
     ...touchInputStyles(touch), ...(touch ? { height: 'auto' } : null),
   }
   const labelStyle: CSSProperties = { fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', marginBottom: '6px' }
+
+  if (isMobile) {
+    return (
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        onClick={e => { if (e.target === e.currentTarget) onClose() }}
+        style={{ position: 'fixed', inset: 0, background: 'var(--color-scrim)', zIndex: 'var(--z-modal)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
+      >
+        <div
+          onClick={e => e.stopPropagation()}
+          style={{
+            width: '100%', maxHeight: '88vh', display: 'flex', flexDirection: 'column',
+            background: 'var(--color-surface)', borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
+            boxShadow: 'var(--shadow-overlay)', fontFamily: 'var(--font-sans)', overflow: 'hidden',
+          }}
+        >
+          <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', padding: '14px 16px 12px', borderBottom: '1px solid var(--color-border)' }}>
+            <div style={{ fontFamily: 'var(--font-serif)', fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-semibold)' }}>
+              {category ? '编辑分类' : '新建分类'}
+            </div>
+            <button
+              type="button" aria-label="关闭" onClick={onClose}
+              style={{ width: '44px', height: '44px', flexShrink: 0, border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-text-secondary)', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+            >
+              <Icon name="close" size={18} />
+            </button>
+          </div>
+
+          {/* 唯一可滚的一段：键盘弹出、视口变矮时表单在表体内滚动，脚键仍钉在底部。 */}
+          <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', overscrollBehavior: 'contain', padding: '16px' }}>
+            <div style={{ marginBottom: '16px' }}>
+              <div style={labelStyle}>分类名称</div>
+              <input
+                autoFocus
+                value={name}
+                onChange={e => setName(e.target.value)}
+                onFocus={e => { e.currentTarget.style.borderColor = 'var(--color-brand)' }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'var(--color-border)' }}
+                style={inputStyle}
+              />
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <div style={labelStyle}>分类颜色</div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {CATEGORY_COLORS.map((c, i) => (
+                  <button
+                    key={c}
+                    type="button"
+                    aria-label={`选择颜色 ${i + 1}`}
+                    onClick={() => setColor(c)}
+                    style={{
+                      width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', padding: 0,
+                      border: `2px solid ${c === color ? 'var(--color-text-primary)' : 'transparent'}`,
+                      background: c, transition: 'border-color var(--duration-fast) var(--ease-smooth), background-color var(--duration-fast) var(--ease-smooth)',
+                      touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <div style={labelStyle}>分类描述 <span style={{ color: 'var(--color-text-tertiary)' }}>（可选）</span></div>
+              <input
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                onFocus={e => { e.currentTarget.style.borderColor = 'var(--color-brand)' }}
+                onBlur={e => { e.currentTarget.style.borderColor = 'var(--color-border)' }}
+                style={inputStyle}
+              />
+            </div>
+
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '44px', fontSize: 'var(--text-sm)', color: 'var(--color-text-secondary)', cursor: 'pointer' }}>
+              <CheckBox checked={isDefault} onChange={v => setIsDefault(v)} label="设为默认分类" />
+              设为默认分类（新建单词自动归入）
+            </label>
+
+            {error && <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)', marginTop: '8px' }}>{error}</div>}
+          </div>
+
+          <div style={{ flexShrink: 0, borderTop: '1px solid var(--color-border)', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+            {category && wordId && (
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--color-border)' }}>
+                <button
+                  type="button"
+                  onClick={handleRemoveFromWord}
+                  style={sheetButtonStyle(false, 'var(--color-text-tertiary)')}
+                >
+                  从此单词移除
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDelete}
+                  style={sheetButtonStyle(true, 'var(--color-danger)')}
+                >
+                  删除分类
+                </button>
+              </div>
+            )}
+            <div style={{ display: 'flex' }}>
+              <button type="button" onClick={onClose} style={sheetButtonStyle(false, 'var(--color-text-secondary)')}>
+                取消
+              </button>
+              <button type="button" onClick={handleSave} style={sheetButtonStyle(true, 'var(--color-text-primary)', 600)}>
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div
