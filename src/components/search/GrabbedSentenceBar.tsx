@@ -4,12 +4,10 @@ import Icon from '../icons'
 import { DashMark } from '../entry/Mark'
 import { FIELD_LABEL_STYLE } from '../../lib/labelStyle'
 import {
-  collectorMergeInputs,
   definitionGroups,
   type DefinitionLeaf,
 } from '../../lib/collectorTree'
-import { ensureWord } from '../../lib/ensureWord'
-import { appendExampleUnderDefinition } from '../../services/wordService'
+import { attachGrabbedExample } from '../../services/grabbedExample'
 import { usePendingExampleStore } from '../../stores/pendingExampleStore'
 import { useWordStore } from '../../stores/wordStore'
 import type { DictionaryField } from '../../types/dictionary'
@@ -24,6 +22,8 @@ import type { DictionaryField } from '../../types/dictionary'
  * 交互（用户裁定）：**唯一的动作按钮是右上角的「添加」**。选项列表只有释义单选与
  * 「不添加」两项，默认停在「不添加」——没选释义时「添加」不可点；右上角的 × 关闭
  * 同样表示不添加。挂入之后「添加」变为「已加入」，随即整条收起。
+ * 选择会同步写进 `pendingExampleStore.attach`：用户不点这里的「添加」、而是去导航条
+ * 点「添加／添加至…」合并时，例句也按**横幅里选的那条释义**挂入（树里没有多选语义）。
  *
  * 写入顺序与「父级必须存在」的约束：
  * 1. `ensureWord`：词条不存在就先建（与搜索结果页的收录同一条路径）；
@@ -49,11 +49,23 @@ export default function GrabbedSentenceBar({ word, fields }: {
   const [done, setDone] = useState(false)
 
   // 换词 / 换一次抓取：选择与状态都重新开始（本组件常驻在详情页里，word 会变）。
+  // 选择同时写回 store：导航条的「添加」合并路径读它，保证「挂到横幅里选的那条释义」。
   useEffect(() => {
     setAttachKey(null)
+    usePendingExampleStore.getState().setAttach(null)
     setError(false)
     setDone(false)
   }, [word, groups])
+
+  /** 选择释义（或「不添加」）：局部状态与 store 同步，两条添加路径看到同一个答案。 */
+  const choose = useCallback((item: DefinitionLeaf | null) => {
+    setAttachKey(item?.key ?? null)
+    usePendingExampleStore.getState().setAttach(item === null ? null : {
+      pathKey: item.key,
+      fieldKey: item.label === '中文释义' ? 'chinese_definition' : 'english_definition',
+      value: item.value,
+    })
+  }, [])
 
   const leaf: DefinitionLeaf | null = useMemo(() => {
     if (attachKey === null) return null
@@ -71,28 +83,12 @@ export default function GrabbedSentenceBar({ word, fields }: {
     setBusy(true)
     setError(false)
     try {
-      const target = await ensureWord(word)
-      if (!target) {
-        setError(true)
-        return
-      }
-      // 先保证父级释义在库里（新建词 / 该释义尚未合并过）：merge 幂等，既有释义不会重复。
-      const inputs = collectorMergeInputs(fields, new Set([leaf.key]))
-      if (inputs.length > 0) {
-        const merged = await useWordStore.getState().mergeWordFields(target.id, inputs)
-        if (!merged) {
-          setError(true)
-          return
-        }
-      }
-      const attached = await appendExampleUnderDefinition(
-        target.id,
-        {
-          key: leaf.label === '中文释义' ? 'chinese_definition' : 'english_definition',
-          value: leaf.value,
-        },
-        pending.sentence,
-      )
+      // 写入链在 `services/grabbedExample`：与导航条「添加」合并路径逐字同源。
+      const attached = await attachGrabbedExample(word, fields, {
+        pathKey: leaf.key,
+        fieldKey: leaf.label === '中文释义' ? 'chinese_definition' : 'english_definition',
+        value: leaf.value,
+      }, pending.sentence)
       if (!attached) {
         setError(true)
         return
@@ -182,7 +178,7 @@ export default function GrabbedSentenceBar({ word, fields }: {
                 role="radio"
                 aria-checked={active}
                 aria-label={`${group.pos || '该词性'} ${item.label} ${item.value}`}
-                onClick={() => setAttachKey(item.key)}
+                onClick={() => choose(item)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, width: '100%',
                   padding: '5px 8px', border: 'none', borderRadius: 'var(--radius-sm)',
@@ -211,7 +207,7 @@ export default function GrabbedSentenceBar({ word, fields }: {
             role="radio"
             aria-checked={attachKey === null}
             aria-label="不添加"
-            onClick={() => setAttachKey(null)}
+            onClick={() => choose(null)}
             style={{
               display: 'flex', alignItems: 'center', gap: 8, width: '100%',
               padding: '5px 8px', border: 'none', borderRadius: 'var(--radius-sm)',
