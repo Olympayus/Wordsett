@@ -9,20 +9,22 @@ import { deleteWordConfirmRequest } from '../../../lib/wordActions'
 import { appBarMenuItems } from '../../../lib/mobileSheets'
 import Icon from '../../icons'
 import SquareButton from '../../ui/SquareButton'
+import HitArea, { useMobileShellHitArea } from '../../ui/HitArea'
 import MobileActionSheet from './MobileActionSheet'
 
 /** 顶栏高度（spec §4.1：约 52dp）。不含状态栏——刘海 / 挖孔由 `paddingTop` 的安全区另加。 */
 const BAR_HEIGHT = 52
 /** 顶栏里控件的高度：桌面导航条的 22px 在手机上不够点，提到 32（比 28 大一档）。
- *  离 spec §10 的 44dp 命中区还差一截——外扩透明命中区归 Plan 2（触摸编辑 / 命中区），
- *  这一版先把控件本身与控件间距撑开。 */
+ *  44dp 命中区由 `HitArea` 的透明覆盖层补足（v0.7.10 Task 16）——视觉尺寸仍是 32px。 */
 const CONTROL = 32
 
 /**
  * 无边框无底色的图标键（手机顶栏）：hover 才起底色，与桌面 `WorkbenchNavBar` 的 `nav-btn` 同形。
- * 32px 高于既有 28px，命中区由左簇到右簇之间保证（间距 2–6px）。
+ * 32px 视觉尺寸；`position: relative` 供 44dp `HitArea` 覆盖层定位。
  */
 const iconBtn = (disabled = false): CSSProperties => ({
+  // 定位祖先：44dp 命中层（手机外壳）绝对定位挂在按钮内，不进布局。
+  position: 'relative',
   width: `${CONTROL}px`, height: `${CONTROL}px`, flexShrink: 0,
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
   border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)',
@@ -68,6 +70,9 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
   const editorMode = useViewStore(s => s.editorMode)
   const setEditorMode = useViewStore(s => s.setEditorMode)
   const { canBack, canForward, goBack, goForward } = useWorkbenchNavigation()
+  // 顶栏只在手机外壳挂载；判据仍取 usesMobileShell（与共享控件同一套机制），
+  // 平板永远不会走到这里——不用 touch 是因为它在平板上也为真。
+  const showHitArea = useMobileShellHitArea()
 
   const selectedWord = words.find(w => w.id === selectedWordId)
   // 详情态（工作台 / 储藏库里的词典页）：标题要跟**正在读的那页**走，`⋯` 则要收起来。
@@ -141,12 +146,15 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
           一个稳定的 id 比 ref 转发短——抽屉不必认识顶栏。 */}
       <button type="button" id="mobile-drawer-open" aria-label="词库" onClick={onOpenDrawer} style={iconBtn()}>
         <Icon name="layers" size={18} />
+        <HitArea show={showHitArea} />
       </button>
       <button type="button" aria-label="上一个词条" disabled={!historyBack} onClick={goBack} style={iconBtn(!historyBack)}>
         <Icon name="arrow-left" size={17} />
+        <HitArea show={showHitArea} />
       </button>
       <button type="button" aria-label="下一个词条" disabled={!historyForward} onClick={goForward} style={iconBtn(!historyForward)}>
         <Icon name="arrow-right" size={17} />
+        <HitArea show={showHitArea} />
       </button>
 
       {/* 标题：有选中词就是词面，没有就是模块名。`minWidth: 0` + 省略号——长词不撑破顶栏 */}
@@ -193,6 +201,7 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
               style={iconBtn()}
             >
               <Icon name="more" size={18} />
+              <HitArea show={showHitArea} />
             </button>
           )
         )}

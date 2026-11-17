@@ -1,9 +1,14 @@
+import HitArea, { useMobileShellHitArea } from './HitArea'
+
 export function Toggle({ checked, onChange, disabled, ...rest }: {
   checked: boolean
   onChange: (on: boolean) => void
   disabled?: boolean
   'aria-label'?: string
 }) {
+  // 手机外壳才扩命中区（规格 §7.4）：视觉尺寸 36×20 不变，只加 44×44 绝对定位覆盖层。
+  // 平板不扩（touch 在平板也为真，故判据取 usesMobileShell）。
+  const showHitArea = useMobileShellHitArea()
   return (
     <button
       type="button"
@@ -27,6 +32,7 @@ export function Toggle({ checked, onChange, disabled, ...rest }: {
         transform: checked && !disabled ? 'translateX(16px)' : 'translateX(0)',
         transition: 'transform var(--duration-fast) var(--ease-smooth)',
       }} />
+      <HitArea show={showHitArea} />
     </button>
   )
 }

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import type { CSSProperties } from 'react'
 import { useSettingsStore } from '../../../stores/settingsStore'
 import Icon from '../../icons'
+import HitArea, { useMobileShellHitArea } from '../../ui/HitArea'
 import WordList, { type WordListHandle } from '../WordList'
 import SidebarFooter from '../SidebarFooter'
 
@@ -32,8 +33,11 @@ const DRAWER_WIDTH = '100%'
 /** 标题行的左右内边距：与底栏 / 顶栏同一档（8px），标题不贴边。 */
 const TITLE_GUTTER = 8
 
-/** 标题右侧那两枚 icon 钮：与桌面 `SidebarToolbar` 的 `iconBtn` 同形（30px 命中区、hover 才起底）。 */
+/** 标题右侧那两枚 icon 钮：与桌面 `SidebarToolbar` 的 `iconBtn` 同形（30px 视觉、hover 才起底）。
+ *  44dp 命中区由 `HitArea` 覆盖层补足（v0.7.10 Task 16），视觉尺寸不变。 */
 const iconBtn = (): CSSProperties => ({
+  // 定位祖先：44dp 命中层绝对定位挂在按钮内，30px 视觉尺寸不变。
+  position: 'relative',
   width: '30px', height: '30px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
   border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)', cursor: 'pointer',
   flexShrink: 0,
@@ -70,6 +74,8 @@ export default function MobileDrawer({ open, onClose }: Props) {
   const listRef = useRef<WordListHandle>(null)
   const mode = useSettingsStore(s => s.sidebarMode)
   const setSidebarMode = useSettingsStore(s => s.setSidebarMode)
+  // 抽屉只在手机外壳挂载；判据统一取 usesMobileShell（共享控件同一套机制）。
+  const showHitArea = useMobileShellHitArea()
 
   // 关闭时把焦点还给顶栏那枚抽屉钮——抽屉整体 `visibility: hidden`，留在里面的焦点
   // 会跟着一起看不见（键盘用户会掉进一个「屏幕上有焦点却看不见」的状态）。
@@ -151,6 +157,7 @@ export default function MobileDrawer({ open, onClose }: Props) {
           <button type="button" aria-label="关闭" onClick={onClose}
             onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={iconBtn()}>
             <Icon name="close" size={17} />
+            <HitArea show={showHitArea} />
           </button>
           <div
             style={{
@@ -167,11 +174,13 @@ export default function MobileDrawer({ open, onClose }: Props) {
             onClick={() => listRef.current?.toggleSelectMode()}
             onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={iconBtn()}>
             <Icon name="check-square" size={16} />
+            <HitArea show={showHitArea} />
           </button>
           <button type="button" aria-label="切换显示模式"
             onClick={() => setSidebarMode(mode === 'alphabet' ? 'category' : 'alphabet')}
             onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={iconBtn()}>
             <Icon name="swap" size={16} />
+            <HitArea show={showHitArea} />
           </button>
         </div>
 

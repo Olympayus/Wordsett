@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import HitArea, { useMobileShellHitArea } from './HitArea'
 
 /**
  * 通用勾选框（v0.6.3 条目 14，形制 A′）。
@@ -118,6 +119,10 @@ export default function CheckBox({ checked, onChange, disabled, color, label, in
   locked?: boolean
 }) {
   const [hover, setHover] = useState(false)
+  // 手机外壳才扩命中区（规格 §7.4；平板沿用桌面几何，故不能用 touch 判断）。
+  // 命中层是绝对定位 span：不是布局盒子，不进上面文件头那条「控件里没有第二个盒子」的
+  // 几何链——16px 外框与内块取整照旧，只是可点面积变大。
+  const showHitArea = useMobileShellHitArea()
   const c = color ?? 'var(--color-brand)'
   const paint = checkboxPaint({ checked, hover: locked ? false : hover, disabled, indeterminate, color: c })
   const inert = disabled || locked
@@ -139,6 +144,8 @@ export default function CheckBox({ checked, onChange, disabled, color, label, in
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
+        // 定位祖先：命中层（手机外壳）绝对定位挂在这个按钮上，不参与按钮自身的几何。
+        position: 'relative',
         width: CHECKBOX_SIZE, height: CHECKBOX_SIZE, flexShrink: 0, padding: 0, cursor: inert ? 'default' : 'pointer',
         display: 'inline-flex', borderRadius: 'var(--radius-sm)',
         background: paint.background,
@@ -149,6 +156,8 @@ export default function CheckBox({ checked, onChange, disabled, color, label, in
         opacity: disabled ? 0.38 : 1,
         transition: 'box-shadow var(--duration-fast) var(--ease-smooth), background-color var(--duration-fast) var(--ease-smooth)',
       }}
-    />
+    >
+      <HitArea show={showHitArea} />
+    </button>
   )
 }

@@ -8,11 +8,14 @@ import { categoryLocationCounts, locationCountSegments, type LocationCounts } fr
 import WordMultiPicker from '../word/WordMultiPicker'
 import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
+import HitArea, { useMobileShellHitArea } from '../ui/HitArea'
+import { usePlatformClass } from '../../lib/usePlatform'
+import { isDesktop } from '../../lib/platform'
 
 // 选择器没开时的稳定空数组：写在模块作用域，`useMemo` 的回落分支才不会每次渲染造新引用
 const EMPTY_MEMBERS: string[] = []
 
-function CategoryRow({ cat, counts, onEdit, onDelete, onBatchAdd, onBatchRemove }: {
+function CategoryRow({ cat, counts, onEdit, onDelete, onBatchAdd, onBatchRemove, touch, showHitArea }: {
   cat: { id: string; name: string; color: string; description?: string | null }
   /** v0.7.5 Task 14：分类读数分模块——工作区:m 储藏库:n，两个数各自 .stat-num。 */
   counts: LocationCounts
@@ -21,13 +24,19 @@ function CategoryRow({ cat, counts, onEdit, onDelete, onBatchAdd, onBatchRemove 
   /** v0.6.5 §4.3：批量入口拆成「加入」「移出」两枚按钮，方向固定（不做一体化差集）。 */
   onBatchAdd: () => void
   onBatchRemove: () => void
+  /** 触摸语境（手机与平板）：四枚按钮常显，桌面仍 hover 显现（规格 §7.4）。 */
+  touch: boolean
+  /** 手机外壳：44dp 命中层。平板沿用桌面几何，故与 `touch` 分开。 */
+  showHitArea: boolean
 }) {
   const [hovered, setHovered] = useState(false)
   const btnBase = {
+    // 定位祖先：44dp 命中层绝对定位挂在按钮内，28px 视觉尺寸不变。
+    position: 'relative' as const,
     width: '28px', height: '28px', border: 'none', background: 'transparent',
     borderRadius: 'var(--radius-sm)', cursor: 'pointer', display: 'flex',
     alignItems: 'center', justifyContent: 'center',
-    opacity: hovered ? 1 : 0,
+    opacity: touch || hovered ? 1 : 0,
     transition: 'opacity var(--duration-fast) var(--ease-smooth), background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
   }
   return (
@@ -62,24 +71,28 @@ function CategoryRow({ cat, counts, onEdit, onDelete, onBatchAdd, onBatchRemove 
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
         <Icon name="plus" size={16} />
+        <HitArea show={showHitArea} />
       </button>
       <button type="button" aria-label={`批量移出「${cat.name}」`} onClick={onBatchRemove}
         style={{ ...btnBase, color: hovered ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)' }}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
         <Icon name="minus" size={16} />
+        <HitArea show={showHitArea} />
       </button>
       <button type="button" aria-label="编辑分类" onClick={onEdit}
         style={{ ...btnBase, color: hovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
         <Icon name="edit" size={16} />
+        <HitArea show={showHitArea} />
       </button>
       <button type="button" aria-label="删除分类" onClick={onDelete}
         style={{ ...btnBase, color: hovered ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}
         onMouseEnter={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--color-danger) 8%, transparent)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
         <Icon name="trash" size={16} />
+        <HitArea show={showHitArea} />
       </button>
     </div>
   )
@@ -92,6 +105,11 @@ export default function CategorySettings() {
   const deleteCategory = useCategoryStore(s => s.deleteCategory)
   const openEditor = useUiStore(s => s.openEditor)
   const { assignMany, unassignMany } = useCategoryStore()
+  // 触摸语境（手机与平板）：分类操作按钮常显——常显是触摸语义，与扩圈与否无关。
+  // 扩圈只给手机外壳（规格 §7.4：平板沿用桌面几何），故两个判据分开取。
+  const platform = usePlatformClass()
+  const touch = !isDesktop(platform)
+  const showHitArea = useMobileShellHitArea()
   // 打开中的选择器：一次只有一个，方向固定由入口决定（不再让用户在弹层里二选一）
   const [picker, setPicker] = useState<{ cat: Category; direction: 'add' | 'remove' } | null>(null)
   // 提到 memo 的 key 里：开着的那个分类的 id（关着时为 null）
@@ -154,6 +172,8 @@ export default function CategorySettings() {
             onDelete={async () => { if (await useUiStore.getState().confirm({ title: '删除分类', message: `确定删除分类“${cat.name}”吗？将从所有单词移除该分类。`, danger: true })) void deleteCategory(cat.id) }}
             onBatchAdd={() => setPicker({ cat, direction: 'add' })}
             onBatchRemove={() => setPicker({ cat, direction: 'remove' })}
+            touch={touch}
+            showHitArea={showHitArea}
           />
         ))
       )}

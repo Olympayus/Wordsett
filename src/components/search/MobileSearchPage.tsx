@@ -8,6 +8,7 @@ import { isChineseQuery } from '../../lib/chineseSearch'
 import { touchInputStyles } from '../../lib/touchInput'
 import Icon from '../icons'
 import ClearButton from '../ui/ClearButton'
+import HitArea, { useMobileShellHitArea } from '../ui/HitArea'
 
 /**
  * 手机搜索页（Task 7，spec §4.5）：顶行「返回 + 输入 + 清除」，下面一条单列建议列表。
@@ -42,8 +43,11 @@ const TOUCH_INPUT = touchInputStyles(true)
 /** 建议行高：44dp 是触摸目标的下限（spec §10），行内两行文字仍读得开。 */
 const ROW_HEIGHT = 44
 
-/** 无边框无底色的图标键（返回）：与 `MobileAppBar` 的 `iconBtn` 同形同尺寸。 */
+/** 无边框无底色的图标键（返回）：与 `MobileAppBar` 的 `iconBtn` 同形同尺寸。
+ *  44dp 命中区由 `HitArea` 覆盖层补足（v0.7.10 Task 16），32px 视觉尺寸不变。 */
 const iconBtn: CSSProperties = {
+  // 定位祖先：44dp 命中层绝对定位挂在按钮内，32px 视觉尺寸不变。
+  position: 'relative',
   width: 32, height: 32, flexShrink: 0,
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
   border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)',
@@ -60,6 +64,8 @@ export default function MobileSearchPage() {
   const libraryIndex = useWordStore(s => s.libraryIndex)
   // 详情态（`activeView === 'dict'`）：本页**不卸载**，只整页隐藏——查询与建议词必须活过一次往返。
   const detailOpen = useViewStore(s => s.activeView === 'dict')
+  // 搜索页只在手机外壳挂载；判据统一取 usesMobileShell（平板不扩圈，§7.4）。
+  const showHitArea = useMobileShellHitArea()
 
   const [query, setQuery] = useState('')
   const { suggestions, glosses, isComposing, setComposing } = useSearchSuggestions(query)
@@ -134,6 +140,7 @@ export default function MobileSearchPage() {
       >
         <button type="button" aria-label="返回" onClick={back} style={iconBtn}>
           <Icon name="arrow-left" size={18} />
+          <HitArea show={showHitArea} />
         </button>
 
         <div style={{
