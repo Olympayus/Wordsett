@@ -58,6 +58,10 @@ export default function MobileShell() {
   const activeModule = useViewStore(s => s.activeModule)
   const activeView = useViewStore(s => s.activeView)
   const dictWord = useViewStore(s => s.dictWord)
+  // 词典详情是否打开（v0.7.10）：详情面板的渲染与底栏显隐**共用这一条判据**。
+  // 两处各算，日后改一处漏一处就会出现「面板开着、底栏也开着」（动作条整条盖住底栏）
+  // 或反过来。`dictWord` 非空才算出详情——`activeView` 可能停在上一个词的残留上。
+  const dictOpen = activeView === 'dict' && !!dictWord
   // 复习会话态（v0.7.6 沉浸态）：答题进行中收起底栏，判据在 `mobileTabBar`。
   // 两个字段分开订阅：底栏显隐只跟它们走，答题中 `index` / `answered` / `queue` 的
   // 每次变化都不该顺带重渲整棵手机外壳。
@@ -283,7 +287,7 @@ export default function MobileShell() {
                 Task 8：`variant="mobile"`——手机详情不渲染桌面导航条；返回 / 面包屑在搜索路径
                 由详情页自己的顶栏出，工作台 / 储藏库路径落在底部固定动作条的顶面，
                 「初始熟悉度 / 已选 / ＋ / 添加至…」都在那条底栏上。 */}
-            {activeView === 'dict' && dictWord
+            {dictOpen
               ? <DictDetailPanel word={dictWord} variant="mobile" />
               : (
                 <WordWorkbench
@@ -315,7 +319,7 @@ export default function MobileShell() {
              详情面板照原样在上层渲染（Task 8 的 `variant="mobile"`）。 */
           <main data-find-root="search" className="flex-1 overflow-hidden" style={{ background: 'var(--color-canvas)', minWidth: 0 }}>
             <MobileSearchPage />
-            {activeView === 'dict' && dictWord && <DictDetailPanel word={dictWord} variant="mobile" />}
+            {dictOpen && <DictDetailPanel word={dictWord} variant="mobile" />}
           </main>
         ) : (
           /* 设置模块（Task 9）：自己出「目录 → 子页」两态，故不渲染 `MobileAppBar`（它服务词条页）。
@@ -349,8 +353,10 @@ export default function MobileShell() {
 
       {/* 底栏：五格 + 中间的搜索圆钮 + 复习到期徽标。
           v0.7.6 沉浸态：复习会话进行中整条收起（判据见 `hideMobileTabBar`）——
-          答题页自带一条随会话状态变化的底栏，两条同时出现会把答题区挤掉一截。 */}
-      {!hideMobileTabBar(activeModule, reviewPhase, reviewSessionStrategy) && <MobileTabBar />}
+          答题页自带一条随会话状态变化的底栏，两条同时出现会把答题区挤掉一截。
+          v0.7.10：词典详情打开时也收起——详情页的 `MobileDictActionBar`（fixed，86px）
+          会整条盖住底栏。判据 `dictOpen` 与上方详情面板的渲染条件是同一条表达式。 */}
+      {!hideMobileTabBar(activeModule, reviewPhase, reviewSessionStrategy, dictOpen) && <MobileTabBar />}
 
       {/* 全局浮层（Task 11）：分类分配 / 新建分类 / 通用确认框。与 `AppShell` 的挂载方式一致，
           用同一份 `useUiStore` 状态；`UpdateDialog` 刻意不挂（Android 禁用 updater）。 */}
