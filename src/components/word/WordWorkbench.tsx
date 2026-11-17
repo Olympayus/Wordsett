@@ -8,9 +8,13 @@ import {
   useDroppable,
   useSensor,
   useSensors,
+  defaultDropAnimation,
+  defaultDropAnimationSideEffects,
   type DragStartEvent,
   type DragOverEvent,
   type DragEndEvent,
+  type Modifier,
+  type DropAnimation,
 } from '@dnd-kit/core'
 import { useWordStore } from '../../stores/wordStore'
 import { useViewStore } from '../../stores/viewStore'
@@ -18,7 +22,7 @@ import { getDefinitions } from '../../services/fieldService'
 import { sortTreeByTemplate, ALLOWED_CHILD_KEYS } from '../../lib/fieldOrder'
 import { visibleTabs, defaultTab, missingTabs, groupRootsByTab, addableLeafKeys, isGroupedTab, TAB_GROUPS, type TabKey } from '../../lib/tabs'
 import { hasFieldChanges } from '../../lib/fieldChanges'
-import { insertBefore, dropY, reorderSiblingIds } from '../../lib/dragReorder'
+import { insertBefore, dropY, reorderSiblingIds, dropVerdict, type DropVerdict } from '../../lib/dragReorder'
 import { selectWordRootItems } from '../../lib/phonetic'
 import { fieldState, containerState, unitState, type FieldState } from '../../lib/fieldState'
 import EmptyState from '../ui/EmptyState'
@@ -29,6 +33,7 @@ import ContextMenu, { type MenuItem } from '../ui/ContextMenu'
 import Icon from '../icons'
 import CategoryCapsule from './CategoryCapsule'
 import DragGhost from './DragGhost'
+import DragChip from './DragChip'
 import PhoneticArea from './PhoneticArea'
 import BacklinksFootnote from './BacklinksFootnote'
 import TabBar from './TabBar'
@@ -174,6 +179,10 @@ interface FieldCardCtx {
   editingId: string | null
   editValue: string
   insertIndicator: InsertIndicator | null
+  /** 当前落点的三态（v0.7.10 任务 6，规格 §7.3）：`insertIndicator.overId` 是目标、本值决定
+   *  目标行出哪一种态（valid → 极浅品牌底、invalid → 暖灰底 + 描边、none → 无行态）。
+   *  只在 `activeDragId` 非空时有意义；松手 / 取消即回 `'none'`。 */
+  dragVerdict: DropVerdict
   /** 正在被拖动的节点 id（v0.7.4 任务 12 起是单位、任务 16 起也可能是行）：LeafFlow 的
    *  单位选中框与页面级的 `dragGhost` 副本解析都读它。 */
   activeDragId: string | null
@@ -272,6 +281,59 @@ const SHEET_TARGET_STYLE: CSSProperties = {
   boxShadow: 'inset 0 0 0 1px var(--color-brand)',
   borderRadius: 'var(--radius-md)',
   background: 'var(--color-brand-softer)',
+}
+
+/**
+ * 拖拽落点三态的行态（v0.7.10 任务 6，规格 §7.3）。
+ *
+ * 与 `SHEET_TARGET_STYLE` / `FlowRow` 的 `focused` 同一形态：内阴影描边 + 圆角 + 底色，
+ * 三者都不进布局，故拖动经过行间时文字不位移、折行点不动（与 v0.5.2 的悬停折行同一个坑）。
+ * - valid：极浅品牌底 + 更浅一档的品牌描边，与插入线一起说「放这里」；
+ * - invalid：暖灰底 + 暖灰描边，与副本的灰描边、chip「仅可同级排序」一起说「这里放不了」。
+ * 两者都取既有 token（`--color-brand-softer` / `--color-brand-soft`、`--color-surface-hover-recessed`
+ * / `--color-border-strong`），深浅两套主题自动跟随，不新增色值。
+ */
+const DROP_TARGET_STYLE: CSSProperties = {
+  boxShadow: 'inset 0 0 0 1px var(--color-brand-soft)',
+  borderRadius: 'var(--radius-md)',
+  background: 'var(--color-brand-softer)',
+}
+
+const DROP_FORBIDDEN_STYLE: CSSProperties = {
+  boxShadow: 'inset 0 0 0 1px var(--color-border-strong)',
+  borderRadius: 'var(--radius-md)',
+  background: 'var(--color-surface-hover-recessed)',
+}
+
+/**
+ * 触摸拖拽的副本偏移（v0.7.10 任务 6，规格 §7.3）：副本上移 48px，悬在手指上方而不是被手指盖住。
+ *
+ * 走 `DragOverlay` 的 `modifiers`（唯一一处偏移）：它作用在 dnd-kit 的浮层 wrapper 上，
+ * chip 与副本在同一个 wrapper 里，自然同偏移；桌面 `modifiers` 传 `undefined`，
+ * wrapper 的 transform 与改动前逐字相同（鼠标环境不会出现这段偏移）。
+ * 不用「overlay 内层加 transform」：内层偏移不改变 wrapper 的 rect，回弹动画会带着偏移落回原位。
+ */
+const TOUCH_OVERLAY_OFFSET_Y = -48
+const touchOverlayOffset: Modifier = ({ transform }) => ({ ...transform, y: transform.y + TOUCH_OVERLAY_OFFSET_Y })
+
+/**
+ * 回弹动画（v0.7.10 任务 6，规格 §7.3）：无效 drop / 取消时，副本要**先恢复非 invalid 样式**
+ * 再回弹。dnd-kit 在拖拽结束时动画的是**上一帧浮层的克隆**，`onDragEnd` 里清状态的那一帧
+ * 来不及反映到克隆上——故在动画开始时直接把两件「画」属性改回来：副本恢复品牌描边与不透明，
+ * chip 收起、不参与回弹。时长 / 缓动 / 源行淡出与 `defaultDropAnimation` 逐字相同。
+ */
+const DRAG_DROP_ANIMATION: DropAnimation = {
+  ...defaultDropAnimation,
+  sideEffects: args => {
+    args.dragOverlay.node.querySelectorAll<HTMLElement>('[data-drag-ghost]').forEach(el => {
+      el.style.borderColor = 'var(--color-brand)'
+      el.style.opacity = '1'
+    })
+    args.dragOverlay.node.querySelectorAll<HTMLElement>('[data-drag-chip]').forEach(el => {
+      el.style.display = 'none'
+    })
+    return defaultDropAnimationSideEffects({ styles: { active: { opacity: '0' } } })(args)
+  },
 }
 
 /**
@@ -400,7 +462,7 @@ function MeasuredInput({ value, font, mark, onChange, onKeyDown }: {
 // v0.7.3：行尾那枚 6px 方点（SourceMark）整个退场，来源只剩左缘那根条（SourceBar，由 FlowRow / LeafFlow 渲染）。
 function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false, barState, barFirst = true, barLast = true, inheritedUser = false, ...ctx }: FieldCardProps) {
   const {
-    defs, editorMode, touch, sheetTargetId, onOpenRowSheet, onOpenUnitSheet, editingId, editValue, insertIndicator, activeDragId, addMenu,
+    defs, editorMode, touch, sheetTargetId, onOpenRowSheet, onOpenUnitSheet, editingId, editValue, insertIndicator, dragVerdict, activeDragId, addMenu,
     onStartEdit, onEditValueChange, onSave, onCancelEdit, onDelete,
     onToggleAddMenu, onPickAdd, hoveredId, onHover, isInLibrary, onJump,
   } = ctx
@@ -457,6 +519,12 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   // 底部表打开期间目标行的临时高亮（v0.7.7 Task 5，spec §3.1）：依据是页面级的 `sheet.id`，
   // 关表即清。与 `focused` 同一形态、底色更浅一档（见模块级的 SHEET_TARGET_STYLE）。
   const isSheetTarget = sheetTargetId === fv.id
+  // 拖拽落点（v0.7.10 任务 6）：`insertIndicator.overId` 指向本行时按三态出其中一种；
+  // `'none'` 或目标不是本行时两态都不出。行态与插入线互斥——invalid 只是不画线（仍在
+  // `insertIndicator` 里记着 overId，供这里判目标），valid 才画线。
+  const isDropOver = insertIndicator?.overId === fv.id
+  const isDropTarget = isDropOver && dragVerdict === 'valid'
+  const isDropForbidden = isDropOver && dragVerdict === 'invalid'
   const isPhonetic = def.key === 'phonetic'
   // 叶子走哪套排版由 lib/fieldKind 的 leafForm 唯一判定（与返回页同一函数）；
   // 表内键回落 'plain'（普通正文）。
@@ -932,7 +1000,7 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
       }}
       style={{ position: 'relative', ...draggingStyle }}
     >
-      {insertIndicator && insertIndicator.overId === fv.id && (
+      {isDropTarget && insertIndicator && (
         <div
           style={{
             position: 'absolute', left: 0, right: 0,
@@ -957,7 +1025,13 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           （来源条 / 义号 / 正文 / 行尾槽，行尾槽 = 来源标 + 操作簇，常驻占位）。
           v0.7.7 Task 5：这一层恰好是**本行**（不含子行）的盒子——底部表打开时把目标行的
           临时高亮挂在这里，子行不会被一起染上；内阴影 + 背景都不进布局，开 / 关零位移。 */}
-      <div style={{ position: 'relative', ...(isSheetTarget ? SHEET_TARGET_STYLE : null) }}>
+      <div style={{
+        position: 'relative',
+        ...(isSheetTarget ? SHEET_TARGET_STYLE : null),
+        // 拖拽落点行态（v0.7.10 任务 6）：只挂在**本行**的盒上（子行不跟着染），内阴影 + 底色都不进布局。
+        ...(isDropTarget ? DROP_TARGET_STYLE : null),
+        ...(isDropForbidden ? DROP_FORBIDDEN_STYLE : null),
+      }}>
         {asGroupHead ? groupHead : (
           <FlowRow
             no={no}
@@ -1033,7 +1107,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               drag={{
                 isDragging: id => activeDragId === id,
                 hoveredId,
-                indicator: insertIndicator,
+                // 只有 valid 才画单位的落点线（v0.7.10 任务 6）：invalid 时 overId 仍在
+                // `insertIndicator` 里记着，但它只用于行态 / chip，不在这里出线。
+                indicator: dragVerdict === 'valid' ? insertIndicator : null,
               }}
               items={(fv.children ?? []).map(ch => ({
                 id: ch.id,
@@ -1124,6 +1200,9 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
   const [saved, setSaved] = useState(false)
   const [fadeIn, setFadeIn] = useState(true)
   const [insertIndicator, setInsertIndicator] = useState<InsertIndicator | null>(null)
+  // 落点三态（v0.7.10 任务 6，规格 §7.3）：'valid' 画插入线 + 目标行品牌底、'invalid' 目标行暖灰禁止态、
+  // 'none' 无行态。与 `insertIndicator` 同步置位——后者在 invalid 时仍记 overId，只是不画线。
+  const [dragVerdictState, setDragVerdictState] = useState<DropVerdict>('none')
   // 正在被拖动的节点 id（v0.7.4 任务 12 的单位、任务 16 的行）：LeafFlow 的 `drag.isDragging`
   // 由它派生——选中框只画在被拖的那一枚上；页面级 `dragGhost` 也用它解析副本内容。不从
   // dnd-kit 的 `useDraggable().isDragging` 取：LeafFlow 是哑组件，拖拽态经 props 进。
@@ -1545,10 +1624,17 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     await deleteFieldValue(fv.id)
   }
 
+  // 清空落点反馈（v0.7.10 任务 6）：行态、插入线、chip 三者同源，必须一起撤，否则会出现
+  // 「行还亮着但线没了」这种半截状态。开始 / 离开目标 / 取消 / 松手都走这一处。
+  const clearDropFeedback = () => {
+    setInsertIndicator(null)
+    setDragVerdictState('none')
+  }
+
   // 拖拽重排（规格 §5.5）：仅同级；拖动中行原位淡出（opacity 0.35 + 极浅品牌底，不缩放、
   // 不投影），跟手的副本由 DragOverlay 画；目标处 2px 品牌色插入线（左端一枚圆点）
   const handleDragStart = (event: DragStartEvent) => {
-    setInsertIndicator(null)
+    clearDropFeedback()
     // 记下被拖节点（v0.7.4 任务 12 的单位、任务 16 的行）：LeafFlow 据此给该单位画选中框。
     setActiveDragId(String(event.active.id))
     // 手机：长按成立、进入拖拽时补一次与行菜单同一个反馈（v0.7.7 Task 6，spec §3.4）。
@@ -1568,25 +1654,31 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
 
   const handleDragOver = (event: DragOverEvent) => {
     const { active, over } = event
-    if (!over) { setInsertIndicator(null); return }
+    if (!over) { clearDropFeedback(); return }
+    const draggedId = String(active.id)
     const targetId = String(over.id).replace(/^drop-/, '')
-    if (targetId === String(active.id)) { setInsertIndicator(null); return }  // 落在自身
-    const dragged = findFieldValueById(String(active.id))
+    const dragged = findFieldValueById(draggedId)
     const target = findFieldValueById(targetId)
-    if (!dragged || !target || dragged.parentId !== target.parentId) {  // 仅同级
-      setInsertIndicator(null)
-      return
-    }
+    if (!dragged || !target) { clearDropFeedback(); return }
+    // 三态判定归 `lib/dragReorder`（v0.7.10 任务 5）：落到自身 → none；父级不同 → invalid；否则 valid。
+    // `sameRow` 的口径就是「落点 id 等于被拖 id」，与 `reorderSiblingIds` 放弃写入的那一条一致。
+    const verdict = dropVerdict(dragged.parentId, target.parentId, targetId === draggedId)
+    if (verdict === 'none') { clearDropFeedback(); return }
+    setDragVerdictState(verdict)
+    // invalid 也记 overId（目标行据此出禁止态），只是渲染层不画插入线；valid 的 before 仍按指针中线算，
+    // 桌面 Pointer / Keyboard 的落点判定与写库路径一字未动。
     setInsertIndicator({ overId: targetId, before: insertBefore(dropYOf(event), over.rect) })
   }
 
   const handleDragCancel = () => {
-    setInsertIndicator(null)
+    clearDropFeedback()
     setActiveDragId(null)
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
-    setInsertIndicator(null)
+    // 先撤三态（v0.7.10 任务 6）：副本在回弹前恢复非 invalid 样式、目标行与 chip 同时清掉。
+    // 下面的写库路径逐字未动——落点仍按指针中线判定，无效 / 自身 / 同级集合已变时仍旧不写。
+    clearDropFeedback()
     setActiveDragId(null)
     const { active, over } = event
     if (!over) return
@@ -1644,6 +1736,8 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     editingId,
     editValue,
     insertIndicator,
+    // 落点三态（v0.7.10 任务 6）：行态与 chip 都读它；`insertIndicator.overId` 只是目标 id。
+    dragVerdict: dragVerdictState,
     activeDragId,
     addMenu,
     onStartEdit: handleStartEdit,
@@ -1857,6 +1951,22 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     if (!text.trim()) return null
     const kind: 'example' | 'plain' = leafForm(def.key) === 'example' ? 'example' : 'plain'
     return { text, kind }
+  })()
+
+  // 跟手提示 chip 的文案（v0.7.10 任务 6，规格 §7.3）：valid 报「插到 / 放到「X」之前 / 之后」，
+  // invalid 报原因；none 不渲染。X 取与副本同一套「用户看到的文字」（值优先、空值回落字段名），
+  // 故行与单位两种落点共用这一处解析。链接标记同样先剥掉。
+  const dragChip = (() => {
+    if (!activeDragId || dragVerdictState === 'none' || !insertIndicator) return null
+    if (dragVerdictState === 'invalid') return { text: '仅可同级排序', invalid: true }
+    const target = findFieldValueById(insertIndicator.overId)
+    const def = target ? defs.find(d => d.id === target.fieldId) : undefined
+    if (!target || !def) return null
+    const label = target.value.trim() ? stripLinks(target.value) : def.name
+    return {
+      text: `${insertIndicator.before ? '插到' : '放到'}「${label}」${insertIndicator.before ? '之前' : '之后'}`,
+      invalid: false,
+    }
   })()
 
   return (
@@ -2095,9 +2205,21 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
               )}
           </div>
           {/* 拖拽副本（v0.7.4 任务 16）：DragOverlay 自己跟随指针，副本只画内容。
-              `dragGhost` 已按 activeDragId 解析好；解析不到时为空，overlay 不渲染任何东西。 */}
-          <DragOverlay>
-            {dragGhost && <DragGhost text={dragGhost.text} kind={dragGhost.kind} />}
+              `dragGhost` 已按 activeDragId 解析好；解析不到时为空，overlay 不渲染任何东西。
+              v0.7.10 任务 6：副本下方挂跟手 chip（valid / invalid 两态），副本本身按 invalid 换灰；
+              触摸时整层上移 48px（modifiers，唯一一处偏移，chip 同层自然跟随）。 */}
+          <DragOverlay modifiers={touch ? [touchOverlayOffset] : undefined} dropAnimation={DRAG_DROP_ANIMATION}>
+            {dragGhost && (
+              <div style={{ position: 'relative', width: 'max-content' }}>
+                <DragGhost text={dragGhost.text} kind={dragGhost.kind} invalid={dragVerdictState === 'invalid'} />
+                {dragChip && (
+                  // 流外绝对定位：chip 不改变浮层 wrapper 的高度，回弹动画的度量与改动前一致。
+                  <div style={{ position: 'absolute', left: 0, top: 'calc(100% + 6px)' }}>
+                    <DragChip text={dragChip.text} invalid={dragChip.invalid} />
+                  </div>
+                )}
+              </div>
+            )}
           </DragOverlay>
         </DndContext>
 

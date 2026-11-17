@@ -13,16 +13,24 @@ import { DashMark } from '../entry/Mark'
  * 任何 transform，否则会与那层平移叠成错位。
  *
  * `--shadow-overlay` 给它是合规的：本仓「阴影只给浮层」，而被拖的行此刻就是浮层。
+ *
+ * `invalid`（v0.7.10 任务 6，规格 §7.3）：落点非法（跨父级）时副本降透明度、描边由品牌蓝换暖灰，
+ * 与目标行的禁止态一起表达「这里放不了」。只改 opacity 与 border-color 两件不进布局的属性；
+ * 两者都带 transition，拖动中进出禁止态时不会跳变（桌面鼠标拖拽同样会经过这一态）。
  */
-export default function DragGhost({ text, kind }: { text: string; kind: 'example' | 'plain' }) {
+export default function DragGhost({ text, kind, invalid = false }: { text: string; kind: 'example' | 'plain'; invalid?: boolean }) {
   return (
     <div
       aria-hidden="true"
+      data-drag-ghost=""
       style={{
-        background: 'var(--color-surface)', border: '1px solid var(--color-brand)',
+        background: 'var(--color-surface)',
+        border: `1px solid ${invalid ? 'var(--color-border-strong)' : 'var(--color-brand)'}`,
         borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-overlay)',
         padding: '5px 10px 5px 11px', fontSize: '15px', lineHeight: ROW_LINE_HEIGHT,
         transform: 'scale(1.02)', width: 'max-content', maxWidth: '42em',
+        opacity: invalid ? 0.55 : 1,
+        transition: 'opacity var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
       }}
     >
       {kind === 'example' ? (
