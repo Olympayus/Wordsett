@@ -13,7 +13,7 @@ use windows::Win32::System::Com::{
     CoCreateInstance, CoInitializeEx, CoUninitialize, CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED,
 };
 use windows::Win32::UI::Accessibility::{
-    CUIAutomation, IUIAutomation, IUIAutomationTextPattern2, UIA_TextPatternId,
+    CUIAutomation, IUIAutomation, IUIAutomationTextPattern, UIA_TextPatternId,
 };
 
 use crate::selection::SelectionError;
@@ -86,10 +86,12 @@ pub fn read_selection() -> Result<String, SelectionError> {
     let element = unsafe { automation.GetFocusedElement() }
         .map_err(|error| map_hresult(error.code()))?;
 
-    // windows 0.58 里这个方法的生成名是 `GetCurrentPatternAs`（对应 UIA 的
-    // IUIAutomationElement::GetCurrentPatternAs）。取不到 TextPattern 即视为
-    // 「该控件不支持文本选区」——这是常态而非异常，故映射成 Unsupported。
-    let pattern: IUIAutomationTextPattern2 =
+    // 必须请求 TextPattern **v1** 接口：Chromium（浏览器网页与控制栏）、RichEdit /
+    // 传统编辑控件的 UIA provider 只实现 ITextProvider，请求 TextPattern2 会得到
+    // E_NOINTERFACE（0x80004002），一切应用都被误判成「不支持」。v1 已提供
+    // `GetSelection` 与 `GetText`，v2 只多了 `GetCaretRange` / `RangeFromAnnotation`，
+    // 本功能不用。
+    let pattern: IUIAutomationTextPattern =
         unsafe { element.GetCurrentPatternAs(UIA_TextPatternId) }.map_err(|error| {
             if error.code() == E_ACCESSDENIED {
                 SelectionError::Denied
@@ -98,7 +100,6 @@ pub fn read_selection() -> Result<String, SelectionError> {
             }
         })?;
 
-    // TextPattern2 继承 TextPattern，`GetSelection` 由 Deref 提供。
     let ranges = unsafe { pattern.GetSelection() }.map_err(|error| map_hresult(error.code()))?;
     let length = unsafe { ranges.Length() }.map_err(|error| map_hresult(error.code()))?;
 
