@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import DictDetailCard, { type DictDetailCardHandle, type CollapseState } from './DictDetailCard'
+import GrabbedSentenceBar from './GrabbedSentenceBar'
 import WordTitleExtras from './WordTitleExtras'
 import SemanticNetwork from './SemanticNetwork'
 import TitleChips, { CollinsStars } from './TitleChips'
@@ -464,6 +465,10 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
             </div>
           ) : (
             <>
+              {/* 划词例句条（v0.7.9）：句子模式带整句打开详情页时出现，让这句话也能
+                  在这里挂到所选释义下（pending 为空时组件自身返回 null）。 */}
+              <GrabbedSentenceBar word={word} fields={fields} />
+
               <DictDetailCard
                 ref={cardRef}
                 word={word}

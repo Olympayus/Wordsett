@@ -3,6 +3,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import { emit } from '@tauri-apps/api/event'
 import { Button } from '../components/ui/Button'
+import RadioMark from '../components/ui/RadioMark'
 import { getWordFreqs } from '../services/lemmaFreq'
 import { lookupWord } from '../services/searchService'
 import { appendExampleUnderDefinition } from '../services/wordService'
@@ -10,6 +11,7 @@ import { ensureWord } from '../lib/ensureWord'
 import { contentCandidates, pickDefaultTarget, tokenize, type TargetCandidate } from '../lib/collectorTarget'
 import {
   collectorMergeInputs,
+  defaultAttachKey,
   definitionGroups,
   leafKeys,
   type DefinitionGroup,
@@ -89,16 +91,6 @@ const ATTACH_ROW_STYLE: CSSProperties = {
   fontSize: '12.5px', lineHeight: 1.5, textAlign: 'left', cursor: 'pointer',
 }
 
-const RADIO_STYLE: CSSProperties = {
-  width: '13px', height: '13px', flexShrink: 0, position: 'relative',
-  borderRadius: 'var(--radius-full)', border: '1.5px solid var(--color-border-strong)',
-}
-
-const RADIO_DOT_STYLE: CSSProperties = {
-  position: 'absolute', inset: '2.5px',
-  borderRadius: 'var(--radius-full)', background: 'var(--color-brand)',
-}
-
 const LOADING_STYLE: CSSProperties = { fontSize: '12.5px', color: 'var(--color-text-tertiary)' }
 const ERROR_STYLE: CSSProperties = { fontSize: '12.5px', color: 'var(--color-danger)' }
 const NOTE_STYLE: CSSProperties = { fontSize: '13px', lineHeight: 1.6, color: 'var(--color-text-secondary)' }
@@ -134,17 +126,8 @@ function highlightSentence(text: string, word: string | null): ReactNode[] {
 
 /**
  * 「整句归入哪个释义」的默认值：第一条中文释义（按树的顺序），没有中文时退回第一条。
- *
- * `definitionGroups` 已把每组的中文排在英文之前，故「第一条中文」＝第一个含中文的组的
- * 第一枚叶子。
+ * 判据在 `lib/collectorTree`（主窗详情页的「划词例句」条共用同一份），这里只做转发。
  */
-function defaultAttachKey(groups: DefinitionGroup[]): string | null {
-  for (const group of groups) {
-    const zh = group.leaves.find(leaf => leaf.label === '中文释义')
-    if (zh) return zh.key
-  }
-  return groups[0]?.leaves[0]?.key ?? null
-}
 
 export interface SentenceView {
   candidates: TargetCandidate[] | null
@@ -372,12 +355,7 @@ function AttachPicker({
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
             >
-              <span style={{
-                ...RADIO_STYLE,
-                ...(active ? { borderColor: 'var(--color-brand)', background: 'var(--color-surface)' } : null),
-              }}>
-                {active && <span style={RADIO_DOT_STYLE} />}
-              </span>
+              <RadioMark active={active} />
               <span style={{ color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>{leaf.label}</span>
               <span style={{ color: 'var(--color-text-tertiary)' }}>·</span>
               <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>{leaf.value}</span>
@@ -389,9 +367,13 @@ function AttachPicker({
   )
 }
 
-const openDictFor = (word: string | null) => {
+/**
+ * 「打开详情页」：句子模式把整句一并交给主窗——详情页的「划词例句」条据此把这句
+ * 挂到用户选定的释义下（与小窗内的能力对齐）。单词模式不传 sentence。
+ */
+const openDictFor = (word: string | null, sentence?: string) => {
   if (!word) return
-  void invoke('collector_open_dict', { word }).catch(e => console.error('[collector] 打开详情页失败', e))
+  void invoke('collector_open_dict', { word, sentence }).catch(e => console.error('[collector] 打开详情页失败', e))
 }
 
 /**
@@ -515,11 +497,11 @@ export function NewSentenceBody({ header, view, selection, outcome }: BodyProps)
 
       {notFound || view.lookupError || view.targetWord === null ? (
         <BottomBar>
-          <Button variant="secondary" onClick={() => openDictFor(view.targetWord)} disabled={!view.targetWord}>打开详情页</Button>
+          <Button variant="secondary" onClick={() => openDictFor(view.targetWord, outcome.text)} disabled={!view.targetWord}>打开详情页</Button>
         </BottomBar>
       ) : (
         <BottomBar hint={showTree ? 'Enter 收录　1–9 换目标词' : undefined}>
-          <Button variant="secondary" onClick={() => openDictFor(view.targetWord)}>打开详情页</Button>
+          <Button variant="secondary" onClick={() => openDictFor(view.targetWord, outcome.text)}>打开详情页</Button>
           <Button onClick={() => { void handleCollect() }} disabled={busy || !canCollect}>收录</Button>
         </BottomBar>
       )}
@@ -603,12 +585,12 @@ export function ExistingSentenceBody({ header, view, selection, outcome }: BodyP
 
       {canCollect ? (
         <BottomBar hint="Enter 收录例句　1–9 换目标词">
-          <Button variant="secondary" onClick={() => openDictFor(view.targetWord)}>打开详情页</Button>
+          <Button variant="secondary" onClick={() => openDictFor(view.targetWord, outcome.text)}>打开详情页</Button>
           <Button onClick={() => { void handleCollect() }} disabled={busy}>收录例句</Button>
         </BottomBar>
       ) : (
         <BottomBar>
-          <Button variant="secondary" onClick={() => openDictFor(view.targetWord)}>打开详情页</Button>
+          <Button variant="secondary" onClick={() => openDictFor(view.targetWord, outcome.text)}>打开详情页</Button>
         </BottomBar>
       )}
     </>

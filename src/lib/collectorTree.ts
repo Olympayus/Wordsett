@@ -73,6 +73,21 @@ export function leafKeys(groups: DefinitionGroup[]): string[] {
 }
 
 /**
+ * 「整句归入哪个释义」的默认值：第一条中文释义（按树的顺序），没有中文时退回第一条。
+ *
+ * `definitionGroups` 已把每组的中文排在英文之前，故「第一条中文」＝第一个含中文的组的
+ * 第一枚叶子。划词小窗（sentenceView）与主窗词典详情页（GrabbedSentenceBar）共用
+ * 这一份判据——两处各写一遍，「默认选中哪条」迟早会漂。
+ */
+export function defaultAttachKey(groups: DefinitionGroup[]): string | null {
+  for (const group of groups) {
+    const zh = group.leaves.find(leaf => leaf.label === '中文释义')
+    if (zh) return zh.key
+  }
+  return groups[0]?.leaves[0]?.key ?? null
+}
+
+/**
  * 新词收录的合并输入（仅限新词：释义与例句在同一次 `mergeWordFields` 里插入，
  * tempId 才能解析）。已在库词的句子收录走 Task 14 的 `appendExampleUnderDefinition`，
  * 绝不复用本函数——把既有释义当 root 输入会插出重复释义。

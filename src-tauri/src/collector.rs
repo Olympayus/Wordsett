@@ -286,14 +286,17 @@ pub fn collector_hide(app: AppHandle) {
     hide(&app);
 }
 
-/// 小窗里点「在词典中打开」：唤回主窗并让它跳到该词的词典详情页。
+/// 小窗里点「打开详情页」：唤回主窗并让它跳到该词的词典详情页。
 ///
 /// 主窗的显示复用 `show_main_window`（含 unminimize）：小窗在屏上时主窗
 /// 可能被最小化到托盘，只 `show` 不会还原。
+///
+/// `sentence` 只在句子模式带值（整句原文）：详情页据此显示「划词例句」条，
+/// 让用户把这句话挂到所选释义的例句下——小窗里能做到的事，详情页里同样能做。
 #[tauri::command]
-pub fn collector_open_dict(app: AppHandle, word: String) {
+pub fn collector_open_dict(app: AppHandle, word: String, sentence: Option<String>) {
     crate::show_main_window(&app);
-    let _ = app.emit_to("main", "open-dict", json!({ "word": word }));
+    let _ = app.emit_to("main", "open-dict", json!({ "word": word, "sentence": sentence }));
 }
 
 /// 本平台是否支持划词收录：目前只有读系统选区的那两个平台。

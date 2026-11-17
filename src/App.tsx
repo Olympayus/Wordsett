@@ -12,6 +12,7 @@ import { useEditGuard } from './lib/useEditGuard'
 import { confirmLeaveEdit } from './lib/editGuard'
 import { useViewStore } from './stores/viewStore'
 import { useWordStore } from './stores/wordStore'
+import { usePendingExampleStore } from './stores/pendingExampleStore'
 import { setProbe, type VoiceProbe } from './lib/review/ttsGate'
 import { resolveTheme, applyTheme, applyWindowTheme } from './lib/theme'
 import { useSettingsStore } from './stores/settingsStore'
@@ -39,13 +40,20 @@ export default function App() {
   // 桌面 AppShell 不渲染该模块，主区域会整块空白，直到用户手动点「工作台」。
   // `showDict` 自带编辑守卫，但此刻刚过 `confirmLeaveEdit()`（已确认放弃或本就干净），
   // 守卫会直接放行，不会二次弹窗。
+  // 句子模式会随事件带上整句：存进 `pendingExampleStore`，详情页据此出「划词例句」条，
+  // 让这句话也能在详情页挂到所选释义下（与小窗内的能力对齐）；单词模式 / 无句子则清空，
+  // 免得上一次抓取的句子在用户下次手动打开同一个词时凭空出现。
   // 只在桌面注册：小窗本身就是桌面专属（手机没有全局热键，见 Rust 的 `#[cfg(desktop)]`）。
   useEffect(() => {
     if (platform !== 'desktop') return
     const unlisten = listen('open-dict', e => {
-      const word = (e.payload as { word: string }).word
+      const { word, sentence } = e.payload as { word: string; sentence?: string | null }
       void confirmLeaveEdit().then(ok => {
-        if (ok) useViewStore.getState().showDict(word)
+        if (!ok) return
+        const text = typeof sentence === 'string' ? sentence.trim() : ''
+        if (text) usePendingExampleStore.getState().set({ word, sentence: text })
+        else usePendingExampleStore.getState().clear()
+        useViewStore.getState().showDict(word)
       })
     })
     return () => { void unlisten.then(f => f()) }
