@@ -11,11 +11,13 @@ interface Props {
   width?: number
   /**
    * v0.6.3 条目 10：true = 点击开合（并支持 Esc / 点外面关闭），false = 仅悬停。
-   * 默认 false 保持既有五个调用点（`FreeScopePanel` 的不计分提示、`SemanticNetwork` 的
-   * 三处 gloss / 关系说明、`WorkbenchNavBar` 的合并添加）行为与改前逐字不变。
+   * 默认 false 保持既有各调用点（`FreeScopePanel` 的不计分提示、`SemanticNetwork` 的
+   * 三处 gloss / 关系说明、`WorkbenchNavBar` 的合并添加等）行为与改前逐字不变。
    * fine pointer 上**聚焦也打开**——只挂 hover 的话键盘用户够不到。
-   * v0.7.10：触摸端的聚焦只是点按的副产物，留着会和 `tapOpen` 的开合抢着开关，故只有
-   * fine pointer 走这条路径；`click` 本身仍是显式声明的开合模式，两端都保留。
+   * v0.7.10：`click` 只在 fine pointer 上生效。触摸端的开合统一收口到 `tapOpen`——
+   * 聚焦只是点按的副产物，留着会和点按开合抢着开关；coarse 下也不再保留 `click` 的触摸入口
+   * （矩阵：`tapOpen` 为假时不渲染任何触摸打开路径，信息由可见文字承载），
+   * 需要触摸提示的调用点在 Task 13 补 `tapOpen`，而不是靠这条旧路径。
    */
   click?: boolean
   /**
@@ -48,10 +50,11 @@ export default function Tooltip({ content, children, width = 300, click = false,
   // 放进 state 初值即可，不必每次 mousemove 重渲染都去问一遍。
   const [coarse] = useState(hasCoarsePointer)
   // 触摸端不挂 hover（点按后浏览器还会补发兼容的 mouseenter / mousemove，挂着会被当成「指针又来了」）；
-  // 聚焦打开同样是触摸路径的副作用，只在 fine pointer 上挂。`click` 是调用点显式声明的开合模式，
-  // 两端都保留；`tapOpen` 只在触摸端生效，桌面即使传了也不改变行为。
+  // 聚焦打开同样是触摸路径的副作用，只在 fine pointer 上挂。
+  // 开合模式按指针分流：fine pointer 只认 `click`（逐字不变），coarse 只认 `tapOpen`——
+  // coarse 下 `click` 不提供触摸入口（矩阵要求），也不会被登记进返回栈。
   const tapToggle = coarse && tapOpen
-  const canToggle = click || tapToggle
+  const canToggle = coarse ? tapToggle : click
 
   // 嵌套 Tooltip：光标落在子级触发器内时（closest 命中 ≠ 自身 currentTarget）不打开，避免双层 portal 叠加
   const showAt = (e: React.MouseEvent) => {
