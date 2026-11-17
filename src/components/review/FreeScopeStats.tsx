@@ -23,7 +23,11 @@ export interface FreeOverview {
  *
  * **只负责画，数据全部由 props 进**：工作区词数来自 `useWordStore().counts.workspace`
  * （由 `FreeScopePanel` 取），`stats` / `overview` 来自 `ReviewModule` 的 `getOverview`。
- * 本组件不发查询、不读 store，桌面上是内容区里的一块静态读数。
+ * 本组件不发查询、不读 store，是内容区里的一块静态读数。
+ *
+ * **两档几何**（v0.7.10 §7.7）：缺省 `desktop`——瓦片 padding 10 / 12、数值 20px、
+ * 熟悉度条高 10；`mobile`——瓦片三列 gap 8、数值 17px、熟悉度条高 8。手机档由
+ * `FreeScopePanel` 的 mobile 分支传入，桌面几何逐字不变。
  *
  * **口径（规格 §7.7）**：近 7 天题数与记得率取自 `stats.recentRatings`（原窗口 14 天，
  * 这里过滤到最近 7 个本地日历日），这份数据来自 `review_logs.rating`，**只反映计分复习**
@@ -31,16 +35,18 @@ export interface FreeOverview {
  * 自由练习本身**不计分、不写 rating**，它的量由「今日已练」（`practiceToday`）单独表达。
  * 两处不是同一个分母，别把它们相加或互相折算。
  */
-export default function FreeScopeStats({ kind, workspaceCount, stats, overview }: {
+export default function FreeScopeStats({ kind, workspaceCount, stats, overview, variant = 'desktop' }: {
   kind: 'random' | 'today'
   /** 工作区词数（复习只认工作区，储藏库词不参与） */
   workspaceCount: number
   stats: ReviewStats
   overview: FreeOverview | null
+  /** 几何档（v0.7.10 T23）：缺省 `desktop`；手机外壳传 `mobile`，桌面调用点不传。 */
+  variant?: 'desktop' | 'mobile'
 }) {
   return kind === 'random'
-    ? <RandomStats workspaceCount={workspaceCount} stats={stats} />
-    : <TodayStats stats={stats} overview={overview} />
+    ? <RandomStats workspaceCount={workspaceCount} stats={stats} variant={variant} />
+    : <TodayStats stats={stats} overview={overview} variant={variant} />
 }
 
 const TILES: React.CSSProperties = { display: 'flex', gap: 10, width: '100%' }
@@ -52,8 +58,8 @@ const BLOCK_LABEL: React.CSSProperties = {
   color: 'var(--color-text-secondary)',
 }
 
-/** 读数瓦片：桌面几何同预览（padding 10 / 12、数值 20px、标签 11px）。 */
-function Tile({ value, label }: { value: number | string; label: string }) {
+/** 读数瓦片：桌面几何同预览（padding 10 / 12、数值 20px、标签 11px）；手机档数值 17px（v0.7.10 T23）。 */
+function Tile({ value, label, mobile }: { value: number | string; label: string; mobile: boolean }) {
   return (
     <div style={{
       flex: 1, minWidth: 0,
@@ -62,7 +68,7 @@ function Tile({ value, label }: { value: number | string; label: string }) {
       borderRadius: 'var(--radius-lg)',
       background: 'var(--color-surface)',
     }}>
-      <div className="stat-num" style={{ fontSize: 20, lineHeight: 1.2 }}>{value}</div>
+      <div className="stat-num" style={{ fontSize: mobile ? 17 : 20, lineHeight: 1.2 }}>{value}</div>
       <div style={{ marginTop: 2, fontSize: 11, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
         {label}
       </div>
@@ -104,7 +110,8 @@ function lastSevenDays(ratings: DayRating[], now: Date = new Date()): DayRating[
  * 题数与记得率都**先过滤到最近 7 个本地日历日**（`recentRatings` 原窗口是 14 天），标签与
  * 数据窗口一致。0 条时显示「—」而不是 0%——0/0 是未定义，写成 0% 会被读成「全忘了」。
  */
-function RandomStats({ workspaceCount, stats }: { workspaceCount: number; stats: ReviewStats }) {
+function RandomStats({ workspaceCount, stats, variant }: { workspaceCount: number; stats: ReviewStats; variant: 'desktop' | 'mobile' }) {
+  const mobile = variant === 'mobile'
   const recent = lastSevenDays(stats.recentRatings)
   const total = recent.reduce((n, r) => n + dayTotal(r), 0)
   // 按当日题量加权，不能对每日记得率取简单平均——那会让只有 1 张的日子与 20 张的日子等权。
@@ -117,17 +124,17 @@ function RandomStats({ workspaceCount, stats }: { workspaceCount: number; stats:
   const denom = Math.max(1, masteryTotal)
   return (
     <div style={{ width: '100%' }}>
-      <div style={TILES}>
-        <Tile value={workspaceCount} label="工作区词数" />
-        <Tile value={total} label="近 7 天练习题数" />
-        <Tile value={rateText} label="近 7 天记得率" />
+      <div style={mobile ? { ...TILES, gap: 8 } : TILES}>
+        <Tile value={workspaceCount} label="工作区词数" mobile={mobile} />
+        <Tile value={total} label="近 7 天练习题数" mobile={mobile} />
+        <Tile value={rateText} label="近 7 天记得率" mobile={mobile} />
       </div>
 
       <div style={BLOCK_LABEL}>熟悉度分布</div>
       {/* 色阶与标签全部来自 masteryScale（与 StatsMini 的 MasteryBuckets 同一处）：
           本文件不写任何色值，避免同一个概念在两处各有一套分档。底轨先铺 --color-border，
           桶全空时这条仍是可见的空条，而不是一条消失的线。 */}
-      <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', background: 'var(--color-border)' }}>
+      <div style={{ display: 'flex', height: mobile ? 8 : 10, borderRadius: mobile ? 4 : 5, overflow: 'hidden', background: 'var(--color-border)' }}>
         {MASTERY_TIER_NAMES.map((_, i) => {
           const n = stats.masteryBuckets[i] ?? 0
           return <div key={i} style={{ width: `${(n / denom) * 100}%`, background: MASTERY_COLORS[i] }} />
@@ -158,15 +165,16 @@ function dueDayLabel(i: number): string {
  * 这里按 8 根固定渲染，缺项补 0——空数组（概览读失败时的兜底）也不会画成一根柱。
  * 「今日已练」增长而「今日到期」不动是重练的本义：练习不推进 `due_at`，读数不为它造「剩余」。
  */
-function TodayStats({ stats, overview }: { stats: ReviewStats; overview: FreeOverview | null }) {
+function TodayStats({ stats, overview, variant }: { stats: ReviewStats; overview: FreeOverview | null; variant: 'desktop' | 'mobile' }) {
+  const mobile = variant === 'mobile'
   const days = Array.from({ length: 8 }, (_, i) => stats.dueByDay[i] ?? 0)
   const max = Math.max(1, ...days)
   return (
     <div style={{ width: '100%' }}>
-      <div style={TILES}>
-        <Tile value={overview?.total ?? 0} label="今日到期" />
-        <Tile value={overview?.dueWordCount ?? 0} label="涉及词数" />
-        <Tile value={overview?.practiceToday ?? 0} label="今日已练" />
+      <div style={mobile ? { ...TILES, gap: 8 } : TILES}>
+        <Tile value={overview?.total ?? 0} label="今日到期" mobile={mobile} />
+        <Tile value={overview?.dueWordCount ?? 0} label="涉及词数" mobile={mobile} />
+        <Tile value={overview?.practiceToday ?? 0} label="今日已练" mobile={mobile} />
       </div>
 
       <div style={BLOCK_LABEL}>今日与未来 7 天到期分布</div>

@@ -72,8 +72,8 @@ export default function FreeScopePanel({ categories, variant = 'desktop', value,
   start?: ReactNode
   /**
    * 自由练习读数块的数（v0.7.10 §7.7 / Task 22）：`getOverview` 的今日到期 / 涉及词数 /
-   * 今日已练。面板原样转给 `FreeScopeStats`，自己不取数；手机分支本任务不渲染它（Task 23）。
-   * 概览尚未读到或读失败时为 null，读数按 0 兜底。
+   * 今日已练。面板原样转给 `FreeScopeStats`，自己不取数；手机分支以紧凑几何渲染同一份数
+   * （Task 23）。概览尚未读到或读失败时为 null，读数按 0 兜底。
    */
   overview: FreeOverview | null
   /** 复习统计（`overview.stats`，`ReviewModule` 负责兜底空值）。`random` 的熟悉度条与 7 天读数用它。 */
@@ -336,12 +336,16 @@ export default function FreeScopePanel({ categories, variant = 'desktop', value,
 
         {/* 内容块（v0.7.10 §7.7、Task 22）：全库随机 = 工作区词数 / 近 7 天读数 / 熟悉度 6 档；
             今日队列重练 = 今日到期 / 涉及词数 / 今日已练 / 未来 8 根到期柱。数据全由 props 进。
-            手机形态由 Task 23 接在范围卡下方，本任务只在桌面分支渲染（mobile 分支不动）。 */}
-        {!mobile && kind === 'random' && (
-          <FreeScopeStats kind="random" workspaceCount={wordCount} stats={stats} overview={overview} />
-        )}
-        {!mobile && kind === 'today' && (
-          <FreeScopeStats kind="today" workspaceCount={wordCount} stats={stats} overview={overview} />
+            桌面在本内容区里渲染；手机由 Task 23 传 `mobile` 紧凑几何——内容区紧跟开始按钮，
+            故它自然落在「范围卡下方、开始按钮之后」，随既有滚动容器滚动。 */}
+        {(kind === 'random' || kind === 'today') && (
+          <FreeScopeStats
+            kind={kind}
+            variant={mobile ? 'mobile' : 'desktop'}
+            workspaceCount={wordCount}
+            stats={stats}
+            overview={overview}
+          />
         )}
 
         {/* 数量：10 / 20 / 50 速选 + 自定义输入（spec §7.7；沿用受控 `limit` 与 min/max 语义）。
