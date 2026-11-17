@@ -1,4 +1,4 @@
-import { dayTotal } from '../../lib/review/trend'
+import { dayTotal, dayAccuracy } from '../../lib/review/trend'
 import { MASTERY_COLORS, MASTERY_TIER_NAMES } from '../../lib/review/masteryScale'
 import type { ReviewStats } from './StatsMini'
 
@@ -72,13 +72,18 @@ function Tile({ value, label }: { value: number | string; label: string }) {
 /**
  * `random`：工作区词数 / 近 7 天题数 / 近 7 天记得率 + 熟悉度 6 档条。
  *
- * 记得率 =（hard + good）/ 总评分数（again + hard + good）：评 2 档及以上都算「还记得」。
+ * 记得率＝`trend.ts` 的 `dayAccuracy`（good / 总评分数，v0.7.2 起「记得率」= rating 3 占比），
+ * 按当日题量加权汇总——与 `StatsMini` 的趋势卡副标题同一算法、同一口径。规格 §7.7 要求
+ * 本块与 `StatsMini`「复习量 / 记得率」同源，故这里不另写一套公式。
  * 0 条时显示「—」而不是 0%——0/0 是未定义，写成 0% 会被读成「全忘了」。
  */
 function RandomStats({ workspaceCount, stats }: { workspaceCount: number; stats: ReviewStats }) {
   const total = stats.recentRatings.reduce((n, r) => n + dayTotal(r), 0)
-  const remembered = stats.recentRatings.reduce((n, r) => n + r.hard + r.good, 0)
-  const rateText = total > 0 ? `${Math.round((remembered / total) * 100)}%` : '—'
+  // 按当日题量加权，不能对每日记得率取简单平均——那会让只有 1 张的日子与 20 张的日子等权。
+  const accuracy = total > 0
+    ? stats.recentRatings.reduce((n, r) => n + dayAccuracy(r) * dayTotal(r), 0) / total
+    : null
+  const rateText = accuracy === null ? '—' : `${Math.round(accuracy * 100)}%`
   const masteryTotal = stats.masteryBuckets.reduce((a, b) => a + b, 0)
   // 桶总和为 0 时归一化基准取 1，避免 0/0；此时所有段宽为 0，底轨仍画出空条。
   const denom = Math.max(1, masteryTotal)
