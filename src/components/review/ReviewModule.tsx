@@ -160,10 +160,13 @@ export default function ReviewModule() {
   // 高度预留一行原因（8 + 31 + 4 + 16 + 8 ≈ 67），置灰原因出现 / 消失时下方策略项不跳动。
   const desktopStart = startState.visible ? (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%', padding: '8px 12px', minHeight: 68 }}>
-      {/* 按钮的 grow 要 flex 父级才能撑满（与 FreeScopePanel 手机分支同一做法）。 */}
+      {/* 按钮的 grow 要 flex 父级才能撑满（与 FreeScopePanel 手机分支同一做法）。
+          tone 用缺省的 canvas：左栏 nav 无底色，最近的有色祖先是 AppShell 的 `--color-canvas`
+          （SquareButton 的 tone 契约按**直接父级**判，surface 只给纯白底），
+          surface 的浅色 hover 压在 canvas 上几乎不可见（评审 fix round 1）。 */}
       <div style={{ display: 'flex', width: '100%' }}>
         <SquareButton
-          tone="surface"
+          tone="canvas"
           grow
           disabled={startState.disabled}
           onClick={() => void (strategy === 'free' ? handleFreeStart(freeSelection) : handleStart())}
