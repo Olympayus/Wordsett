@@ -23,6 +23,7 @@ import { sortTreeByTemplate, ALLOWED_CHILD_KEYS } from '../../lib/fieldOrder'
 import { visibleTabs, defaultTab, missingTabs, groupRootsByTab, addableLeafKeys, isGroupedTab, TAB_GROUPS, type TabKey } from '../../lib/tabs'
 import { hasFieldChanges } from '../../lib/fieldChanges'
 import { insertBefore, dropY, reorderSiblingIds, dropVerdict, appendSiblingIds, endZoneId, parseEndZoneId, endZoneVerdict, type DropVerdict } from '../../lib/dragReorder'
+import { playFlip } from '../../lib/flip'
 import { selectWordRootItems } from '../../lib/phonetic'
 import { fieldState, containerState, unitState, type FieldState } from '../../lib/fieldState'
 import EmptyState from '../ui/EmptyState'
@@ -1063,6 +1064,9 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
     <div
       ref={setRefs}
       data-field-id={fv.id}
+      // FLIP 收敛动画（v0.7.10 任务 8）：重排前按 id 取视觉坐标的锚点。与 data-field-id 分开，
+      // 避免改掉既有 `closest('[data-field-id]')` 的 hover 移交口径。
+      data-flip-id={fv.id}
       data-field-edit={isEditing ? 'true' : undefined}
       onMouseEnter={() => onHover(fv.id)}
       onMouseLeave={(e) => {
@@ -1781,6 +1785,34 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
     setActiveDragId(null)
   }
 
+  // FLIP 收敛动画（v0.7.10 任务 8，规格 §10）：写库前对**同级组**记下视觉坐标
+  // （`data-flip-id` 锚点，行与单位同一约定），写库后 React 提交完一帧再按 `after - before`
+  // 的取反位移把每个元素拉回原位、过渡到零。只在真要写库的分支里捕获，失败 / 取消不播；
+  // 顺序没变（位移为零）的元素由 `playFlip` 自己跳过。视觉坐标也让平板 zoom 不影响位移方向。
+  const siblingFlipSnapshot = (siblings: readonly FieldValue[]) =>
+    siblings.flatMap(s => {
+      const el = document.querySelector<HTMLElement>(`[data-flip-id="${s.id}"]`)
+      return el ? [{ id: s.id, rect: el.getBoundingClientRect() }] : []
+    })
+
+  const playSiblingFlip = (snap: { id: string; rect: { left: number; top: number } }[]) => {
+    if (typeof requestAnimationFrame !== 'function') return  // 非浏览器宿主静默不播
+    // 一帧之后：`await reorderFieldValues` 里的 zustand set 已经排进 React 的调度队列，
+    // 提交在下一帧前完成，此时量到的才是重排后的布局。若提交仍未发生（极端调度），
+    // 新旧坐标相同、`playFlip` 的零位移判定会跳过——宁可不播，也不画错位置。
+    requestAnimationFrame(() => {
+      const els: HTMLElement[] = []
+      const before: { left: number; top: number }[] = []
+      for (const { id, rect } of snap) {
+        const el = document.querySelector<HTMLElement>(`[data-flip-id="${id}"]`)
+        if (!el) continue
+        els.push(el)
+        before.push(rect)
+      }
+      playFlip(els, before)
+    })
+  }
+
   const handleDragEnd = async (event: DragEndEvent) => {
     // 先撤三态（v0.7.10 任务 6）：副本在回弹前恢复非 invalid 样式、目标行与 chip 同时清掉。
     // 下面的写库路径逐字未动——落点仍按指针中线判定，无效 / 自身 / 同级集合已变时仍旧不写。
@@ -1799,8 +1831,14 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
       const siblings = dragged.parentId
         ? (findFieldValueById(dragged.parentId)?.children ?? [])
         : fieldValues.filter(fv => !fv.parentId)
-      const nextIds = appendSiblingIds(siblings.map(s => s.id), dragged.id)
+      const siblingIds = siblings.map(s => s.id)
+      // 与行落点对称的保护（Task 7 评审 Minor①）：被拖 id 不在同级集合 → 不写。
+      // 行落点由 `reorderSiblingIds` 的 null 兜住，末尾区此前少了这一条。
+      if (!siblingIds.includes(dragged.id)) return
+      const nextIds = appendSiblingIds(siblingIds, dragged.id)
+      const flipSnap = siblingFlipSnapshot(siblings)
       await reorderFieldValues(nextIds.map((id, i) => ({ id, displayOrder: i })))
+      playSiblingFlip(flipSnap)
       return
     }
     const targetId = String(over.id).replace(/^drop-/, '')
@@ -1814,7 +1852,9 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
       insertBefore(dropYOf(event), over.rect),
     )
     if (!nextIds) return  // 落点是自身 / 同级集合已变：不写库
+    const flipSnap = siblingFlipSnapshot(siblings)
     await reorderFieldValues(nextIds.map((id, i) => ({ id, displayOrder: i })))
+    playSiblingFlip(flipSnap)
   }
 
   // 头部音标：从 fieldValues 经 defs 反查 key 提取

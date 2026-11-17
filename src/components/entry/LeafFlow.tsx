@@ -206,6 +206,9 @@ function UnitItemDraggable({ id, it, drag, touch }: {
   return (
     <span
       ref={setRef}
+      // FLIP 收敛动画（v0.7.10 任务 8）：单位级重排同样经 `handleDragEnd` 写库，
+      // 故单位元素也给一个按 id 取视觉坐标的锚点（只挂可拖拽变体，返回页无 DndContext）。
+      data-flip-id={id}
       onMouseEnter={it.onEnter}
       onMouseLeave={it.onLeave}
       style={{
