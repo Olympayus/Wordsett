@@ -8,7 +8,8 @@ import type { ReactNode } from 'react'
  * （d4b1bf9）就不再走 `FieldCard`，于是「双击 / 单击进编辑」连同编辑态的输入框一起消失，
  * ⋯ 菜单里的「编辑」设了 `editingId` 也无处渲染。收成这里一处，单位直接复用它。
  *
- * 其余四处仍各写各的（它们的 title 文案与门控各不相同）；改动它们不在本次范围内，
+ * 其余四处仍各写各的手势与门控（v0.7.10 Task 13 起它们与这里的原生 `title` 一并移除，
+ * 本组件的「点击 / 双击编辑」提示改走 `aria-description`）；改动它们不在本次范围内，
  * 但新写可编辑的值请用本组件，不要再抄第五份。
  *
  * 键盘：Enter 与空格都进编辑（与行内正文那份一致；音标那份只认 Enter）。
@@ -35,7 +36,7 @@ export default function EditableValue({ editorMode, touch = false, onStartEdit, 
       onClick={() => !touch && editorMode && onStartEdit()}
       onDoubleClick={() => (touch || !editorMode) && onStartEdit()}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStartEdit() } }}
-      title={title ?? (editorMode ? '点击编辑' : '双击编辑')}
+      aria-description={title ?? (editorMode ? '点击编辑' : '双击编辑')}
       style={{ cursor: 'pointer' }}
     >
       {children}

@@ -143,8 +143,8 @@ export default function WordMultiPicker({ open, categoryName, memberIds, directi
           />
           {/* 全选是**替换**（selectAll 的契约），只覆盖当前列出来的行：搜索态下点它会把
               筛选外的成员移出勾选集。方向是「少移」而非「多移」，确认键的数字永远是真的，
-              但这个作用域得让用户看得见。 */}
-          <Button variant="secondary" title="全选当前列出的单词（会取消筛选外的选择）" onClick={() => setChecked(selectAll(shown.map(w => w.id)))}>全选</Button>
+              这个作用域由按钮文案直接说出来（原生 title 已全站移除），不再靠悬停。 */}
+          <Button variant="secondary" onClick={() => setChecked(selectAll(shown.map(w => w.id)))}>全选当前列出的单词</Button>
           <Button variant="secondary" onClick={() => setChecked(new Set())}>清空</Button>
         </div>
 

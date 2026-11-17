@@ -169,7 +169,6 @@ export default function TopBar() {
         <button
           type="button"
           aria-label="Wordsett 首页"
-          title="Wordsett"
           data-session-guard="home:workbench"
           onClick={showWorkbench}
           style={{
@@ -270,7 +269,6 @@ export default function TopBar() {
         {hasUpdate && (
           <button
             type="button"
-            title="有可用更新，点击查看"
             onClick={() => { void handleUpdateClick() }}
             style={{
               height: 26, marginRight: 6, padding: '0 10px', border: 'none', borderRadius: 'var(--radius-full)',
@@ -284,19 +282,19 @@ export default function TopBar() {
 
         {desktopOnly && (
           <>
-            <button type="button" title="最小化" aria-label="最小化" onClick={() => void appWindow.minimize()}
+            <button type="button" aria-label="最小化" onClick={() => void appWindow.minimize()}
               style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
               <Icon name="minimize" size={14} />
             </button>
-            <button type="button" title={isMaximized ? '还原' : '最大化'} aria-label={isMaximized ? '还原' : '最大化'} onClick={toggleMaximize}
+            <button type="button" aria-label={isMaximized ? '还原' : '最大化'} onClick={toggleMaximize}
               style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
               <Icon name={isMaximized ? 'restore' : 'maximize'} size={14} />
             </button>
-            <button type="button" title="关闭" aria-label="关闭" onClick={() => void appWindow.close()}
+            <button type="button" aria-label="关闭" onClick={() => void appWindow.close()}
               style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-danger)'; e.currentTarget.style.color = 'white' }}
               onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}>

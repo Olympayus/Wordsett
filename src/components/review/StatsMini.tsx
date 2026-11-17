@@ -1,5 +1,6 @@
 import { dayTotal, dayAccuracy, isTrendSparse, subtitleFor, periodFor, splitCaptionNumbers, shortDay } from '../../lib/review/trend'
 import { MASTERY_COLORS, MASTERY_TIER_NAMES } from '../../lib/review/masteryScale'
+import Tooltip from '../ui/Tooltip'
 
 export interface ReviewStats {
   masteryBuckets: number[]
@@ -145,8 +146,11 @@ function DueBars({ data }: { data: number[] }) {
   return (
     <ChartFrame left="今天" right="第 7 天">
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height: '100%' }}>
+        {/* 逐柱读数只有悬停 / 点按能给出：柱高是卡片里唯一不写成文字的量（spec §7.4）。 */}
         {data.map((n, i) => (
-          <div key={i} title={`${i} 天后：${n} 张`} style={{ flex: 1, height: `${Math.max(2, (n / max) * H)}px`, background: 'var(--color-brand)', opacity: 0.75, borderRadius: '2px' }} />
+          <Tooltip key={i} content={`${i} 天后：${n} 张`} tapOpen style={{ flex: 1 }}>
+            <div style={{ width: '100%', height: `${Math.max(2, (n / max) * H)}px`, background: 'var(--color-brand)', opacity: 0.75, borderRadius: '2px' }} />
+          </Tooltip>
         ))}
       </div>
     </ChartFrame>
@@ -186,11 +190,11 @@ function TrendBars({ data }: { data: ReviewStats['recentRatings'] }) {
           const n = dayTotal(r)
           const acc = dayAccuracy(r)
           return (
-            <div
-              key={r.day}
-              title={`${r.day}：${n} 张，记得率 ${Math.round(acc * 100)}%`}
-              style={{ flex: 1, height: `${Math.max(3, (n / max) * H)}px`, background: 'var(--color-brand)', opacity: 0.35 + acc * 0.65, borderRadius: '2px 2px 0 0' }}
-            />
+            <Tooltip key={r.day} content={`${r.day}：${n} 张，记得率 ${Math.round(acc * 100)}%`} tapOpen style={{ flex: 1 }}>
+              <div
+                style={{ width: '100%', height: `${Math.max(3, (n / max) * H)}px`, background: 'var(--color-brand)', opacity: 0.35 + acc * 0.65, borderRadius: '2px 2px 0 0' }}
+              />
+            </Tooltip>
           )
         })}
       </div>

@@ -126,7 +126,7 @@ export default function MobileDictActionBar({
       >
         {hasCrumb && (
           <>
-            <button type="button" title="返回" aria-label="返回" onClick={onBack} style={iconBtn}>
+            <button type="button" aria-label="返回" onClick={onBack} style={iconBtn}>
               <Icon name="arrow-left" size={18} />
             </button>
             {/* 面包屑不再吸满余量：它只按内容占宽、必要时收缩省略，于是后面的归属文案与

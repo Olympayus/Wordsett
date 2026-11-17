@@ -139,13 +139,13 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
     >
       {/* 抽屉钮带 id：抽屉关闭时焦点还回这里（`MobileDrawer` 的 effect 按这个名字找）。
           一个稳定的 id 比 ref 转发短——抽屉不必认识顶栏。 */}
-      <button type="button" id="mobile-drawer-open" title="词库" aria-label="词库" onClick={onOpenDrawer} style={iconBtn()}>
+      <button type="button" id="mobile-drawer-open" aria-label="词库" onClick={onOpenDrawer} style={iconBtn()}>
         <Icon name="layers" size={18} />
       </button>
-      <button type="button" title="上一个词条" aria-label="上一个词条" disabled={!historyBack} onClick={goBack} style={iconBtn(!historyBack)}>
+      <button type="button" aria-label="上一个词条" disabled={!historyBack} onClick={goBack} style={iconBtn(!historyBack)}>
         <Icon name="arrow-left" size={17} />
       </button>
-      <button type="button" title="下一个词条" aria-label="下一个词条" disabled={!historyForward} onClick={goForward} style={iconBtn(!historyForward)}>
+      <button type="button" aria-label="下一个词条" disabled={!historyForward} onClick={goForward} style={iconBtn(!historyForward)}>
         <Icon name="arrow-right" size={17} />
       </button>
 
@@ -188,7 +188,6 @@ export default function MobileAppBar({ onOpenDrawer, editing, onSaveEdit, onCanc
           !dictOpen && (
             <button
               type="button"
-              title="更多操作"
               aria-label="更多操作"
               onClick={() => setMenuOpen(true)}
               style={iconBtn()}

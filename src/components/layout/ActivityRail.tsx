@@ -1,5 +1,6 @@
 import { useViewStore } from '../../stores/viewStore'
 import Icon from '../icons'
+import Tooltip from '../ui/Tooltip'
 
 // 活动栏宽度：内容行第一列。顶栏计算搜索框可用宽度时也要算上它，故导出为常量。
 export const ACTIVITY_RAIL_WIDTH = 46
@@ -35,53 +36,60 @@ export default function ActivityRail() {
         padding: '8px 0', gap: '4px',
       }}
     >
-      <button
-        type="button"
-        title="工作台"
-        aria-label="工作台"
-        data-session-guard="module:workbench"
-        aria-current={activeModule === 'workbench' ? 'page' : undefined}
-        onClick={() => showModule('workbench')}
-        style={btnStyle(activeModule === 'workbench')}
-      >
-        <Icon name="layers" size={17} />
-      </button>
+      {/* 模块名是信息型提示（spec §7.4）：fine pointer 悬停、coarse 点按开合。
+          `aria-label` 保留，`title` 全站移除；设置钮的 `marginTop: auto` 挪到 Tooltip 宿主上，
+          否则包裹层成了 flex 子项、它会落回另外三枚下面。 */}
+      <Tooltip content="工作台" tapOpen>
+        <button
+          type="button"
+          aria-label="工作台"
+          data-session-guard="module:workbench"
+          aria-current={activeModule === 'workbench' ? 'page' : undefined}
+          onClick={() => showModule('workbench')}
+          style={btnStyle(activeModule === 'workbench')}
+        >
+          <Icon name="layers" size={17} />
+        </button>
+      </Tooltip>
 
-      <button
-        type="button"
-        title="储藏库"
-        aria-label="储藏库"
-        data-session-guard="module:archive"
-        aria-current={activeModule === 'archive' ? 'page' : undefined}
-        onClick={() => showModule('archive')}
-        style={btnStyle(activeModule === 'archive')}
-      >
-        <Icon name="box" size={17} />
-      </button>
+      <Tooltip content="储藏库" tapOpen>
+        <button
+          type="button"
+          aria-label="储藏库"
+          data-session-guard="module:archive"
+          aria-current={activeModule === 'archive' ? 'page' : undefined}
+          onClick={() => showModule('archive')}
+          style={btnStyle(activeModule === 'archive')}
+        >
+          <Icon name="box" size={17} />
+        </button>
+      </Tooltip>
 
-      <button
-        type="button"
-        title="复习"
-        aria-label="复习"
-        data-session-guard="module:review"
-        aria-current={activeModule === 'review' ? 'page' : undefined}
-        onClick={() => showModule('review')}
-        style={btnStyle(activeModule === 'review')}
-      >
-        <Icon name="book" size={17} />
-      </button>
+      <Tooltip content="复习" tapOpen>
+        <button
+          type="button"
+          aria-label="复习"
+          data-session-guard="module:review"
+          aria-current={activeModule === 'review' ? 'page' : undefined}
+          onClick={() => showModule('review')}
+          style={btnStyle(activeModule === 'review')}
+        >
+          <Icon name="book" size={17} />
+        </button>
+      </Tooltip>
 
-      <button
-        type="button"
-        title="设置"
-        aria-label="设置"
-        data-session-guard="module:settings"
-        aria-current={activeModule === 'settings' ? 'page' : undefined}
-        onClick={() => showModule('settings')}
-        style={{ ...btnStyle(activeModule === 'settings'), marginTop: 'auto' }}
-      >
-        <Icon name="settings" size={17} />
-      </button>
+      <Tooltip content="设置" tapOpen style={{ marginTop: 'auto' }}>
+        <button
+          type="button"
+          aria-label="设置"
+          data-session-guard="module:settings"
+          aria-current={activeModule === 'settings' ? 'page' : undefined}
+          onClick={() => showModule('settings')}
+          style={btnStyle(activeModule === 'settings')}
+        >
+          <Icon name="settings" size={17} />
+        </button>
+      </Tooltip>
     </nav>
   )
 }

@@ -1,4 +1,5 @@
 import CheckBox from '../components/ui/CheckBox'
+import Tooltip from '../components/ui/Tooltip'
 import FlowRow from '../components/entry/FlowRow'
 import SenseFlow from '../components/entry/SenseFlow'
 import type { SenseGroup } from '../components/entry/SenseFlow'
@@ -102,16 +103,17 @@ export function CollectorTree({ groups, selected, onToggle, forcedKey, checkable
               // 特殊含义。`disabled` 的降透明外观会读成「没选中」，已弃用。
               forced ? (
                 <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span
-                    title="例句将归入此释义"
-                    style={{
-                      fontSize: '10.5px', fontWeight: 600, lineHeight: '16px',
-                      color: 'var(--color-brand)', background: 'var(--color-brand-soft)',
-                      borderRadius: 'var(--radius-full)', padding: '0 6px', whiteSpace: 'nowrap',
-                    }}
-                  >
-                    例句
-                  </span>
+                  <Tooltip content="例句将归入此释义" tapOpen>
+                    <span
+                      style={{
+                        fontSize: '10.5px', fontWeight: 600, lineHeight: '16px',
+                        color: 'var(--color-brand)', background: 'var(--color-brand-soft)',
+                        borderRadius: 'var(--radius-full)', padding: '0 6px', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      例句
+                    </span>
+                  </Tooltip>
                   <CheckBox
                     checked
                     locked

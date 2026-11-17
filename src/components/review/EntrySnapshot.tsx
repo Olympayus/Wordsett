@@ -101,7 +101,6 @@ export default function EntrySnapshot({ wordId, lemma, phonetic }: {
                 <button
                   type="button"
                   onClick={() => void jumpToWord(wordId)}
-                  title="跳转到工作台"
                   style={{
                     border: 'none', background: 'none', padding: 0, cursor: 'pointer',
                     fontSize: '22px', fontWeight: 600, color: 'var(--color-text-primary)',

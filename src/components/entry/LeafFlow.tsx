@@ -231,7 +231,6 @@ function UnitItemDraggable({ id, it, drag, touch }: {
             ref={setActivatorNodeRef}
             {...listeners}
             {...attributes}
-            title="拖动排序"
             aria-label="拖动排序"
             style={{
               ...UNIT_HANDLE,

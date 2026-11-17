@@ -470,7 +470,6 @@ function RowMenu({ items, touch = false, onOpen }: { items: MenuItem[]; touch?: 
     <>
       <button
         type="button"
-        title="更多操作"
         aria-label="更多操作"
         onClick={e => {
           if (onOpen) { onOpen(); return }
@@ -706,7 +705,6 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
         // TouchSensor 激活器挂在 `onTouchStart` 上，不受影响；桌面 PointerSensor 的
         // `onPointerDown` 在 `listeners` 里，此分支只在 `touch` 时存在，桌面事件链逐字不变。
         {...(touch ? { onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => { e.stopPropagation() } } : null)}
-        title="拖动排序"
         aria-label="拖动排序"
         style={{
           width: '10px', height: `${GRIP_HEIGHT}px`, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -852,7 +850,6 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
           role="button"
           tabIndex={0}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStartEdit(fv) } }}
-          title={editorMode ? '点击编辑词性标签' : '双击编辑词性标签'}
           style={{ ...headLabelStyle, cursor: 'pointer' }}
         >
           {fv.value}
@@ -911,7 +908,6 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
             if (e.target !== e.currentTarget) return
             if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStartEdit(fv) }
           } : undefined}
-          title={isGroupPane ? (editorMode ? '点击编辑辨析组标题' : '双击编辑辨析组标题') : undefined}
           style={{
             ...FIELD_LABEL_STYLE,
             minWidth: LABEL_COLUMN_WIDTH, flexShrink: 0,
@@ -1015,7 +1011,6 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onStartEdit(fv) } }}
               role="button"
               tabIndex={0}
-              title={editorMode ? '点击编辑' : '双击编辑'}
               style={{ cursor: 'pointer' }}
             >
               {form === 'example' ? (
@@ -2238,7 +2233,6 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
               {showMoreCapsules && (
                 <button
                   type="button"
-                  title={capsuleExpanded ? '收起分类' : '展开更多分类'}
                   aria-label={capsuleExpanded ? '收起分类' : '展开更多分类'}
                   onClick={() => setCapsuleExpanded(v => !v)}
                   style={{
@@ -2260,7 +2254,6 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
               {/* 「+」虚线圆钮：新建/选择分类（规格 §5.1）。v0.7.7 Task 10：手机上补 44dp 命中区。 */}
               <button
                 type="button"
-                title="添加分类"
                 aria-label="添加分类"
                 onClick={() => { openAssign(selectedWord.id); setCapsuleExpanded(false) }}
                 style={{

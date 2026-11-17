@@ -29,7 +29,6 @@ export default function SpeakButton({ text, size = 17, label = '播放发音', t
   return (
     <button
       type="button"
-      title={label}
       aria-label={label}
       disabled={disabled}
       onMouseEnter={() => setHover(true)}

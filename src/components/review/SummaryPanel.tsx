@@ -376,7 +376,7 @@ function StackedBars({ rows }: { rows: { label: string; n: number }[] }) {
   return (
     <div style={{ display: 'flex', height: 16, borderRadius: 8, overflow: 'hidden' }}>
       {rows.map((r, i) => (
-        <div key={r.label} title={`${r.label} ${r.n}`} style={{ width: `${(r.n / total) * 100}%`, background: colors[i % colors.length] }} />
+        <div key={r.label} style={{ width: `${(r.n / total) * 100}%`, background: colors[i % colors.length] }} />
       ))}
     </div>
   )

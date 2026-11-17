@@ -105,7 +105,6 @@ function TabButton({
       {editorMode && !touch && (
         <button
           type="button"
-          title={`删除「${label}」标签页`}
           aria-label={`删除「${label}」标签页`}
           onClick={() => onDeleteTab(tab)}
           style={{
@@ -175,7 +174,7 @@ export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, o
 
       <div style={{ position: 'relative', marginLeft: 8, marginBottom: 5, marginRight: ENTRY_COLUMN_PADDING_X, flexShrink: 0 }}>
         <button
-          type="button" title="添加标签页" aria-label="添加标签页"
+          type="button" aria-label="添加标签页"
           onClick={() => setAddOpen(v => !v)}
           onMouseEnter={e => { e.currentTarget.style.background = TAB_HOVER_BG; e.currentTarget.style.color = 'var(--color-text-primary)' }}
           onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}

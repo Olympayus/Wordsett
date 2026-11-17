@@ -71,7 +71,6 @@ export function CollectorTitleBar() {
       <button
         type="button"
         aria-label="关闭"
-        title="关闭"
         onClick={() => { void invoke('collector_hide').catch(() => {}) }}
         style={{
           width: '24px', height: '24px', flexShrink: 0, padding: 0,

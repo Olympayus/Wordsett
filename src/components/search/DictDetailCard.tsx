@@ -9,6 +9,7 @@ import type { DisplayFieldKey } from '../../stores/settingsStore'
 import { flattenTree, buildMergeInputs, toggleSubtreeSelection, selectionState, shouldNumberField, countZhEn } from '../../lib/dictPlan'
 import type { FlatNode } from '../../lib/dictPlan'
 import CheckBox from '../ui/CheckBox'
+import Tooltip from '../ui/Tooltip'
 import SenseFlow from '../entry/SenseFlow'
 import type { SenseGroup } from '../entry/SenseFlow'
 import FlowRow from '../entry/FlowRow'
@@ -192,12 +193,13 @@ export default function DictDetailCard({
     const src = node.field.source
     if (!src || (node.field.key !== 'chinese_definition' && node.field.key !== 'english_definition')) return null
     return (
-      <span
-        title={src === 'wordnet' ? '来自 WordNet' : '来自 ECDICT'}
-        style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 11.5, color: 'var(--color-text-tertiary)', flexShrink: 0 }}
-      >
-        {src === 'wordnet' ? '·wn' : '·ec'}
-      </span>
+      <Tooltip content={src === 'wordnet' ? '来自 WordNet' : '来自 ECDICT'} tapOpen>
+        <span
+          style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: 11.5, color: 'var(--color-text-tertiary)', flexShrink: 0 }}
+        >
+          {src === 'wordnet' ? '·wn' : '·ec'}
+        </span>
+      </Tooltip>
     )
   }
 
@@ -360,7 +362,6 @@ export default function DictDetailCard({
   const groupFold = (key: string, collapsed: boolean) => (
     <button
       type="button"
-      title={collapsed ? '展开本组' : '收起本组'}
       aria-label={collapsed ? '展开本组' : '收起本组'}
       aria-expanded={!collapsed}
       onClick={() => toggleGroup(key)}

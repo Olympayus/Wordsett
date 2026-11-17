@@ -191,7 +191,6 @@ export default function SettingsPage({ variant = 'desktop', mobileSection: contr
           {mobileSection && (
             <button
               type="button"
-              title="返回"
               aria-label="返回设置"
               onClick={() => setMobileSection(null)}
               style={mobileIconBtn}

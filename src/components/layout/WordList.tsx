@@ -758,7 +758,7 @@ function GroupHeaderRow({ row, collapsed, folded, onActivate, onContextMenu, onL
   )
 }
 
-/** 批量条上的一颗动作。收起态只留图标，标签进 title 与 aria-label。
+/** 批量条上的一颗动作。收起态只留图标，标签进 aria-label。
  *  收起态内边距 3px（而非展开态的 10px）：四颗图标钮各 20px 宽（12 图标 + 6 内边距 + 2 描边），
  *  连同三道 4px 间距是 92px，装进最窄侧栏 132px 那一行的净宽 98px——「永不折行」的前提，
  *  改这个数前先看批量条那处的算式。展开态是两列网格的子项：撑满半行、内容居中。 */
@@ -772,7 +772,6 @@ function BatchChip({ label, icon, danger, collapsed, onClick }: {
   return (
     <button
       type="button"
-      title={label}
       aria-label={label}
       onClick={onClick}
       style={{

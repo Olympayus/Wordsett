@@ -93,7 +93,7 @@ export default function DataSettings({ variant = 'desktop' }: { variant?: 'deskt
           fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)',
         }}>
           <span>本地数据存储位置</span>
-          <SquareButton tone="surface" size="row" onClick={() => { void handleBrowse() }} title="在系统文件管理器中打开数据目录并选中 wordsett.db">浏览</SquareButton>
+          <SquareButton tone="surface" size="row" onClick={() => { void handleBrowse() }}>浏览</SquareButton>
         </div>
       )}
       {/* 三档词数（v0.7.5 Task 15）：紧贴「本地数据存储位置」的下一行，三个数各套 .stat-num。

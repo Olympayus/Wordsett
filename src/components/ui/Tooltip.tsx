@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { clampMenuPosition } from '../../lib/menuPosition'
 import { hasCoarsePointer } from '../../lib/pointer'
@@ -9,6 +9,12 @@ interface Props {
   content: ReactNode
   children: ReactNode
   width?: number
+  /**
+   * v0.7.10：触发器宿主的额外内联样式。宿主的 `display: inline-flex` 是提示定位的基准，
+   * 默认不参与外层布局；图表柱（`StatsMini`）需要 `flex: 1` 才不被压成零宽，
+   * 活动栏设置钮需要 `marginTop: auto` 才能继续钉在左下角——这两处由调用点补。
+   */
+  style?: CSSProperties
   /**
    * v0.7.10：面板最小宽（px），默认不设。`width` 是 maxWidth，气泡按内容收缩；
    * 多行说明面板（设置页 §7.3）沿用旧的固定 320，传 `minWidth` 与 `width` 同值即可钉住。
@@ -38,7 +44,7 @@ interface Props {
 }
 
 // 统一悬浮说明：定位 + 样式与语义网络既有 glossPop 一致（spec §4a）
-export default function Tooltip({ content, children, width = 300, minWidth, click = false, tapOpen = false }: Props) {
+export default function Tooltip({ content, children, width = 300, minWidth, style, click = false, tapOpen = false }: Props) {
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   // 「已被用户显式关掉、指针还没离开触发器」。Esc 与点回触发器都置位，
   // **只由指针进出触发器（mouseEnter / mouseLeave）或再次点开来解除**——
@@ -139,7 +145,7 @@ export default function Tooltip({ content, children, width = 300, minWidth, clic
   return (
     <span
       ref={hostRef}
-      style={{ display: 'inline-flex' }}
+      style={{ display: 'inline-flex', ...style }}
       data-tooltip-trigger
       onMouseDown={click && !coarse ? () => {
         // 焦点若还在触发器之外，这次按下会把焦点挪进来——focus 在 click 之前派发并开窗，

@@ -10,6 +10,7 @@ import {
   isModifierKeyEvent,
 } from '../../lib/hotkey'
 import Icon from '../icons'
+import Tooltip from '../ui/Tooltip'
 
 /**
  * 设置页「划词」分区（v0.7.9 Task 16，spec §5.6）。
@@ -258,7 +259,6 @@ export default function CollectSettings() {
         <div style={{ flex: 1, minWidth: 0, ...labelStyle }}>抓词热键</div>
         <button
           type="button"
-          title="恢复默认"
           aria-label="恢复默认"
           onClick={resetToDefault}
           onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
@@ -284,11 +284,8 @@ export default function CollectSettings() {
         </div>
       )}
       {error && (
-        <div
-          title={errorDetail ?? undefined}
-          style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)', padding: '4px 0 6px' }}
-        >
-          {error}
+        <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-danger)', padding: '4px 0 6px' }}>
+          {errorDetail ? <Tooltip content={errorDetail} tapOpen><span>{error}</span></Tooltip> : error}
         </div>
       )}
 

@@ -61,7 +61,6 @@ function StatRow({ row, kind, onJump }: {
   return (
     <button
       type="button"
-      title={`${row.lemma}：${row.count} 条${label}`}
       aria-label={`${row.lemma}，${row.count} 条${label}`}
       onClick={() => { void onJump({ target: row.lemma, kind: 'library' }) }}
       // 行悬停在 raised 面上：走凹陷档（--color-surface-hover 压上去只差 0.13 L*，

@@ -1,5 +1,6 @@
 import { accuracyText } from '../../lib/review/scopeLabel'
 import { consoleLines } from '../../lib/reviewConsoleLines'
+import Tooltip from '../ui/Tooltip'
 
 /**
  * 左栏顶部小控制台（v0.6.1 §3.1，v0.6.2 §4.1 扩容，v0.6.3 条目 1、2 重排）。
@@ -91,11 +92,14 @@ export default function ReviewConsole({ overview, weakCount, session }: {
         fontFamily: 'var(--font-serif)', fontSize: '15px', fontWeight: 700,
         color: 'var(--color-warm-deep)', lineHeight: 1.25,
       }}>今日</div>
-      <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--ink-1)' }} title="到期积压不受「新词额度」与「队列上限」影响">
-        {lines[0].map((seg, i) => seg.kind === 'num'
-          ? <span key={i} className="stat-num">{seg.text}</span>
-          : <span key={i}>{seg.text}</span>)}
-      </div>
+      {/* 说明是信息型：悬停 / 触摸点按开合都走统一 Tooltip（spec §7.4）。 */}
+      <Tooltip content="到期积压不受「新词额度」与「队列上限」影响" tapOpen>
+        <div style={{ fontSize: '16px', fontWeight: 600, color: 'var(--ink-1)' }}>
+          {lines[0].map((seg, i) => seg.kind === 'num'
+            ? <span key={i} className="stat-num">{seg.text}</span>
+            : <span key={i}>{seg.text}</span>)}
+        </div>
+      </Tooltip>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: '5px', fontSize: '11px', color: 'var(--ink-2)' }}>
         {lines.slice(1).map((line, li) => (
           <span key={li}>

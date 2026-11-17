@@ -54,7 +54,6 @@ export default function BacklinksFootnote({ lemma }: { lemma: string }) {
           >
             <button
               type="button"
-              title={`打开「${item.sourceLemma}」`}
               onClick={() => jump({ target: item.sourceLemma, kind: 'library' })}
               style={{
                 border: 'none', background: 'transparent', padding: 0,

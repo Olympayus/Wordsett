@@ -320,7 +320,7 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
             borderBottom: '1px solid var(--color-border)',
           }}
         >
-          <button type="button" title="返回" aria-label="返回" onClick={handleMobileBack} style={mobileTopIconBtn}>
+          <button type="button" aria-label="返回" onClick={handleMobileBack} style={mobileTopIconBtn}>
             <Icon name="arrow-left" size={18} />
           </button>
           {/* 面包屑：`flex:1` 吃掉中间余量并省略号收尾（与 MobileAppBar 的标题同一条处理） */}

@@ -48,11 +48,11 @@ export default function ArenaNavBar({ index, total, canBack, canForward, onBack,
       background: 'var(--color-surface)',
       borderBottom: '1px solid var(--color-border)',
     }}>
-      <button type="button" title="上一题" aria-label="上一题" disabled={!canBack}
+      <button type="button" aria-label="上一题" disabled={!canBack}
         onClick={onBack} onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={navBtn(!canBack)}>
         <Icon name="arrow-left" size={15} />
       </button>
-      <button type="button" title="下一题" aria-label="下一题" disabled={!canForward}
+      <button type="button" aria-label="下一题" disabled={!canForward}
         onClick={onForward} onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={navBtn(!canForward)}>
         <Icon name="arrow-right" size={15} />
       </button>

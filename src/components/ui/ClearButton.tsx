@@ -19,7 +19,6 @@ export default function ClearButton({ visible, onClick, label = '清除输入' }
     <button
       type="button"
       aria-label={label}
-      title={label}
       tabIndex={visible ? 0 : -1}
       onClick={onClick}
       style={{

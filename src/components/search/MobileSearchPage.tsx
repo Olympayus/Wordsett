@@ -130,7 +130,7 @@ export default function MobileSearchPage() {
           borderBottom: '1px solid var(--color-border)',
         }}
       >
-        <button type="button" title="返回" aria-label="返回" onClick={back} style={iconBtn}>
+        <button type="button" aria-label="返回" onClick={back} style={iconBtn}>
           <Icon name="arrow-left" size={18} />
         </button>
 

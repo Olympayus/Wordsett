@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import Icon from '../icons'
+import Tooltip from '../ui/Tooltip'
 
 /**
  * 启动级热键错误的顶部提示条（v0.7.9 Task 16，spec §5.6）。
@@ -39,8 +40,6 @@ export default function CollectBanner() {
   return (
     <div
       role="status"
-      // Rust 的错误原文（含底层插件原因）只放在 tooltip 里，正文永远是固定短句。
-      title={detail}
       style={{
         display: 'flex', alignItems: 'center', gap: 8,
         padding: '8px 16px', flexShrink: 0,
@@ -52,10 +51,12 @@ export default function CollectBanner() {
       <span style={{ display: 'flex', flexShrink: 0, color: 'var(--color-danger)' }}>
         <Icon name="alert" size={14} />
       </span>
-      <span style={{ flex: 1, minWidth: 0 }}>{BANNER_TEXT}</span>
+      {/* Rust 的错误原文（含底层插件原因）只进统一 Tooltip，正文永远是固定短句。 */}
+      <span style={{ flex: 1, minWidth: 0 }}>
+        <Tooltip content={detail} tapOpen>{BANNER_TEXT}</Tooltip>
+      </span>
       <button
         type="button"
-        title="关闭"
         aria-label="关闭提示"
         onClick={() => setDismissed(true)}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}

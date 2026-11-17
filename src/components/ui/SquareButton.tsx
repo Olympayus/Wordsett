@@ -145,7 +145,6 @@ interface Props {
   children: ReactNode
   onClick: () => void
   disabled?: boolean
-  title?: string
   /** 编者模式类的形态开关：true 时底色转为品牌蓝的浅一阶（BRAND_ACTIVE）。语义由调用方通过 role/aria-checked 承载 */
   pressed?: boolean
   size?: ButtonSize
@@ -191,7 +190,7 @@ interface Props {
   highlight?: boolean
 }
 
-export default function SquareButton({ children, onClick, disabled, title, pressed, size = 'default', tone = 'canvas', grow, minWidth, role, 'aria-checked': ariaChecked, 'aria-label': ariaLabel, 'aria-keyshortcuts': ariaKeyshortcuts, highlight }: Props) {
+export default function SquareButton({ children, onClick, disabled, pressed, size = 'default', tone = 'canvas', grow, minWidth, role, 'aria-checked': ariaChecked, 'aria-label': ariaLabel, 'aria-keyshortcuts': ariaKeyshortcuts, highlight }: Props) {
   // hover 必须用 JS 模拟：项目视觉一律走内联 style，不引 CSS class（见文件头注释）。
   const [hover, setHover] = useState(false)
   const on = Boolean(pressed)
@@ -200,7 +199,6 @@ export default function SquareButton({ children, onClick, disabled, title, press
   return (
     <button
       type="button"
-      title={title}
       disabled={disabled}
       role={role}
       aria-checked={ariaChecked}

@@ -181,7 +181,6 @@ function ChipBody(props: {
           onClick={() => !touch && editorMode && props.onStartEdit(fv)}
           onDoubleClick={() => (touch || !editorMode) && props.onStartEdit(fv)}
           onKeyDown={e => { if (e.key === 'Enter') props.onStartEdit(fv) }}
-          title={touch || !editorMode ? '双击编辑' : '点击编辑'}
           // 触摸下这里才是命中区的包含块（`position: relative`）：覆盖层挂在正文 span 内部，
           // 点击 / 长按都照常冒泡到本 span 与 chip 本体。放在 chip 根上会盖住正文、把
           // 「点击编辑」也一起挡住（绝对定位层压在非定位子元素之上）。
@@ -210,15 +209,15 @@ function ChipBody(props: {
         <span aria-hidden="true" style={{ width: ACTION_CLUSTER_WIDTH, flexShrink: 0, visibility: 'hidden', pointerEvents: 'none' }} />
       ) : editorMode ? (
         <span style={reveal(hovered)}>
-          <button type="button" title="编辑" onClick={() => props.onStartEdit(fv)} style={iconBtn}><Icon name="edit" size={12} /></button>
-          <button type="button" title="删除" onClick={() => props.onDelete(fv)} style={iconBtn}><Icon name="trash" size={12} /></button>
+          <button type="button" aria-label="编辑" onClick={() => props.onStartEdit(fv)} style={iconBtn}><Icon name="edit" size={12} /></button>
+          <button type="button" aria-label="删除" onClick={() => props.onDelete(fv)} style={iconBtn}><Icon name="trash" size={12} /></button>
         </span>
       ) : (
         // 普通模式只有一枚 ⋯，但外框仍占满 ACTION_CLUSTER_WIDTH 并右对齐——三种形态
         // （普通 / 编者 / 编辑中）宽度逐字相同，切换模式时 chip 与后继内容零位移。
         <span style={{ ...reveal(rowHover), position: 'relative', display: 'inline-flex', width: ACTION_CLUSTER_WIDTH, flexShrink: 0, justifyContent: 'flex-end' }}>
           <button
-            type="button" title="更多操作"
+            type="button" aria-label="更多操作"
             onClick={() => props.onMenu(menuOpenId === fv.id ? null : fv.id)}
             style={iconBtn}
           >
@@ -296,7 +295,7 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
   // v0.7.7 Task 9：手机上不渲染（不是藏起来）——触摸下没有 hover，白占一格且按不中。
   const addTitle = addLabel.replace(/^\+\s*/, '')
   const addControl = touch ? null : (
-    <button type="button" title={addTitle} aria-label={addTitle} onClick={onAdd}
+    <button type="button" aria-label={addTitle} onClick={onAdd}
       style={{ ...iconBtn, ...reveal(rowHover) }}>
       <Icon name="plus" size={12} />
     </button>

@@ -124,7 +124,6 @@ export default function WorkbenchNavBar({
     >
       <button
         type="button"
-        title={region === 'dict' ? '返回' : '上一个词条'}
         aria-label={region === 'dict' ? '返回' : '上一个词条'}
         disabled={region === 'workbench' && !canBack}
         onClick={() => region === 'dict' ? onBack?.() : goBack()}
@@ -159,7 +158,6 @@ export default function WorkbenchNavBar({
       {region === 'workbench' && (
         <button
           type="button"
-          title="下一个词条"
           aria-label="下一个词条"
           disabled={!canForward}
           onClick={goForward}
@@ -230,7 +228,7 @@ export default function WorkbenchNavBar({
             </SquareButton>
 
             <button
-              type="button" title="删除词条" aria-label="删除词条" onClick={onDeleteWord}
+              type="button" aria-label="删除词条" onClick={onDeleteWord}
               onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)'; e.currentTarget.style.color = 'var(--color-danger)' }}
               onMouseLeave={hoverOff}
               style={navBtn()}

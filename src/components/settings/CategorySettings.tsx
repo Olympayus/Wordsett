@@ -57,25 +57,25 @@ function CategoryRow({ cat, counts, onEdit, onDelete, onBatchAdd, onBatchRemove 
         )}
       </span>
       {/* 批量两枚按钮排在编辑之前：紧邻分类名，「加一批 / 减一批」先于「改这个分类本身」 */}
-      <button type="button" title={`批量加入「${cat.name}」`} aria-label={`批量加入「${cat.name}」`} onClick={onBatchAdd}
+      <button type="button" aria-label={`批量加入「${cat.name}」`} onClick={onBatchAdd}
         style={{ ...btnBase, color: hovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
         <Icon name="plus" size={16} />
       </button>
-      <button type="button" title={`批量移出「${cat.name}」`} aria-label={`批量移出「${cat.name}」`} onClick={onBatchRemove}
+      <button type="button" aria-label={`批量移出「${cat.name}」`} onClick={onBatchRemove}
         style={{ ...btnBase, color: hovered ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)' }}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
         <Icon name="minus" size={16} />
       </button>
-      <button type="button" title="编辑分类" aria-label="编辑分类" onClick={onEdit}
+      <button type="button" aria-label="编辑分类" onClick={onEdit}
         style={{ ...btnBase, color: hovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
         onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
         <Icon name="edit" size={16} />
       </button>
-      <button type="button" title="删除分类" aria-label="删除分类" onClick={onDelete}
+      <button type="button" aria-label="删除分类" onClick={onDelete}
         style={{ ...btnBase, color: hovered ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}
         onMouseEnter={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--color-danger) 8%, transparent)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>

@@ -148,7 +148,7 @@ export default function MobileDrawer({ open, onClose }: Props) {
             borderBottom: '1px solid var(--color-border)',
           }}
         >
-          <button type="button" title="关闭" aria-label="关闭" onClick={onClose}
+          <button type="button" aria-label="关闭" onClick={onClose}
             onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={iconBtn()}>
             <Icon name="close" size={17} />
           </button>
@@ -163,12 +163,12 @@ export default function MobileDrawer({ open, onClose }: Props) {
           </div>
           {/* 多选 / 模式切换：桌面同款 icon 钮（`SidebarToolbar` 的 `iconBtn` 配方），
               只是宿主从侧栏工具条换成抽屉标题。多选经 ref 进 `WordList`，模式切换走 store。 */}
-          <button type="button" title="多选" aria-label="多选" aria-pressed={false}
+          <button type="button" aria-label="多选" aria-pressed={false}
             onClick={() => listRef.current?.toggleSelectMode()}
             onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={iconBtn()}>
             <Icon name="check-square" size={16} />
           </button>
-          <button type="button" title="切换显示模式" aria-label="切换显示模式"
+          <button type="button" aria-label="切换显示模式"
             onClick={() => setSidebarMode(mode === 'alphabet' ? 'category' : 'alphabet')}
             onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={iconBtn()}>
             <Icon name="swap" size={16} />

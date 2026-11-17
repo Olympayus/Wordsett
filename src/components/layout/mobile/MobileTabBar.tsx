@@ -133,7 +133,6 @@ export default function MobileTabBar() {
             <button
               key={tab.key}
               type="button"
-              title="搜索"
               aria-label="搜索"
               aria-current={on ? 'page' : undefined}
               onClick={() => click(tab.key)}
@@ -147,7 +146,6 @@ export default function MobileTabBar() {
           <button
             key={tab.key}
             type="button"
-            title={tab.label}
             aria-label={tab.label}
             aria-current={on ? 'page' : undefined}
             onClick={() => click(tab.key)}

@@ -144,7 +144,6 @@ export default function GrabbedSentenceBar({ word, fields }: {
         </button>
         <button
           type="button"
-          title="关闭，不加入例句"
           aria-label="关闭划词例句"
           onClick={dismiss}
           style={{

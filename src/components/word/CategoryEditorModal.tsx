@@ -115,7 +115,7 @@ export default function CategoryEditorModal({ open, category, wordId, onClose, o
             {category ? '编辑分类' : '新建分类'}
           </div>
           <button
-            type="button" aria-label="关闭" title="关闭" onClick={onClose}
+            type="button" aria-label="关闭" onClick={onClose}
             style={{ width: '28px', height: '28px', border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
             onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
             onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}

@@ -309,7 +309,6 @@ export function TargetRow({ view }: { view: SentenceView }) {
             key={candidate.word}
             type="button"
             aria-pressed={active}
-            title={`${i + 1} ${candidate.word}`}
             onClick={() => view.switchTarget(i)}
             style={active
               ? {
