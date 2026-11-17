@@ -41,6 +41,15 @@ export function usesMobileShell(p: PlatformClass): boolean {
   return p === 'android-phone'
 }
 
+/**
+ * 只有 Android 平板注册返回栈（v0.7.10）：手机在 `MobileShell` 里注册，桌面没有返回键。
+ * 与 `usesMobileShell` 分开命名——「用哪套外壳」与「要不要接系统返回」是两件事，
+ * 将来若手机外壳换了承载方式，这里的判据不该跟着变。
+ */
+export function isAndroidTablet(p: PlatformClass): boolean {
+  return p === 'android-tablet'
+}
+
 /** 平板缩放：参考宽度以下为 `width / TABLET_REFERENCE_WIDTH`，夹在 `TABLET_MIN_ZOOM` 与 1 之间。 */
 export function tabletZoom(width: number): number {
   return Math.min(Math.max(width / TABLET_REFERENCE_WIDTH, TABLET_MIN_ZOOM), 1)

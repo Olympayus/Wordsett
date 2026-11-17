@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { resolvePlatform, usesMobileShell, tabletZoom, tabletLayout, orientationFor, PHONE_MAX_WIDTH, TABLET_MIN_WIDTH } from './platform'
+import { resolvePlatform, usesMobileShell, isAndroidTablet, tabletZoom, tabletLayout, orientationFor, PHONE_MAX_WIDTH, TABLET_MIN_WIDTH } from './platform'
 
 const env = (width: number, isAndroid = true) => ({ isTauri: true, isAndroid, width, height: 844 })
 
@@ -15,6 +15,11 @@ describe('platform', () => {
   it('只有手机用移动外壳', () => {
     expect(usesMobileShell('android-phone')).toBe(true)
     expect(usesMobileShell('android-tablet')).toBe(false)
+  })
+  it('只有 Android 平板注册返回栈', () => {
+    expect(isAndroidTablet('android-tablet')).toBe(true)
+    expect(isAndroidTablet('android-phone')).toBe(false)
+    expect(isAndroidTablet('desktop')).toBe(false)
   })
   it('平板缩放触底 0.85、参考宽度以上为 1', () => {
     expect(tabletZoom(1024)).toBe(0.85)

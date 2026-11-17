@@ -1,8 +1,8 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import TopBar from './TopBar'
 import WordList from './WordList'
 import SidebarFooter from './SidebarFooter'
-import WordWorkbench from '../word/WordWorkbench'
+import WordWorkbench, { type WordWorkbenchHandle } from '../word/WordWorkbench'
 import DictDetailPanel from '../search/DictDetailPanel'
 import { useWordStore } from '../../stores/wordStore'
 import { useViewStore } from '../../stores/viewStore'
@@ -19,6 +19,8 @@ import ConfirmDialog from '../ui/ConfirmDialog'
 import FindBar, { registerFindKeyHandler } from '../ui/FindBar'
 import { fitCollapsedWidth, measureMaxWordWidth, resolveSidebarWordFont, COLLAPSED_CHROME_ALPHABET, COLLAPSED_CHROME_CATEGORY, SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
 import { usePlatformClass, useTabletLayout } from '../../lib/usePlatform'
+import { isAndroidTablet } from '../../lib/platform'
+import { useAndroidBackStack } from './useAndroidBackStack'
 import { useCloseRequest } from '../../lib/tray/useCloseRequest'
 import { useQuitRequest } from '../../lib/useQuitRequest'
 
@@ -29,6 +31,22 @@ interface AppShellProps {
    * 缩放后会在底部留一条空白），侧栏展开宽度跟 `tabletLayout` 走（窄档 240）。
    */
   tablet?: boolean
+}
+
+/**
+ * 平板返回栈（v0.7.10 Task 4）：`android-tablet` 才挂载。
+ *
+ * 桌面也渲染 `AppShell`，而 hook 不能在条件里调用，故用这个只负责条件挂载的空组件——
+ * 平板没有抽屉与设置子页，传 `false` / `null`，那两层永远不会进栈，关闭动作也就不会到达。
+ */
+function TabletBackStack({ editing, cancelEdit }: { editing: boolean; cancelEdit: () => void }) {
+  useAndroidBackStack({
+    editing,
+    drawerOpen: false,
+    settingsSection: null,
+    actions: { cancelEdit, closeDrawer: () => {}, closeSettingsSub: () => {} },
+  })
+  return null
 }
 
 export default function AppShell({ tablet = false }: AppShellProps) {
@@ -44,8 +62,20 @@ export default function AppShell({ tablet = false }: AppShellProps) {
   // 触摸语义（v0.7.8 Task 4）：布局分支只看 `chrome`，触摸分支只看这个 prop——两者刻意分开。
   // 只有 `android-tablet` 为真：手机走 `MobileShell`（那里的触摸由 `chrome='mobile'` /
   // `'drawer'` 推出），桌面恒为 false（长按 / 拖拽 / 行尾簇逐字不变）。
+  // 返回栈（v0.7.10 Task 4）与编辑态上报共用同一判据：只有平板接系统返回键。
   const platform = usePlatformClass()
-  const touch = platform === 'android-tablet'
+  const androidTablet = isAndroidTablet(platform)
+  const touch = androidTablet
+
+  // 词条页的编辑态（v0.7.10 Task 4）：平板要把它压进返回栈（返回键先退编辑）。
+  // 编辑态只存在于 `WordWorkbench` 体内，由它经 `onEditStateChange` 上报；保存 / 取消也经
+  // 它的 `ref` 调用——外壳只持有「谁在编辑」，不复制编辑逻辑（与 `MobileShell` 同一套做法）。
+  const [editing, setEditing] = useState(false)
+  const workbenchRef = useRef<WordWorkbenchHandle>(null)
+  const cancelEdit = useCallback(() => { workbenchRef.current?.cancelEdit() }, [])
+  // 恒定引用：`WordWorkbench` 的卸载 effect 以它为依赖（cleanup 会报 null），
+  // 内联箭头会让每次父级重渲都误报一次「退出编辑」，返回栈因此丢掉编辑层。
+  const onEditStateChange = useCallback((s: { dirty: boolean } | null) => setEditing(!!s), [])
 
   // D1：收起宽度 = clamp(最长单词渲染宽度 + 实际 chrome, COLLAPSED_MIN_WIDTH(132px), 240px)，加词/删词重算，过渡走统一动效档
   const sidebarWidth = useMemo(() => {
@@ -81,6 +111,10 @@ export default function AppShell({ tablet = false }: AppShellProps) {
         ? { background: 'var(--color-canvas)', height: '100%' }
         : { background: 'var(--color-canvas)' }}
     >
+      {/* 平板返回栈（v0.7.10 Task 4）：只在 `android-tablet` 挂载，手机在 `MobileShell` 里挂。
+          桌面因此不受任何影响（不订阅返回键、不读编辑态）。 */}
+      {androidTablet && <TabletBackStack editing={editing} cancelEdit={cancelEdit} />}
+
       {/* 划词热键启动失败提示条（v0.7.9 Task 16）：只在桌面出现——`take_startup_error`
           是桌面命令，平板（Android）构建里根本没有它。一次性读取，可关闭。 */}
       {platform === 'desktop' && <CollectBanner />}
@@ -131,7 +165,15 @@ export default function AppShell({ tablet = false }: AppShellProps) {
           <main data-find-root={activeModule === 'archive' ? 'archive' : 'workbench'} className="flex-1 overflow-hidden">
             {activeView === 'dict' && dictWord
               ? <DictDetailPanel word={dictWord} />
-              : <WordWorkbench touch={touch} />}
+              : (
+                <WordWorkbench
+                  ref={workbenchRef}
+                  touch={touch}
+                  // 编辑态上报只给平板（手机由 `MobileShell` 接）：桌面传了只会让它每次进出
+                  // 编辑都白重渲一次外壳，而桌面没有返回栈要这份状态。
+                  onEditStateChange={androidTablet ? onEditStateChange : undefined}
+                />
+              )}
           </main>
         </div>
 
