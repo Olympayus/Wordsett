@@ -435,7 +435,10 @@ export function NewSentenceBody({ header, view, selection, outcome }: BodyProps)
 
   const handleCollect = useCallback(async () => {
     if (view.busyRef.current || !view.target || !selection.attachKey || view.allKeys.length === 0) return
-    const inputs = collectorMergeInputs(view.fields, selection.selected, {
+    // 用户裁定（v0.7.9）：句子模式的收录**只写「归属的那一条释义 + 例句」**——
+    // 此前按勾选集写入（默认为全选），收一句会把该词全部义项一并塞进词条。
+    // 句子的价值在于例句本身；写哪条释义由「整句归入哪个释义」唯一决定。
+    const inputs = collectorMergeInputs(view.fields, new Set([selection.attachKey]), {
       text: outcome.text, leafKey: selection.attachKey,
     })
     if (inputs.length === 0) return
@@ -487,6 +490,7 @@ export function NewSentenceBody({ header, view, selection, outcome }: BodyProps)
               selected={selection.selected}
               onToggle={selection.toggle}
               forcedKey={selection.attachKey}
+              checkable={false}
             />
             <AttachPicker groups={view.groups} attachKey={selection.attachKey} onChoose={selection.chooseAttach} />
           </>
@@ -571,6 +575,7 @@ export function ExistingSentenceBody({ header, view, selection, outcome }: BodyP
               selected={selection.selected}
               onToggle={selection.toggle}
               forcedKey={selection.attachKey}
+              checkable={false}
             />
             <AttachPicker groups={view.groups} attachKey={selection.attachKey} onChoose={selection.chooseAttach} />
           </>

@@ -35,9 +35,15 @@ interface Props {
    * 判据（`selectionState`）读到的仍是同一份集合，不会出现「勾选框勾着、集合里没有」。
    */
   forcedKey?: string | null
+  /**
+   * 是否渲染勾选框（默认真）。句子模式传 `false`（用户裁定）：收录只写「归属释义 +
+   * 例句」这一条，勾选其它释义不会改变写入内容——留着勾选框会误导用户以为多选有效。
+   * 不渲染时本组件只是释义列表，归属选择由下方的「整句归入哪个释义」单选负责。
+   */
+  checkable?: boolean
 }
 
-export function CollectorTree({ groups, selected, onToggle, forcedKey }: Props) {
+export function CollectorTree({ groups, selected, onToggle, forcedKey, checkable = true }: Props) {
   // 防御：Task 10 的模型理论上不给空组，但一个没有叶子的组画出来只有一枚点不动的勾选框
   // 和「中 0 · 英 0」——过滤掉比让它出现在小窗里更安全（控制器 T10 结转裁定）。
   const visible = groups.filter(g => g.leaves.length > 0)
@@ -62,14 +68,16 @@ export function CollectorTree({ groups, selected, onToggle, forcedKey }: Props) 
             {counts}
           </span>
           <span style={{ flex: 1, borderTop: '2px solid var(--color-border)', transform: 'translateY(-3px)' }} />
-          <span style={{ display: 'inline-flex', alignSelf: 'center' }}>
-            <CheckBox
-              checked={state !== 'none'}
-              indeterminate={state === 'partial'}
-              label={`${group.pos || '该词性'} 全部义项`}
-              onChange={() => onToggle(group.key)}
-            />
-          </span>
+          {checkable && (
+            <span style={{ display: 'inline-flex', alignSelf: 'center' }}>
+              <CheckBox
+                checked={state !== 'none'}
+                indeterminate={state === 'partial'}
+                label={`${group.pos || '该词性'} 全部义项`}
+                onChange={() => onToggle(group.key)}
+              />
+            </span>
+          )}
         </div>
       ),
       items: group.leaves.map(leaf => {
@@ -87,7 +95,7 @@ export function CollectorTree({ groups, selected, onToggle, forcedKey }: Props) 
           <FlowRow
             key={leaf.key}
             no={leaf.number ?? undefined}
-            end={(
+            end={checkable ? (
               // 归属释义（v0.7.9 用户实测修订）：必须保持选中（例句要有父级），且要
               // 一眼看出「整句挂在这一条释义下」——勾选框用 `locked`（满填选中 + 品牌
               // 淡晕，与普通勾选框拉开身份），再在行尾配一枚「例句」小标签说明它的
@@ -118,7 +126,7 @@ export function CollectorTree({ groups, selected, onToggle, forcedKey }: Props) 
                   onChange={() => onToggle(leaf.key)}
                 />
               )
-            )}
+            ) : undefined}
           >
             {content}
           </FlowRow>
