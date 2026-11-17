@@ -34,14 +34,18 @@ export default function App() {
   // 置前（含 unminimize），再 emit `open-dict`——**顺序刻意如此**，确认框要弹在已经
   // 可见的主窗里。这里只接一次：dirty 时先过 `confirmLeaveEdit()`（与退出 / 关窗
   // 同一条入口，in-flight 确认框会被复用）；取消则留在原页，小窗已因失焦自行隐藏。
-  // 确认后直接用 `openDictFromSearch` 落搜索模块的词典返回页——不必先 `openSearch`。
+  // 确认后走桌面的标准入口 `showDict`（与顶栏搜索建议 / 语义网络 / 链接跳转同一动作）。
+  // **不能用 `openDictFromSearch`**：那是移动端搜索模块（`activeModule: 'search'`），
+  // 桌面 AppShell 不渲染该模块，主区域会整块空白，直到用户手动点「工作台」。
+  // `showDict` 自带编辑守卫，但此刻刚过 `confirmLeaveEdit()`（已确认放弃或本就干净），
+  // 守卫会直接放行，不会二次弹窗。
   // 只在桌面注册：小窗本身就是桌面专属（手机没有全局热键，见 Rust 的 `#[cfg(desktop)]`）。
   useEffect(() => {
     if (platform !== 'desktop') return
     const unlisten = listen('open-dict', e => {
       const word = (e.payload as { word: string }).word
       void confirmLeaveEdit().then(ok => {
-        if (ok) useViewStore.getState().openDictFromSearch(word)
+        if (ok) useViewStore.getState().showDict(word)
       })
     })
     return () => { void unlisten.then(f => f()) }
