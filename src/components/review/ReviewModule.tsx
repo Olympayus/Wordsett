@@ -14,11 +14,12 @@ import { useReviewSessionStore } from '../../stores/reviewSessionStore'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { useUiStore } from '../../stores/uiStore'
+import { useWordStore } from '../../stores/wordStore'
 import { usePlatformClass } from '../../lib/usePlatform'
 import { usesMobileShell } from '../../lib/platform'
 import { getStrategyCounts, getOverview, getQueue, REVIEW_DEFAULTS, type ReviewParams } from '../../services/reviewService'
 import type { ReviewStrategy } from '../../lib/review/types'
-import type { FreeScopeSelection } from '../../lib/review/startButton'
+import { startButtonState, type FreeScopeSelection } from '../../lib/review/startButton'
 import { canStartFreeScope } from '../../lib/review/categoryCounts'
 import { isSessionLive } from '../../lib/review/sessionGuard'
 import { canGoBack, canGoForward, answeredCount } from '../../lib/review/nav'
@@ -33,6 +34,9 @@ export default function ReviewModule() {
   const reviewSettings = useSettingsStore(s => s.review)
   const categories = useCategoryStore(s => s.categories)
   const params: ReviewParams = { ...REVIEW_DEFAULTS, ...reviewSettings }
+  // 工作区词数（v0.7.10 §7.7）：左栏「词库为空」判据与 FreeScopePanel 的读数取同一个
+  // store 字段——复习只认工作区（储藏库词不参与），它随 loadWords 顺带刷新，不新增 db 查询。
+  const wordCount = useWordStore(s => s.counts.workspace)
 
   const [counts, setCounts] = useState({ today: 0, weak: 0 })
   const [overview, setOverview] = useState<Awaited<ReturnType<typeof getOverview>> | null>(null)
@@ -51,6 +55,16 @@ export default function ReviewModule() {
   // store 里，但 v0.6.2 起 SessionGuard 会拦下这次点击并询问——不再原地保留、切回即续（§2.4 已废）。
   const sessionLive = isSessionLive(phase, sessionStrategy)
   const live = sessionLive && strategy === sessionStrategy
+  // 左栏开始按钮的呈现态（v0.7.10 §7.7）：判据全部收在 `startButtonState` 纯函数里
+  // （隐藏 / 文案 / 置灰 / 原因），这里只喂数的来源——今日复习看本轮可出题数，
+  // 自由练习看工作区词数 + 当前范围选择，`live` 时整块隐藏。
+  const startState = startButtonState({
+    strategy,
+    live,
+    deliverable: overview?.deliverable ?? 0,
+    wordCount,
+    free: freeSelection,
+  })
   // 小结属于会话自己那一栏：它可见时压过概览面板（否则自由练习的小结会与范围面板同时出现）
   const summaryVisible = phase === 'summary' && sessionStrategy === strategy
   // 概览态 = 没有正在展示的会话、也不在看小结：看别的策略时，它自己的概览照常出现。
@@ -138,6 +152,30 @@ export default function ReviewModule() {
     })
     if (ok) reset()
   }
+
+  // 桌面开始按钮（v0.7.10 §6.5 / §7.7）：统一到左栏控制台下方、策略项之上。
+  // 节点在模块层组装——开一轮要读库并写会话 store，StrategyList 只接收 `start` 插槽摆位置。
+  // `visible === false`（会话进行中）时整块不渲染：同屏不再有第二个入口。
+  // 几何：220px 窄栏里按钮全宽，原因行 10.5px 三级墨、只在该说的时候出现；外层固定最小
+  // 高度预留一行原因（8 + 31 + 4 + 16 + 8 ≈ 67），置灰原因出现 / 消失时下方策略项不跳动。
+  const desktopStart = startState.visible ? (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4, width: '100%', padding: '8px 12px', minHeight: 68 }}>
+      {/* 按钮的 grow 要 flex 父级才能撑满（与 FreeScopePanel 手机分支同一做法）。 */}
+      <div style={{ display: 'flex', width: '100%' }}>
+        <SquareButton
+          tone="surface"
+          grow
+          disabled={startState.disabled}
+          onClick={() => void (strategy === 'free' ? handleFreeStart(freeSelection) : handleStart())}
+        >
+          {startState.label}
+        </SquareButton>
+      </div>
+      {startState.reason !== null && (
+        <span style={{ fontSize: '10.5px', lineHeight: 1.5, color: 'var(--color-text-tertiary)' }}>{startState.reason}</span>
+      )}
+    </div>
+  ) : undefined
 
   // 手机端「开始练习」仍紧贴范围卡下方（v0.7.10 §7.7，布局不变）。按钮节点在模块层组装：
   // 开一轮要读库并写 store，FreeScopePanel 只接收 `start` 插槽、不复制这套逻辑。
@@ -244,6 +282,7 @@ export default function ReviewModule() {
         active={strategy}
         onSelect={(s: ReviewStrategy) => setStrategy(s)}
         header={<ReviewConsole overview={overview} weakCount={counts.weak} session={consoleSession} />}
+        start={desktopStart}
       />
       {/* 右栏用 surface（白）铺底，左栏留在 canvas 上——与设置页、工作台同一套「nav 米色 / 内容白」分栏 */}
       <main className="flex-1 overflow-auto" style={{ background: 'var(--color-surface)' }}>
@@ -262,9 +301,6 @@ export default function ReviewModule() {
           <OverviewPanel
             title="今日复习"
             stats={overview?.stats ?? { masteryBuckets: [], dueByDay: [], recentRatings: [] }}
-            onStart={handleStart}
-            startLabel="开始复习"
-            canStart={(overview?.deliverable ?? 0) > 0}
           />
         )}
         {live && (
