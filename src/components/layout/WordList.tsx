@@ -742,8 +742,10 @@ function GroupHeaderRow({ row, collapsed, folded, onActivate, onContextMenu, onL
         {row.label}
       </span>
       {/* 分类表头分模块读数（v0.7.5 Task 14）：与分类管理同一句「工作区:m 储藏库:n」，
-          两个数字各自 .stat-num；字母组仍是一个总数。 */}
-      {row.type === 'category' && row.locationCounts ? (
+          两个数字各自 .stat-num；字母组仍是一个总数。
+          收起态的分类组头只留色圈与分类名（v0.7.10）：整个计数块不渲染，
+          否则「工作区:m 储藏库:n」会把最窄 132px 的行撑破。 */}
+      {!isCategoryCollapsedSidebar && (row.type === 'category' && row.locationCounts ? (
         <span style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
           {locationCountSegments(row.locationCounts.workspace, row.locationCounts.archive).map((seg, i) =>
             seg.stat
@@ -753,7 +755,7 @@ function GroupHeaderRow({ row, collapsed, folded, onActivate, onContextMenu, onL
         </span>
       ) : (
         <span className="stat-num" style={{ fontSize: 'var(--text-xs)' }}>{row.count}</span>
-      )}
+      ))}
     </div>
   )
 }
