@@ -49,6 +49,9 @@ export function CollectorTitleBar() {
       style={{
         height: `${COLLECTOR_TITLE_BAR_HEIGHT}px`, flexShrink: 0,
         display: 'flex', alignItems: 'center',
+        // 内容超过窗口最大高度时（CollectorRoot 的滚动根），标题条吸顶——× 与拖动区
+        // 不随释义树滚走。
+        position: 'sticky', top: 0, zIndex: 2,
         padding: '0 6px 0 12px', boxSizing: 'border-box',
         background: 'var(--color-chrome)', borderBottom: '1px solid var(--color-border)',
         userSelect: 'none',
@@ -92,6 +95,8 @@ export function BottomBar({ hint, children }: { hint?: string; children: ReactNo
     <div
       style={{
         flexShrink: 0, display: 'flex', alignItems: 'center', gap: '8px',
+        // 与标题条同理：滚动态下「打开详情页 / 收录」始终留在底边。
+        position: 'sticky', bottom: 0, zIndex: 2,
         padding: '8px 12px', boxSizing: 'border-box',
         background: 'var(--color-chrome)', borderTop: '1px solid var(--color-border)',
       }}

@@ -32,8 +32,20 @@ pub const COLLECTOR_W: i32 = 380;
 pub const CURSOR_OFFSET: (i32, i32) = (12, 18);
 /// 内容再少也不缩到比这更矮（逻辑像素，spec §12 的 `[120, 工作区高]`）。
 const MIN_H: f64 = 120.0;
+/// 内容上限（逻辑像素）：释义特别多的词不该把窗口拉成一根细长条。
+/// 超出部分由前端窗内滚动承载（CollectorRoot 的 `maxHeight: 100vh` + sticky 标题 / 底栏）。
+const MAX_H: f64 = 560.0;
 /// 首次显示前的高度（逻辑像素）：前端还没量过内容时用它。
 const DEFAULT_H: f64 = 420.0;
+
+/// 窗口高度的最终取值：`[MIN_H, min(MAX_H, 工作区高)]`。
+///
+/// 工作区比 MAX_H 还矮（小屏 / 横屏）时以工作区为准——上限的意图是「别过于细长」，
+/// 不是「宁可溢出屏幕」。工作区比 MIN_H 还矮这种异常则退化成 MIN_H，保持原逻辑。
+pub fn clamp_height(requested: f64, work_area_h: f64) -> f64 {
+    let upper = MAX_H.min(work_area_h).max(MIN_H);
+    requested.clamp(MIN_H, upper)
+}
 
 /// 最近一次的高度（逻辑像素）。`show_at_cursor` 按它算物理尺寸参与 clamp，
 /// `collector_resize` 每次把 clamp 后的值写回来。
@@ -247,7 +259,7 @@ pub fn collector_resize(app: AppHandle, height: f64) {
             m.work_area().size.height as f64 / scale
         })
         .unwrap_or(DEFAULT_H);
-    let h = height.clamp(MIN_H, max_h.max(MIN_H));
+    let h = clamp_height(height, max_h);
 
     remember_h(h);
     let _ = window.set_size(LogicalSize::new(COLLECTOR_W as f64, h));
@@ -318,6 +330,15 @@ mod tests {
             clamp_to_work_area((10, 10), (380, 420), ((0, 0), (300, 300))),
             (0, 0)
         );
+    }
+
+    /// 释义很多的词：高度封顶 `MAX_H`；正常内容原样；工作区比上限还矮时以工作区为准。
+    #[test]
+    fn height_caps_at_max_and_respects_floor_and_work_area() {
+        assert_eq!(super::clamp_height(900.0, 1080.0), super::MAX_H);
+        assert_eq!(super::clamp_height(40.0, 1080.0), super::MIN_H);
+        assert_eq!(super::clamp_height(333.0, 1080.0), 333.0);
+        assert_eq!(super::clamp_height(900.0, 300.0), 300.0);
     }
 
     /// 窗口长高后按**新**尺寸把当前位置拉回工作区：底边溢出 → 上移，右边溢出 → 左移；

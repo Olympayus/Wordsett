@@ -88,10 +88,13 @@ export function CollectorTree({ groups, selected, onToggle, forcedKey }: Props) 
             key={leaf.key}
             no={leaf.number ?? undefined}
             end={(
+              // 归属释义的勾选框用 `locked`（v0.7.9 用户实测修订）：它**必须保持选中**
+              // （例句要有父级），但外观必须是普通选中态。先前的 `disabled` 会整体降到
+              // 38% 透明度，读起来正好相反——「该释义没有被选择」。
               <CheckBox
                 checked={selected.has(leaf.key) || forced}
-                disabled={forced}
-                label={`${leaf.label} ${leaf.number ?? ''}`}
+                locked={forced}
+                label={forced ? `${leaf.label} ${leaf.number ?? ''}（例句将归入此释义）` : `${leaf.label} ${leaf.number ?? ''}`}
                 onChange={() => onToggle(leaf.key)}
               />
             )}

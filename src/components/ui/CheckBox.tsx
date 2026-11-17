@@ -99,7 +99,7 @@ export function checkboxPaint({ checked, hover, disabled, indeterminate = false,
   }
 }
 
-export default function CheckBox({ checked, onChange, disabled, color, label, indeterminate = false }: {
+export default function CheckBox({ checked, onChange, disabled, color, label, indeterminate = false, locked = false }: {
   checked: boolean
   onChange: (next: boolean) => void
   disabled?: boolean
@@ -109,22 +109,31 @@ export default function CheckBox({ checked, onChange, disabled, color, label, in
   label: string
   /** 部分选中（v0.7.4 决定六）：画减号、`aria-checked="mixed"`。默认关，其它调用点不受影响。 */
   indeterminate?: boolean
+  /**
+   * 锁定选中（v0.7.9 划词「整句归入哪个释义」）：外观 = 普通选中态（满填色块、无降透明），
+   * 但点不动。它与 disabled 是两种语义——**必须保持选中**不该看起来像「不可用」：
+   * disabled 的 38% 透明度在满填前会被读成「没选中」，正好与原意相反。
+   * 语义由 `aria-disabled` 播报，视觉保持「已选中」。
+   */
+  locked?: boolean
 }) {
   const [hover, setHover] = useState(false)
   const c = color ?? 'var(--color-brand)'
-  const paint = checkboxPaint({ checked, hover, disabled, indeterminate, color: c })
+  const paint = checkboxPaint({ checked, hover: locked ? false : hover, disabled, indeterminate, color: c })
+  const inert = disabled || locked
   return (
     <button
       type="button"
       role="checkbox"
       aria-checked={indeterminate ? 'mixed' : checked}
+      aria-disabled={locked || undefined}
       aria-label={label}
       disabled={disabled}
-      onClick={() => { if (!disabled) onChange(!checked) }}
+      onClick={() => { if (!inert) onChange(!checked) }}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
-        width: CHECKBOX_SIZE, height: CHECKBOX_SIZE, flexShrink: 0, padding: 0, cursor: disabled ? 'default' : 'pointer',
+        width: CHECKBOX_SIZE, height: CHECKBOX_SIZE, flexShrink: 0, padding: 0, cursor: inert ? 'default' : 'pointer',
         display: 'inline-flex', borderRadius: 'var(--radius-sm)',
         background: paint.background,
         // 描边与内块共用这一条：两层盒内阴影都不占空间（不像真 border 会压内容盒），

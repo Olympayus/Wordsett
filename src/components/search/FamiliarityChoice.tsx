@@ -36,6 +36,13 @@ const TRACK_RADIUS = 8
  * 「选中项比轨更亮」，也与 `StrategyTabs` 分段控件的既有做法一致。
  */
 const TRACK_BACKGROUND = 'var(--color-surface-sunken)'
+/**
+ * 轨的边线（v0.7.9 用户实测修订）：返回页的导航条脚下是 `--color-chrome`（浅 #EEECE5），
+ * 与轨底的 sunken（#F5F3ED）只差 ~2 L*——没有这条 1px 内衬线，分段控件会与导航栏融成一片，
+ * 读不出「这里有一个控件」。线取 `--color-border-strong`：浅色压 chrome 可见，
+ * 深色（#3E3E3E 压 #191919）同样可见，且不改变「选中项比轨更亮」的方向。
+ */
+const TRACK_RING = 'inset 0 0 0 1px var(--color-border-strong)'
 
 export default function FamiliarityChoice({ value, onChange, disabled, touch = false }: {
   value: InitialFamiliarityChoice
@@ -60,6 +67,7 @@ export default function FamiliarityChoice({ value, onChange, disabled, touch = f
         gap: 2,
         padding: TRACK_PADDING,
         background: TRACK_BACKGROUND,
+        boxShadow: TRACK_RING,
         borderRadius: TRACK_RADIUS,
       }}
     >

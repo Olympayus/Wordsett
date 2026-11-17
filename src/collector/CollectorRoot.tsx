@@ -158,7 +158,8 @@ export function CollectorRoot() {
   const [dueFor, setDueFor] = useState<{ word: string; status: WordDueStatus } | null>(null)
   const lastGrabId = useRef(0)
   const dbReady = useRef(false)
-  const rootRef = useRef<HTMLDivElement>(null)
+  /** 内容的量测锚：高度跟着内容走（不随窗口高度被截），见下方 useLayoutEffect。 */
+  const contentRef = useRef<HTMLDivElement>(null)
   const lastReportedHeight = useRef(0)
   /** 重试进行中：连点「重试」只应触发一次隐藏 / 读取。 */
   const retryingRef = useRef(false)
@@ -233,8 +234,10 @@ export function CollectorRoot() {
 
   // 内容高度 → 窗口高度（spec §5.3：宽固定 380，高按内容测量后交给 Rust clamp）。
   // 只报整像素、且只在变化时上报：ResizeObserver 在字体加载 / 勾选变化时都会触发。
+  // 观测**内容包装层**而不是滚动根：根有 `maxHeight: 100vh`，内容超出时根的盒子被窗口
+  // 截住不再变化，观测它就永远量不到「内容又长高了」。包装层在滚动容器里保持自然高度。
   useLayoutEffect(() => {
-    const node = rootRef.current
+    const node = contentRef.current
     if (!node) return
     const report = () => {
       const height = Math.ceil(node.getBoundingClientRect().height)
@@ -321,15 +324,23 @@ export function CollectorRoot() {
 
   return (
     <div
-      ref={rootRef}
       style={{
-        display: 'flex', flexDirection: 'column',
-        width: '100%', overflowX: 'hidden',
+        width: '100%',
+        // 高度上限由 Rust 的 `collector_resize` 决定（`MAX_H`），这里让内容超出时
+        // **窗内滚动**而不是被裁掉：标题条与底栏在各自卡片里 sticky（见 CollectorWord），
+        // 滚动时保持在视口两端。
+        maxHeight: '100vh',
+        overflowY: 'auto', overflowX: 'hidden',
         background: 'var(--color-surface)', color: 'var(--color-text-primary)',
         fontFamily: 'var(--font-sans)', fontSize: '13px', lineHeight: 1.5,
       }}
     >
-      {content}
+      <div
+        ref={contentRef}
+        style={{ display: 'flex', flexDirection: 'column', width: '100%' }}
+      >
+        {content}
+      </div>
     </div>
   )
 }
