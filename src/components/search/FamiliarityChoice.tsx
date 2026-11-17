@@ -30,19 +30,14 @@ const TRACK_PADDING = 2
 /** 外轨圆角；内件圆角 = 外轨 − 内衬，视觉上才是同一套同心圆角。 */
 const TRACK_RADIUS = 8
 /**
- * 轨底色（v0.7.9 评审修订）：`--color-surface-sunken` 而非 spec 字面的 `--color-border`。
- * 深色主题下 `--color-border`（#303030）比选中项的白面对应档 `--color-surface`（#2A2A2A）
- * **更亮**，分段会读反；sunken（浅 #F5F3ED / 深 #1E1E1E）在**两套主题**里都保证
- * 「选中项比轨更亮」，也与 `StrategyTabs` 分段控件的既有做法一致。
+ * 轨底色 = 通用按钮的底色（用户裁定，v0.7.9 实测修订）：`--color-border`，与 `Button`
+ * 的 rest 面逐字相同。先前取 `--color-surface-sunken`（与导航条 chrome 只差 ~2 L*，
+ * 控件读不出来）；spec §5.7 的字面取值本来也是 `--color-border`，这里回归它。
+ * 选中项仍是 `--color-surface` 白面 + `--color-border-strong` 描边——压在按钮色的轨上
+ * 阶差清晰。深色主题下轨（#303030）比选中面（#2A2A2A）略亮，方向与浅色相反，
+ * 但描边与 600 字重仍能读出选中；这是用户明确选择的视觉一致性。
  */
-const TRACK_BACKGROUND = 'var(--color-surface-sunken)'
-/**
- * 轨的边线（v0.7.9 用户实测修订）：返回页的导航条脚下是 `--color-chrome`（浅 #EEECE5），
- * 与轨底的 sunken（#F5F3ED）只差 ~2 L*——没有这条 1px 内衬线，分段控件会与导航栏融成一片，
- * 读不出「这里有一个控件」。线取 `--color-border-strong`：浅色压 chrome 可见，
- * 深色（#3E3E3E 压 #191919）同样可见，且不改变「选中项比轨更亮」的方向。
- */
-const TRACK_RING = 'inset 0 0 0 1px var(--color-border-strong)'
+const TRACK_BACKGROUND = 'var(--color-border)'
 
 export default function FamiliarityChoice({ value, onChange, disabled, touch = false }: {
   value: InitialFamiliarityChoice
@@ -67,7 +62,6 @@ export default function FamiliarityChoice({ value, onChange, disabled, touch = f
         gap: 2,
         padding: TRACK_PADDING,
         background: TRACK_BACKGROUND,
-        boxShadow: TRACK_RING,
         borderRadius: TRACK_RADIUS,
       }}
     >
