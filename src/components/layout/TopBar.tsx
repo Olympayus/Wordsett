@@ -15,6 +15,7 @@ import { openExternalUrl, RELEASES_URL } from '../../lib/openExternal'
 import { useSearchSuggestions } from '../../services/useSearchSuggestions'
 import { isChineseQuery } from '../../lib/chineseSearch'
 import { SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
+import { TOPBAR_HEIGHT, TOPBAR_HEIGHT_TOUCH } from '../../lib/layout'
 import { ACTIVITY_RAIL_WIDTH } from './ActivityRail'
 import DueBadge from './DueBadge'
 import Icon from '../icons'
@@ -159,7 +160,7 @@ export default function TopBar() {
         toggleMaximize()
       }}
       style={{
-        height: '48px', display: 'flex', alignItems: 'center', gap: '12px',
+        height: `${touch ? TOPBAR_HEIGHT_TOUCH : TOPBAR_HEIGHT}px`, display: 'flex', alignItems: 'center', gap: '12px',
         padding: `0 8px 0 ${LOGO_LEFT_PADDING}px`,
         // 顶栏必须浮在页面内容之上：搜索建议下拉会垂出 48px 的 header 进入内容行，
         // 而工作台的吸顶导航条同为 --z-sticky（20）、且在 DOM 中更靠后，等值并列时后者胜出会盖住下拉。
@@ -217,7 +218,9 @@ export default function TopBar() {
         <div className="relative" ref={searchRef}>
           <div style={{
             display: 'flex', alignItems: 'center', gap: '8px', height: '32px', padding: '0 12px',
-            // 触摸档（平板）：高度交给输入框的 minHeight 40，顶栏 48px 内仍留出上下边距。
+            // 触摸档（平板）：高度交给输入框的 minHeight 40，顶栏同步加高到
+            // TOPBAR_HEIGHT_TOUCH（56）——否则 42px 的胶囊在 48px 顶栏里上下只剩 2–3px，
+            // 几乎贴住下方分割线（用户 2026-11-18 反馈）。
             ...(touch ? { height: 'auto' } : null),
             background: 'var(--color-surface)',
             border: `1px solid ${focused ? 'var(--color-brand)' : 'var(--color-border)'}`,

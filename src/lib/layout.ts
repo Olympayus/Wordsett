@@ -36,6 +36,22 @@ export const ENTRY_MEASURE = 660
 /** 通栏导航条高度 */
 export const NAV_HEIGHT = 32
 
+/**
+ * 顶栏高度（桌面）：48。搜索胶囊 32 + 2 边框 = 34，上下各余 6.5px。
+ * 消费点：`TopBar`（本体高度）与 `FindBar`（桌面形态固定在它下方 8px）。
+ */
+export const TOPBAR_HEIGHT = 48
+
+/**
+ * 顶栏高度（触摸语境，v0.7.10 收尾）：56。
+ *
+ * 平板走桌面外壳，但顶部搜索框按 §7.4 的触摸输入档长到 40px（胶囊含边框 42px）。
+ * 沿桌面 48px 只剩 2–3px、几乎贴住下方分割线；56px 下上下各余 6.5px，与桌面观感一致。
+ * 判据与触摸输入档同源（`hasCoarsePointer()`），不按平台写死——带触摸屏的桌面同样生效。
+ * 消费点：`TopBar`（高度）与 `FindBar`（桌面形态的固定下移量 = 本值 + 8）。
+ */
+export const TOPBAR_HEIGHT_TOUCH = 56
+
 /** 导航条里控件的高度（按钮、图标键逐像素等高，右端才不会看着歪） */
 export const NAV_CONTROL_HEIGHT = 22
 
