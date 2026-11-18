@@ -3,7 +3,7 @@ import type { CSSProperties } from 'react'
 import DictDetailCard, { type DictDetailCardHandle, type CollapseState } from './DictDetailCard'
 import GrabbedSentenceBar from './GrabbedSentenceBar'
 import WordTitleExtras from './WordTitleExtras'
-import SemanticNetwork from './SemanticNetwork'
+import SemanticNetwork, { type SemanticNetworkHandle, type NetworkExpandState } from './SemanticNetwork'
 import TitleChips, { CollinsStars } from './TitleChips'
 import WorkbenchNavBar from '../word/WorkbenchNavBar'
 import MobileDictActionBar from './MobileDictActionBar'
@@ -128,6 +128,12 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
   // 折叠态本身住在卡片里（collapsedKeys 由字段树推出），这里只留一个镜像，按钮经 ref 回调卡片。
   const [collapseState, setCollapseState] = useState<CollapseState>({ hasContainers: false, allCollapsed: false })
   const handleCollapseStateChange = useCallback((s: CollapseState) => setCollapseState(s), [])
+  // 语义网络的组级展开态（v0.7.10 收尾）：页签条右端那枚按钮在「语义网络」页签下
+  // 操作**网络自己的**分组，而不是词典卡。镜像与句柄的分工同词典卡：状态住在
+  // SemanticNetwork 里，这里只收上报、经 ref 发指令。
+  const networkRef = useRef<SemanticNetworkHandle | null>(null)
+  const [networkExpandState, setNetworkExpandState] = useState<NetworkExpandState>({ hasOverflow: false, allExpanded: false })
+  const handleNetworkExpandStateChange = useCallback((s: NetworkExpandState) => setNetworkExpandState(s), [])
 
   // 「共 N 条释义」（v0.7.2 修复 4）：计数已移进页签条的「词典」页签里，故改在面板这层算。
   // 口径与卡片原先逐字相同——countAllDefinitions 走合流后的字段树，不随 displayFields 过滤。
@@ -225,6 +231,7 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
     setFields([])
     setSelectionCount(0)
     setCollapseState({ hasContainers: false, allCollapsed: false })
+    setNetworkExpandState({ hasOverflow: false, allExpanded: false })
     setNetworkCount(0)
     setMeta(null)
     setStripInputs([])
@@ -259,6 +266,17 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [showWorkbench, variant])
+
+  // 页签条右端的展开 / 收起（v0.7.10 收尾）：**跟随当前页签**——「词典」页签操作词典卡的
+  // 容器折叠，「语义网络」页签操作网络自己的关系分组（此前它无条件绑词典卡，网络页上按了
+  // 没反应、文案还是词典页的）。两页各自用「有没有可折叠对象」决定显隐。
+  const tabAction = tab === 'dict'
+    ? (collapseState.hasContainers
+        ? { label: collapseState.allCollapsed ? '全部展开' : '全部收起', run: () => cardRef.current?.toggleAll() }
+        : null)
+    : (networkExpandState.hasOverflow
+        ? { label: networkExpandState.allExpanded ? '全部收起' : '全部展开', run: () => networkRef.current?.toggleAll() }
+        : null)
 
   return (
     // 外壳两态：`desktop` 是既有的纵向滚动容器；`mobile` 改成纵向 flex（Task 8）——
@@ -441,11 +459,11 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
           </div>
           {/* 右端动作不随页签滚动：页签滚动区自身吃满余量，所以这里不再需要设计稿的
               「弹簧」`.sp`——再加一个 flex:1 的占位反而会与滚动区抢宽度，
-              把「全部收起」从右缘推开。 */}
-          {collapseState.hasContainers && (
+              把「全部收起」从右缘推开。按钮跟随当前页签的判据见上方 tabAction。 */}
+          {tabAction && (
             <button
               type="button"
-              onClick={() => cardRef.current?.toggleAll()}
+              onClick={tabAction.run}
               onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)' }}
               onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
               style={{
@@ -455,7 +473,7 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
                 fontSize: 11.5, fontFamily: 'var(--font-sans)', color: 'var(--color-text-tertiary)',
                 padding: '0 8px 6px', border: 'none', background: 'transparent', cursor: 'pointer',
               }}
-            >{collapseState.allCollapsed ? '全部展开' : '全部收起'}</button>
+            >{tabAction.label}</button>
           )}
         </div>
 
@@ -499,7 +517,12 @@ export default function DictDetailPanel({ word, variant = 'desktop' }: Props) {
         </div>
 
         <div style={{ display: tab === 'network' ? 'block' : 'none' }}>
-          <SemanticNetwork word={word} onCountChange={setNetworkCount} />
+          <SemanticNetwork
+            ref={networkRef}
+            word={word}
+            onCountChange={setNetworkCount}
+            onExpandStateChange={handleNetworkExpandStateChange}
+          />
         </div>
         </div>
       </div>

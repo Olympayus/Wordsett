@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useImperativeHandle, useMemo, useState } from 'react'
+import type { Ref } from 'react'
 import { relatedWords } from '../../services/searchService'
 import { splitGlossParts } from '../../lib/wordnetParse'
 import type { RelatedWords, RelatedGroup } from '../../providers/wordnet'
@@ -53,11 +54,30 @@ interface Props {
   word: string
   // 语义网络徽章计数（Task 4 裁定：真实 relatedWords 计数替换静态 24），数据加载后上报
   onCountChange?: (count: number) => void
+  /** 组级展开态变化上报（v0.7.10 收尾）：页签条右端那枚「全部收起 / 全部展开」按它显隐与换文案。 */
+  onExpandStateChange?: (state: NetworkExpandState) => void
+  /** 页签条右端的按钮经此句柄操作**语义网络自己的**展开态（与词典卡的 toggleAll 同一模式）。 */
+  ref?: Ref<SemanticNetworkHandle>
 }
+
+/** 组级「全部展开 / 全部收起」的受控句柄（v0.7.10 收尾）。 */
+export interface SemanticNetworkHandle {
+  toggleAll: () => void
+}
+
+/** 组级展开态（面板据此决定按钮显隐与文案）。`hasOverflow` ＝ 至少一组超过 9 条。 */
+export interface NetworkExpandState {
+  hasOverflow: boolean
+  /** 所有有溢出的组都处于展开态（文案切「全部收起」）。 */
+  allExpanded: boolean
+}
+
+/** 每组默认只显示前 9 条，超过这个数的组才有「+N 更多 / 收起」控件。 */
+const GROUP_PREVIEW = 9
 
 // 语义网络视图（D2 第二 Tab）：加载 relatedWords，渲染上位词路径 + 各关系分组胶囊，
 // 点胶囊 showDict 重查该词，网络随词刷新。
-export default function SemanticNetwork({ word, onCountChange }: Props) {
+export default function SemanticNetwork({ word, onCountChange, onExpandStateChange, ref }: Props) {
   const [data, setData] = useState<RelatedWords | null>(null)
   const [error, setError] = useState(false)
   // 每组是否展开显示全部（默认折叠，只显示前 9 个）；按组标签 key
@@ -91,6 +111,38 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
       })
     return () => { cancelled = true }
   }, [word, onCountChange])
+
+  // 换词回到默认折叠（与词典卡换词清空 collapsedKeys 同一处理）：否则上一词点开的组
+  // 会把下一词的同一关系组也直接展开，页签条右端按钮的文案随之说谎。
+  useEffect(() => { setExpanded({}) }, [word])
+
+  // 有溢出（超过预览条数）的组：页签条右端「全部展开 / 全部收起」的作用对象。
+  // 只有这些组渲染「+N 更多 / 收起」，没有它们的组本来就是全量可见。
+  const overflowKeys = useMemo(() => {
+    if (!data) return []
+    return (Object.entries(data.groups) as Array<[keyof RelatedWords['groups'], RelatedGroup[]]>)
+      .filter(([, items]) => items.length > GROUP_PREVIEW)
+      .map(([key]) => key)
+  }, [data])
+
+  const allExpanded = overflowKeys.length > 0 && overflowKeys.every(k => expanded[k])
+
+  // 受控句柄（v0.7.10 收尾）：页签条右端那枚按钮在「语义网络」页签下经它开合**本组件**的分组，
+  // 不再误调词典卡的 toggleAll。与词典卡同一模式：状态只住一处，按钮只发指令。
+  useImperativeHandle(ref, () => ({
+    toggleAll: () => {
+      setExpanded(prev => {
+        const next = { ...prev }
+        if (allExpanded) overflowKeys.forEach(k => { delete next[k] })
+        else overflowKeys.forEach(k => { next[k] = true })
+        return next
+      })
+    },
+  }), [allExpanded, overflowKeys])
+
+  useEffect(() => {
+    onExpandStateChange?.({ hasOverflow: overflowKeys.length > 0, allExpanded })
+  }, [overflowKeys, allExpanded, onExpandStateChange])
 
   if (error) {
     return <div style={{ fontSize: 13, color: 'var(--color-danger)', padding: '20px 0' }}>语义网络数据加载失败，请先构建本地词典库（npm run build:dictionaries）</div>
@@ -176,7 +228,7 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
         // 空组整组不渲染（含反义词：无反义词时不显示占位文案）
         if (items.length === 0) return null
         const isExpanded = expanded[key]
-        const shown = isExpanded ? items : items.slice(0, 9)
+        const shown = isExpanded ? items : items.slice(0, GROUP_PREVIEW)
         return (
           <div key={key} style={{ marginBottom: 13 }}>
             <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -188,13 +240,13 @@ export default function SemanticNetwork({ word, onCountChange }: Props) {
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {shown.map(g => chip(g))}
-              {items.length > 9 && (
+              {items.length > GROUP_PREVIEW && (
                 <button
                   type="button"
                   onClick={() => setExpanded(prev => ({ ...prev, [key]: !prev[key] }))}
                   style={{ fontSize: 12, color: 'var(--color-text-primary)', padding: '3px 9px', border: 'none', background: 'transparent', cursor: 'pointer', fontFamily: 'var(--font-sans)' }}
                 >
-                  {isExpanded ? '收起' : `+${items.length - 9} 更多`}
+                  {isExpanded ? '收起' : `+${items.length - GROUP_PREVIEW} 更多`}
                 </button>
               )}
             </div>
