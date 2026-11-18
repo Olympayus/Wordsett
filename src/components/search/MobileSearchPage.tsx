@@ -47,15 +47,18 @@ const TOUCH_INPUT = touchInputStyles(true)
 const ROW_HEIGHT = 44
 
 /**
- * 命中段底（Task 25）：`--color-brand-soft`，不新造 token。
+ * 命中段样式（v0.7.10 收尾）：与桌面 `SearchSuggestions.highlightText` 同一语言——
+ * 陶土橙 `--color-accent` + 字重 500，不用底块。
  *
- * `<mark>` 的 UA 样式同时给了黄底与黑字，这里两样都显式覆盖——底色走 token、
- * 文字 `inherit` 跟随行内墨色，深色模式下才不会落在黑字压深蓝底上。
- * 只改颜色、不加 padding / 字重：`<mark>` 仍是 inline 盒，不改变行高与折行。
+ * Task 25 的规格曾写「`<mark>` 用 `--color-brand-soft` 底」，但桌面从 v0.4 起就是橙色文字，
+ * 两处因此分家（用户指出手机端「不是橙色字体」）。现统一到橙色：`<mark>` 的 UA 样式
+ * 同时给了黄底与黑字，这里把底色显式清成 transparent、文字取 accent。
+ * 只改颜色与字重、不加 padding：`<mark>` 仍是 inline 盒，不改变行高与折行。
  */
 const MARK_STYLE: CSSProperties = {
-  background: 'var(--color-brand-soft)',
-  color: 'inherit',
+  background: 'transparent',
+  color: 'var(--color-accent)',
+  fontWeight: 500,
 }
 
 /** 词面 / 释义按命中切分：命中段包 `<mark>`，其余原样输出。 */
