@@ -10,6 +10,7 @@ import {
   isModifierKeyEvent,
 } from '../../lib/hotkey'
 import Icon from '../icons'
+import SquareButton from '../ui/SquareButton'
 import Tooltip from '../ui/Tooltip'
 
 /**
@@ -106,12 +107,6 @@ const iconButtonStyle: CSSProperties = {
   border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
   cursor: 'pointer', color: 'var(--color-text-secondary)', padding: 0,
   transition: 'background-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth)',
-}
-
-const textButtonStyle: CSSProperties = {
-  padding: '5px 14px', border: '1px solid var(--color-border)', borderRadius: 6,
-  background: 'transparent', color: 'var(--color-text-primary)', fontSize: 13,
-  cursor: 'pointer', fontFamily: 'var(--font-sans)', flexShrink: 0,
 }
 
 const labelStyle: CSSProperties = { fontSize: 'var(--text-sm)', color: 'var(--color-text-primary)' }
@@ -257,26 +252,29 @@ export default function CollectSettings() {
       {/* 行 1：抓词热键（恢复默认图标在键帽左侧） */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 0' }}>
         <div style={{ flex: 1, minWidth: 0, ...labelStyle }}>抓词热键</div>
-        <button
-          type="button"
-          aria-label="恢复默认"
-          onClick={resetToDefault}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-          style={iconButtonStyle}
-        >
-          <Icon name="rotate-ccw" size={14} />
-        </button>
+        <Tooltip content="恢复默认">
+          <button
+            type="button"
+            aria-label="恢复默认"
+            onClick={resetToDefault}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+            style={iconButtonStyle}
+          >
+            <Icon name="rotate-ccw" size={14} />
+          </button>
+        </Tooltip>
         {recording && draft.length === 0
           ? <span style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)' }}>按下组合键…</span>
           : preview}
-        <button
-          type="button"
+        {/* v0.7.10 收尾：与设置页「新建分类」等同一枚通用按钮（SquareButton），
+            不再用这份页面私有的描边小按钮。脚下是白底内容列，故 tone="surface"。 */}
+        <SquareButton
+          tone="surface"
           onClick={() => { if (recording) cancelRecording(); else startRecording() }}
-          style={textButtonStyle}
         >
           {recording ? '取消' : '修改'}
-        </button>
+        </SquareButton>
       </div>
       {recording && (
         <div style={{ fontSize: 'var(--text-xs)', color: 'var(--color-text-tertiary)', paddingBottom: 6 }}>

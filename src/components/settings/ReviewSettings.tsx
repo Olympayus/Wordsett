@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from 'react'
-import { useSettingsStore } from '../../stores/settingsStore'
+import { DEFAULT_REVIEW, useSettingsStore } from '../../stores/settingsStore'
 import { Toggle } from '../ui/Toggle'
 import { subscribe, getProbe, type VoiceProbe } from '../../lib/review/ttsGate'
 import { usePlatformClass } from '../../lib/usePlatform'
@@ -52,9 +52,12 @@ export default function ReviewSettings() {
 
       <NumberRow
         label="期望记忆保留率"
-        hint="调高 ＝ 记得更牢、复习更频繁；调低 ＝ 复习更少、更容易忘。只影响新产生的间隔，历史到期不回溯重算。右侧可填 0.80 – 0.95。"
+        // v0.7.10 收尾：「右侧可填 0.80 – 0.95」整句另起一行——原先跟着长说明自然折行，
+        // 会在短语中间断开（一半在上一行、一半在下一行）。
+        hint={<>调高 ＝ 记得更牢、复习更频繁；调低 ＝ 复习更少、更容易忘。只影响新产生的间隔，历史到期不回溯重算。<br />右侧可填 0.80 – 0.95。</>}
         value={review.retention}
         min={0.8} max={0.95} step={0.01}
+        defaultValue={DEFAULT_REVIEW.retention}
         onChange={v => setReview('retention', v)}
       />
       <NumberRow
@@ -62,6 +65,7 @@ export default function ReviewSettings() {
         hint="连错达到薄弱词标准的错误次数"
         value={review.leechThreshold}
         min={1} max={20} step={1} integer
+        defaultValue={DEFAULT_REVIEW.leechThreshold}
         onChange={v => setReview('leechThreshold', v)}
       />
       <NumberRow
@@ -69,6 +73,7 @@ export default function ReviewSettings() {
         hint="每轮最多引入的新词数，0 = 不复习新词"
         value={review.newCardQuota}
         min={0} max={50} step={1} integer
+        defaultValue={DEFAULT_REVIEW.newCardQuota}
         onChange={v => setReview('newCardQuota', v)}
       />
       <NumberRow
@@ -76,6 +81,7 @@ export default function ReviewSettings() {
         hint="每轮最多出题数，0 = 不限"
         value={review.queueLimit}
         min={0} max={200} step={5} integer
+        defaultValue={DEFAULT_REVIEW.queueLimit}
         onChange={v => setReview('queueLimit', v)}
       />
 

@@ -10,8 +10,11 @@ export interface SelectOption { value: string; label: string }
 
 export interface SelectPosition { left: number; top: number; width: number; maxHeight: number }
 
-/** 触发器宽度：替换前的原生 `<select>` 就是 240px（v0.7.10 Task 14 桌面零回归）。 */
-const TRIGGER_WIDTH = 240
+/** 触发器宽度。v0.7.10 替换原生 `<select>` 时沿用它的 240px（桌面零回归）；
+ *  v0.7.10 收尾按用户要求加宽到 380——系统音色名（如
+ *  「Microsoft Zira Desktop - English (United States)」）在 240px 里会被省略号截断。
+ *  展开面板与触发器同宽，长音色名因此也能在列表里读全。 */
+const TRIGGER_WIDTH = 380
 /** 浮层与锚点之间的缝隙；浮层与视口边缘之间的最小余量。 */
 const LISTBOX_GAP = 4
 const LISTBOX_MARGIN = 8
