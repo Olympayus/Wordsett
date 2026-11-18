@@ -365,19 +365,25 @@ export default function FreeScopePanel({ categories, variant = 'desktop', value,
                     type="button"
                     aria-pressed={on}
                     onClick={() => onChange({ ...value, limit: n })}
+                    onMouseEnter={e => { if (!on) e.currentTarget.style.background = 'var(--color-surface-hover)' }}
+                    onMouseLeave={e => { if (!on) e.currentTarget.style.background = 'transparent' }}
                     style={{
                       minWidth: touch ? 44 : undefined,
                       minHeight: touch ? 40 : undefined,
                       padding: '4px 10px',
                       borderRadius: 'var(--radius-lg)',
-                      border: `1px solid ${on ? 'var(--color-border-strong)' : 'var(--color-border)'}`,
-                      background: on ? 'var(--color-surface)' : 'transparent',
-                      color: 'inherit',
+                      // 选中态（v0.7.10 收尾 2，用户反馈「太不明显」）：本面板脚下是白色内容面，
+                      // 原来「白底 + 强描边」的选中态与底色几乎同色。改用全站既有的选中语言——
+                      // 品牌蓝的软底 + 实线 + 同色墨 + 600（活动栏激活态同款；蓝＝状态，不是按钮底）。
+                      border: `1px solid ${on ? 'var(--color-brand)' : 'var(--color-border)'}`,
+                      background: on ? 'var(--color-brand-soft)' : 'transparent',
+                      color: on ? 'var(--color-brand)' : 'inherit',
                       fontWeight: on ? 600 : 400,
                       fontFamily: 'var(--font-sans)',
                       fontSize: '13px',
                       cursor: 'pointer',
                       touchAction: 'manipulation',
+                      transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
                     }}
                   >{n}</button>
                 )
