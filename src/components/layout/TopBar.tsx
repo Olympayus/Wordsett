@@ -296,7 +296,7 @@ export default function TopBar() {
 
         {desktopOnly && (
           <>
-            <Tooltip content="最小化">
+            <Tooltip content="最小化" placement="below">
               <button type="button" aria-label="最小化" onClick={() => void appWindow.minimize()}
                 style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
@@ -304,7 +304,7 @@ export default function TopBar() {
                 <Icon name="minimize" size={14} />
               </button>
             </Tooltip>
-            <Tooltip content={isMaximized ? '还原' : '最大化'}>
+            <Tooltip content={isMaximized ? '还原' : '最大化'} placement="below">
               <button type="button" aria-label={isMaximized ? '还原' : '最大化'} onClick={toggleMaximize}
                 style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
@@ -312,7 +312,7 @@ export default function TopBar() {
                 <Icon name={isMaximized ? 'restore' : 'maximize'} size={14} />
               </button>
             </Tooltip>
-            <Tooltip content="关闭">
+            <Tooltip content="关闭" placement="below">
               <button type="button" aria-label="关闭" onClick={() => void appWindow.close()}
                 style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
                 onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-danger)'; e.currentTarget.style.color = 'white' }}

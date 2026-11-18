@@ -1,70 +1,51 @@
 import { describe, it, expect } from 'vitest'
-import { tooltipPosition, clampTooltipY } from './tooltipPosition'
+import { placeTooltip } from './tooltipPosition'
 
-describe('tooltipPosition', () => {
-  it('常规位置：图标右侧打开', () => {
-    const p = tooltipPosition({ left: 300, right: 316, top: 100 }, 320, 8, 1200)
-    expect(p.x).toBe(324)
-    expect(p.y).toBe(100)
+// 面板尺寸与触发器矩形都是视觉坐标（getBoundingClientRect 的产出），下同。
+describe('placeTooltip auto：右侧 → 左侧 → 下方 → 上方', () => {
+  it('右侧放得下：贴在右缘，纵向居中于触发器', () => {
+    const p = placeTooltip({ left: 300, right: 316, top: 100, bottom: 130 }, { width: 320, height: 40 }, 'auto', 1200, 900, 8)
+    expect(p).toEqual({ x: 324, y: 95 })
   })
+
   it('右缘溢出且左侧可开：翻到左侧', () => {
-    const p = tooltipPosition({ left: 900, right: 916, top: 100 }, 320, 8, 1200)
+    const p = placeTooltip({ left: 900, right: 916, top: 100, bottom: 130 }, { width: 320, height: 40 }, 'auto', 1200, 900, 8)
     expect(p.x).toBe(572)
-  })
-  it('y 钳制不小于 4', () => {
-    const p = tooltipPosition({ left: 100, right: 116, top: 1 }, 320, 8, 1200)
-    expect(p.y).toBe(4)
+    expect(p.y).toBe(95)
   })
 
-  // 平板 zoom（v0.7.10 Task 18）：翻边判据要用缩放后的视觉宽度。
-  it('zoom：按视觉宽度判断右侧是否放得下并翻到左侧', () => {
-    const p = tooltipPosition({ left: 900, right: 916, top: 100 }, 320, 8, 1100, 0.85)
-    expect(p.x).toBeCloseTo(900 - 8 - 320 * 0.85)
+  it('两侧都放不下：改到下方，横向居中并推回视口内', () => {
+    // 右 28 + 50 > 76；左 10 − 8 − 50 < 4；下方 130 + 8 + 40 = 178 放得下。
+    // 横向居中后左缘为 −10，钳到 4。
+    const p = placeTooltip({ left: 10, right: 20, top: 100, bottom: 130 }, { width: 50, height: 40 }, 'auto', 80, 900, 8)
+    expect(p).toEqual({ x: 4, y: 138 })
   })
 
-  it('zoom 省略时与 zoom = 1 逐字一致（桌面不变）', () => {
-    const rect = { left: 300, right: 316, top: 100 }
-    expect(tooltipPosition(rect, 320, 8, 1200)).toEqual(tooltipPosition(rect, 320, 8, 1200, 1))
+  it('下方也放不下：翻到上方', () => {
+    const p = placeTooltip({ left: 10, right: 20, top: 850, bottom: 880 }, { width: 50, height: 30 }, 'auto', 80, 900, 8)
+    expect(p).toEqual({ x: 4, y: 812 })
   })
 
-  it('两侧都放不下：推回视口右缘内，不越出窗口', () => {
-    // 左翻需要 left − 8 − 50 > 4，10 − 58 < 4 不成立；右展 20 + 8 + 50 = 78 > 80 − 4 溢出。
-    // 兜底右侧展开后夹到 80 − 50 − 4 = 26。
-    expect(tooltipPosition({ left: 10, right: 20, top: 12 }, 50, 8, 80).x).toBe(26)
+  it('贴底时纵向钳回视口（右侧仍放得下）', () => {
+    const p = placeTooltip({ left: 10, right: 26, top: 880, bottom: 912 }, { width: 100, height: 40 }, 'auto', 1200, 900, 8)
+    expect(p).toEqual({ x: 34, y: 856 })
+  })
+
+  it('面板比视口还宽：宁可压住锚点也不越出窗口', () => {
+    const p = placeTooltip({ left: 100, right: 116, top: 100, bottom: 130 }, { width: 2000, height: 40 }, 'auto', 1200, 900, 8)
+    expect(p.x).toBe(4)
+    expect(p.y).toBe(138)
   })
 })
 
-// 纵向：tooltipPosition 只给起点 y，面板高度要渲染后才量得到，故单独一步修正。
-describe('clampTooltipY 纵向收纳（面板不得超出视口）', () => {
-  it('下方放得下 → 原地不动', () => {
-    expect(clampTooltipY(100, 100, 200, 900, 8)).toBe(100)
+describe('placeTooltip 显式方向（顶部窗口控制键用 below）', () => {
+  it('below：即使右侧放得下也出现在下方，横向居中', () => {
+    const p = placeTooltip({ left: 1200, right: 1230, top: 10, bottom: 38 }, { width: 60, height: 30 }, 'below', 1280, 900, 8)
+    expect(p).toEqual({ x: 1185, y: 46 })
   })
 
-  it('刚好贴底（y + h + gap === vh）→ 仍未溢出，不动', () => {
-    expect(clampTooltipY(100, 100, 792, 900, 8)).toBe(100)
-  })
-
-  it('下方放不下但上方放得下 → 翻到图标上方', () => {
-    // 800 + 300 + 8 > 900，上翻到 800 − 8 − 300 = 492
-    expect(clampTooltipY(800, 800, 300, 900, 8)).toBe(492)
-  })
-
-  it('上下都放不下 → 贴视口底部，不越出下缘', () => {
-    // 上翻得 400 − 8 − 850 < 8，故夹到 900 − 8 − 850 = 42
-    expect(clampTooltipY(400, 400, 850, 900, 8)).toBe(42)
-  })
-
-  it('面板比视口还高 → 至少留在顶部 8px（不返回负数）', () => {
-    expect(clampTooltipY(20, 20, 1000, 900, 8)).toBe(8)
-  })
-
-  // 平板 zoom：面板视觉高度 = 布局高度 × zoom。
-  it('zoom：按缩放后的视觉高度收纳', () => {
-    // 800 + 300×0.85 + 8 > 900，上翻到 800 − 8 − 255
-    expect(clampTooltipY(800, 800, 300, 900, 8, 0.85)).toBeCloseTo(537)
-  })
-
-  it('zoom 省略时与 zoom = 1 逐字一致（桌面不变）', () => {
-    expect(clampTooltipY(800, 800, 300, 900, 8)).toBe(clampTooltipY(800, 800, 300, 900, 8, 1))
+  it('below：贴右缘时横向钳回视口', () => {
+    const p = placeTooltip({ left: 1250, right: 1276, top: 10, bottom: 38 }, { width: 60, height: 30 }, 'below', 1280, 900, 8)
+    expect(p).toEqual({ x: 1216, y: 46 })
   })
 })

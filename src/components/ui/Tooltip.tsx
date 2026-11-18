@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { scaleForAnchor } from '../../lib/overlayZoom'
-import { clampTooltipY, tooltipPosition } from '../../lib/tooltipPosition'
+import { placeTooltip, type TooltipPlacement } from '../../lib/tooltipPosition'
 import { hasCoarsePointer } from '../../lib/pointer'
 import { useMobilePopup } from '../../lib/mobilePopups'
 
@@ -47,6 +47,12 @@ interface Props {
    * 功能型触发器（合并添加等）不要打开它——点按应当执行动作，而不是先弹说明。
    */
   tapOpen?: boolean
+  /**
+   * 落点方向（v0.7.10 收尾 2）。默认 `auto`：右侧 → 左侧 → 下方 → 上方，并沿交叉轴居中。
+   * 顶部窗口控制键（最小化 / 最大化 / 关闭）显式传 `below`——它们贴着右上角，
+   * 向左翻出的面板会盖住相邻按钮，影响操作。
+   */
+  placement?: TooltipPlacement
 }
 
 /**
@@ -59,10 +65,11 @@ interface Props {
  * - 纵向由 `clampTooltipY` 按**渲染后实测的面板高度**收纳（下方放不下翻到上方）；
  * - 面板测量出来之前先 `visibility: hidden` 挂载，量完再显形，不会闪在错误位置。
  */
-export default function Tooltip({ content, children, width = 300, minWidth, style, click = false, tapOpen = false }: Props) {
+export default function Tooltip({ content, children, width = 300, minWidth, style, click = false, tapOpen = false, placement = 'auto' }: Props) {
   const [open, setOpen] = useState(false)
-  // 打开那一刻的触发器矩形（视觉坐标）。宿主不移动就不重算——提示跟着触发器，不跟指针。
-  const [anchor, setAnchor] = useState<{ left: number; top: number; right: number } | null>(null)
+  // 打开那一刻的触发器矩形（视觉坐标，含 bottom——上下方向落点要用）。宿主不移动就不重算——
+  // 提示跟着触发器，不跟指针。
+  const [anchor, setAnchor] = useState<{ left: number; top: number; right: number; bottom: number } | null>(null)
   // 面板落点；null = 还没量到（面板此时不可见）。
   const [placed, setPlaced] = useState<{ x: number; y: number } | null>(null)
   const hostRef = useRef<HTMLSpanElement>(null)
@@ -103,7 +110,7 @@ export default function Tooltip({ content, children, width = 300, minWidth, styl
     if (!el) return
     clearHoverTimer()
     const r = el.getBoundingClientRect()
-    setAnchor({ left: r.left, top: r.top, right: r.right })
+    setAnchor({ left: r.left, top: r.top, right: r.right, bottom: r.bottom })
     setPlaced(null)
     setOpen(true)
   }
@@ -128,18 +135,22 @@ export default function Tooltip({ content, children, width = 300, minWidth, styl
 
   // 落点（v0.7.10 收尾）：面板挂载后量**真实尺寸**再定位。尺寸不能用 300×160 估算——
   // 贴近窗口下缘时那套估算会把面板往上推一百多像素（活动栏「设置」的旧缺陷）。
+  // 方向与居中规则在 `placeTooltip` 里（纯函数、有单测）。
   useLayoutEffect(() => {
     if (!open || !anchor) return
     const panel = panelRef.current
     if (!panel) return
     // getBoundingClientRect 已含 scale(zoom)，量到的就是视觉尺寸，与锚点同一坐标系。
     const r = panel.getBoundingClientRect()
-    const p = tooltipPosition(anchor, r.width, ANCHOR_GAP, window.innerWidth)
-    setPlaced({
-      x: p.x,
-      y: clampTooltipY(anchor.top, p.y, r.height, window.innerHeight, ANCHOR_GAP),
-    })
-  }, [open, anchor, content])
+    setPlaced(placeTooltip(
+      anchor,
+      { width: r.width, height: r.height },
+      placement,
+      window.innerWidth,
+      window.innerHeight,
+      ANCHOR_GAP,
+    ))
+  }, [open, anchor, content, placement])
 
   // 触摸端点按开合时登记返回栈（第 1 条）：安卓返回键先关提示，不穿透到抽屉 / 模块 / 退出。
   // 只登记 tapOpen 这一条路——`click` 模式在触摸端的既有行为不变，也不占用返回键。
