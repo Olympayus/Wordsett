@@ -37,10 +37,10 @@ export interface FreeOverview {
  */
 export default function FreeScopeStats({ kind, workspaceCount, stats, overview, variant = 'desktop' }: {
   /**
-   * `random` / `today` 各有一套读数；`category` / `weak` 复用 `random` 那三枚瓦片
-   * 与熟悉度条（v0.7.10 §7.7：手机在这两页下方补同形的紧凑块，桌面不渲染）。
+   * `random` / `today` 各有一套读数。分类强化 / 薄弱词两页**不渲染本组件**——
+   * 它们只出各自的清单（与桌面一致；用户 2026-11-18 裁定：每页只显示自己那页的内容）。
    */
-  kind: 'random' | 'today' | 'category' | 'weak'
+  kind: 'random' | 'today'
   /** 工作区词数（复习只认工作区，储藏库词不参与） */
   workspaceCount: number
   stats: ReviewStats

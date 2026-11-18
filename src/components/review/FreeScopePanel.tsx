@@ -176,7 +176,11 @@ export default function FreeScopePanel({ categories, variant = 'desktop', value,
                   minWidth: 0, padding: 12, borderRadius: 8, textAlign: 'left', cursor: 'pointer',
                   border: '1px solid transparent', fontFamily: 'var(--font-sans)', color: 'inherit',
                   background: on ? 'var(--color-surface)' : 'var(--color-surface-sunken)',
-                  ...(on ? { borderColor: 'var(--color-border-strong)' } : null),
+                  // 边框色必须每态都显式给出，不能靠 `border` 简写兜底：取消选中时 React 会删掉
+                  // `borderColor` 这条长写，而 `border` 简写因值未变被跳过不重设——Chrome 的 CSSOM
+                  // 里于是只剩 width/style、没有 color，边框回退 currentColor，卡片永久留一圈黑边
+                  // （模拟器实测：点过的卡片都挂黑框）。
+                  borderColor: on ? 'var(--color-border-strong)' : 'transparent',
                   transition: 'background-color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
                   touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
                 }}
@@ -338,9 +342,10 @@ export default function FreeScopePanel({ categories, variant = 'desktop', value,
             今日队列重练 = 今日到期 / 涉及词数 / 今日已练 / 未来 8 根到期柱。数据全由 props 进。
             桌面在本内容区里渲染；手机由 Task 23 传 `mobile` 紧凑几何——内容区紧跟开始按钮，
             故它自然落在「范围卡下方、开始按钮之后」，随既有滚动容器滚动。
-            手机的分类 / 薄弱词也一样补这三枚紧凑瓦片与熟悉度条（§7.7 末段）：它们与全库随机
-            共用同一份工作区读数，桌面这两页保持原样（只有清单）。 */}
-        {(kind === 'random' || kind === 'today' || (mobile && (kind === 'category' || kind === 'weak'))) && (
+            **只给「全库随机」与「今日队列重练」两页**（用户 2026-11-18 裁定）：分类强化 / 薄弱词
+            在桌面本来就只出各自的清单，手机此前额外挂了全库随机的三枚瓦片与熟悉度条，
+            等于把「随机」页的内容带到了别的模式；现按桌面一页一内容，两类页只留自己的清单。 */}
+        {(kind === 'random' || kind === 'today') && (
           <FreeScopeStats
             kind={kind}
             variant={mobile ? 'mobile' : 'desktop'}

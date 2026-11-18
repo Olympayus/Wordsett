@@ -9,7 +9,10 @@ export default function RadioMark({ active }: { active: boolean }) {
     <span style={{
       width: '13px', height: '13px', flexShrink: 0, position: 'relative',
       borderRadius: 'var(--radius-full)', border: '1.5px solid var(--color-border-strong)',
-      ...(active ? { borderColor: 'var(--color-brand)', background: 'var(--color-surface)' } : null),
+      // 颜色每态都显式给出：只删不填会让 Chrome 落下一条没有 color 的边框，
+      // 回退 currentColor 后圆环变黑（与 FreeScopePanel 范围卡同一个坑）。
+      borderColor: active ? 'var(--color-brand)' : 'var(--color-border-strong)',
+      ...(active ? { background: 'var(--color-surface)' } : null),
     }}>
       {active && (
         <span style={{
