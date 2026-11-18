@@ -1,9 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { CSSProperties, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { OVERLAY_GAP, positionFor, scaleForAnchor, zoomOf } from '../../lib/overlayZoom'
+import { scaleForAnchor } from '../../lib/overlayZoom'
+import { clampTooltipY, tooltipPosition } from '../../lib/tooltipPosition'
 import { hasCoarsePointer } from '../../lib/pointer'
 import { useMobilePopup } from '../../lib/mobilePopups'
+
+/** 悬停多久才出现：扫过一排图标时不弹窗，停住才给说明（用户要求，v0.7.10 收尾）。 */
+const HOVER_DELAY_MS = 400
+/** 面板与触发器之间的空隙（视觉像素）。 */
+const ANCHOR_GAP = 8
 
 interface Props {
   content: ReactNode
@@ -43,16 +49,26 @@ interface Props {
   tapOpen?: boolean
 }
 
-// 统一悬浮说明：定位 + 样式与语义网络既有 glossPop 一致（spec §4a）
+/**
+ * 统一悬浮说明（v0.6.2 spec §4a）：portal 到 body、定位与样式与语义网络既有 glossPop 一致。
+ *
+ * **落点（v0.7.10 收尾修正）**：贴着触发器的包围盒展开，不再跟着指针坐标（+14/+16）走。
+ * 先前那套在窗口边缘会被「按 300×160 估算的面板尺寸」钳出一大截——活动栏左下角的「设置」
+ * 尤其明显：面板被推到指针上方一百多像素。现在：
+ * - 横向由 `tooltipPosition` 给出（右缘放不下翻到左侧），与既有纯函数同一出处；
+ * - 纵向由 `clampTooltipY` 按**渲染后实测的面板高度**收纳（下方放不下翻到上方）；
+ * - 面板测量出来之前先 `visibility: hidden` 挂载，量完再显形，不会闪在错误位置。
+ */
 export default function Tooltip({ content, children, width = 300, minWidth, style, click = false, tapOpen = false }: Props) {
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
-  // 「已被用户显式关掉、指针还没离开触发器」。Esc 与点回触发器都置位，
-  // **只由指针进出触发器（mouseEnter / mouseLeave）或再次点开来解除**——
-  // 改前是每次 mousemove 都把 Esc 的开关抹掉，于是 Esc 之后光标在图标上挪一下，窗口就自己回来了。
-  // 只有开合模式（click，或触摸端的 tapOpen）会置位，纯悬停模式恒为 false，故下面 show 里的判据对它
-  // 是死代码。触摸端没挂 hover，下次打开由点按显式置回，故不存在「自己顶回来」。
-  const [dismissed, setDismissed] = useState(false)
+  const [open, setOpen] = useState(false)
+  // 打开那一刻的触发器矩形（视觉坐标）。宿主不移动就不重算——提示跟着触发器，不跟指针。
+  const [anchor, setAnchor] = useState<{ left: number; top: number; right: number } | null>(null)
+  // 面板落点；null = 还没量到（面板此时不可见）。
+  const [placed, setPlaced] = useState<{ x: number; y: number } | null>(null)
   const hostRef = useRef<HTMLSpanElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  // 悬停延迟计时器（Ref：不参与渲染，进出触发器时清掉即可）。
+  const hoverTimer = useRef<number | null>(null)
   // 「紧随这次 mousedown 的那次 click 只是开窗的收尾，别当成用户要关」。
   // 用 ref 而非 state：两次派发之间隔着的那次 setState 还没落到 DOM 事件上。
   // 只在 fine pointer 的 click 模式里置位——触摸端不走聚焦开窗，莫须有的标记会把首次点按吃掉。
@@ -68,50 +84,78 @@ export default function Tooltip({ content, children, width = 300, minWidth, styl
   const tapToggle = coarse && tapOpen
   const canToggle = coarse ? tapToggle : click
 
-  // 嵌套 Tooltip：光标落在子级触发器内时（closest 命中 ≠ 自身 currentTarget）不打开，避免双层 portal 叠加
-  const showAt = (e: React.MouseEvent) => {
-    const t = e.target as HTMLElement | null
-    if (t?.closest('[data-tooltip-trigger]') !== e.currentTarget) return
-    setPos({ x: e.clientX, y: e.clientY })
-  }
-  // 指针在触发器内移动：已关掉就不顶回来
-  const show = (e: React.MouseEvent) => {
-    if (dismissed) return
-    showAt(e)
-  }
-  // 指针离开触发器 = 用户已经移开了，连同「已关掉」的标记一起解除，下次再回来照常打开
-  const onLeave = () => {
-    setDismissed(false)
-    clickPendingRef.current = false
-    setPos(null)
-  }
-  // 聚焦打开：没有鼠标坐标可用，位置取触发器自身的包围盒左下
-  const showAtHost = () => {
-    const el = hostRef.current
-    if (!el) return
-    const r = el.getBoundingClientRect()
-    setPos({ x: r.left, y: r.bottom })
+  const clearHoverTimer = () => {
+    if (hoverTimer.current !== null) {
+      window.clearTimeout(hoverTimer.current)
+      hoverTimer.current = null
+    }
   }
 
-  const open = pos !== null
+  const hide = () => {
+    clearHoverTimer()
+    setPlaced(null)
+    setAnchor(null)
+    setOpen(false)
+  }
+
+  const openAtHost = () => {
+    const el = hostRef.current
+    if (!el) return
+    clearHoverTimer()
+    const r = el.getBoundingClientRect()
+    setAnchor({ left: r.left, top: r.top, right: r.right })
+    setPlaced(null)
+    setOpen(true)
+  }
+
+  const onEnter = (e: React.MouseEvent) => {
+    // 已经开着（例如键盘聚焦先开、指针随后进来）就不用再排一次。
+    if (open) return
+    // 嵌套 Tooltip：光标落在子级触发器内时（closest 命中 ≠ 自身 currentTarget）不打开，避免双层 portal 叠加
+    const t = e.target as HTMLElement | null
+    if (t?.closest('[data-tooltip-trigger]') !== e.currentTarget) return
+    clearHoverTimer()
+    hoverTimer.current = window.setTimeout(() => {
+      hoverTimer.current = null
+      openAtHost()
+    }, HOVER_DELAY_MS)
+  }
+  // 指针离开触发器 = 用户已经移开了：清掉待触发的计时器并收起，下次再回来照常打开
+  const onLeave = () => {
+    clickPendingRef.current = false
+    hide()
+  }
+
+  // 落点（v0.7.10 收尾）：面板挂载后量**真实尺寸**再定位。尺寸不能用 300×160 估算——
+  // 贴近窗口下缘时那套估算会把面板往上推一百多像素（活动栏「设置」的旧缺陷）。
+  useLayoutEffect(() => {
+    if (!open || !anchor) return
+    const panel = panelRef.current
+    if (!panel) return
+    // getBoundingClientRect 已含 scale(zoom)，量到的就是视觉尺寸，与锚点同一坐标系。
+    const r = panel.getBoundingClientRect()
+    const p = tooltipPosition(anchor, r.width, ANCHOR_GAP, window.innerWidth)
+    setPlaced({
+      x: p.x,
+      y: clampTooltipY(anchor.top, p.y, r.height, window.innerHeight, ANCHOR_GAP),
+    })
+  }, [open, anchor, content])
 
   // 触摸端点按开合时登记返回栈（第 1 条）：安卓返回键先关提示，不穿透到抽屉 / 模块 / 退出。
   // 只登记 tapOpen 这一条路——`click` 模式在触摸端的既有行为不变，也不占用返回键。
-  useMobilePopup(tapToggle && open, () => { setDismissed(true); setPos(null) })
+  useMobilePopup(tapToggle && open, hide)
 
   useEffect(() => {
     if (!canToggle || !open) return
-    // Esc 与「点外面」都只是「我不看了」：关掉，并同样置 dismissed，
-    // 免得指针此刻正停在 ⓘ 上、下一次 mousemove 又把窗口顶回来。
+    // Esc 与「点外面」都只是「我不看了」：关掉即可（没有 mousemove 重开路径，不需要额外的抑制标记）。
     // 点外面挂在 document 的**捕获**阶段：触发器内部那次 click 会被 stopPropagation 吞在后面，
     // 能在捕获阶段走到这里的必然是外部点击，不会自己把自己关掉。
     // 触摸端的点外同样走 mousedown（触摸结束时浏览器补发的兼容事件），与桌面共用一套监听。
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setDismissed(true); setPos(null) } }
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') hide() }
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node | null
       if (t && hostRef.current?.contains(t)) return
-      setDismissed(true)
-      setPos(null)
+      hide()
     }
     document.addEventListener('keydown', onKey)
     document.addEventListener('mousedown', onDown, true)
@@ -119,9 +163,26 @@ export default function Tooltip({ content, children, width = 300, minWidth, styl
       document.removeEventListener('keydown', onKey)
       document.removeEventListener('mousedown', onDown, true)
     }
-    // 依赖 open 而非 pos：pos 每次 mousemove 都在变，而闭包只用 hostRef，
-    // 挂在开窗状态上就够，不必跟着指针位置反复拆装监听。
+    // 依赖 open 而非 anchor：anchor 只在打开那一刻取一次，而闭包只用 hostRef，
+    // 挂在开窗状态上就够，不必跟着落点反复拆装监听。
   }, [canToggle, open])
+
+  // 卸载时清掉尚未触发的悬停计时器（列表行随时会被滚走 / 换词卸载）。
+  useEffect(() => clearHoverTimer, [])
+
+  const onFocus = (e: React.FocusEvent) => {
+    if (coarse) return
+    // click 模式（fine）保持原样：mousedown→focus 开窗是它「单击一次就开」的收尾机制。
+    if (canToggle) { openAtHost(); return }
+    // 纯悬停提示给键盘用户留一条路，但**鼠标点击**引起的聚焦不开窗（否则点任何图标按钮
+    // 都会顺带弹出一枚提示，和刚弹出的菜单 / 对话框叠在一起）。
+    // `:focus-visible` 不可用时（老内核）回落到旧行为：聚焦即开窗。
+    const t = e.target as HTMLElement | null
+    let keyboardFocus = true
+    try { keyboardFocus = t ? t.matches(':focus-visible') : true } catch { /* 选择器不可用 → 当作键盘聚焦 */ }
+    if (!keyboardFocus) return
+    openAtHost()
+  }
 
   const onClick = (e: React.MouseEvent) => {
     e.stopPropagation()
@@ -133,13 +194,8 @@ export default function Tooltip({ content, children, width = 300, minWidth, styl
       return
     }
     // 其余按开关处理：鼠标的第二下，以及键盘 Enter / 空格（无 mousedown，走不到上一段）
-    if (open) {
-      setDismissed(true)
-      setPos(null)
-    } else {
-      setDismissed(false)
-      showAtHost()
-    }
+    if (open) hide()
+    else openAtHost()
   }
 
   return (
@@ -154,39 +210,38 @@ export default function Tooltip({ content, children, width = 300, minWidth, styl
         const active = document.activeElement
         clickPendingRef.current = !(hostRef.current?.contains(active ?? null) ?? false)
       } : undefined}
-      // 重新进入触发器才算「用户又看过来了」；留在原地挪动（mousemove）不算，故只在 enter 里解除 dismissed
-      onMouseEnter={coarse ? undefined : e => { setDismissed(false); showAt(e) }}
-      onMouseMove={coarse ? undefined : show}
+      // 按下功能型图标（纯悬停提示）即收起：用户要动手了，提示不该继续挡着；
+      // 也顺带清掉尚未触发的计时器，拖拽手柄按下后不会再半路弹出提示。
+      // 开合模式不挂——它的按下正是开窗流程的一部分；触摸端也不挂（点按开合由 tapOpen 管）。
+      onPointerDown={!coarse && !canToggle ? () => { clearHoverTimer(); if (open) hide() } : undefined}
+      // 重新进入触发器才算「用户又看过来了」；留在原地挪动不算，故只在 enter 里解除 dismissed
+      onMouseEnter={coarse ? undefined : onEnter}
       onMouseLeave={coarse ? undefined : onLeave}
       // focus / blur 是冒泡事件：子元素（本文档的 ⓘ 按钮）聚焦时事件从它冒到宿主，宿主一并跟随。
       // 只有 focus 这一半是「打开」路径、触摸端必须摘掉；blur 仍负责失焦即收，两种指针都挂。
-      onFocus={coarse ? undefined : showAtHost}
-      onBlur={() => setPos(null)}
+      onFocus={coarse ? undefined : onFocus}
+      onBlur={() => { clearHoverTimer(); if (open) hide() }}
       onClick={canToggle ? onClick : undefined}
     >
       {children}
       {open && content && createPortal(
         (() => {
-          // 平板 zoom（v0.7.10 Task 18）：指针坐标已是视觉坐标，落点直接可用；
+          // 平板 zoom（v0.7.10 Task 18）：锚点矩形已是视觉坐标，落点直接可用；
           // 面板脱离缩放子树后按 1:1 渲染，套 scale(zoom) 才与周围同尺寸。
-          const anchorEl = hostRef.current
-          const x = pos!.x + 14
-          const y = pos!.y + 16
-          // 'right' 还会在锚点右缘之外加 OVERLAY_GAP，故锚点右缘先退一个缝隙，
-          // 落点才仍是指针 + (14, 16)——与旧的 clampMenuPosition(pos.x + 14, pos.y + 16, …) 逐字相同。
-          const p = positionFor(
-            { left: x - OVERLAY_GAP, top: y, right: x - OVERLAY_GAP, bottom: y },
-            { width, height: 160 },
-            'right',
-            zoomOf(anchorEl),
-          )
-          const scale = scaleForAnchor(anchorEl)
+          const scale = scaleForAnchor(hostRef.current)
           return (
-            <div style={{
-              // 层级（v0.7.10 修复）：与分类浮层同一口径——portal 到 body 后必须压在宿主层之上。
-              // 手机抽屉（`--z-modal` 40）里的顽固词提示此前落在 `--z-dropdown`（10），
-              // 点按开出来也整块被抽屉盖住；取 modal + 1，让所有信息型提示都看得见。
-              position: 'fixed', left: p.x, top: p.y, zIndex: 'calc(var(--z-modal) + 1)',
+            <div ref={panelRef} role="tooltip" style={{
+              // 层级（v0.7.10 修复）：portal 到 body 后必须压在宿主层之上。
+              // 手机抽屉 / 模态是 `--z-modal`（40），信息型提示取 modal + 1；
+              // 页内查找条是 5000 这个孤例（它在 body 顶层），提示必须再高一档，
+              // 否则翻到左侧的「关闭查找」提示会被查找条本身盖住。
+              // 提示是瞬态层，压过对话框不会遮挡用户操作（按下 / 离开即收起）。
+              position: 'fixed',
+              // 测量出来之前不可见：否则会先闪在 (0,0) 再跳到落点。
+              left: placed ? placed.x : 0,
+              top: placed ? placed.y : 0,
+              visibility: placed ? 'visible' : 'hidden',
+              zIndex: 5001,
               ...(scale ? { transform: scale.transform, transformOrigin: scale.transformOrigin } : null),
               maxWidth: width, minWidth, padding: '8px 12px',
               background: 'var(--color-surface)', border: '1px solid var(--color-border)',

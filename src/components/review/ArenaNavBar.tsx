@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
+import Tooltip from '../ui/Tooltip'
 import { NAV_HEIGHT, NAV_CONTROL_HEIGHT } from '../../lib/layout'
 
 // 导航按钮（与 word/WorkbenchNavBar.tsx 的 navBtn 同形）：无边框无底色，hover 才起底色；
@@ -48,14 +49,18 @@ export default function ArenaNavBar({ index, total, canBack, canForward, onBack,
       background: 'var(--color-surface)',
       borderBottom: '1px solid var(--color-border)',
     }}>
-      <button type="button" aria-label="上一题" disabled={!canBack}
-        onClick={onBack} onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={navBtn(!canBack)}>
-        <Icon name="arrow-left" size={15} />
-      </button>
-      <button type="button" aria-label="下一题" disabled={!canForward}
-        onClick={onForward} onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={navBtn(!canForward)}>
-        <Icon name="arrow-right" size={15} />
-      </button>
+      <Tooltip content="上一题">
+        <button type="button" aria-label="上一题" disabled={!canBack}
+          onClick={onBack} onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={navBtn(!canBack)}>
+          <Icon name="arrow-left" size={15} />
+        </button>
+      </Tooltip>
+      <Tooltip content="下一题">
+        <button type="button" aria-label="下一题" disabled={!canForward}
+          onClick={onForward} onMouseEnter={hoverOn} onMouseLeave={hoverOff} style={navBtn(!canForward)}>
+          <Icon name="arrow-right" size={15} />
+        </button>
+      </Tooltip>
       <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginLeft: 4 }}>第 {index + 1} / {total} 题</span>
       <span style={{ flex: 1 }} />
       {/* tone='surface'（v0.7.2）：本条底已由 canvas 改为内容面（--color-surface），按 SquareButton

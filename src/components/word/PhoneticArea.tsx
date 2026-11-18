@@ -11,6 +11,7 @@ import { unitSheetItems } from '../../lib/mobileSheets'
 import { useTouchLongPress } from '../../lib/useTouchLongPress'
 import MobileActionSheet from '../layout/mobile/MobileActionSheet'
 import Icon from '../icons'
+import Tooltip from '../ui/Tooltip'
 
 interface PhoneticAreaProps {
   values: FieldValue[]
@@ -214,20 +215,26 @@ function ChipBody(props: {
         <span aria-hidden="true" style={{ width: ACTION_CLUSTER_WIDTH, flexShrink: 0, visibility: 'hidden', pointerEvents: 'none' }} />
       ) : editorMode ? (
         <span style={reveal(hovered)}>
-          <button type="button" aria-label="编辑" onClick={() => props.onStartEdit(fv)} style={iconBtn}><Icon name="edit" size={12} /></button>
-          <button type="button" aria-label="删除" onClick={() => props.onDelete(fv)} style={iconBtn}><Icon name="trash" size={12} /></button>
+          <Tooltip content="编辑">
+            <button type="button" aria-label="编辑" onClick={() => props.onStartEdit(fv)} style={iconBtn}><Icon name="edit" size={12} /></button>
+          </Tooltip>
+          <Tooltip content="删除">
+            <button type="button" aria-label="删除" onClick={() => props.onDelete(fv)} style={iconBtn}><Icon name="trash" size={12} /></button>
+          </Tooltip>
         </span>
       ) : (
         // 普通模式只有一枚 ⋯，但外框仍占满 ACTION_CLUSTER_WIDTH 并右对齐——三种形态
         // （普通 / 编者 / 编辑中）宽度逐字相同，切换模式时 chip 与后继内容零位移。
         <span style={{ ...reveal(rowHover), position: 'relative', display: 'inline-flex', width: ACTION_CLUSTER_WIDTH, flexShrink: 0, justifyContent: 'flex-end' }}>
-          <button
-            type="button" aria-label="更多操作"
-            onClick={() => props.onMenu(menuOpenId === fv.id ? null : fv.id)}
-            style={iconBtn}
-          >
-            <Icon name="more" size={12} />
-          </button>
+          <Tooltip content="更多操作">
+            <button
+              type="button" aria-label="更多操作"
+              onClick={() => props.onMenu(menuOpenId === fv.id ? null : fv.id)}
+              style={iconBtn}
+            >
+              <Icon name="more" size={12} />
+            </button>
+          </Tooltip>
           {menuOpenId === fv.id && (
             <span
               style={{
@@ -300,10 +307,12 @@ export default function PhoneticArea(props: PhoneticAreaProps) {
   // v0.7.7 Task 9：手机上不渲染（不是藏起来）——触摸下没有 hover，白占一格且按不中。
   const addTitle = addLabel.replace(/^\+\s*/, '')
   const addControl = touch ? null : (
-    <button type="button" aria-label={addTitle} onClick={onAdd}
-      style={{ ...iconBtn, ...reveal(rowHover) }}>
-      <Icon name="plus" size={12} />
-    </button>
+    <Tooltip content={addTitle}>
+      <button type="button" aria-label={addTitle} onClick={onAdd}
+        style={{ ...iconBtn, ...reveal(rowHover) }}>
+        <Icon name="plus" size={12} />
+      </button>
+    </Tooltip>
   )
 
   // 词根（stacked）：添加控件跟到最后一条词根右侧，放不下才换行（宽度决定，不是条数）；

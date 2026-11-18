@@ -1,6 +1,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { NAV_CONTROL_HEIGHT } from '../../lib/layout'
 import Icon from '../icons'
+import Tooltip from '../ui/Tooltip'
 
 /** 行尾两枚图标键的共用配方：中性、无边框、hover 才起底（v0.7.2 蓝不做可点提示）。
  *  颜色走 `inherit`——由 RowActions 的簇容器按显隐给色（静止 / 悬停两态），
@@ -88,15 +89,19 @@ export default function RowActions({ visible, mode, touch = false, onAdd, onDele
       {!menuOnly ? (
         <>
           {onAdd && (
-            <button type="button" aria-label="加到本容器" onClick={onAdd} style={rowIconStyle}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit' }}>＋</button>
+            <Tooltip content="加到本容器">
+              <button type="button" aria-label="加到本容器" onClick={onAdd} style={rowIconStyle}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit' }}>＋</button>
+            </Tooltip>
           )}
-          <button type="button" aria-label="删除本行" onClick={onDelete} style={rowIconStyle}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-danger)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit' }}>
-            <Icon name="trash" size={15} />
-          </button>
+          <Tooltip content="删除本行">
+            <button type="button" aria-label="删除本行" onClick={onDelete} style={rowIconStyle}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-danger)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit' }}>
+              <Icon name="trash" size={15} />
+            </button>
+          </Tooltip>
         </>
       ) : menu}
     </span>

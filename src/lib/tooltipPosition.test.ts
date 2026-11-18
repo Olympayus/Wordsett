@@ -26,6 +26,12 @@ describe('tooltipPosition', () => {
     const rect = { left: 300, right: 316, top: 100 }
     expect(tooltipPosition(rect, 320, 8, 1200)).toEqual(tooltipPosition(rect, 320, 8, 1200, 1))
   })
+
+  it('两侧都放不下：推回视口右缘内，不越出窗口', () => {
+    // 左翻需要 left − 8 − 50 > 4，10 − 58 < 4 不成立；右展 20 + 8 + 50 = 78 > 80 − 4 溢出。
+    // 兜底右侧展开后夹到 80 − 50 − 4 = 26。
+    expect(tooltipPosition({ left: 10, right: 20, top: 12 }, 50, 8, 80).x).toBe(26)
+  })
 })
 
 // 纵向：tooltipPosition 只给起点 y，面板高度要渲染后才量得到，故单独一步修正。

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { CSSProperties, ReactNode } from 'react'
 import { invoke } from '@tauri-apps/api/core'
 import Icon from '../components/icons'
+import Tooltip from '../components/ui/Tooltip'
 import { Button } from '../components/ui/Button'
 import SpeakButton from '../components/ui/SpeakButton'
 import FamiliarityChoice from '../components/search/FamiliarityChoice'
@@ -68,21 +69,23 @@ export function CollectorTitleBar() {
           划词
         </span>
       </div>
-      <button
-        type="button"
-        aria-label="关闭"
-        onClick={() => { void invoke('collector_hide').catch(() => {}) }}
-        style={{
-          width: '24px', height: '24px', flexShrink: 0, padding: 0,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
-          cursor: 'pointer', color: 'var(--color-text-secondary)',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-      >
-        <Icon name="close" size={13} />
-      </button>
+      <Tooltip content="关闭">
+        <button
+          type="button"
+          aria-label="关闭"
+          onClick={() => { void invoke('collector_hide').catch(() => {}) }}
+          style={{
+            width: '24px', height: '24px', flexShrink: 0, padding: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
+            cursor: 'pointer', color: 'var(--color-text-secondary)',
+          }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+        >
+          <Icon name="close" size={13} />
+        </button>
+      </Tooltip>
     </div>
   )
 }

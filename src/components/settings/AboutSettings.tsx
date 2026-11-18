@@ -6,6 +6,7 @@ import { usePlatformClass } from '../../lib/usePlatform'
 import { openExternalUrl, RELEASES_URL } from '../../lib/openExternal'
 import { useMobilePopup } from '../../lib/mobilePopups'
 import SquareButton from '../ui/SquareButton'
+import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
 
 /** 更新方式说明的「i」悬浮窗（v0.7.8 收尾）：原来那行常驻小字收进这里，
@@ -34,21 +35,23 @@ function UpdateHintPopover() {
   }, [open])
   return (
     <span ref={hostRef} style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-      <button
-        type="button"
-        aria-label="更新方式说明"
-        aria-expanded={open}
-        onClick={() => setOpen(o => !o)}
-        style={{
-          width: 31, height: 31, padding: 0, flexShrink: 0,
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          border: '1px solid var(--color-hairline)', borderRadius: '50%',
-          background: 'transparent', color: 'var(--color-text-secondary)',
-          cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
-        }}
-      >
-        <Icon name="info" size={15} />
-      </button>
+      <Tooltip content="更新方式说明">
+        <button
+          type="button"
+          aria-label="更新方式说明"
+          aria-expanded={open}
+          onClick={() => setOpen(o => !o)}
+          style={{
+            width: 31, height: 31, padding: 0, flexShrink: 0,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            border: '1px solid var(--color-hairline)', borderRadius: '50%',
+            background: 'transparent', color: 'var(--color-text-secondary)',
+            cursor: 'pointer', touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent',
+          }}
+        >
+          <Icon name="info" size={15} />
+        </button>
+      </Tooltip>
       {open && (
         <div
           role="note"

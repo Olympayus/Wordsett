@@ -6,6 +6,7 @@ import { useMobilePopup } from '../../lib/mobilePopups'
 import { scaleForAnchor, type OverlayScale } from '../../lib/overlayZoom'
 import { touchInputStyles } from '../../lib/touchInput'
 import ClearButton from './ClearButton'
+import Tooltip from './Tooltip'
 
 // 统一页内查找（spec §4b）：挂 AppShell，工作台与词典详情共用；CSS Custom Highlight API 高亮
 // CSS Custom Highlight API 由 lib.dom（TS ≥6）/ WebView2 提供，无需 shim 文件
@@ -141,13 +142,19 @@ export default function FindBar({ variant = 'desktop' }: { variant?: 'desktop' |
             style={{ width: 150, border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--color-text-primary)' }} />
           <ClearButton visible={query.length > 0} onClick={() => { setQuery(''); setIndex(0); inputRef.current?.focus() }} />
           <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)' }}>{Math.min(index + 1, matches)}/{matches}</span>
-          <button type="button" onClick={() => matches > 0 && setIndex(i => Math.min(i + 1, matches - 1))} style={btnStyle}>↓</button>
-          <button type="button" onClick={() => setIndex(i => Math.max(i - 1, 0))} style={btnStyle}>↑</button>
-          <button type="button" aria-label="关闭查找" onClick={() => setOpen(false)} style={btnStyle}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-              <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
-            </svg>
-          </button>
+          <Tooltip content="下一个匹配">
+            <button type="button" onClick={() => matches > 0 && setIndex(i => Math.min(i + 1, matches - 1))} style={btnStyle}>↓</button>
+          </Tooltip>
+          <Tooltip content="上一个匹配">
+            <button type="button" onClick={() => setIndex(i => Math.max(i - 1, 0))} style={btnStyle}>↑</button>
+          </Tooltip>
+          <Tooltip content="关闭查找">
+            <button type="button" aria-label="关闭查找" onClick={() => setOpen(false)} style={btnStyle}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+                <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+              </svg>
+            </button>
+          </Tooltip>
         </div>,
         document.body
       )}

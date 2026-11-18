@@ -7,6 +7,7 @@ import { useCategoryStore } from '../../stores/categoryStore'
 import { useUiStore } from '../../stores/uiStore'
 import type { Category } from '../../types/category'
 import Icon from '../icons'
+import Tooltip from '../ui/Tooltip'
 import { Button } from '../ui/Button'
 import CheckBox from '../ui/CheckBox'
 
@@ -270,14 +271,16 @@ export default function CategoryEditorModal({ open, category, wordId, onClose, o
           <div style={{ fontFamily: 'var(--font-serif)', fontSize: 'var(--text-lg)', fontWeight: 'var(--weight-semibold)' }}>
             {category ? '编辑分类' : '新建分类'}
           </div>
-          <button
-            type="button" aria-label="关闭" onClick={onClose}
-            style={{ width: '28px', height: '28px', border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}
-          >
-            <Icon name="close" size={18} />
-          </button>
+          <Tooltip content="关闭">
+            <button
+              type="button" aria-label="关闭" onClick={onClose}
+              style={{ width: '28px', height: '28px', border: 'none', background: 'transparent', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}
+            >
+              <Icon name="close" size={18} />
+            </button>
+          </Tooltip>
         </div>
 
         <div style={{ marginBottom: '16px' }}>

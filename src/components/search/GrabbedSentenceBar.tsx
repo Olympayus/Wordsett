@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import RadioMark from '../ui/RadioMark'
+import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
 import { DashMark } from '../entry/Mark'
 import { FIELD_LABEL_STYLE } from '../../lib/labelStyle'
@@ -142,21 +143,23 @@ export default function GrabbedSentenceBar({ word, fields }: {
         >
           {addLabel}
         </button>
-        <button
-          type="button"
-          aria-label="关闭划词例句"
-          onClick={dismiss}
-          style={{
-            width: 22, height: 22, flexShrink: 0, padding: 0,
-            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-            border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
-            cursor: 'pointer', color: 'var(--color-text-tertiary)',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
-        >
-          <Icon name="close" size={13} />
-        </button>
+        <Tooltip content="关闭划词例句">
+          <button
+            type="button"
+            aria-label="关闭划词例句"
+            onClick={dismiss}
+            style={{
+              width: 22, height: 22, flexShrink: 0, padding: 0,
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
+              cursor: 'pointer', color: 'var(--color-text-tertiary)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+          >
+            <Icon name="close" size={13} />
+          </button>
+        </Tooltip>
       </div>
 
       <div style={{ padding: '10px 12px 10px' }}>

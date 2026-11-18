@@ -8,6 +8,7 @@ import { categoryLocationCounts, locationCountSegments, type LocationCounts } fr
 import WordMultiPicker from '../word/WordMultiPicker'
 import Icon from '../icons'
 import SquareButton from '../ui/SquareButton'
+import Tooltip from '../ui/Tooltip'
 import HitArea, { useMobileShellHitArea } from '../ui/HitArea'
 import { usePlatformClass } from '../../lib/usePlatform'
 import { isDesktop, usesMobileShell } from '../../lib/platform'
@@ -66,34 +67,42 @@ function CategoryRow({ cat, counts, onEdit, onDelete, onBatchAdd, onBatchRemove,
         )}
       </span>
       {/* 批量两枚按钮排在编辑之前：紧邻分类名，「加一批 / 减一批」先于「改这个分类本身」 */}
-      <button type="button" aria-label={`批量加入「${cat.name}」`} onClick={onBatchAdd}
-        style={{ ...btnBase, color: hovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
-        <Icon name="plus" size={16} />
-        <HitArea show={showHitArea} />
-      </button>
-      <button type="button" aria-label={`批量移出「${cat.name}」`} onClick={onBatchRemove}
-        style={{ ...btnBase, color: hovered ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)' }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
-        <Icon name="minus" size={16} />
-        <HitArea show={showHitArea} />
-      </button>
-      <button type="button" aria-label="编辑分类" onClick={onEdit}
-        style={{ ...btnBase, color: hovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
-        <Icon name="edit" size={16} />
-        <HitArea show={showHitArea} />
-      </button>
-      <button type="button" aria-label="删除分类" onClick={onDelete}
-        style={{ ...btnBase, color: hovered ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}
-        onMouseEnter={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--color-danger) 8%, transparent)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
-        <Icon name="trash" size={16} />
-        <HitArea show={showHitArea} />
-      </button>
+      <Tooltip content={`批量加入「${cat.name}」`}>
+        <button type="button" aria-label={`批量加入「${cat.name}」`} onClick={onBatchAdd}
+          style={{ ...btnBase, color: hovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+          <Icon name="plus" size={16} />
+          <HitArea show={showHitArea} />
+        </button>
+      </Tooltip>
+      <Tooltip content={`批量移出「${cat.name}」`}>
+        <button type="button" aria-label={`批量移出「${cat.name}」`} onClick={onBatchRemove}
+          style={{ ...btnBase, color: hovered ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+          <Icon name="minus" size={16} />
+          <HitArea show={showHitArea} />
+        </button>
+      </Tooltip>
+      <Tooltip content="编辑分类">
+        <button type="button" aria-label="编辑分类" onClick={onEdit}
+          style={{ ...btnBase, color: hovered ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+          <Icon name="edit" size={16} />
+          <HitArea show={showHitArea} />
+        </button>
+      </Tooltip>
+      <Tooltip content="删除分类">
+        <button type="button" aria-label="删除分类" onClick={onDelete}
+          style={{ ...btnBase, color: hovered ? 'var(--color-danger)' : 'var(--color-text-secondary)' }}
+          onMouseEnter={e => { e.currentTarget.style.background = 'color-mix(in srgb, var(--color-danger) 8%, transparent)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+          <Icon name="trash" size={16} />
+          <HitArea show={showHitArea} />
+        </button>
+      </Tooltip>
     </div>
   )
 }

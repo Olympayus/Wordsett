@@ -7,6 +7,7 @@ import { tabSheetItems } from '../../lib/mobileSheets'
 import { useMobilePopup } from '../../lib/mobilePopups'
 import ContextMenu from '../ui/ContextMenu'
 import MobileActionSheet from '../layout/mobile/MobileActionSheet'
+import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
 
 interface TabBarProps {
@@ -103,22 +104,25 @@ function TabButton({
         {label}
       </button>
       {editorMode && !touch && (
-        <button
-          type="button"
-          aria-label={`删除「${label}」标签页`}
-          onClick={() => onDeleteTab(tab)}
-          style={{
-            position: 'absolute', right: 1, top: 1, zIndex: 2,
-            width: 12, height: 12, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-            color: 'var(--color-text-tertiary)',
-            transition: 'color var(--duration-fast) var(--ease-smooth)',
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)' }}
-          onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
-        >
-          <Icon name="close" size={10} />
-        </button>
+        // 提示宿主自己承担 × 的绝对定位：包在按钮外面后若让宿主留在流内，
+        // 按钮被抽出行框、宿主的包围盒退化成零尺寸，提示就失去锚点。
+        <Tooltip content={`删除「${label}」标签页`} style={{ position: 'absolute', right: 1, top: 1, zIndex: 2 }}>
+          <button
+            type="button"
+            aria-label={`删除「${label}」标签页`}
+            onClick={() => onDeleteTab(tab)}
+            style={{
+              width: 12, height: 12, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+              color: 'var(--color-text-tertiary)',
+              transition: 'color var(--duration-fast) var(--ease-smooth)',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-danger)' }}
+            onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+          >
+            <Icon name="close" size={10} />
+          </button>
+        </Tooltip>
       )}
     </span>
   )
@@ -173,19 +177,21 @@ export default function TabBar({ tabs, activeTab, missing, onSelect, onAddTab, o
       </div>
 
       <div style={{ position: 'relative', marginLeft: 8, marginBottom: 5, marginRight: ENTRY_COLUMN_PADDING_X, flexShrink: 0 }}>
-        <button
-          type="button" aria-label="添加标签页"
-          onClick={() => setAddOpen(v => !v)}
-          onMouseEnter={e => { e.currentTarget.style.background = TAB_HOVER_BG; e.currentTarget.style.color = 'var(--color-text-primary)' }}
-          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}
-          style={{
-            width: 26, height: 26, borderRadius: 6, border: 'none', background: 'transparent',
-            cursor: 'pointer', color: 'var(--color-text-secondary)', fontSize: 17, fontWeight: 600,
-            lineHeight: 1, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}
-        >
-          +
-        </button>
+        <Tooltip content="添加标签页">
+          <button
+            type="button" aria-label="添加标签页"
+            onClick={() => setAddOpen(v => !v)}
+            onMouseEnter={e => { e.currentTarget.style.background = TAB_HOVER_BG; e.currentTarget.style.color = 'var(--color-text-primary)' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}
+            style={{
+              width: 26, height: 26, borderRadius: 6, border: 'none', background: 'transparent',
+              cursor: 'pointer', color: 'var(--color-text-secondary)', fontSize: 17, fontWeight: 600,
+              lineHeight: 1, fontFamily: 'var(--font-sans)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            +
+          </button>
+        </Tooltip>
 
         {addOpen && (
           <>

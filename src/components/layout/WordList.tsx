@@ -27,6 +27,7 @@ import type { SmartViewKey } from '../../lib/smartViews'
 import type { WordLocation, WordWithPreview } from '../../types/word'
 import type { Category } from '../../types/category'
 import Icon, { type IconName } from '../icons'
+import Tooltip from '../ui/Tooltip'
 
 type HeaderType = 'letter' | 'category' | 'uncategorized'
 
@@ -778,7 +779,7 @@ function BatchChip({ label, icon, danger, collapsed, onClick }: {
   collapsed: boolean
   onClick: () => void
 }) {
-  return (
+  const button = (
     <button
       type="button"
       aria-label={label}
@@ -798,4 +799,6 @@ function BatchChip({ label, icon, danger, collapsed, onClick }: {
       {!collapsed && label}
     </button>
   )
+  // 收起态只剩图标（无文字），补悬浮说明；展开态按钮自带文字，不再重复。
+  return collapsed ? <Tooltip content={label}>{button}</Tooltip> : button
 }

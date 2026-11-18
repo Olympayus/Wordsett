@@ -360,22 +360,24 @@ export default function DictDetailCard({
   // 同一条路——SenseFlow 的标准 run-in 头没有单组折叠控件，故这里自绘头（head 槽位整块取代
   // pos/counts/横线那一行），只在右端多一枚该组自己的折叠键，字体与横线一律照抄标准头。
   const groupFold = (key: string, collapsed: boolean) => (
-    <button
-      type="button"
-      aria-label={collapsed ? '展开本组' : '收起本组'}
-      aria-expanded={!collapsed}
-      onClick={() => toggleGroup(key)}
-      onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)' }}
-      onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
-      style={{
-        alignSelf: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-        width: 22, height: 22, padding: 0, flexShrink: 0,
-        border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
-        cursor: 'pointer', color: 'var(--color-text-tertiary)',
-      }}
-    >
-      <Icon name={collapsed ? 'chevron-right' : 'chevron'} size={13} />
-    </button>
+    <Tooltip content={collapsed ? '展开本组' : '收起本组'}>
+      <button
+        type="button"
+        aria-label={collapsed ? '展开本组' : '收起本组'}
+        aria-expanded={!collapsed}
+        onClick={() => toggleGroup(key)}
+        onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)' }}
+        onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+        style={{
+          alignSelf: 'center', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          width: 22, height: 22, padding: 0, flexShrink: 0,
+          border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
+          cursor: 'pointer', color: 'var(--color-text-tertiary)',
+        }}
+      >
+        <Icon name={collapsed ? 'chevron-right' : 'chevron'} size={13} />
+      </button>
+    </Tooltip>
   )
 
   // 正文流分组（SenseFlow）：每个顶层容器（词性组 / 补充 / 词形变化…）一个 run-in 头。

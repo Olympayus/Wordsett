@@ -1,5 +1,6 @@
 import { useUpdaterStore } from '../../stores/updaterStore'
 import Icon from '../icons'
+import Tooltip from './Tooltip'
 
 const btnPrimary = {
   // v0.7.2 §6 规则 2：主按钮不再是品牌蓝实底，改中性配方（浅暖灰底 + 1px 深描边）。
@@ -42,10 +43,12 @@ export default function UpdateDialog() {
             {phase === 'checking' && <span style={{ width: 14, height: 14, border: '2px solid var(--color-border-strong)', borderTopColor: 'var(--color-brand)', borderRadius: '50%', display: 'inline-block', animation: 'spin 0.8s linear infinite' }} />}
             {title}
           </div>
-          <button type="button" onClick={closeDialog} aria-label="关闭"
-            style={{ width: 24, height: 24, border: 'none', background: 'transparent', borderRadius: 4, color: 'var(--color-text-tertiary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="close" size={14} />
-          </button>
+          <Tooltip content="关闭">
+            <button type="button" onClick={closeDialog} aria-label="关闭"
+              style={{ width: 24, height: 24, border: 'none', background: 'transparent', borderRadius: 4, color: 'var(--color-text-tertiary)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="close" size={14} />
+            </button>
+          </Tooltip>
         </div>
 
         <div style={{ padding: '12px 18px 16px' }}>

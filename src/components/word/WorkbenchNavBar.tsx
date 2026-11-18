@@ -130,17 +130,19 @@ export default function WorkbenchNavBar({
         marginBottom: 0,
       }}
     >
-      <button
-        type="button"
-        aria-label={region === 'dict' ? '返回' : '上一个词条'}
-        disabled={region === 'workbench' && !canBack}
-        onClick={() => region === 'dict' ? onBack?.() : goBack()}
-        onMouseEnter={hoverOn}
-        onMouseLeave={hoverOff}
-        style={navBtn(region === 'workbench' && !canBack)}
-      >
-        <Icon name="arrow-left" size={15} />
-      </button>
+      <Tooltip content={region === 'dict' ? '返回' : '上一个词条'}>
+        <button
+          type="button"
+          aria-label={region === 'dict' ? '返回' : '上一个词条'}
+          disabled={region === 'workbench' && !canBack}
+          onClick={() => region === 'dict' ? onBack?.() : goBack()}
+          onMouseEnter={hoverOn}
+          onMouseLeave={hoverOff}
+          style={navBtn(region === 'workbench' && !canBack)}
+        >
+          <Icon name="arrow-left" size={15} />
+        </button>
+      </Tooltip>
       {/* 返回页面包屑（v0.7.2 §8.3）：返回箭头之后、右端动作簇之前，是导航条上唯一的浮动文字。 */}
       {region === 'dict' && breadcrumb && (
         <span style={{ fontSize: 12, color: 'var(--color-text-tertiary)', whiteSpace: 'nowrap' }}>{breadcrumb}</span>
@@ -164,17 +166,19 @@ export default function WorkbenchNavBar({
       )}
       {/* dict 区无法推进历史指针，其前进箭头必然禁用，故不渲染 */}
       {region === 'workbench' && (
-        <button
-          type="button"
-          aria-label="下一个词条"
-          disabled={!canForward}
-          onClick={goForward}
-          onMouseEnter={hoverOn}
-          onMouseLeave={hoverOff}
-          style={navBtn(!canForward)}
-        >
-          <Icon name="arrow-right" size={15} />
-        </button>
+        <Tooltip content="下一个词条">
+          <button
+            type="button"
+            aria-label="下一个词条"
+            disabled={!canForward}
+            onClick={goForward}
+            onMouseEnter={hoverOn}
+            onMouseLeave={hoverOff}
+            style={navBtn(!canForward)}
+          >
+            <Icon name="arrow-right" size={15} />
+          </button>
+        </Tooltip>
       )}
       {/* 移入 / 移回（v0.7.5 Task 11）：左簇、前进箭头右侧、面包屑与右端簇之前。
           只在工作台、且调用方传了当前模块与回调时渲染——WordWorkbench 只会在选中词存在时
@@ -189,16 +193,18 @@ export default function WorkbenchNavBar({
           返回页里在「已选 N 项」之后。形态与同排箭头同族（`navBtn`：28×22、hover 起底色），
           只出图标、可及名走 `aria-label`（不新增原生 title）。`openFind()` 无实例时空操作。 */}
       {showFind && (
-        <button
-          type="button"
-          aria-label="查找"
-          onClick={() => openFind()}
-          onMouseEnter={hoverOn}
-          onMouseLeave={hoverOff}
-          style={navBtn()}
-        >
-          <Icon name="search" size={15} />
-        </button>
+        <Tooltip content="查找">
+          <button
+            type="button"
+            aria-label="查找"
+            onClick={() => openFind()}
+            onMouseEnter={hoverOn}
+            onMouseLeave={hoverOff}
+            style={navBtn()}
+          >
+            <Icon name="search" size={15} />
+          </button>
+        </Tooltip>
       )}
 
       {/* ⋯ 更多操作（普通模式可见）本轮不实现：⋯ 菜单内容与「删除此标签页」收进菜单是 v0.7.0 段二的独立项，
@@ -250,14 +256,16 @@ export default function WorkbenchNavBar({
               编者
             </SquareButton>
 
-            <button
-              type="button" aria-label="删除词条" onClick={onDeleteWord}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)'; e.currentTarget.style.color = 'var(--color-danger)' }}
-              onMouseLeave={hoverOff}
-              style={navBtn()}
-            >
-              <Icon name="trash" size={15} />
-            </button>
+            <Tooltip content="删除词条">
+              <button
+                type="button" aria-label="删除词条" onClick={onDeleteWord}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)'; e.currentTarget.style.color = 'var(--color-danger)' }}
+                onMouseLeave={hoverOff}
+                style={navBtn()}
+              >
+                <Icon name="trash" size={15} />
+              </button>
+            </Tooltip>
           </>
         ) : (
           <>

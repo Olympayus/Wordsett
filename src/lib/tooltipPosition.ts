@@ -12,8 +12,10 @@ export function tooltipPosition(
   const canOpenLeft = rect.left - gap - visualWidth > 4
   const overflowRight = rect.right + gap + visualWidth > vw - 4
   const flipLeft = canOpenLeft && overflowRight
+  const rawX = flipLeft ? rect.left - gap - visualWidth : rect.right + gap
   return {
-    x: flipLeft ? rect.left - gap - visualWidth : rect.right + gap,
+    // 两侧都放不下（面板比余量宽）时仍推回视口内：宁可盖住锚点，也不让面板掉出窗口。
+    x: Math.max(4, Math.min(rawX, vw - visualWidth - 4)),
     y: Math.max(4, rect.top),
   }
 }

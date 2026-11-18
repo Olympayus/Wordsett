@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { speakWord } from '../../lib/review/speak'
+import Tooltip from './Tooltip'
 
 /**
  * 喇叭按钮（v0.6.3 条目 12）：工作台词条标题、复习认读题面、词典详情页标题三处共用。
@@ -10,6 +11,8 @@ import { speakWord } from '../../lib/review/speak'
  * 降级行为见 lib/review/speak.ts。**`onPlay` 是这条降级的出口**：默认路径（`speakWord`）
  * 一律静默吞错，因为「点了没声」是稳定的环境事实、不是故障；设置页的试听不一样——
  * 那里的失败（音色被卸载）正是用户需要知道的事，故由调用方接管并自行报错。
+ *
+ * v0.7.10 收尾：悬浮说明取 `label`（播放发音 / 试听），三处调用点共用同一句。
  */
 export default function SpeakButton({ text, size = 17, label = '播放发音', tone = 'tertiary', onPlay, disabled = false }: {
   text: string; size?: number; label?: string
@@ -27,27 +30,29 @@ export default function SpeakButton({ text, size = 17, label = '播放发音', t
   if (!text) return null
   const hovered = hover && !disabled
   return (
-    <button
-      type="button"
-      aria-label={label}
-      disabled={disabled}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onClick={() => { if (disabled) return; if (onPlay) onPlay(); else void speakWord(text) }}
-      style={{
-        border: 'none', background: hovered ? 'var(--color-surface-hover)' : 'transparent',
-        color: hovered ? 'var(--color-text-primary)' : `var(--color-text-${tone})`,
-        padding: 2, cursor: disabled ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center',
-        borderRadius: 'var(--radius-sm)', flexShrink: 0, opacity: disabled ? 0.45 : 1,
-        transition: 'color var(--duration-fast) var(--ease-smooth), background-color var(--duration-fast) var(--ease-smooth)',
-      }}
-    >
-      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <path d="M11 5 6 9H2v6h4l5 4z" />
-        <path d="M15.5 8.5a5 5 0 0 1 0 7" />
-        <path d="M18.5 5.5a9 9 0 0 1 0 13" />
-      </svg>
-    </button>
+    <Tooltip content={label}>
+      <button
+        type="button"
+        aria-label={label}
+        disabled={disabled}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onClick={() => { if (disabled) return; if (onPlay) onPlay(); else void speakWord(text) }}
+        style={{
+          border: 'none', background: hovered ? 'var(--color-surface-hover)' : 'transparent',
+          color: hovered ? 'var(--color-text-primary)' : `var(--color-text-${tone})`,
+          padding: 2, cursor: disabled ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center',
+          borderRadius: 'var(--radius-sm)', flexShrink: 0, opacity: disabled ? 0.45 : 1,
+          transition: 'color var(--duration-fast) var(--ease-smooth), background-color var(--duration-fast) var(--ease-smooth)',
+        }}
+      >
+        <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M11 5 6 9H2v6h4l5 4z" />
+          <path d="M15.5 8.5a5 5 0 0 1 0 7" />
+          <path d="M18.5 5.5a9 9 0 0 1 0 13" />
+        </svg>
+      </button>
+    </Tooltip>
   )
 }

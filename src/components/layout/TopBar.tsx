@@ -19,6 +19,7 @@ import { ACTIVITY_RAIL_WIDTH } from './ActivityRail'
 import DueBadge from './DueBadge'
 import Icon from '../icons'
 import ClearButton from '../ui/ClearButton'
+import Tooltip from '../ui/Tooltip'
 
 // 搜索框几何：可用宽度两侧各扣「活动栏 + 展开侧栏 + 边距」，保证搜索框与建议下拉都不侵入侧栏。
 const SEARCH_EDGE_MARGIN = 12
@@ -172,26 +173,28 @@ export default function TopBar() {
           v0.7.2 §6：删掉品牌蓝的手写加深渐变（原 linear-gradient(brand, #3A5A8A)），
           改单色品牌蓝底 + 白字（§1.4「删掉装饰性渐变」，#3A5A8A 随之消失）。 */}
       <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
-        <button
-          type="button"
-          aria-label="Wordsett 首页"
-          data-session-guard="home:workbench"
-          onClick={showWorkbench}
-          style={{
-            width: '32px', height: '32px', flexShrink: 0, cursor: 'pointer', border: 'none',
-            borderRadius: 'var(--radius-md)',
-            background: 'var(--color-brand)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
-          }}
-        >
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
-            strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <path d="M4 6h16M4 12h16M4 18h16" />
-            <circle cx="8" cy="6" r="1.5" fill="white" stroke="white" />
-            <circle cx="16" cy="12" r="1.5" fill="white" stroke="white" />
-            <circle cx="8" cy="18" r="1.5" fill="white" stroke="white" />
-          </svg>
-        </button>
+        <Tooltip content="Wordsett 首页">
+          <button
+            type="button"
+            aria-label="Wordsett 首页"
+            data-session-guard="home:workbench"
+            onClick={showWorkbench}
+            style={{
+              width: '32px', height: '32px', flexShrink: 0, cursor: 'pointer', border: 'none',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--color-brand)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white',
+            }}
+          >
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor"
+              strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 6h16M4 12h16M4 18h16" />
+              <circle cx="8" cy="6" r="1.5" fill="white" stroke="white" />
+              <circle cx="16" cy="12" r="1.5" fill="white" stroke="white" />
+              <circle cx="8" cy="18" r="1.5" fill="white" stroke="white" />
+            </svg>
+          </button>
+        </Tooltip>
       </div>
 
       {/* 待复习提示（v0.6.3 条目 5）：logo 右侧。count = 0 或设置关掉时组件自己返回 null，
@@ -293,24 +296,30 @@ export default function TopBar() {
 
         {desktopOnly && (
           <>
-            <button type="button" aria-label="最小化" onClick={() => void appWindow.minimize()}
-              style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
-              <Icon name="minimize" size={14} />
-            </button>
-            <button type="button" aria-label={isMaximized ? '还原' : '最大化'} onClick={toggleMaximize}
-              style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
-              <Icon name={isMaximized ? 'restore' : 'maximize'} size={14} />
-            </button>
-            <button type="button" aria-label="关闭" onClick={() => void appWindow.close()}
-              style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
-              onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-danger)'; e.currentTarget.style.color = 'white' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}>
-              <Icon name="close" size={14} />
-            </button>
+            <Tooltip content="最小化">
+              <button type="button" aria-label="最小化" onClick={() => void appWindow.minimize()}
+                style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+                <Icon name="minimize" size={14} />
+              </button>
+            </Tooltip>
+            <Tooltip content={isMaximized ? '还原' : '最大化'}>
+              <button type="button" aria-label={isMaximized ? '还原' : '最大化'} onClick={toggleMaximize}
+                style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover-recessed)' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+                <Icon name={isMaximized ? 'restore' : 'maximize'} size={14} />
+              </button>
+            </Tooltip>
+            <Tooltip content="关闭">
+              <button type="button" aria-label="关闭" onClick={() => void appWindow.close()}
+                style={{ width: '30px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', outline: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--color-text-secondary)' }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-danger)'; e.currentTarget.style.color = 'white' }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)' }}>
+                <Icon name="close" size={14} />
+              </button>
+            </Tooltip>
           </>
         )}
       </div>

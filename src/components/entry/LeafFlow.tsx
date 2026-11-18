@@ -5,6 +5,7 @@ import { hitAreaStyle } from '../../lib/mobileHitArea'
 import { SourceBar } from './SourceMark'
 import { DotMark } from './Mark'
 import Icon from '../icons'
+import Tooltip from '../ui/Tooltip'
 import type { FieldState } from '../../lib/fieldState'
 
 /**
@@ -226,21 +227,23 @@ function UnitItemDraggable({ id, it, drag, touch }: {
           手机没有 hover，常挂——仍走同一个 16px wrapper，几何不占位。 */}
       {(drag.hoveredId === id || touch) && (
         <span style={UNIT_HANDLE_WRAPPER}>
-          <button
-            type="button"
-            ref={setActivatorNodeRef}
-            {...listeners}
-            {...attributes}
-            aria-label="拖动排序"
-            style={{
-              ...UNIT_HANDLE,
-              // 命中层的定位基准只在手机加；桌面样式对象逐字不变。
-              ...(touch ? { position: 'relative' as const } : null),
-            }}
-          >
-            {touch && <span aria-hidden="true" style={UNIT_HANDLE_HIT} />}
-            <Icon name="grip" size={10} />
-          </button>
+          <Tooltip content="拖动排序">
+            <button
+              type="button"
+              ref={setActivatorNodeRef}
+              {...listeners}
+              {...attributes}
+              aria-label="拖动排序"
+              style={{
+                ...UNIT_HANDLE,
+                // 命中层的定位基准只在手机加；桌面样式对象逐字不变。
+                ...(touch ? { position: 'relative' as const } : null),
+              }}
+            >
+              {touch && <span aria-hidden="true" style={UNIT_HANDLE_HIT} />}
+              <Icon name="grip" size={10} />
+            </button>
+          </Tooltip>
         </span>
       )}
       {unitBody(it, { touch, dotListeners: listeners })}

@@ -1,3 +1,5 @@
+import Tooltip from './Tooltip'
+
 /**
  * 「清除全部输入」键（v0.7.3 §8.1）。三处输入框共用：顶栏搜索框 / Ctrl+F 查找框 / 侧栏筛选框。
  *
@@ -9,6 +11,8 @@
  *
  * `Input.tsx` 不加 suffix 能力：它被大量表单复用，加容器会牵动所有调用点；
  * 三处各自包一层相对定位容器即可。
+ *
+ * v0.7.10 收尾：图标按钮挂悬浮说明（`label` 原文），三处调用点一处改全生效。
  */
 export default function ClearButton({ visible, onClick, label = '清除输入' }: {
   visible: boolean
@@ -16,25 +20,27 @@ export default function ClearButton({ visible, onClick, label = '清除输入' }
   label?: string
 }) {
   return (
-    <button
-      type="button"
-      aria-label={label}
-      tabIndex={visible ? 0 : -1}
-      onClick={onClick}
-      style={{
-        flex: 'none', width: '16px', height: '16px', padding: 0, display: 'grid', placeItems: 'center',
-        border: 'none', background: 'transparent', cursor: 'pointer',
-        color: 'var(--color-text-tertiary)',
-        visibility: visible ? 'visible' : 'hidden',
-        pointerEvents: visible ? 'auto' : 'none',
-        transition: 'color var(--duration-fast) var(--ease-smooth)',
-      }}
-      onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)' }}
-      onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
-    >
-      <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
-        <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
-      </svg>
-    </button>
+    <Tooltip content={label}>
+      <button
+        type="button"
+        aria-label={label}
+        tabIndex={visible ? 0 : -1}
+        onClick={onClick}
+        style={{
+          flex: 'none', width: '16px', height: '16px', padding: 0, display: 'grid', placeItems: 'center',
+          border: 'none', background: 'transparent', cursor: 'pointer',
+          color: 'var(--color-text-tertiary)',
+          visibility: visible ? 'visible' : 'hidden',
+          pointerEvents: visible ? 'auto' : 'none',
+          transition: 'color var(--duration-fast) var(--ease-smooth)',
+        }}
+        onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)' }}
+        onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)' }}
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round">
+          <path d="M4.5 4.5l7 7M11.5 4.5l-7 7" />
+        </svg>
+      </button>
+    </Tooltip>
   )
 }

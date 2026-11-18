@@ -469,24 +469,26 @@ function RowMenu({ items, touch = false, onOpen }: { items: MenuItem[]; touch?: 
   const [pos, setPos] = useState<{ x: number; y: number } | null>(null)
   return (
     <>
-      <button
-        type="button"
-        aria-label="更多操作"
-        onClick={e => {
-          if (onOpen) { onOpen(); return }
-          setPos({ x: e.clientX, y: e.clientY })
-        }}
-        style={touch ? { ...rowIconStyle, position: 'relative' } : rowIconStyle}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit' }}
-      >
-        {touch && (
-          // 44×44 命中区（v0.7.7 Task 4）：绝对定位、不进布局；挂在按钮内部，点击事件冒泡回
-          // 本按钮的原 onClick——监听不搬家。`aria-hidden`：语义仍由按钮的 aria-label 承担。
-          <span aria-hidden="true" style={{ ...hitAreaStyle(), top: TOUCH_HIT_OFFSET, left: TOUCH_HIT_OFFSET }} />
-        )}
-        <Icon name="more" size={16} />
-      </button>
+      <Tooltip content="更多操作">
+        <button
+          type="button"
+          aria-label="更多操作"
+          onClick={e => {
+            if (onOpen) { onOpen(); return }
+            setPos({ x: e.clientX, y: e.clientY })
+          }}
+          style={touch ? { ...rowIconStyle, position: 'relative' } : rowIconStyle}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)'; e.currentTarget.style.color = 'var(--color-text-primary)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'inherit' }}
+        >
+          {touch && (
+            // 44×44 命中区（v0.7.7 Task 4）：绝对定位、不进布局；挂在按钮内部，点击事件冒泡回
+            // 本按钮的原 onClick——监听不搬家。`aria-hidden`：语义仍由按钮的 aria-label 承担。
+            <span aria-hidden="true" style={{ ...hitAreaStyle(), top: TOUCH_HIT_OFFSET, left: TOUCH_HIT_OFFSET }} />
+          )}
+          <Icon name="more" size={16} />
+        </button>
+      </Tooltip>
       {!onOpen && pos && <ContextMenu x={pos.x} y={pos.y} items={items} onClose={() => setPos(null)} />}
     </>
   )
@@ -701,29 +703,31 @@ function FieldCard({ fv, depth, parentFv, labelOverride, no, asGroupHead = false
   ) : null
   const grip = (
     <span style={{ width: GUTTER_WIDTH, flexShrink: 0, alignSelf: 'center', display: 'inline-flex', alignItems: 'center' }}>
-      <button
-        type="button"
-        ref={setActivatorNodeRef}
-        {...listeners}
-        {...attributes}
-        // 手机上截住 `pointerdown` 的冒泡（v0.7.7 Task 6，spec §3.4）：手柄不在正文长按区里，
-        // 这一下绝不能让文字区的 `useTouchLongPress` 看到（那会误弹行菜单）。dnd-kit 的
-        // TouchSensor 激活器挂在 `onTouchStart` 上，不受影响；桌面 PointerSensor 的
-        // `onPointerDown` 在 `listeners` 里，此分支只在 `touch` 时存在，桌面事件链逐字不变。
-        {...(touch ? { onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => { e.stopPropagation() } } : null)}
-        aria-label="拖动排序"
-        style={{
-          width: '10px', height: `${GRIP_HEIGHT}px`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
-          cursor: isDragging ? 'grabbing' : 'grab', color: 'var(--color-text-tertiary)',
-          flexShrink: 0, alignSelf: 'center', touchAction: 'none', ...reveal(showsButtons),
-          // 覆盖层的定位基准只在手机加；桌面样式对象逐字不变。
-          ...(touch ? { position: 'relative' as const } : null),
-        }}
-      >
-        {gripHitArea}
-        <Icon name="grip" size={10} />
-      </button>
+      <Tooltip content="拖动排序">
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...listeners}
+          {...attributes}
+          // 手机上截住 `pointerdown` 的冒泡（v0.7.7 Task 6，spec §3.4）：手柄不在正文长按区里，
+          // 这一下绝不能让文字区的 `useTouchLongPress` 看到（那会误弹行菜单）。dnd-kit 的
+          // TouchSensor 激活器挂在 `onTouchStart` 上，不受影响；桌面 PointerSensor 的
+          // `onPointerDown` 在 `listeners` 里，此分支只在 `touch` 时存在，桌面事件链逐字不变。
+          {...(touch ? { onPointerDown: (e: React.PointerEvent<HTMLButtonElement>) => { e.stopPropagation() } } : null)}
+          aria-label="拖动排序"
+          style={{
+            width: '10px', height: `${GRIP_HEIGHT}px`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
+            cursor: isDragging ? 'grabbing' : 'grab', color: 'var(--color-text-tertiary)',
+            flexShrink: 0, alignSelf: 'center', touchAction: 'none', ...reveal(showsButtons),
+            // 覆盖层的定位基准只在手机加；桌面样式对象逐字不变。
+            ...(touch ? { position: 'relative' as const } : null),
+          }}
+        >
+          {gripHitArea}
+          <Icon name="grip" size={10} />
+        </button>
+      </Tooltip>
     </span>
   )
 
@@ -2267,29 +2271,31 @@ const WordWorkbench = forwardRef<WordWorkbenchHandle, Props>(function WordWorkbe
                 <CategoryCapsule key={cat.id} category={cat} onClick={() => openEditor(cat, selectedWord.id)} touch={touch} />
               ))}
               {/* 「+」虚线圆钮：新建/选择分类（规格 §5.1）。v0.7.7 Task 10：手机上补 44dp 命中区。 */}
-              <button
-                type="button"
-                aria-label="添加分类"
-                onClick={() => { openAssign(selectedWord.id); setCapsuleExpanded(false) }}
-                style={{
-                  width: `${BAND_CONTROL_SIZE}px`, height: `${BAND_CONTROL_SIZE}px`, border: '1px dashed var(--color-border-strong)',
-                  borderRadius: 'var(--radius-full)', background: 'transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                  color: 'var(--color-text-tertiary)',
-                  transition: 'color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
-                  // 覆盖层的定位基准只在手机加；桌面样式逐字不变。
-                  ...(touch ? { position: 'relative' as const } : null),
-                }}
-                onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.borderColor = 'var(--color-text-primary)' }}
-                onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
-              >
-                {touch && (
-                  // 44×44 命中区（v0.7.7 Task 10）：绝对定位、不进布局；挂在按钮**内部**，
-                  // 点击冒泡回本按钮的 onClick。无 z-index：不盖过按钮自身。
-                  <span aria-hidden="true" style={{ ...hitAreaStyle(), top: BAND_HIT_OFFSET, left: BAND_HIT_OFFSET }} />
-                )}
-                <Icon name="plus" size={16} />
-              </button>
+              <Tooltip content="添加分类">
+                <button
+                  type="button"
+                  aria-label="添加分类"
+                  onClick={() => { openAssign(selectedWord.id); setCapsuleExpanded(false) }}
+                  style={{
+                    width: `${BAND_CONTROL_SIZE}px`, height: `${BAND_CONTROL_SIZE}px`, border: '1px dashed var(--color-border-strong)',
+                    borderRadius: 'var(--radius-full)', background: 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                    color: 'var(--color-text-tertiary)',
+                    transition: 'color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth)',
+                    // 覆盖层的定位基准只在手机加；桌面样式逐字不变。
+                    ...(touch ? { position: 'relative' as const } : null),
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.borderColor = 'var(--color-text-primary)' }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.borderColor = 'var(--color-border-strong)' }}
+                >
+                  {touch && (
+                    // 44×44 命中区（v0.7.7 Task 10）：绝对定位、不进布局；挂在按钮**内部**，
+                    // 点击冒泡回本按钮的 onClick。无 z-index：不盖过按钮自身。
+                    <span aria-hidden="true" style={{ ...hitAreaStyle(), top: BAND_HIT_OFFSET, left: BAND_HIT_OFFSET }} />
+                  )}
+                  <Icon name="plus" size={16} />
+                </button>
+              </Tooltip>
             </>
           }
           rows={

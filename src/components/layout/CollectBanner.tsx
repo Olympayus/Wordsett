@@ -55,21 +55,23 @@ export default function CollectBanner() {
       <span style={{ flex: 1, minWidth: 0 }}>
         <Tooltip content={detail} tapOpen>{BANNER_TEXT}</Tooltip>
       </span>
-      <button
-        type="button"
-        aria-label="关闭提示"
-        onClick={() => setDismissed(true)}
-        onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
-        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
-        style={{
-          width: 20, height: 20, flexShrink: 0, padding: 0,
-          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-          border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
-          cursor: 'pointer', color: 'var(--color-text-secondary)',
-        }}
-      >
-        <Icon name="close" size={12} />
-      </button>
+      <Tooltip content="关闭提示">
+        <button
+          type="button"
+          aria-label="关闭提示"
+          onClick={() => setDismissed(true)}
+          onMouseEnter={e => { e.currentTarget.style.background = 'var(--color-surface-hover)' }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+          style={{
+            width: 20, height: 20, flexShrink: 0, padding: 0,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            border: 'none', background: 'transparent', borderRadius: 'var(--radius-sm)',
+            cursor: 'pointer', color: 'var(--color-text-secondary)',
+          }}
+        >
+          <Icon name="close" size={12} />
+        </button>
+      </Tooltip>
     </div>
   )
 }

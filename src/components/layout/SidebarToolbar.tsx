@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import Icon from '../icons'
 import ClearButton from '../ui/ClearButton'
+import Tooltip from '../ui/Tooltip'
 import { hasCoarsePointer } from '../../lib/pointer'
 import { touchInputStyles } from '../../lib/touchInput'
 
@@ -115,17 +116,21 @@ export default function SidebarToolbar({
       <div style={{ display: 'flex', alignItems: 'center', gap: '4px', flexWrap: 'wrap' }}>
         {slots.selectToggle ? (
           <>
-            <button type="button" aria-label="多选" aria-pressed={false}
-              onClick={onToggleSelectMode} onMouseEnter={hoverOn} onMouseLeave={hoverOff}
-              style={iconBtn()}>
-              <Icon name="check-square" size={16} />
-            </button>
-            {slots.modeToggle && (
-              <button type="button" aria-label="切换显示模式"
-                onClick={onToggleMode} onMouseEnter={hoverOn} onMouseLeave={hoverOff}
+            <Tooltip content="多选">
+              <button type="button" aria-label="多选" aria-pressed={false}
+                onClick={onToggleSelectMode} onMouseEnter={hoverOn} onMouseLeave={hoverOff}
                 style={iconBtn()}>
-                <Icon name="swap" size={16} />
+                <Icon name="check-square" size={16} />
               </button>
+            </Tooltip>
+            {slots.modeToggle && (
+              <Tooltip content="切换显示模式">
+                <button type="button" aria-label="切换显示模式"
+                  onClick={onToggleMode} onMouseEnter={hoverOn} onMouseLeave={hoverOff}
+                  style={iconBtn()}>
+                  <Icon name="swap" size={16} />
+                </button>
+              </Tooltip>
             )}
           </>
         ) : (
@@ -144,17 +149,19 @@ export default function SidebarToolbar({
             就失去了唯一的逃生口——恰恰是最该能撑开侧栏的时候动不了。 */}
         <div style={{ marginLeft: 'auto' }}>
           {slots.collapseToggle && (
-            <button type="button" aria-label="收起/展开侧边栏"
-              onClick={onToggleCollapse} onMouseEnter={hoverOn} onMouseLeave={hoverOff}
-              style={iconBtn()}>
-              <span style={{
-                display: 'flex',
-                transition: 'transform var(--duration-normal) var(--ease-smooth)',
-                transform: collapsed ? 'rotate(180deg)' : undefined,
-              }}>
-                <Icon name="chevron-left" size={16} />
-              </span>
-            </button>
+            <Tooltip content="收起/展开侧边栏">
+              <button type="button" aria-label="收起/展开侧边栏"
+                onClick={onToggleCollapse} onMouseEnter={hoverOn} onMouseLeave={hoverOff}
+                style={iconBtn()}>
+                <span style={{
+                  display: 'flex',
+                  transition: 'transform var(--duration-normal) var(--ease-smooth)',
+                  transform: collapsed ? 'rotate(180deg)' : undefined,
+                }}>
+                  <Icon name="chevron-left" size={16} />
+                </span>
+              </button>
+            </Tooltip>
           )}
         </div>
       </div>
