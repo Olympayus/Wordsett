@@ -22,7 +22,7 @@ import {
   type SettingsSectionKey,
 } from '../../lib/mobileSettings'
 import { usePlatformClass } from '../../lib/usePlatform'
-import { isDesktop } from '../../lib/platform'
+import { isDesktop, usesMobileShell } from '../../lib/platform'
 
 /** 内容列限宽 720px（工作台内容列 v0.7.2 起是 ENTRY_BAND_WIDTH = 900px，两者不再等值，
  *  但仍属同一量级）；不限宽时窗口越宽、标签与开关之间离得越远，两侧留白也随之失控。 */
@@ -292,7 +292,10 @@ export default function SettingsPage({ variant = 'desktop', mobileSection: contr
           )}
           {active === 'search' && <SearchSettings />}
           {active === 'review' && <ReviewSettings />}
-          {active === 'voice' && <VoiceSettings variant={isDesktop(platform) ? 'desktop' : 'mobile'} />}
+          {/* 语音分区的形态按**外壳**判（v0.8.0 Task 8）：手机外壳固定「系统默认」；
+              平板复用桌面外壳，iPad 要枚举英文音色并可选择（spec §7.6 构建者决定）。
+              故这里问 `usesMobileShell`，而不是「是不是桌面」。 */}
+          {active === 'voice' && <VoiceSettings variant={usesMobileShell(platform) ? 'mobile' : 'desktop'} />}
           {active === 'category' && <CategorySettings />}
           {active === 'links' && <LinkSettings />}
           {active === 'collect' && <CollectSettings />}

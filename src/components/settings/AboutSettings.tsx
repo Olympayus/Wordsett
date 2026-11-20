@@ -4,6 +4,7 @@ import pkg from '../../../package.json'
 import { useUpdaterStore } from '../../stores/updaterStore'
 import { useMobileUpdateStore } from '../../stores/mobileUpdateStore'
 import { usePlatformClass } from '../../lib/usePlatform'
+import { isIOS, usesMobileShell } from '../../lib/platform'
 import { openExternalUrl, RELEASES_URL } from '../../lib/openExternal'
 import { useMobilePopup } from '../../lib/mobilePopups'
 import SquareButton from '../ui/SquareButton'
@@ -16,8 +17,11 @@ import Icon from '../icons'
  *
  *  关窗三条路径与手机其它浮层一致：再点图标（开关）、点面板外（捕获阶段
  *  `pointerdown`，触摸端同样触发）、安卓返回键（`useMobilePopup` 登记）；
- *  另加 Esc 供键盘 / 桌面语义。 */
-function UpdateHintPopover() {
+ *  另加 Esc 供键盘 / 桌面语义。
+ *
+ *  v0.8.0 Task 8：文案按平台分流——iOS 是侧载（未签名 IPA 需在电脑上覆盖签名），
+ *  Android 仍是下载 APK 覆盖安装。`ios` 由调用点传入，Android 文案逐字不变。 */
+function UpdateHintPopover({ ios }: { ios: boolean }) {
   const [open, setOpen] = useState(false)
   const hostRef = useRef<HTMLSpanElement>(null)
   useMobilePopup(open, () => setOpen(false))
@@ -65,7 +69,11 @@ function UpdateHintPopover() {
             fontSize: 'var(--text-xs)', lineHeight: 1.7, color: 'var(--color-text-primary)',
           }}
         >
-          <div>手机版不支持应用内更新。新版本请在浏览器打开发布页，下载最新 APK 覆盖安装。</div>
+          <div>
+            {ios
+              ? 'iOS 侧载版不支持应用内更新。新版本请在浏览器打开发布页，下载未签名 IPA，再在电脑上用 Sideloadly 覆盖签名安装。'
+              : '手机版不支持应用内更新。新版本请在浏览器打开发布页，下载最新 APK 覆盖安装。'}
+          </div>
           <div style={{
             marginTop: 6, fontFamily: 'var(--font-mono)', fontSize: 'var(--text-xs)',
             color: 'var(--color-text-primary)', wordBreak: 'break-all', userSelect: 'text',
@@ -179,13 +187,14 @@ function LogViewer({ tone }: { tone: ButtonTone }) {
 /**
  * 「关于」里的版本行。
  *
- * 平台判据由 `usePlatformClass()` 承担（v0.7.8）：**非桌面一律渲染 Android 轻量 UI**，
+ * 平台判据由 `usePlatformClass()` 承担（v0.7.8）：**非桌面（Android / iOS）一律渲染移动轻量 UI**，
  * 因为平板复用桌面外壳、调用点拿不到 `variant="mobile"`，却同样没有签名更新器。
  * `variant` 只为兼容既有调用点而保留，不再参与判定。
  *
- * Android 分支（spec §6）：签名更新器在 Android 上不可用（`updater_os()` 返回 `None`），
+ * Android / iOS 分支（spec §6 / §7.5）：签名更新器在移动端不可用（`updater_os()` 返回 `None`），
  * 故这里改为读 GitHub 上的 `latest.json` 检测版本（`useMobileUpdateStore`），只通知、
- * 不下载、不安装；用户要更新就把系统浏览器送到 Releases 页手动下载 APK。
+ * 不下载、不安装；用户要更新就把系统浏览器送到 Releases 页手动下载（Android 下载 APK
+ * 覆盖安装，iOS 下载未签名 IPA 后在电脑上覆盖签名）。
  *
  * 桌面分支保持原样：`检查更新` 仍走 `useUpdaterStore.checkManually`。
  */
@@ -219,9 +228,10 @@ export default function AboutSettings(_props: Props = {}) {
             ? `发现新版本 v${mobileVersion ?? ''}`
             : `检查失败：${mobileError ?? ''}`
     const checkingNow = mobilePhase === 'checking'
-    // 按钮底色按**直接父级**选（SquareButton 的既有约定）：手机设置页内容区是 canvas，
-    // 平板复用桌面设置页的白底内容列（surface）。
-    const tone = platform === 'android-phone' ? 'canvas' : 'surface'
+    // 按钮底色按**直接父级**选（SquareButton 的既有约定）：手机外壳的设置内容区是 canvas，
+    // 平板复用桌面设置页的白底内容列（surface）。判据用 `usesMobileShell`（v0.8.0 Task 8）——
+    // 它问的是「当前挂哪套外壳」，与 Android 上「是不是手机」在旧判据里是同一件事，iOS 上才分开。
+    const tone = usesMobileShell(platform) ? 'canvas' : 'surface'
 
     const openReleases = () => {
       void openExternalUrl(RELEASES_URL).catch(e => console.error('[mobile] 打开下载页失败：', e))
@@ -236,7 +246,7 @@ export default function AboutSettings(_props: Props = {}) {
           <SquareButton tone={tone} onClick={() => { void mobileCheckManually() }} disabled={checkingNow}>
             检查更新
           </SquareButton>
-          <UpdateHintPopover />
+          <UpdateHintPopover ios={isIOS(platform)} />
           {mobilePhase === 'available' && (
             <SquareButton tone={tone} onClick={openReleases}>
               前往 GitHub 下载

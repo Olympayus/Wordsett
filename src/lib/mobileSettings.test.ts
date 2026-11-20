@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import type { PlatformClass } from './platform'
 import { SETTINGS_SECTIONS, visibleSettingsSections } from './mobileSettings'
 
 describe('visibleSettingsSections', () => {
@@ -17,6 +18,13 @@ describe('visibleSettingsSections', () => {
   it('android 手机与平板都没有划词分区', () => {
     expect(visibleSettingsSections('android-phone').map(s => s.key)).not.toContain('collect')
     expect(visibleSettingsSections('android-tablet').map(s => s.key)).not.toContain('collect')
+  })
+  // v0.8.0 Task 8：iOS 与 Android 同判——手机与平板都剔除划词与平台权限。
+  it('iOS 手机与平板剔除划词与平台权限', () => {
+    const keys = (p: PlatformClass) => visibleSettingsSections(p).map(s => s.key)
+    expect(keys('ios-phone')).not.toContain('collect')
+    expect(keys('ios-phone')).not.toContain('platform')
+    expect(keys('ios-tablet')).not.toContain('collect')
   })
   it('划词分区紧跟双向链接（桌面顺序）', () => {
     const keys = SETTINGS_SECTIONS.map(s => s.key)
