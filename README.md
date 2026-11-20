@@ -193,6 +193,23 @@ Android 版以 **universal APK** 发布（同一个包同时含 arm64-v8a 与 ar
 
 > 手机版不走桌面式的应用内更新：启动时会静默检查新版本，发现新版后设置入口出现小圆点，到 **设置 → 关于** 点「前往 GitHub 下载」手动下载安装。
 
+### iOS 安装（Windows 侧载）
+
+iOS 版（支持 iOS 14.0 及以上）以**未签名 IPA** 随 [GitHub Releases](https://github.com/Olympayus/Wordsett/releases) 发布（CI 产物名为 `wordsett-ios-unsigned`）。iPhone 与 iPad 使用**同一个 IPA**；签名与安装全部在 Windows 上完成，不需要 Mac，也不经过 App Store。
+
+1. **准备电脑端工具**：从 Apple 官网下载安装 **iTunes**（不要用 Microsoft Store 版，它缺少设备组件），再安装 [Sideloadly](https://sideloadly.io/)。用数据线连接 iPhone / iPad，并在设备上点「信任此电脑」。
+2. **打开开发者模式**（iOS 16 及以上）：**设置 → 隐私与安全性 → 开发者模式** → 打开 → 按提示重启并确认。若看不到这一项，先用 Sideloadly 连接一次设备再回来查看。
+3. **签名安装**：把下载到的 `.ipa` 拖进 Sideloadly，选中你的设备，Apple ID 填**免费 Apple ID**，点 Start。Sideloadly 在电脑本地完成与 Apple 的签名流程；开启了双重认证的账号按它的提示操作。
+4. **信任证书**：安装完成后，在设备上打开 **设置 → 通用 → VPN 与设备管理 → 开发者 App**，选中你的 Apple ID 并点「信任」，再回桌面启动 Wordsett。
+
+免费 Apple ID 侧载的三条限制：
+
+- **7 天续签**：免费签名 7 天后过期，App 会打不开（数据仍在）。到期前用同一个 Apple ID 在 Sideloadly 里重新签名安装即可。
+- **每台设备最多 3 个 App**：同一个免费 Apple ID 在一台设备上同时最多保留 3 个自签名 App。
+- **同一 bundle ID 覆盖安装保数据**：升级时把新 IPA 直接拖进 Sideloadly 覆盖安装，**不要先删除 App**——相同 bundle ID 覆盖安装会保留词库与设置；删除 App 会清除本地数据，卸载前请先在 **设置 → 关于 → 数据** 导出备份。
+
+> iPad 使用同一个 IPA，安装步骤与 iPhone 相同。iOS 版同样不走应用内更新：新版本需重新下载 IPA 并覆盖签名安装。
+
 ### 应用内更新
 
 **桌面版**安装后无需手动卸载重装：启动时若检测到新版本会弹窗提示，也可在 **设置 → 关于 → 检查更新** 手动检测并直接升级；更新过程保留你的个人词库数据。
