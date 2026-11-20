@@ -123,6 +123,9 @@ export default function AppShell({ tablet = false }: AppShellProps) {
         ...(tablet ? { height: '100%' } : {}),
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
+      // v0.8.0 Task 12：触摸语义表面只在平板挂（手机外壳在 `MobileShell` 根上挂）。
+      // 桌面不传该属性，根节点渲染逐字不变；`undefined` 时 React 不输出这个 attribute。
+      data-touch-semantics={tablet ? '' : undefined}
     >
       {/* 平板返回栈（v0.7.10 Task 4）：只在 `android-tablet` 挂载，手机在 `MobileShell` 里挂。
           桌面因此不受任何影响（不订阅返回键、不读编辑态）。 */}

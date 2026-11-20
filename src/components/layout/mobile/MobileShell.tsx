@@ -138,7 +138,13 @@ export default function MobileShell() {
   // 是**不含浏览器折叠工具栏**的视口高，滚动或地址栏收放时比可见区高出一截，底栏会被推到
   // 屏幕外；dvh 跟随动态视口，旋转后也不会在底部留白。Android 上两者相等，不改变现状。
   return (
-    <div className="flex flex-col" style={{ background: 'var(--color-canvas)', position: 'relative', height: '100dvh' }}>
+    <div
+      className="flex flex-col"
+      style={{ background: 'var(--color-canvas)', position: 'relative', height: '100dvh' }}
+      // v0.8.0 Task 12：触摸语义表面。外壳只在移动 OS 上渲染，故无条件挂；CSS 见 `index.css`
+      // （禁原生文本选择 / callout + 双击缩放，输入框例外恢复）。
+      data-touch-semantics=""
+    >
       {/* 顶栏：抽屉 / 返回前进 / 标题 / 编者开关 / ⋯（编辑态换成取消 / 保存）。
           只在词条页（工作台 / 储藏库）出现：搜索、复习、设置是各自的一级页面，
           顶部由各自的页面自己负责（spec §4.1「其余页面按各自导航需要出一枚返回与面包屑」）。 */}
