@@ -1,16 +1,42 @@
 import { describe, it, expect } from 'vitest'
-import { resolvePlatform, usesMobileShell, isAndroidTablet, isDesktop, tabletZoom, tabletLayout, orientationFor, PHONE_MAX_WIDTH, TABLET_MIN_WIDTH } from './platform'
+import {
+  resolvePlatform,
+  usesMobileShell,
+  usesTabletLayout,
+  hasTouchSemantics,
+  isMobileOS,
+  isIOS,
+  isAndroid,
+  isDesktop,
+  isAndroidTablet,
+  isIOSUserAgent,
+  tabletZoom,
+  tabletLayout,
+  orientationFor,
+  PHONE_MAX_WIDTH,
+  TABLET_MIN_WIDTH,
+  IOS_TABLET_NARROW_WINDOW,
+  type PlatformEnv,
+} from './platform'
 
-const env = (width: number, isAndroid = true) => ({ isTauri: true, isAndroid, width, height: 844 })
+const env = (width: number, opts: Partial<PlatformEnv> = {}): PlatformEnv => ({
+  isTauri: true,
+  isAndroid: false,
+  isIOS: false,
+  width,
+  height: 1024,
+  windowWidth: width,
+  ...opts,
+})
 
 describe('platform', () => {
   it('桌面不进入移动外壳', () => {
-    expect(resolvePlatform(env(390, false))).toBe('desktop')
+    expect(resolvePlatform(env(390))).toBe('desktop')
     expect(usesMobileShell('desktop')).toBe(false)
   })
   it('599 及以下是手机，600 起是平板', () => {
-    expect(resolvePlatform(env(PHONE_MAX_WIDTH))).toBe('android-phone')
-    expect(resolvePlatform(env(TABLET_MIN_WIDTH))).toBe('android-tablet')
+    expect(resolvePlatform(env(PHONE_MAX_WIDTH, { isAndroid: true }))).toBe('android-phone')
+    expect(resolvePlatform(env(TABLET_MIN_WIDTH, { isAndroid: true }))).toBe('android-tablet')
   })
   it('只有手机用移动外壳', () => {
     expect(usesMobileShell('android-phone')).toBe(true)
@@ -35,6 +61,53 @@ describe('platform', () => {
     expect(orientationFor('android-phone')).toBe('portrait')
     expect(orientationFor('android-tablet')).toBe('landscape')
     expect(orientationFor('desktop')).toBeNull()
+  })
+})
+
+describe('iOS 与五档谓词', () => {
+  it('iOS 按最小边分手机 / 平板', () => {
+    expect(resolvePlatform(env(390, { isIOS: true }))).toBe('ios-phone')
+    expect(resolvePlatform(env(820, { isIOS: true }))).toBe('ios-tablet')
+  })
+  it('iPad 窄窗回落手机外壳', () => {
+    expect(IOS_TABLET_NARROW_WINDOW).toBe(600)
+    expect(resolvePlatform(env(820, { isIOS: true, windowWidth: 599 }))).toBe('ios-phone')
+    expect(resolvePlatform(env(820, { isIOS: true, windowWidth: 600 }))).toBe('ios-tablet')
+  })
+  it('Android 不受 windowWidth 影响', () => {
+    expect(resolvePlatform(env(800, { isAndroid: true, windowWidth: 390 }))).toBe('android-tablet')
+  })
+  it('谓词覆盖五档', () => {
+    for (const p of ['ios-phone', 'android-phone'] as const) {
+      expect(usesMobileShell(p)).toBe(true)
+      expect(usesTabletLayout(p)).toBe(false)
+      expect(hasTouchSemantics(p)).toBe(false)
+    }
+    for (const p of ['ios-tablet', 'android-tablet'] as const) {
+      expect(usesMobileShell(p)).toBe(false)
+      expect(usesTabletLayout(p)).toBe(true)
+      expect(hasTouchSemantics(p)).toBe(true)
+    }
+    expect(isIOS('ios-phone')).toBe(true)
+    expect(isIOS('ios-tablet')).toBe(true)
+    expect(isIOS('android-phone')).toBe(false)
+    expect(isIOS('desktop')).toBe(false)
+    expect(isAndroid('android-phone')).toBe(true)
+    expect(isAndroid('android-tablet')).toBe(true)
+    expect(isAndroid('ios-phone')).toBe(false)
+    expect(isMobileOS('desktop')).toBe(false)
+    expect(isMobileOS('ios-phone')).toBe(true)
+    expect(isMobileOS('android-tablet')).toBe(true)
+    expect(isDesktop('ios-tablet')).toBe(false)
+  })
+  it('iPad 桌面 UA 兜底', () => {
+    expect(isIOSUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5)).toBe(true)
+    expect(isIOSUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 0)).toBe(false)
+    expect(isIOSUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X)', 5)).toBe(true)
+  })
+  it('方向', () => {
+    expect(orientationFor('ios-phone')).toBe('portrait')
+    expect(orientationFor('ios-tablet')).toBe('landscape')
   })
 })
 

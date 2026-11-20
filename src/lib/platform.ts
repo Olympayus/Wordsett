@@ -1,7 +1,7 @@
 /**
- * 平台判定与缩放（Android 手机外壳，Task 1）。
+ * 平台判定与缩放：移动外壳（Android / iOS），Task 1；五档模型见 v0.8.0 Task 5。
  *
- * 全站唯一的「这台设备长什么样」出处：`IndexPage` 只在 `android-phone` 时挂 `MobileShell`，
+ * 全站唯一的「这台设备长什么样」出处：`IndexPage` 只在手机（`*-phone`）时挂 `MobileShell`，
  * 桌面与平板都继续挂 `AppShell`（平板是**桌面外壳 + 缩小一档**，不是第三套界面）。
  * 抽成纯函数是为了能在 node 环境里钉住断点与缩放。
  */
@@ -14,31 +14,93 @@ export const PHONE_MAX_WIDTH = 599
 /** 平板的宽度下界（px，含）。600 起走平板。 */
 export const TABLET_MIN_WIDTH = 600
 
+/** iPadOS 26 窗口化兜底：iOS 平板的当前窗口窄于该值（px）时回落手机外壳。 */
+export const IOS_TABLET_NARROW_WINDOW = 600
+
 /** 平板缩放不再放大的参考宽度（px）。 */
 export const TABLET_REFERENCE_WIDTH = 1246
 
 /** 平板缩放的下限：1024dp 横屏缩到 0.85 后按钮仍可点。 */
 export const TABLET_MIN_ZOOM = 0.85
 
-export type PlatformClass = 'desktop' | 'android-phone' | 'android-tablet'
+export type PlatformClass =
+  | 'desktop'
+  | 'android-phone'
+  | 'android-tablet'
+  | 'ios-phone'
+  | 'ios-tablet'
 
-/** `resolvePlatform` 的输入。`isTauri` / `isAndroid` 由调用点从环境取（见 Task 4 的 `usePlatformClass`）。 */
+/**
+ * `resolvePlatform` 的输入。`isTauri` / `isAndroid` / `isIOS` 由调用点从环境取
+ * （见 `usePlatform.ts` 的 `currentEnv`）。
+ *
+ * `isIOS` / `windowWidth` 暂为可选：三档模型时期的调用点尚未提供，缺省时按
+ * 「非 iOS」与「`windowWidth = width`」处理，旧三档的行为逐字不变。
+ */
 export interface PlatformEnv {
   isTauri: boolean
   isAndroid: boolean
+  isIOS?: boolean
   width: number
   height: number
+  windowWidth?: number
 }
 
-/** 非 Android 一律 `desktop`；Android 按宽度在 600 处分手机 / 平板。 */
+/**
+ * 五档判定：
+ * 1. 既不是 Android 也不是 iOS → `desktop`；
+ * 2. Android 按最小边在 600 处分手机 / 平板；
+ * 3. iOS 按最小边分手机 / 平板，另有 iPadOS 26 自由窗口兜底——当前窗口窄于
+ *    `IOS_TABLET_NARROW_WINDOW` 时按手机处理，免得 Stage Manager 把三栏挤坏。
+ *
+ * `windowWidth` 只有 iOS 读取：Android 的判据始终看设备最小边（`width`）。
+ */
 export function resolvePlatform(env: PlatformEnv): PlatformClass {
-  if (!env.isAndroid) return 'desktop'
-  return env.width < TABLET_MIN_WIDTH ? 'android-phone' : 'android-tablet'
+  if (!env.isAndroid && !env.isIOS) return 'desktop'
+  if (env.isAndroid) {
+    return env.width < TABLET_MIN_WIDTH ? 'android-phone' : 'android-tablet'
+  }
+  if (env.width < TABLET_MIN_WIDTH) return 'ios-phone'
+  if ((env.windowWidth ?? env.width) < IOS_TABLET_NARROW_WINDOW) return 'ios-phone'
+  return 'ios-tablet'
 }
 
-/** 只有手机走移动外壳（平板复用桌面外壳，桌面也是）。 */
+/**
+ * iOS 判定：iPhone / iPad / iPod 的 UA，或 iPadOS 13+ 的桌面模式（伪装成 Macintosh）——
+ * 后者靠触点数区分：Mac 的 `maxTouchPoints` 为 0，iPad 为 5。
+ */
+export function isIOSUserAgent(ua: string, maxTouchPoints: number): boolean {
+  return /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/i.test(ua) && maxTouchPoints > 1)
+}
+
+/** 只有手机（Android / iOS）走移动外壳（平板复用桌面外壳，桌面也是）。 */
 export function usesMobileShell(p: PlatformClass): boolean {
-  return p === 'android-phone'
+  return p === 'android-phone' || p === 'ios-phone'
+}
+
+/** 平板档（Android / iOS）走缩放宿主与三栏布局。 */
+export function usesTabletLayout(p: PlatformClass): boolean {
+  return p === 'android-tablet' || p === 'ios-tablet'
+}
+
+/** 平板档需要触摸语义（长按 / 双击 / 拖拽 / 行尾菜单）。 */
+export function hasTouchSemantics(p: PlatformClass): boolean {
+  return usesTabletLayout(p)
+}
+
+/** 移动操作系统（Android / iOS）的任一档：即非 `desktop`。 */
+export function isMobileOS(p: PlatformClass): boolean {
+  return p !== 'desktop'
+}
+
+/** iOS 手机 / 平板。 */
+export function isIOS(p: PlatformClass): boolean {
+  return p === 'ios-phone' || p === 'ios-tablet'
+}
+
+/** Android 手机 / 平板。 */
+export function isAndroid(p: PlatformClass): boolean {
+  return p === 'android-phone' || p === 'android-tablet'
 }
 
 /**
@@ -91,7 +153,7 @@ export function tabletLayout(landscapeWidth: number): TabletLayout {
 
 /** 方向锁定：手机竖屏、平板横屏、桌面不锁定（返回 null）。 */
 export function orientationFor(p: PlatformClass): 'portrait' | 'landscape' | null {
-  if (p === 'android-phone') return 'portrait'
-  if (p === 'android-tablet') return 'landscape'
+  if (p === 'android-phone' || p === 'ios-phone') return 'portrait'
+  if (p === 'android-tablet' || p === 'ios-tablet') return 'landscape'
   return null
 }
