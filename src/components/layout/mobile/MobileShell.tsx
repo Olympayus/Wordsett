@@ -19,6 +19,7 @@ import CategoryEditorModal from '../../word/CategoryEditorModal'
 import ConfirmDialog from '../../ui/ConfirmDialog'
 import FindBar from '../../ui/FindBar'
 import { useMobileBackStack } from '../useMobileBackStack'
+import { useEdgeSwipeBack } from '../../../lib/useEdgeSwipeBack'
 
 // 手机外壳（Task 4 立骨架，Task 5 填三块）。
 //
@@ -117,8 +118,8 @@ export default function MobileShell() {
     settingsSection,
     actions: { cancelEdit, closeDrawer, closeSettingsSub },
   })
-  // Task 11 之前无人消费，显式取用以免 `noUnusedLocals` 把构建拦下。
-  void backHandler
+  // iOS 左缘右滑返回（Task 11）：只在 iOS 手机挂监听，安卓 / 桌面上是空操作。
+  useEdgeSwipeBack(backHandler)
 
   // 方向锁定（v0.7.8）：已上移到 `IndexPage`——外壳分发的唯一入口，手机 / 平板都要经过它。
   // 手机外壳不再自己调（平板复用桌面外壳，那条路径根本不会挂到这里，两处调用会漏掉平板）。
