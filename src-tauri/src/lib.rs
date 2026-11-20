@@ -1,4 +1,5 @@
 mod config;
+mod diagnostics;
 mod dictionaries;
 mod orientation;
 mod platform;
@@ -97,6 +98,21 @@ pub fn run() {
     let builder = builder.plugin(tauri_plugin_global_shortcut::Builder::new().build());
 
     let builder = builder
+        // 真机诊断通道（v0.8.0 Task 1）：日志同时进 stdout 与 LogDir 的 wordsett.log。
+        // 必须排在 sql / 其它插件之前——启动早期（建库、词典落盘）的日志也要落盘，
+        // 否则真机上最先出问题的那一段恰好没有记录。`LogDir` 在桌面与手机上都可用，
+        // 故不按平台门控；日志级别固定 Info（Debug 会淹没真机反馈）。
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .targets([
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout),
+                    tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("wordsett".into()),
+                    }),
+                ])
+                .level(log::LevelFilter::Info)
+                .build(),
+        )
         .plugin(tauri_plugin_sql::Builder::new().build())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
@@ -196,9 +212,9 @@ pub fn run() {
     // 词典落盘命令：Android 首启必需。桌面 resources 就地直读、永远命中，
     // marker 不成立时复制会因源缺失而返回 Err，不改变桌面行为。
     #[cfg(desktop)]
-    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme, quit_app, collector::collector_resize, collector::collector_hide, collector::collector_open_dict, collector::collector_supported, shortcut::set_shortcut, shortcut::take_startup_error, shortcut::take_grab_log, shortcut::collector_ready, shortcut::grab_now]);
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme, quit_app, collector::collector_resize, collector::collector_hide, collector::collector_open_dict, collector::collector_supported, shortcut::set_shortcut, shortcut::take_startup_error, shortcut::take_grab_log, shortcut::collector_ready, shortcut::grab_now, diagnostics::log_frontend_error, diagnostics::read_recent_logs]);
     #[cfg(not(desktop))]
-    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme]);
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme, diagnostics::log_frontend_error, diagnostics::read_recent_logs]);
 
     builder.build(tauri::generate_context!())
         .expect("error while building tauri application")
