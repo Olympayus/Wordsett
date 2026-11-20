@@ -122,6 +122,9 @@ export function useTouchLongPress(
 
   const onContextMenu = useCallback((e: React.MouseEvent<HTMLElement>) => {
     if (disabled) return
+    // v0.8.0 Task 12：编辑框内的粘贴菜单必须放行——长按表面上的系统菜单不该出现，
+    // 但输入框是系统能力，应用自绘菜单替代不了。
+    if ((e.target as HTMLElement).closest('input, textarea')) return
     // 无条件拦下：手机长按会先弹系统菜单，等它来了再判按压状态就晚了。
     // 不看 `pressing` 也不看目标——启用时这个元素的系统菜单本来就不该出现。
     e.preventDefault()
