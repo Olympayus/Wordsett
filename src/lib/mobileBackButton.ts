@@ -9,7 +9,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { onBackButtonPress } from '@tauri-apps/api/app'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { orientationFor, type PlatformClass } from './platform'
+import { isIOS, orientationFor, type PlatformClass } from './platform'
 import { confirmLeaveEdit } from './editGuard'
 
 /** 方向锁定的入参。Rust 侧是 `Option<String>` 的 `orientation`（Tauri 的 camelCase 映射）。 */
@@ -29,6 +29,9 @@ export interface OrientationArgs {
  * 不该等一个可能永远不回来的 Promise）。
  */
 export function applyScreenOrientation(platform: PlatformClass): void {
+  // iOS 的方向由 Info.plist 锁定（v0.8.0 Task 10）：没有 `set_screen_orientation` 命令，
+  // 也不该走安卓那套运行时 JNI——方向语义交给系统。
+  if (isIOS(platform)) return
   const orientation = orientationFor(platform)
   void invoke<unknown>('set_screen_orientation', { orientation } satisfies OrientationArgs)
     .catch((e: unknown) => console.error('[mobile] set_screen_orientation 失败：', e))
@@ -53,9 +56,12 @@ export async function registerMobileBack(handler: () => void): Promise<() => voi
 }
 
 /**
- * 返回栈空了：退出应用。
+ * 返回栈空了：退出应用（仅 Android；iOS 上是无动作）。
  *
- * 走 Rust 的 `exit_app`（Android 上是 JNI `Activity.finish()`），**不是**前端的
+ * iOS（v0.8.0 Task 10）：系统不允许应用自行退出，边缘返回手势走到栈底只该「什么都不发生」——
+ * 仍先过编辑守卫（有未保存内容时给出确认），确认后**不**调 `exit_app` / `destroy()`。
+ *
+ * Android 走 Rust 的 `exit_app`（JNI `Activity.finish()`），**不是**前端的
  * `destroy()`：tao 0.35 的 Android 窗口没有 Drop 实现，`destroy()` 只把 wry 的内部
  * 窗口置空——Activity 不结束，界面冻在最后一帧，用户看着像返回键失灵。桌面不挂
  * `MobileShell`，这条路径在桌面上不可达。
@@ -67,11 +73,13 @@ export async function registerMobileBack(handler: () => void): Promise<() => voi
  *
  * `exit_app` 失败（非 Tauri 环境 / 极端情况）时退回 `destroy()`，至少别让返回键毫无反应。
  */
-export async function exitMobileApp(): Promise<void> {
+export async function exitMobileApp(platform: PlatformClass): Promise<void> {
   // 未保存确认（v0.7.8 Task 7）：退出会丢掉正在编辑的内容，先过编辑守卫；
   // 拒绝就原地不动（返回键的确认框不穿透——`MobileShell.backHandler` 已把
   // 打开中的 confirmReq 优先吃掉，这里只在栈真的走到「退出」时才可能发问）。
   if (!(await confirmLeaveEdit())) return
+  // iOS：确认之后到此为止。返回栈到底 = 无动作（系统不允许应用自行退出）。
+  if (isIOS(platform)) return
   try {
     await invoke('exit_app')
   } catch (e) {

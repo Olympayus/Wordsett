@@ -20,7 +20,7 @@ import FindBar, { registerFindKeyHandler } from '../ui/FindBar'
 import { fitCollapsedWidth, measureMaxWordWidth, resolveSidebarWordFont, COLLAPSED_CHROME_ALPHABET, COLLAPSED_CHROME_CATEGORY, SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
 import { usePlatformClass, useTabletLayout } from '../../lib/usePlatform'
 import { hasTouchSemantics, isAndroidTablet } from '../../lib/platform'
-import { useAndroidBackStack } from './useAndroidBackStack'
+import { useMobileBackStack } from './useMobileBackStack'
 import { useCloseRequest } from '../../lib/tray/useCloseRequest'
 import { useQuitRequest } from '../../lib/useQuitRequest'
 
@@ -40,7 +40,7 @@ interface AppShellProps {
  * 平板没有抽屉与设置子页，传 `false` / `null`，那两层永远不会进栈，关闭动作也就不会到达。
  */
 function TabletBackStack({ editing, cancelEdit }: { editing: boolean; cancelEdit: () => void }) {
-  useAndroidBackStack({
+  useMobileBackStack({
     editing,
     drawerOpen: false,
     settingsSection: null,
