@@ -37,6 +37,9 @@ export function useEdgeSwipeBack(handler: () => void): void {
     const onPointerDown = (e: PointerEvent) => {
       // 只认手指：鼠标 / 触控笔的左缘拖动不是系统返回手势。
       if (e.pointerType !== 'touch') return
+      // 编辑框内不记录起点（v0.8.0 终审）：输入框里的左缘横滑是文字选择，不该退一层。
+      // 判据与 `useTouchLongPress` 的输入框放行同一套包含检查。
+      if ((e.target as HTMLElement | null)?.closest('input, textarea, [contenteditable]')) return
       // 起点必须在左缘判定带内，正文中部的横滑不参与。
       if (e.clientX > EDGE_SWIPE_EDGE_WIDTH) return
       // 已有一指在手势中时不抢它的起点（多指落下只认最先的那一指）。

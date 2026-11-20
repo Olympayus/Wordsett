@@ -19,7 +19,7 @@ import ConfirmDialog from '../ui/ConfirmDialog'
 import FindBar, { registerFindKeyHandler } from '../ui/FindBar'
 import { fitCollapsedWidth, measureMaxWordWidth, resolveSidebarWordFont, COLLAPSED_CHROME_ALPHABET, COLLAPSED_CHROME_CATEGORY, SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
 import { usePlatformClass, useTabletLayout } from '../../lib/usePlatform'
-import { hasTouchSemantics, isAndroidTablet } from '../../lib/platform'
+import { hasTouchSemantics, isAndroidTablet, isIOS } from '../../lib/platform'
 import { useMobileBackStack } from './useMobileBackStack'
 import { useCloseRequest } from '../../lib/tray/useCloseRequest'
 import { useQuitRequest } from '../../lib/useQuitRequest'
@@ -123,9 +123,10 @@ export default function AppShell({ tablet = false }: AppShellProps) {
         ...(tablet ? { height: '100%' } : {}),
         paddingBottom: 'env(safe-area-inset-bottom)',
       }}
-      // v0.8.0 Task 12：触摸语义表面只在平板挂（手机外壳在 `MobileShell` 根上挂）。
-      // 桌面不传该属性，根节点渲染逐字不变；`undefined` 时 React 不输出这个 attribute。
-      data-touch-semantics={tablet ? '' : undefined}
+      // v0.8.0 Task 12：触摸语义表面只在**平板 + iOS** 挂（手机外壳在 `MobileShell` 根上挂）。
+      // 终审 R6：Android 平板不挂该属性，保持此前的文本选择 / 触摸行为；桌面同样不挂，
+      // 根节点渲染逐字不变；`undefined` 时 React 不输出这个 attribute。
+      data-touch-semantics={tablet && isIOS(platform) ? '' : undefined}
     >
       {/* 平板返回栈（v0.7.10 Task 4）：只在 `android-tablet` 挂载，手机在 `MobileShell` 里挂。
           桌面因此不受任何影响（不订阅返回键、不读编辑态）。 */}
