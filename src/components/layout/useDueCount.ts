@@ -3,9 +3,8 @@ import { listen } from '@tauri-apps/api/event'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { useViewStore } from '../../stores/viewStore'
 import { getStrategyCounts, REVIEW_DEFAULTS } from '../../services/reviewService'
-
-/** Android 判定（Task 5）：Android 没有托盘命令，`update_tray_badge` 在它上面不存在。 */
-const IS_ANDROID = /Android/i.test(navigator.userAgent)
+import { usePlatformClass } from '../../lib/usePlatform'
+import { isDesktop } from '../../lib/platform'
 
 /**
  * 今日到期数 + 托盘上报（Task 5 从 `DueBadge.tsx` 抽出的取数与轮询）。
@@ -41,15 +40,18 @@ const IS_ANDROID = /Android/i.test(navigator.userAgent)
  * 故不为了省这一条而在 db 层拆出第二份掩码判定。
  * 依赖里带 activeModule：离开复习模块时补取一次，做完一整轮退出复习模块，
  * 数字立刻重新取数；不带的话只能等下一次轮询，那个数最坏要在屏上滞留一分钟。
+ * 依赖里也带 platform：分屏 / 自由窗口跨过断点（iPadOS 26）时形态会变，重跑一次让
+ * 「是否上报托盘」跟着新形态走。
  *
  * 托盘：托盘菜单第二项与 tooltip 用的是**同一个数**（v0.7.0 §4.8），故无条件上报——
  * `showDueBadge` 只闸住**标题栏**那个数，关掉标题栏徽标不该让托盘数字也停更。
- * **Android 上整条跳过**：那是 Rust 侧的托盘命令（`tray.rs`，`desktop` 单实例插件），
- * Android 没有托盘也没有这个命令，调它只会抛一次 unhandled rejection（每 60s 一次，
- * 外加每次窗口 show）。判据与 `lib/usePlatform.ts` 逐字一致。
+ * **只有桌面上报**（v0.8.0 Task 8 从「非 Android」收紧）：托盘是 Rust 侧的命令
+ * （`tray.rs`，`desktop` 单实例插件），Android 与 iOS 都没有托盘也没有这个命令，
+ * 调它只会抛一次 unhandled rejection（每 60s 一次，外加每次窗口 show）。
  */
 export function useDueCount(): number {
   const activeModule = useViewStore(s => s.activeModule)
+  const platform = usePlatformClass()
   const [count, setCount] = useState(0)
 
   useEffect(() => {
@@ -65,8 +67,8 @@ export function useDueCount(): number {
       // 显隐一律交给消费点：桌面那侧的 `showDueBadge` 行为逐字不变（`dueChipModel` 早就在判），
       // 手机这侧因此恒显。
       if (alive) setCount(n)
-      // 托盘上报：只在非 Android 执行（Android 没有 `update_tray_badge` 这个命令）。
-      if (alive && !IS_ANDROID) {
+      // 托盘上报：只在桌面执行（Android / iOS 都没有 `update_tray_badge` 这个命令）。
+      if (alive && isDesktop(platform)) {
         const { invoke } = await import('@tauri-apps/api/core')
         await invoke('update_tray_badge', { remaining: n })
       }
@@ -83,7 +85,7 @@ export function useDueCount(): number {
       clearInterval(timer)
       void unlisten.then(f => f())
     }
-  }, [activeModule])
+  }, [activeModule, platform])
 
   return count
 }

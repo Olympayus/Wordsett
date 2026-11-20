@@ -35,13 +35,17 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
 
 /**
  * 当前平台可见的分区：
- * - **非桌面没有平台权限**（辅助功能那套是 macOS 独有，Android 手机与平板上都是空的）。
+ * - **非桌面没有平台权限**（辅助功能那套是 macOS 独有，Android / iOS 手机与平板上都是空的）。
  * - **非桌面也没有划词**（读系统选区只有 Windows / macOS 实现）：手机与平板都剔除。
  *   桌面这侧还要再叠加 `collector_supported`（`SettingsPage` 单独 invoke，不复用
  *   `accessibility_status`——Windows 上后者恒 false，会把 Windows 的划词分区藏掉）。
  *
  * 平板复用桌面外壳、左栏也是这份表，但「是不是桌面」不看外壳——v0.7.10 起平台权限与划词
  * 一样按 `platform === 'desktop'` 剔除，其余项平板与桌面同判。
+ *
+ * v0.8.0 起 **iOS 与 Android 同判**：`ios-phone` / `ios-tablet` 同样剔除这两项。
+ * 判据仍只有一句 `platform === 'desktop'`，不需要按操作系统再分叉——将来加平台档时，
+ * 只有「桌面专属能力」才需要在这里落一条，别的移动档自动继承同一份过滤。
  */
 export function visibleSettingsSections(platform: PlatformClass): SettingsSection[] {
   return SETTINGS_SECTIONS.filter(s => {
