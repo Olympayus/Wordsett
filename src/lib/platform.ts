@@ -32,18 +32,16 @@ export type PlatformClass =
 
 /**
  * `resolvePlatform` 的输入。`isTauri` / `isAndroid` / `isIOS` 由调用点从环境取
- * （见 `usePlatform.ts` 的 `currentEnv`）。
- *
- * `isIOS` / `windowWidth` 暂为可选：三档模型时期的调用点尚未提供，缺省时按
- * 「非 iOS」与「`windowWidth = width`」处理，旧三档的行为逐字不变。
+ * （见 `usePlatform.ts` 的 `currentEnv`）。`isIOS` 与 `windowWidth` 必填：
+ * `windowWidth` 供 iPadOS 26 自由窗口兜底，唯一调用点固定传 `window.innerWidth`。
  */
 export interface PlatformEnv {
   isTauri: boolean
   isAndroid: boolean
-  isIOS?: boolean
+  isIOS: boolean
   width: number
   height: number
-  windowWidth?: number
+  windowWidth: number
 }
 
 /**
@@ -61,7 +59,7 @@ export function resolvePlatform(env: PlatformEnv): PlatformClass {
     return env.width < TABLET_MIN_WIDTH ? 'android-phone' : 'android-tablet'
   }
   if (env.width < TABLET_MIN_WIDTH) return 'ios-phone'
-  if ((env.windowWidth ?? env.width) < IOS_TABLET_NARROW_WINDOW) return 'ios-phone'
+  if (env.windowWidth < IOS_TABLET_NARROW_WINDOW) return 'ios-phone'
   return 'ios-tablet'
 }
 
