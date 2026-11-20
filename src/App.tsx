@@ -8,7 +8,9 @@ import IndexPage from './routes/IndexPage'
 import { useUpdaterStore } from './stores/updaterStore'
 import { useMobileUpdateStore } from './stores/mobileUpdateStore'
 import { usePlatformClass } from './lib/usePlatform'
+import { isIOS, isMobileOS } from './lib/platform'
 import { useEditGuard } from './lib/useEditGuard'
+import { useKeepFocusedVisible } from './lib/useKeepFocusedVisible'
 import { confirmLeaveEdit } from './lib/editGuard'
 import { useViewStore } from './stores/viewStore'
 import { useWordStore } from './stores/wordStore'
@@ -26,6 +28,12 @@ export default function App() {
   // 桌面走签名更新器（`useUpdaterStore`），Android（手机 / 平板）读 Releases 清单
   // （`useMobileUpdateStore`）——两条路径互不重叠，桌面行为保持不变。
   const platform = usePlatformClass()
+
+  // iOS 键盘遮挡（v0.8.0 Task 13）：WKWebView 键盘弹出不缩布局视口，输入框 / 评分条
+  // 会被盖住。只在 iOS（手机 / 平板）挂 visualViewport 监听；Android 的 WebView 自行
+  // resize、桌面没有键盘遮挡，`enabled` 为假时 hook 一条监听都不挂，行为逐字不变。
+  useKeepFocusedVisible(isIOS(platform) && isMobileOS(platform))
+
   useEffect(() => {
     if (platform === 'desktop') void useUpdaterStore.getState().checkSilently()
     else void useMobileUpdateStore.getState().checkSilently()
