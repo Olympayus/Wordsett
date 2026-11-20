@@ -11,7 +11,6 @@
     "sql:allow-load",
     "sql:allow-execute",
     "sql:allow-select",
-    "updater:default",
     "dialog:allow-open",
     "dialog:allow-save",
     "fs:allow-read-text-file",

@@ -117,8 +117,17 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
-        .plugin(tauri_plugin_sql::Builder::new().build())
-        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_sql::Builder::new().build());
+
+    // 签名更新器插件只在桌面注册：`tauri-plugin-updater` 官方不支持 iOS，移动端也
+    // 从未调用过它（v0.7.8 手机更新检查走 GitHub `latest.json` + 下载页）。
+    // 对应的 `updater:default` 权限同步搬进仅桌面可用的 capabilities/updater.json，
+    // 与 `single_instance` / `global_shortcut` 一样按 desktop 门控。桌面三平台
+    // （Windows / macOS / Linux）的注册顺序与改动前一致。
+    #[cfg(desktop)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+
+    let builder = builder
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_opener::init())
