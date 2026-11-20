@@ -1,0 +1,46 @@
+name: Build iOS unsigned IPA
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+      - run: rustup target add aarch64-apple-ios
+      - run: npm ci
+      - run: npm run build:dictionaries
+      - name: Prepare 1024 icon
+        run: |
+          sips -s format png --resampleHeightWidth 1024 1024 src-tauri/icons/icon.icns --out /tmp/icon-1024.png \
+            || cp src-tauri/icons/icon.png /tmp/icon-1024.png
+          npm run tauri -- icon /tmp/icon-1024.png
+      - name: Ensure iOS project exists
+        run: |
+          if [ ! -d src-tauri/gen/apple ]; then
+            npm run tauri -- ios init --ci
+          fi
+      - name: Build unsigned IPA
+        run: npm run tauri -- ios build --target aarch64 --no-sign
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wordsett-ios-unsigned
+          path: src-tauri/gen/apple/build/**/*.ipa
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wordsett-gen-apple
+          path: src-tauri/gen/apple
+          if-no-files-found: error
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: src-tauri/gen/apple/build/**/*.ipa
