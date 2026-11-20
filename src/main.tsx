@@ -6,6 +6,11 @@ import './index.css'
 import App from './App.tsx'
 import ErrorBoundary from './components/ui/ErrorBoundary.tsx'
 import { CollectorRoot } from './collector/CollectorRoot.tsx'
+import { installErrorForwarding } from './services/diagnostics.ts'
+
+// 真机诊断通道（v0.8.0 Task 1）：在 React 挂载之前装好，初始化阶段的异常也能落进日志文件。
+// 主窗与预载的划词小窗共用同一个入口（同一个 index.html），两边都转发、写成同一个文件。
+installErrorForwarding()
 
 // v0.7.9：同一个 index.html 承载主窗与预载的划词小窗，靠查询参数分流。
 const isCollector = new URLSearchParams(window.location.search).get('window') === 'collector'

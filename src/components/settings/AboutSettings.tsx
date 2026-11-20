@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { invoke } from '@tauri-apps/api/core'
 import pkg from '../../../package.json'
 import { useUpdaterStore } from '../../stores/updaterStore'
 import { useMobileUpdateStore } from '../../stores/mobileUpdateStore'
@@ -6,6 +7,7 @@ import { usePlatformClass } from '../../lib/usePlatform'
 import { openExternalUrl, RELEASES_URL } from '../../lib/openExternal'
 import { useMobilePopup } from '../../lib/mobilePopups'
 import SquareButton from '../ui/SquareButton'
+import type { ButtonTone } from '../ui/SquareButton'
 import Tooltip from '../ui/Tooltip'
 import Icon from '../icons'
 
@@ -73,6 +75,104 @@ function UpdateHintPopover() {
         </div>
       )}
     </span>
+  )
+}
+
+/**
+ * 「查看日志」浮层（v0.8.0 Task 1）：真机没有 DevTools，最近日志是排查问题的唯一入口。
+ *
+ * 形态沿用 `ConfirmDialog` 的自绘浮层（`position: fixed` + `role="dialog"` + 遮罩），
+ * 不引入新原语；关闭三条路径与站内其它浮层一致：点遮罩、Esc、安卓返回键
+ * （`useMobilePopup` 登记，手势返回同样走它）。
+ *
+ * 内容来自 `read_recent_logs`（Rust 侧读 `wordsett.log` 尾部 400 行），
+ * `pre` 保留换行且允许选中复制；「复制」失败静默——剪贴板权限在 WebView 里可能不可用，
+ * 弹提示反而盖住日志本身。
+ */
+function LogViewer({ tone }: { tone: ButtonTone }) {
+  const [open, setOpen] = useState(false)
+  const [text, setText] = useState('')
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(false)
+  useMobilePopup(open, () => setOpen(false))
+
+  useEffect(() => {
+    if (!open) return
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    invoke<string>('read_recent_logs', { maxLines: 400 })
+      .then(t => { if (!cancelled) setText(t) })
+      .catch(e => { if (!cancelled) setError(String(e)) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [open])
+
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [open])
+
+  const copy = () => {
+    try {
+      void navigator.clipboard.writeText(text).catch(() => {})
+    } catch {
+      // 剪贴板不可用（无权限 / 非安全上下文）时静默，日志本身仍可手动选中复制。
+    }
+  }
+
+  return (
+    <>
+      <SquareButton tone={tone} onClick={() => setOpen(true)}>
+        查看日志
+      </SquareButton>
+      {open && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 'var(--z-modal)',
+            background: 'var(--color-scrim)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 16,
+          }}
+          onClick={() => setOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="最近日志"
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: 'min(560px, 100%)', maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+              background: 'var(--color-surface)', borderRadius: 10,
+              boxShadow: 'var(--shadow-overlay)', padding: 18, fontFamily: 'var(--font-sans)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary)' }}>最近日志</div>
+              <SquareButton tone="surface" size="row" onClick={() => setOpen(false)}>关闭</SquareButton>
+            </div>
+            <pre
+              style={{
+                whiteSpace: 'pre-wrap', userSelect: 'text',
+                flex: '1 1 auto', minHeight: 0, overflow: 'auto', margin: 0,
+                padding: '10px 12px', background: 'var(--color-canvas)',
+                border: '1px solid var(--color-border)', borderRadius: 6,
+                fontFamily: 'var(--font-mono)', fontSize: 12, lineHeight: 1.6,
+                color: 'var(--color-text-primary)',
+              }}
+            >
+              {loading ? '读取中…' : error !== null ? `读取失败：${error}` : text || '暂无日志'}
+            </pre>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 10 }}>
+              <SquareButton tone="surface" onClick={copy} disabled={loading || error !== null || !text}>
+                复制
+              </SquareButton>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   )
 }
 
@@ -147,6 +247,8 @@ export default function AboutSettings(_props: Props = {}) {
               重试
             </SquareButton>
           )}
+          {/* 真机诊断通道（v0.8.0 Task 1）：手机 / 平板都能把最近日志读出来。 */}
+          <LogViewer tone={tone} />
         </div>
       </div>
     )
