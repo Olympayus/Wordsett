@@ -256,16 +256,17 @@ pub fn run() {
 /// 返回词典库绝对路径（剥离 Windows `\\?\` 动词前缀后）。
 /// 生产：resources 就地直读（resource_dir = exe 所在目录）。
 /// dev：resources 未注入 target/debug，回退 app_config_dir（由 build:dictionaries 填充）。
-/// Android：APK 里的 resources 不是普通文件、sqlite 打不开，故首启先落盘到
-/// app_data_dir 并由 `ensure_dictionaries` 填好，这里优先返回那份副本。
+/// Android / iOS：移动端首启先落盘到 app_data_dir 并由 `ensure_dictionaries` 填好，
+/// 这里优先返回那份副本（APK 里的 resources 不是普通文件；iOS 虽是 `.app/assets`
+/// 内的真实文件，仍走同一条确定性路径）。
 #[tauri::command]
 fn dict_resource_path(app: tauri::AppHandle, name: String) -> Result<String, String> {
-    #[cfg(target_os = "android")]
+    #[cfg(any(target_os = "android", target_os = "ios"))]
     {
-        return dictionaries::android_dict_path(&app, &name);
+        return dictionaries::mobile_dict_path(&app, &name);
     }
 
-    #[cfg(not(target_os = "android"))]
+    #[cfg(not(any(target_os = "android", target_os = "ios")))]
     {
         use tauri::path::BaseDirectory;
 

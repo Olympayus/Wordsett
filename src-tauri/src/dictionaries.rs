@@ -56,17 +56,18 @@ pub fn marker_matches(marker: Option<&str>, expected: &str) -> bool {
     marker.is_some_and(|m| m == expected)
 }
 
-/// 该读哪一份词典：Android 优先数据目录里的落盘副本，桌面直接读 resources。
+/// 该读哪一份词典：移动端（Android / iOS）优先数据目录里的落盘副本，桌面直接读 resources。
 ///
 /// `data_copy` 为 `Some` 即表示那份副本存在（判据是文件存在，不是 marker）。
-/// 生产消费点只有 `android_dict_path`（同样 Android only），桌面恒走 resources。
-#[cfg(target_os = "android")]
+/// 生产消费点只有 `mobile_dict_path`（移动端 only），桌面恒走 resources。
+/// 纯函数、带平台参数的判定不依赖任何平台 API，故不加平台 cfg：宿主机测试可直接钉住判据。
+#[cfg_attr(not(any(target_os = "android", target_os = "ios")), allow(dead_code))]
 pub fn preferable_dict_path(
-    is_android: bool,
+    is_mobile: bool,
     data_copy: Option<PathBuf>,
     resource: PathBuf,
 ) -> PathBuf {
-    if is_android {
+    if is_mobile {
         data_copy.unwrap_or(resource)
     } else {
         resource
@@ -254,12 +255,13 @@ pub async fn ensure_dictionaries(app: tauri::AppHandle) -> Result<DictionaryStat
     ensure_into(&resolver, &resource_dir, &dest_dir)
 }
 
-/// Android 上 `dict_resource_path` 的解析：数据目录副本优先，resources 兜底。
+/// 移动端（Android / iOS）上 `dict_resource_path` 的解析：数据目录副本优先，resources 兜底。
 ///
-/// 桌面（以及 Android 上首启还没跑过、副本尚不存在时）仍走 lib.rs 里原来的
-/// resources-then-AppConfig 逻辑。
-#[cfg(target_os = "android")]
-pub fn android_dict_path(app: &tauri::AppHandle, name: &str) -> Result<String, String> {
+/// 桌面（以及移动端首启还没跑过、副本尚不存在时）仍走 lib.rs 里原来的
+/// resources-then-AppConfig 逻辑。iOS 的 `resource_dir()` 指向 `.app/assets` 里的真实文件，
+/// `fs::copy` 直接可用，故与 Android 共用同一条「首启落盘、之后读副本」的确定性路径。
+#[cfg(any(target_os = "android", target_os = "ios"))]
+pub fn mobile_dict_path(app: &tauri::AppHandle, name: &str) -> Result<String, String> {
     use tauri::Manager;
 
     let resource = app
@@ -390,15 +392,13 @@ mod tests {
         assert!(!marker_matches(None, "new"));
     }
 
-    /// 生产消费点在 `android_dict_path`（Android only），这里钉住同一判据：
-    /// Android + 副本存在 → 副本；Android + 副本不存在 → resources；桌面 → resources。
+    /// 生产消费点在 `mobile_dict_path`（Android / iOS），这里钉住同一判据：
+    /// 移动端 + 副本存在 → 副本；移动端 + 副本不存在 → resources；桌面 → resources。
     ///
-    /// 与 `android_dict_path` 同在 `#[cfg(target_os = "android")]` 下：本机（Windows）
-    /// 跑不到这条断言，但 CI 的 Android target 会跑；两者必须同步 cfg，否则测试
-    /// 在非 Android 上引用一个被 cfg 掉的函数、直接编译失败。
+    /// `preferable_dict_path` 已去掉平台 cfg（Android / iOS 共用），故这条测试
+    /// 在宿主机（Windows / macOS / Linux）也能跑——`is_mobile` 只是普通 bool 入参。
     #[test]
-    #[cfg(target_os = "android")]
-    fn android_prefers_data_copy_when_it_exists() {
+    fn mobile_prefers_data_copy_when_present() {
         use super::preferable_dict_path;
 
         let resource = PathBuf::from("/apk/ecdict.db");
