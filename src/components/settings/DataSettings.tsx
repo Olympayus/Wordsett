@@ -6,6 +6,9 @@ import type { ImportPlan } from '../../lib/libraryCodec'
 import { useWordStore } from '../../stores/wordStore'
 import { useCategoryStore } from '../../stores/categoryStore'
 import { openDataDir } from '../../lib/dataPath'
+import { usePlatformClass } from '../../lib/usePlatform'
+import { isIOS } from '../../lib/platform'
+import { fileNameOnly } from '../../lib/pathText'
 import SquareButton from '../ui/SquareButton'
 
 // v0.5.3 §4.1（第 11 条）：小标题字号 +2（--text-sm 13px → --text-base 15px）并加粗。
@@ -31,15 +34,24 @@ export default function DataSettings({ variant = 'desktop' }: { variant?: 'deskt
   // 三档词数直接读 store 的 counts（由 loadWords / reloadLibraryIndex 刷新），
   // 不在每次渲染里再查一遍库。
   const counts = useWordStore(s => s.counts)
+  // v0.8.0 iOS：导出写入失败时是否允许退回应用 Documents 目录。
+  // 平台判定留在调用点，`exportService` 不引入任何平台依赖。
+  const platform = usePlatformClass()
 
   const fmt = (p: ImportPlan) =>
     `新增 ${p.newWords} 词 / 更新 ${p.updatedWords} 词，新增分类 ${p.newCategories}、字段定义 ${p.newFieldDefinitions}、字段值 ${p.newFieldValues}、词分类 ${p.newWordCategories}，跳过 ${p.skipped}`
 
   const handleExport = async () => {
     setBusy(true); setError(''); setStatus('')
-    const r = await exportLibrary()
+    const r = await exportLibrary({ documentsFallback: isIOS(platform) })
     setBusy(false)
-    if (r.ok) setStatus(`已导出：${r.path}`)
+    if (r.ok) {
+      // iOS 的路径是长串沙盒路径（Documents 兜底后尤其不可读），只报文件名；
+      // 桌面 / Android 的成功文案与旧版逐字相同（仍显示用户选中的完整路径）。
+      setStatus(isIOS(platform)
+        ? `已导出：${fileNameOnly(r.path ?? '')}。文件已保存到『文件』App 的 Wordsett 目录`
+        : `已导出：${r.path}`)
+    }
     else if (r.error) setError(r.error)
   }
 

@@ -1,4 +1,5 @@
 // src/services/exportService.ts
+import { invoke } from '@tauri-apps/api/core'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import { getDb } from '../db/connection'
@@ -19,17 +20,37 @@ async function readSnapshot(): Promise<LibrarySnapshot> {
   return { words, fieldDefinitions, fieldValues, categories, wordCategories }
 }
 
-export async function exportLibrary(): Promise<{ ok: boolean; error?: string; path?: string }> {
+/**
+ * 导出词库。
+ *
+ * `opts.documentsFallback`（v0.8.0 iOS）：iOS 的保存对话框把文件拷进沙盒后，
+ * 返回的路径仍可能不可写（save-picker 的目标在沙盒外）。此时改走 Rust 的
+ * `export_backup_to_documents`，确定性地写进应用自己的 Documents 目录
+ * （Info.ios.plist 已开 UIFileSharingEnabled，用户可在「文件」App 的 Wordsett 下看到）。
+ *
+ * 服务保持平台无关：由调用点（`DataSettings`）按 `isIOS(platform)` 传这个开关。
+ * 不传时行为与旧版逐字相同——桌面 / Android 的写入失败仍然如实报错。
+ */
+export async function exportLibrary(opts?: { documentsFallback?: boolean }): Promise<{ ok: boolean; error?: string; path?: string }> {
+  const fileName = `wordsett-backup-v${pkg.version}.json`
   try {
     const path = await save({
-      defaultPath: `wordsett-backup-v${pkg.version}.json`,
+      defaultPath: fileName,
       filters: [{ name: 'Wordsett 备份', extensions: ['json'] }],
     })
     if (!path) return { ok: false } // 用户取消
     const snapshot = await readSnapshot()
     const json = encodeLibrary(snapshot, pkg.version)
-    await writeTextFile(path, json)
-    return { ok: true, path }
+    try {
+      await writeTextFile(path, json)
+      return { ok: true, path }
+    } catch (e) {
+      if (!opts?.documentsFallback) throw e
+      // 只在「写入选中的目标」失败时兜底：读快照 / 编码失败是另一类问题，
+      // 换目录再写一次也救不回来，交给外层如实报错。
+      const savedPath = await invoke<string>('export_backup_to_documents', { fileName, content: json })
+      return { ok: true, path: savedPath }
+    }
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) }
   }

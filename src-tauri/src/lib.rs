@@ -216,9 +216,9 @@ pub fn run() {
     // 词典落盘命令：Android 首启必需。桌面 resources 就地直读、永远命中，
     // marker 不成立时复制会因源缺失而返回 Err，不改变桌面行为。
     #[cfg(desktop)]
-    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme, quit_app, collector::collector_resize, collector::collector_hide, collector::collector_open_dict, collector::collector_supported, shortcut::set_shortcut, shortcut::take_startup_error, shortcut::take_grab_log, shortcut::collector_ready, shortcut::grab_now, diagnostics::log_frontend_error, diagnostics::read_recent_logs]);
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, export_backup_to_documents, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, tray::update_tray_badge, tray::resolve_close_request, tray::sync_tray, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme, quit_app, collector::collector_resize, collector::collector_hide, collector::collector_open_dict, collector::collector_supported, shortcut::set_shortcut, shortcut::take_startup_error, shortcut::take_grab_log, shortcut::collector_ready, shortcut::grab_now, diagnostics::log_frontend_error, diagnostics::read_recent_logs]);
     #[cfg(not(desktop))]
-    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme, diagnostics::log_frontend_error, diagnostics::read_recent_logs]);
+    let builder = builder.invoke_handler(tauri::generate_handler![dict_resource_path, dictionaries::ensure_dictionaries, open_data_dir, open_external_url, export_backup_to_documents, fsrs_next, speak, list_english_voices, tts_english_voice_available, config::get_config, config::set_config, platform::accessibility_status, platform::open_accessibility_settings, orientation::set_screen_orientation, orientation::exit_app, system_bars::set_system_bars_theme, diagnostics::log_frontend_error, diagnostics::read_recent_logs]);
 
     builder.build(tauri::generate_context!())
         .expect("error while building tauri application")
@@ -352,6 +352,40 @@ fn open_data_dir(app: tauri::AppHandle) -> Result<(), String> {
     app.opener()
         .reveal_item_in_dir(&db)
         .map_err(|e| e.to_string())
+}
+
+/// 把词库备份确定性地写进应用的 Documents 目录（v0.8.0 iOS 导出兜底）。
+///
+/// iOS 的保存对话框把文件拷进沙盒后，返回的目标路径仍可能不可写；此时前端改调本命令，
+/// 写 `document_dir()/file_name` 并回传完整路径。iOS 上 `document_dir()` 就是应用沙盒的
+/// `Documents`（`dirs` 的 mac / iOS 分支 = `$HOME/Documents`），`Info.ios.plist` 已开启
+/// `UIFileSharingEnabled` 与 `LSSupportsOpeningDocumentsInPlace`，用户可在「文件」App 的
+/// Wordsett 目录里看到这份备份。
+///
+/// 桌面 / Android 不会调用它（`DataSettings` 只在 iOS 传 `documentsFallback`），
+/// 但命令本身不按平台门控：两部命令表逐字相同，也方便真机排查时手动触发。
+///
+/// 只接受纯文件名：这个参数来自前端，`document_dir().join()` 若收进 `..` 或分隔符
+/// 就能写出沙盒目录之外，故显式拒绝。
+#[tauri::command]
+fn export_backup_to_documents(
+    app: tauri::AppHandle,
+    file_name: String,
+    content: String,
+) -> Result<String, String> {
+    if file_name.is_empty() || file_name.contains('/') || file_name.contains('\\') {
+        return Err("备份文件名非法".to_string());
+    }
+
+    let dir = app
+        .path()
+        .document_dir()
+        .map_err(|e| format!("无法定位 Documents 目录：{e}"))?;
+    std::fs::create_dir_all(&dir).map_err(|e| format!("创建 Documents 目录失败：{e}"))?;
+
+    let path = dir.join(&file_name);
+    std::fs::write(&path, content).map_err(|e| format!("写入备份文件失败：{e}"))?;
+    Ok(path.to_string_lossy().into_owned())
 }
 
 /// `open_external_url` 的白名单判据（v0.7.8 最终评审）：只放行 GitHub 的 https 链接。

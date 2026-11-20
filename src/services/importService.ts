@@ -27,7 +27,15 @@ async function readCurrentSnapshot(): Promise<LibrarySnapshot> {
 
 export async function pickAndPlanImport(): Promise<{ ok: boolean; error?: string; plan?: ImportPlan; path?: string }> {
   try {
-    const path = await open({ multiple: false, filters: [{ name: 'Wordsett 备份', extensions: ['json'] }] })
+    // v0.8.0 iOS：显式固化沙盒副本语义。iOS 的 scoped 授权只对打开时的 URL 有效，
+    // 后续 `applyImport` 再读同一路径时可能已失效；`copy` 让对话框先把文件复制进
+    // 应用沙盒，读路径在本次导入期间始终可读。桌面 / Android 的 dialog 插件把
+    // `copy` 视同默认行为（返回本地路径），无行为变化。
+    const path = await open({
+      multiple: false,
+      fileAccessMode: 'copy',
+      filters: [{ name: 'Wordsett 备份', extensions: ['json'] }],
+    })
     if (!path) return { ok: false }
     const json = await readTextFile(path)
     const incoming = decodeLibrary(json)
