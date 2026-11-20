@@ -196,7 +196,7 @@ Android 版以 **universal APK** 发布（同一个包同时含 arm64-v8a 与 ar
 
 ### iOS 安装（Windows 侧载）
 
-iOS 版（要求 iOS 15.4 及以上；工程部署目标为 14.0，但 14–15.3 未验证）以**未签名 IPA** 随 [GitHub Releases](https://github.com/Olympayus/Wordsett/releases) 发布（CI 产物名为 `wordsett-ios-unsigned`）。iPhone 与 iPad 使用**同一个 IPA**；签名与安装全部在 Windows 上完成，不需要 Mac，也不经过 App Store。
+iOS 版（工程部署目标 iOS 14.0，可安装；**iOS 15.4+ 为完整体验**——动态视口高度；15.4 以下布局可用，但键盘 / 视口处理较弱）以**未签名 IPA** 随 [GitHub Releases](https://github.com/Olympayus/Wordsett/releases) 发布（CI 产物名为 `wordsett-ios-unsigned`）。iPhone 与 iPad 使用**同一个 IPA**；签名与安装全部在 Windows 上完成，不需要 Mac，也不经过 App Store。
 
 **从哪里下载 IPA**：优先取 Releases 对应版本附件里的 `.ipa`（tag 构建会把裸 IPA 直接附上）；如果只看到 Actions 的 `wordsett-ios-unsigned` artifact，那是含 IPA 的压缩包，解压后取里面的 `.ipa`。
 
