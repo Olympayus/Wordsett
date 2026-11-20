@@ -49,6 +49,10 @@ export default function FindBar({ variant = 'desktop' }: { variant?: 'desktop' |
   const [scale, setScale] = useState<OverlayScale | null>(null)
   // 顶栏在触摸语境（平板）加高到 56（v0.7.10 收尾），查找条的下移量必须与它同源——
   // 与 `TopBar` 共用 `lib/layout` 的两个常量加同一个 8px 间距，不再写死 56。
+  // 顶部安全区（v0.8.0 Task 9 修复）：`AppShell` 的顶栏多了 `paddingTop: env(safe-area-inset-top)`，
+  // 可见底边随 inset 下移，下移量因此也要并入同一个 inset（见下方 portal 的 `top`，用 CSS calc
+  // 叠加，桌面 / Android 为 0、逐字不变）。zoom < 1 时 inset 不随缩放缩小，落点只会略低于
+  // 精确同源值（更松、不会压住顶栏），zoom = 1 的 iPad 横屏则与顶栏逐像素同源。
   const topOffset = (hasCoarsePointer() ? TOPBAR_HEIGHT_TOUCH : TOPBAR_HEIGHT) + 8
   useEffect(() => { current = new FindBarController(() => { setQuery(q => q || ''); setOpen(true); requestAnimationFrame(() => inputRef.current?.focus()) }); return () => { current = null } }, [])
   // 打开期间登记进手机返回栈（v0.7.10 Task 27）：安卓返回键先关查找条，不穿透到抽屉 / 模块。
@@ -134,8 +138,10 @@ export default function FindBar({ variant = 'desktop' }: { variant?: 'desktop' |
       <span ref={hostRef} style={{ display: 'none' }} />
       {createPortal(
         <div style={{
-          // 置于内容区右上角（顶栏下方 8px，避开右上角窗口控制），右对齐贴合内容区与右边距
-          position: 'fixed', top: topOffset, right: 12, zIndex: 5000, display: 'flex', alignItems: 'center', gap: 8,
+          // 置于内容区右上角（顶栏下方 8px，避开右上角窗口控制），右对齐贴合内容区与右边距。
+          // `top` 里叠加 `env(safe-area-inset-top)`：顶栏自身也多了同样的 paddingTop（v0.8.0 Task 9），
+          // 两者的 inset 同源，查找条才不会盖住顶栏底缘。
+          position: 'fixed', top: `calc(${topOffset}px + env(safe-area-inset-top))`, right: 12, zIndex: 5000, display: 'flex', alignItems: 'center', gap: 8,
           padding: '6px 10px', background: 'var(--color-surface)', border: '1px solid var(--color-border)',
           borderRadius: 'var(--radius-md)', boxShadow: 'var(--shadow-overlay)',
           // 平板 zoom（v0.7.10 §7.5 / §7.8）：从右上角缩，右缘与上缘的落点保持不动。
