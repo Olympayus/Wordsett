@@ -178,6 +178,7 @@ Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查
 | **macOS** | `Wordsett_0.7.10_aarch64.dmg`（Apple 芯片；Intel 机型为 `Wordsett_0.7.10_x64.dmg`） |
 | **Linux** | `Wordsett_0.7.10_x86_64.AppImage` / `.deb`（在 Linux 上构建；暂未提供） |
 | **Android** | `Wordsett_0.7.10_android-universal.apk`（通用包，含 arm64-v8a 与 armeabi-v7a） |
+| **iOS** | 未签名 `.ipa`（需在 Windows 上侧载，见下） |
 
 下载后**双击运行安装程序**，跟随向导即可完成安装；开始菜单会出现 **Wordsett** 图标。
 
@@ -195,7 +196,9 @@ Android 版以 **universal APK** 发布（同一个包同时含 arm64-v8a 与 ar
 
 ### iOS 安装（Windows 侧载）
 
-iOS 版（支持 iOS 14.0 及以上）以**未签名 IPA** 随 [GitHub Releases](https://github.com/Olympayus/Wordsett/releases) 发布（CI 产物名为 `wordsett-ios-unsigned`）。iPhone 与 iPad 使用**同一个 IPA**；签名与安装全部在 Windows 上完成，不需要 Mac，也不经过 App Store。
+iOS 版（要求 iOS 15.4 及以上；工程部署目标为 14.0，但 14–15.3 未验证）以**未签名 IPA** 随 [GitHub Releases](https://github.com/Olympayus/Wordsett/releases) 发布（CI 产物名为 `wordsett-ios-unsigned`）。iPhone 与 iPad 使用**同一个 IPA**；签名与安装全部在 Windows 上完成，不需要 Mac，也不经过 App Store。
+
+**从哪里下载 IPA**：优先取 Releases 对应版本附件里的 `.ipa`（tag 构建会把裸 IPA 直接附上）；如果只看到 Actions 的 `wordsett-ios-unsigned` artifact，那是含 IPA 的压缩包，解压后取里面的 `.ipa`。
 
 1. **准备电脑端工具**：从 Apple 官网下载安装 **iTunes**（不要用 Microsoft Store 版，它缺少设备组件），再安装 [Sideloadly](https://sideloadly.io/)。用数据线连接 iPhone / iPad，并在设备上点「信任此电脑」。
 2. **打开开发者模式**（iOS 16 及以上）：**设置 → 隐私与安全性 → 开发者模式** → 打开 → 按提示重启并确认。若看不到这一项，先用 Sideloadly 连接一次设备再回来查看。
