@@ -81,8 +81,10 @@ export default function TopBar() {
   const closeSuggestions = useCallback(() => setShowSuggestions(false), [])
   useClickOutside(searchRef, closeSuggestions, showSuggestions)
 
-  // 窗口最大化状态同步（自绘标题栏需要，最大/还原图标切换）
+  // 窗口最大化状态同步（自绘标题栏需要，最大/还原图标切换）。
+  // 非桌面（平板复用本顶栏）早退：iOS / Android 上没有可最大化的窗口，这些窗口 API 会报错。
   useEffect(() => {
+    if (!desktopOnly) return
     let unlisten: (() => void) | undefined
     let cancelled = false
     appWindow.isMaximized().then(m => { if (!cancelled) setIsMaximized(m) })
@@ -91,9 +93,13 @@ export default function TopBar() {
       if (!cancelled) setIsMaximized(m)
     }).then(fn => { unlisten = fn }).catch(console.error)
     return () => { cancelled = true; unlisten?.() }
-  }, [appWindow])
+  }, [appWindow, desktopOnly])
 
-  const toggleMaximize = () => { void appWindow.toggleMaximize() }
+  // 非桌面不调窗口 API（双击最大化 / 控制键共用）：iOS 上这条 IPC 没有对应实现，会报错。
+  const toggleMaximize = () => {
+    if (!desktopOnly) return
+    void appWindow.toggleMaximize()
+  }
 
   // 选中建议或回车 → 右侧区域切换为词典详情视图（D2：替换显示，非顶栏下方展开）
   const handleSelectWord = useCallback((word: string) => {

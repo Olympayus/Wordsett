@@ -19,14 +19,14 @@ import ConfirmDialog from '../ui/ConfirmDialog'
 import FindBar, { registerFindKeyHandler } from '../ui/FindBar'
 import { fitCollapsedWidth, measureMaxWordWidth, resolveSidebarWordFont, COLLAPSED_CHROME_ALPHABET, COLLAPSED_CHROME_CATEGORY, SIDEBAR_EXPANDED_WIDTH } from '../../lib/sidebar'
 import { usePlatformClass, useTabletLayout } from '../../lib/usePlatform'
-import { isAndroidTablet } from '../../lib/platform'
+import { hasTouchSemantics, isAndroidTablet } from '../../lib/platform'
 import { useAndroidBackStack } from './useAndroidBackStack'
 import { useCloseRequest } from '../../lib/tray/useCloseRequest'
 import { useQuitRequest } from '../../lib/useQuitRequest'
 
 interface AppShellProps {
   /**
-   * Android 平板（v0.7.8）：复用同一套三栏，但整棵树由 `IndexPage` 的缩放宿主包住。
+   * 平板（v0.7.8 Android / v0.8.0 iOS）：复用同一套三栏，但整棵树由 `IndexPage` 的缩放宿主包住。
    * 为真时根节点高度取 `100%`（撑满宿主补偿后的高度）而不是 `h-screen`（100vh 是屏幕高，
    * 缩放后会在底部留一条空白），侧栏展开宽度跟 `tabletLayout` 走（窄档 240）。
    */
@@ -59,13 +59,14 @@ export default function AppShell({ tablet = false }: AppShellProps) {
   const { assignWordId, editorTarget, closeModals, openEditor } = useUiStore()
   // 平板布局（v0.7.8）：非平板恒为 `{ zoom: 1, sidebarWidth: 300 }`，桌面行为不变。
   const { sidebarWidth: tabletSidebarWidth } = useTabletLayout()
-  // 触摸语义（v0.7.8 Task 4）：布局分支只看 `chrome`，触摸分支只看这个 prop——两者刻意分开。
-  // 只有 `android-tablet` 为真：手机走 `MobileShell`（那里的触摸由 `chrome='mobile'` /
-  // `'drawer'` 推出），桌面恒为 false（长按 / 拖拽 / 行尾簇逐字不变）。
-  // 返回栈（v0.7.10 Task 4）与编辑态上报共用同一判据：只有平板接系统返回键。
+  // 触摸语义（v0.7.8 Task 4 / v0.8.0 Task 7）：布局分支只看 `chrome`，触摸分支只看 `touch`——
+  // 两者刻意分开。触摸语义覆盖两种平板档（Android / iOS）：手机走 `MobileShell`（那里的触摸
+  // 由 `chrome='mobile'` / `'drawer'` 推出），桌面恒为 false（长按 / 拖拽 / 行尾簇逐字不变）。
+  // `androidTablet` 只留给返回栈（v0.7.10 Task 4）与编辑态上报——iPad 没有硬件返回键，
+  // 本轮不挂返回栈，故这个判据**刻意比 `touch` 窄**。
   const platform = usePlatformClass()
   const androidTablet = isAndroidTablet(platform)
-  const touch = androidTablet
+  const touch = hasTouchSemantics(platform)
 
   // 词条页的编辑态（v0.7.10 Task 4）：平板要把它压进返回栈（返回键先退编辑）。
   // 编辑态只存在于 `WordWorkbench` 体内，由它经 `onEditStateChange` 上报；保存 / 取消也经
@@ -169,8 +170,8 @@ export default function AppShell({ tablet = false }: AppShellProps) {
                 <WordWorkbench
                   ref={workbenchRef}
                   touch={touch}
-                  // 编辑态上报只给平板（手机由 `MobileShell` 接）：桌面传了只会让它每次进出
-                  // 编辑都白重渲一次外壳，而桌面没有返回栈要这份状态。
+                  // 编辑态上报只给 Android 平板（手机由 `MobileShell` 接、iPad 没有返回键不挂返回栈）：
+                  // 桌面传了只会让它每次进出编辑都白重渲一次外壳，而没有返回栈的平台也没有这份状态要收。
                   onEditStateChange={androidTablet ? onEditStateChange : undefined}
                 />
               )}
