@@ -7,9 +7,12 @@
 //!
 //! **不变量（任何改动都不得违反）**：
 //! 1. **`AVSpeechSynthesizer` 只在主队列创建 / 朗读**（Swift 侧保证）。Rust 的 FFI
-//!    调用只投递、不等待朗读结束——否则一次朗读会把 IPC 线程按在 AVFoundation 上。
-//! 2. 探测在 **IPC 线程**上轮询：先读一次 `wordsett_tts_status`（同时触发 Swift 侧
-//!    惰性初始化），`initializing` 时每 `PROBE_POLL_INTERVAL`（60ms）读一次，硬上限
+//!    调用只投递、不等待朗读结束——否则一次朗读会把命令线程按在 AVFoundation 上。
+//! 2. **阻塞部分绝不跑在 iOS 主线程**：Tauri 的同步命令内联在 WKWebView 的 IPC 回调里
+//!    （主线程），一次 5 秒轮询会把整个 UI 冻住。故三个命令都是 `async fn`（宏据此走
+//!    `respond_async_serialized` → tokio `spawn`），真正的 FFI 与轮询丢给
+//!    `tauri::async_runtime::spawn_blocking`：主线程不被 `sleep` 压住，blocking 池也不占
+//!    tokio worker。`initializing` 时每 `PROBE_POLL_INTERVAL`（60ms）读一次，硬上限
 //!    `PROBE_TIMEOUT`（5s）；超时返回 `available:false` + 原因「系统语音初始化超时」。
 //! 3. `speak` 在状态非 ready 时由 Swift 返回非 0，本模块立刻翻成 `Err`（前端的
 //!    `speakWord` 会吞掉），**绝不排队、绝不等待初始化**。
@@ -101,9 +104,14 @@ impl VoiceProbe {
 ///
 /// 与桌面/Android 同一条 fail-closed 原则：**永不向上抛错**，任何失败都折成
 /// `available:false` 加原因，前端据此把听辨题与发音按钮下线。
+///
+/// `async fn` + `spawn_blocking`：轮询绝不能跑在 iOS 主线程上（文件头不变量 2）。
 #[tauri::command]
-pub fn tts_english_voice_available() -> Result<VoiceProbe, String> {
-    Ok(probe())
+pub async fn tts_english_voice_available() -> Result<VoiceProbe, String> {
+    match blocking(probe).await {
+        Ok(found) => Ok(found),
+        Err(e) => Ok(VoiceProbe::unavailable(e)),
+    }
 }
 
 /// 枚举英文音色（iPad 的设置页用；iPhone 不渲染下拉，但仍可被诊断调用）。
@@ -111,17 +119,11 @@ pub fn tts_english_voice_available() -> Result<VoiceProbe, String> {
 /// 与 Android 的 list 同一条 fail-closed：桥返回空指针或 JSON 解析失败时退回空表，
 /// 设置页只剩「系统默认」，不把整个分区打成错误态。
 #[tauri::command]
-pub fn list_english_voices() -> Result<Vec<VoiceInfo>, String> {
-    // SAFETY: `wordsett_tts_voices` 返回 Swift `strdup` 的 NUL 结尾字符串或空指针；
-    // `take_string` 会在转换后立即释放。
-    let Some(raw) = take_string(unsafe { wordsett_tts_voices() }) else {
-        return Ok(Vec::new());
-    };
-
-    match serde_json::from_str::<Vec<VoiceInfo>>(&raw) {
+pub async fn list_english_voices() -> Result<Vec<VoiceInfo>, String> {
+    match blocking(list_voices_blocking).await {
         Ok(voices) => Ok(voices),
         Err(e) => {
-            eprintln!("[tts] voices JSON 无法解析：{e}");
+            eprintln!("[tts] 枚举音色失败：{e}");
             Ok(Vec::new())
         }
     }
@@ -135,9 +137,50 @@ pub fn list_english_voices() -> Result<Vec<VoiceInfo>, String> {
 ///
 /// 状态非 ready 时 Swift 的 `speak` 只回非 0、不朗读，本函数把它翻成 `Err`。
 /// 这条路径**不等待初始化**：探测失败后前端仍可能因缓存状态点一次发音，
-/// 让它立刻失败比把 IPC 线程按在 5 秒的初始化路径上要好。
+/// 让它立刻失败比把主线程按在 5 秒的初始化路径上要好。
 #[tauri::command]
-pub fn speak(text: String, rate: Option<f32>, voice: Option<String>) -> Result<(), String> {
+pub async fn speak(text: String, rate: Option<f32>, voice: Option<String>) -> Result<(), String> {
+    match blocking(move || speak_blocking(text, rate, voice)).await {
+        Ok(result) => result,
+        Err(e) => Err(e),
+    }
+}
+
+/// 把同步 FFI 工作丢到 tokio 的 blocking 线程池，返回其 join 结果。
+///
+/// 三个命令都必须是 `async fn`（`#[tauri::command]` 对 async fn 走
+/// `respond_async_serialized` → `async_runtime::spawn`），再经这里 `await`
+/// `spawn_blocking`：`probe` 的 `sleep` 轮询既不压 WKWebView 主线程，也不长时间
+/// 占用 tokio worker（blocking 池是独立的一组线程）。
+async fn blocking<T, F>(task: F) -> Result<T, String>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(task)
+        .await
+        .map_err(|e| format!("TTS 任务异常：{e}"))
+}
+
+/// `list_english_voices` 的阻塞部分：读 `wordsett_tts_voices()` 并解析。
+fn list_voices_blocking() -> Vec<VoiceInfo> {
+    // SAFETY: `wordsett_tts_voices` 返回 Swift `strdup` 的 NUL 结尾字符串或空指针；
+    // `take_string` 会在转换后立即释放。
+    let Some(raw) = take_string(unsafe { wordsett_tts_voices() }) else {
+        return Vec::new();
+    };
+
+    match serde_json::from_str::<Vec<VoiceInfo>>(&raw) {
+        Ok(voices) => voices,
+        Err(e) => {
+            eprintln!("[tts] voices JSON 无法解析：{e}");
+            Vec::new()
+        }
+    }
+}
+
+/// `speak` 的阻塞部分：解析配置、构造 C 字符串并调桥。
+fn speak_blocking(text: String, rate: Option<f32>, voice: Option<String>) -> Result<(), String> {
     let cfg = crate::config::get();
     let rate = rate.unwrap_or_else(|| crate::config::f32_at(&cfg, "tts.rate", 1.0));
     let voice = voice.or_else(|| crate::config::str_at(&cfg, "tts.voice"));
@@ -185,6 +228,9 @@ fn classify(found: crate::tts_bridge::BridgeProbe) -> Status {
 }
 
 /// 探测实现。返回 `VoiceProbe` 而非 `Result`：命令契约要求失败也走 `Ok`。
+///
+/// **会阻塞**（轮询 `sleep` 最长 5 秒）：只能经 `blocking(...)` 在 blocking 线程池上跑，
+/// 直接在主线程调用会冻住 UI（文件头不变量 2）。
 ///
 /// 第一次读状态同时触发 Swift 侧惰性初始化；读失败（空指针 / JSON 损坏）说明桥本身
 /// 坏了，重试没有意义，立刻如实报因。之后 `initializing` 时每 60ms 轮询，总预算 5 秒。
