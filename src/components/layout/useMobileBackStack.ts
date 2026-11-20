@@ -1,5 +1,8 @@
 /**
- * 安卓返回栈（v0.7.10 Task 4）：手机与平板共用的订阅与动作分发。
+ * 移动返回栈（v0.7.10 Task 4；v0.8.0 Task 10 共享化）：手机与平板共用的订阅与动作分发。
+ *
+ * Android 订阅系统返回键；iOS 由 `useEdgeSwipeBack` 调同一 handler（本 hook 返回它，
+ * 订阅本身在 iOS 上落到空操作——Tauri 的 `onBackButtonPress` 只在安卓存在）。
  *
  * 从 `MobileShell` 的 `backHandler` 平移而来，逻辑逐字一致——手机行为零变化。平板的
  * 外壳是 `AppShell`（桌面三栏 + 缩放），它没有抽屉与设置子页，故传 `drawerOpen: false`、
@@ -14,6 +17,9 @@
  * 调用点（`MobileShell` / `AppShell` 的 `android-tablet` 分支）把**外壳自己持有的**瞬时层
  * 状态与关闭动作传进来；其余层（详情 / 搜索 / 复习 / 导航 / 浮层）归本 hook 现读 store。
  * 三个入参与 `actions` 都经 ref 递进稳定闭包，保证按键时读到最新值（订阅只在挂载时发生一次）。
+ *
+ * 返回值是**当前**的 handler（引用稳定）：Android 用它做系统返回键的回调，iOS 手机
+ * （Task 11）把它接到边缘返回手势——两条入口走同一份动作分发。
  */
 
 import { useCallback, useEffect, useRef } from 'react'
@@ -28,6 +34,7 @@ import { go } from '../../lib/useWorkbenchNavigation'
 import { answeredCount } from '../../lib/review/nav'
 import { isSessionLive, leaveMessage } from '../../lib/review/sessionGuard'
 import { closeTopMobilePopup } from '../../lib/mobilePopups'
+import { usePlatformClass } from '../../lib/usePlatform'
 
 /** 外壳自己持有的层的关闭动作（各调用点实现不同：手机接线、平板为空操作）。 */
 export interface BackStackActions {
@@ -36,7 +43,7 @@ export interface BackStackActions {
   closeSettingsSub: () => void
 }
 
-export interface AndroidBackStackInput {
+export interface MobileBackStackInput {
   /** 词条页正在编辑某个字段（`WordWorkbench` 经 `onEditStateChange` 上报）。 */
   editing: boolean
   drawerOpen: boolean
@@ -45,8 +52,14 @@ export interface AndroidBackStackInput {
   actions: BackStackActions
 }
 
-export function useAndroidBackStack(input: AndroidBackStackInput): void {
+export function useMobileBackStack(input: MobileBackStackInput): () => void {
   const { editing, drawerOpen, settingsSection, actions } = input
+
+  // 平台只给 `exit` 分支用（iOS 上到底不退出）。与其它入参同法经 ref 递进——
+  // 挂载后形态仍可能变（iPadOS 26 自由窗口越档），按键时必须读到当时的值。
+  const platform = usePlatformClass()
+  const platformRef = useRef(platform)
+  useEffect(() => { platformRef.current = platform }, [platform])
 
   // 返回键的 handler 必须**永远读到最新值**（订阅只在挂载时发生一次），故经 ref 递进去。
   const editingRef = useRef(editing)
@@ -142,7 +155,8 @@ export function useAndroidBackStack(input: AndroidBackStackInput): void {
         void go('back')
         return
       case 'exit':
-        void exitMobileApp()
+        // Android：退出应用；iOS：确认编辑守卫后不做任何事（`exitMobileApp` 内部判平台）。
+        void exitMobileApp(platformRef.current)
         return
       default: {
         // 穷尽性守卫：`backAction` 新增动作而这里没接时，这行会编译失败。
@@ -169,4 +183,8 @@ export function useAndroidBackStack(input: AndroidBackStackInput): void {
     })
     return () => { cancelled = true; unsubscribe() }
   }, [])
+
+  // 引用稳定（`useCallback` 空依赖，内部全走 ref）：iOS 边缘手势（Task 11）把它存进
+  // 自己的订阅里也不会因父级重渲而失效。
+  return backHandler
 }

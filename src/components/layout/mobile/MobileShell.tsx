@@ -18,7 +18,7 @@ import CategoryAssignModal from '../../word/CategoryAssignModal'
 import CategoryEditorModal from '../../word/CategoryEditorModal'
 import ConfirmDialog from '../../ui/ConfirmDialog'
 import FindBar from '../../ui/FindBar'
-import { useAndroidBackStack } from '../useAndroidBackStack'
+import { useMobileBackStack } from '../useMobileBackStack'
 
 // 手机外壳（Task 4 立骨架，Task 5 填三块）。
 //
@@ -103,17 +103,22 @@ export default function MobileShell() {
 
   const closeSettingsSub = useCallback(() => setSettingsSection(null), [])
 
-  // ── 安卓返回栈（v0.7.10 Task 4 抽到 `useAndroidBackStack`）──────────────────────────────
+  // ── 移动返回栈（v0.7.10 Task 4 抽到 `useMobileBackStack`；v0.8.0 Task 10 共享化）──────
   //
   // 订阅与全部前置检查（确认框 → 分类弹窗 → 自家浮层 → 层集合 → 动作分发）都在 hook 里，
   // 手机与平板共用同一份实现。本组件只交出**自己的**两个瞬时层与它们的关闭动作；
   // 其余层（详情 / 搜索 / 复习 / 导航）由 hook 在按下那一刻现读 store。
-  useAndroidBackStack({
+  //
+  // 返回值是引用稳定的 handler：iOS 手机（Task 11）把它接到边缘返回手势，
+  // 与安卓硬件返回键走同一份动作分发。
+  const backHandler = useMobileBackStack({
     editing: !!editing,
     drawerOpen,
     settingsSection,
     actions: { cancelEdit, closeDrawer, closeSettingsSub },
   })
+  // Task 11 之前无人消费，显式取用以免 `noUnusedLocals` 把构建拦下。
+  void backHandler
 
   // 方向锁定（v0.7.8）：已上移到 `IndexPage`——外壳分发的唯一入口，手机 / 平板都要经过它。
   // 手机外壳不再自己调（平板复用桌面外壳，那条路径根本不会挂到这里，两处调用会漏掉平板）。
