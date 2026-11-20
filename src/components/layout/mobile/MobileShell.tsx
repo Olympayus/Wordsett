@@ -128,8 +128,11 @@ export default function MobileShell() {
   const closeModals = useUiStore(s => s.closeModals)
   const openEditor = useUiStore(s => s.openEditor)
 
+  // 根高度用 100dvh 而不是 h-screen（100vh，v0.8.0 Task 9）：iOS Safari / WebView 的 100vh
+  // 是**不含浏览器折叠工具栏**的视口高，滚动或地址栏收放时比可见区高出一截，底栏会被推到
+  // 屏幕外；dvh 跟随动态视口，旋转后也不会在底部留白。Android 上两者相等，不改变现状。
   return (
-    <div className="h-screen flex flex-col" style={{ background: 'var(--color-canvas)', position: 'relative' }}>
+    <div className="flex flex-col" style={{ background: 'var(--color-canvas)', position: 'relative', height: '100dvh' }}>
       {/* 顶栏：抽屉 / 返回前进 / 标题 / 编者开关 / ⋯（编辑态换成取消 / 保存）。
           只在词条页（工作台 / 储藏库）出现：搜索、复习、设置是各自的一级页面，
           顶部由各自的页面自己负责（spec §4.1「其余页面按各自导航需要出一枚返回与面包屑」）。 */}
@@ -189,7 +192,12 @@ export default function MobileShell() {
           <main
             data-find-root="review"
             className="flex-1 overflow-hidden"
-            style={{ background: 'var(--color-canvas)', display: 'flex', flexDirection: 'column', minHeight: 0 }}
+            // 顶部安全区（v0.8.0 Task 9）：复习页没有 `MobileAppBar`（那一条的 inset 加进了自己的
+            // 高度），刘海此前无人承担；这里补上 `paddingTop`，让 ArenaNavBar 起步于刘海下缘。
+            // 搜索 / 设置两页的 `<main>` 不加——它们的页面自带顶行，且已在自身根节点出
+            // `env(safe-area-inset-top)`（`MobileSearchPage` / `SettingsPage` 手机形态），重复只会让
+            // 顶栏下方多出一条空带。
+            style={{ background: 'var(--color-canvas)', display: 'flex', flexDirection: 'column', minHeight: 0, paddingTop: 'env(safe-area-inset-top)' }}
           >
             <ReviewModule />
           </main>
