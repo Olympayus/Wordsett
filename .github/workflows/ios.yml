@@ -27,6 +27,9 @@ jobs:
           if [ ! -d src-tauri/gen/apple ]; then
             npm run tauri -- ios init --ci
           fi
+      # 首次运行预期在最终链接失败：`tts_ios.rs`（T14）引用的 Swift 符号要等
+      # `TtsBridge.swift`（T15）落进 `gen/apple` 后才存在。这不代表 init 失败——
+      # 此时 `gen/apple` 已生成，下面的兜底上传仍会把工程交出来供用户补文件后重跑。
       - name: Build unsigned IPA
         run: npm run tauri -- ios build --target aarch64 --no-sign
       - uses: actions/upload-artifact@v4
@@ -35,6 +38,9 @@ jobs:
           path: src-tauri/gen/apple/build/**/*.ipa
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
+        # 构建失败（首次运行的预期链接失败）时也必须交出 `gen/apple`，
+        # 否则用户轮拿不到可补 Swift 文件的工程，故这一步总是执行。
+        if: always()
         with:
           name: wordsett-gen-apple
           path: src-tauri/gen/apple

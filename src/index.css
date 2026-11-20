@@ -18,10 +18,11 @@ body {
   outline-offset: 2px;
 }
 
-/* v0.8.0 Task 12：触摸语义表面（手机外壳根 / 平板 `AppShell` 根）。
+/* v0.8.0 Task 12：触摸语义表面（iOS 手机外壳根 / iOS 平板 `AppShell` 根）。
    WKWebView 默认会在长按文字时弹原生选择把手 / 放大镜 / callout，抢走应用的长按与
    双击语义；`touch-action: manipulation` 同时去掉双击缩放（iOS 上双击进编辑不再连带
-   页面缩放）。桌面不挂这个属性，渲染与交互逐字不变。
+   页面缩放）。v0.8.0 终审 R6：属性只在 iOS 上挂——Android 保持此前的文本选择 / 触摸
+   行为，桌面不挂该属性，渲染与交互逐字不变。
    输入框 / 文本域 / contenteditable 是例外：粘贴菜单是系统能力（见 `lib/contextMenu.ts`），
    恢复文字选择与 callout。 */
 [data-touch-semantics] {
@@ -35,6 +36,19 @@ body {
   -webkit-touch-callout: default;
   -webkit-user-select: text;
   user-select: text;
+}
+
+/* 平板缩放宿主的高度（v0.8.0 终审 R7）：`100dvh` 不被识别时整条声明会被丢弃，宿主高度
+   退回 `auto`、三栏塌成一截；故先给 `100vh` 回退，支持 dvh 的引擎再覆盖。
+   `--ws-tablet-zoom` 由 `IndexPage` 内联给出；类只落在平板分支，桌面不受影响。 */
+.ws-tablet-host {
+  height: calc(100vh / var(--ws-tablet-zoom));
+}
+
+@supports (height: 100dvh) {
+  .ws-tablet-host {
+    height: calc(100dvh / var(--ws-tablet-zoom));
+  }
 }
 
 /* 统计数字统一格式：无衬线 + 表格数字 + 主色 + 半粗。

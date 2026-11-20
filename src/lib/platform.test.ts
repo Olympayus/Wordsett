@@ -74,6 +74,13 @@ describe('iOS 与五档谓词', () => {
     expect(resolvePlatform(env(820, { isIOS: true, windowWidth: 599 }))).toBe('ios-phone')
     expect(resolvePlatform(env(820, { isIOS: true, windowWidth: 600 }))).toBe('ios-tablet')
   })
+  it('iOS 设备宽度优先于 windowWidth', () => {
+    // 最小边 < 600 一律手机：窗口即便更宽（820）也改不了设备形态。
+    expect(resolvePlatform(env(390, { isIOS: true, windowWidth: 820 }))).toBe('ios-phone')
+  })
+  it('iOS 宽度恰为 600（平板下界，含）是平板', () => {
+    expect(resolvePlatform(env(TABLET_MIN_WIDTH, { isIOS: true }))).toBe('ios-tablet')
+  })
   it('Android 不受 windowWidth 影响', () => {
     expect(resolvePlatform(env(800, { isAndroid: true, windowWidth: 390 }))).toBe('android-tablet')
   })
@@ -103,6 +110,8 @@ describe('iOS 与五档谓词', () => {
   it('iPad 桌面 UA 兜底', () => {
     expect(isIOSUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 5)).toBe(true)
     expect(isIOSUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 0)).toBe(false)
+    // 触点数 1（带触摸屏的 Mac / 伪装不完全）不足以判为 iOS。
+    expect(isIOSUserAgent('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)', 1)).toBe(false)
     expect(isIOSUserAgent('Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X)', 5)).toBe(true)
   })
   it('方向', () => {

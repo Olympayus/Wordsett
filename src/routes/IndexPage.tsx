@@ -49,7 +49,12 @@ export default function IndexPage() {
             // 平板：桌面三栏整体缩放。`width` / `height` 必须**同时**补偿——`zoom` 缩的是
             // 布局尺寸，只补宽度会让内容在纵向上缩成一截、底下留一条空白。
             ? (
-              <div style={{ zoom, width: `calc(100vw / ${zoom})`, height: `calc(100dvh / ${zoom})` }}>
+              // 高度走 `ws-tablet-host` 类（v0.8.0 终审 R7）：`100dvh` 不可用的引擎退回
+              // `100vh`，缩放量经 CSS 自定义属性传入（见 `index.css`）。
+              <div
+                className="ws-tablet-host"
+                style={{ zoom, width: `calc(100vw / ${zoom})`, ['--ws-tablet-zoom' as any]: zoom }}
+              >
                 <AppShell tablet />
               </div>
             )

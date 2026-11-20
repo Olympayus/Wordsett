@@ -20,6 +20,8 @@ import ConfirmDialog from '../../ui/ConfirmDialog'
 import FindBar from '../../ui/FindBar'
 import { useMobileBackStack } from '../useMobileBackStack'
 import { useEdgeSwipeBack } from '../../../lib/useEdgeSwipeBack'
+import { isIOS } from '../../../lib/platform'
+import { usePlatformClass } from '../../../lib/usePlatform'
 
 // 手机外壳（Task 4 立骨架，Task 5 填三块）。
 //
@@ -50,6 +52,7 @@ function findRoot(module: string): string {
 interface EditState { dirty: boolean }
 
 export default function MobileShell() {
+  const platform = usePlatformClass()
   const activeModule = useViewStore(s => s.activeModule)
   const activeView = useViewStore(s => s.activeView)
   const dictWord = useViewStore(s => s.dictWord)
@@ -137,13 +140,16 @@ export default function MobileShell() {
   // 根高度用 100dvh 而不是 h-screen（100vh，v0.8.0 Task 9）：iOS Safari / WebView 的 100vh
   // 是**不含浏览器折叠工具栏**的视口高，滚动或地址栏收放时比可见区高出一截，底栏会被推到
   // 屏幕外；dvh 跟随动态视口，旋转后也不会在底部留白。Android 上两者相等，不改变现状。
+  // v0.8.0 终审 R7：不认 `dvh` 的老引擎会把整条声明一起丢掉、高度退回 `auto`（底栏不再
+  // 钉底），故同时保留 `h-screen`（100vh）作回退——支持 dvh 时内联的合法声明优先级更高。
   return (
     <div
-      className="flex flex-col"
+      className="h-screen flex flex-col"
       style={{ background: 'var(--color-canvas)', position: 'relative', height: '100dvh' }}
-      // v0.8.0 Task 12：触摸语义表面。外壳只在移动 OS 上渲染，故无条件挂；CSS 见 `index.css`
-      // （禁原生文本选择 / callout + 双击缩放，输入框例外恢复）。
-      data-touch-semantics=""
+      // v0.8.0 Task 12：触摸语义表面，**只在 iOS 上挂**（终审 R6）——Android 保持此前的
+      // 文本选择 / 触摸行为；CSS 见 `index.css`（禁原生文本选择 / callout + 双击缩放，
+      // 输入框例外恢复）。Android 上不输出该属性，渲染逐字回到本版之前。
+      data-touch-semantics={isIOS(platform) ? '' : undefined}
     >
       {/* 顶栏：抽屉 / 返回前进 / 标题 / 编者开关 / ⋯（编辑态换成取消 / 保存）。
           只在词条页（工作台 / 储藏库）出现：搜索、复习、设置是各自的一级页面，

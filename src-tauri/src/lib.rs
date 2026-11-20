@@ -141,6 +141,18 @@ pub fn run() {
                 .map_err(|e| e.to_string())?;
             config::init(&dir);
 
+            // iOS：把上一轮会话的日志镜像进 Documents（Files App 可见，v0.8.0 终审 R8）。
+            // 日志本体在 app_log_dir，React 从未挂载的白屏里「关于」页也打不开；启动时复制
+            // 一份到 Documents，下次启动即可用 Files 取出上一轮的记录。失败一律静默，
+            // 源不存在就直接跳过（不创建文件、不加命令与权限）。
+            #[cfg(target_os = "ios")]
+            if let (Ok(log_dir), Ok(doc_dir)) = (app.path().app_log_dir(), app.path().document_dir()) {
+                let src = log_dir.join("wordsett.log");
+                if src.exists() {
+                    let _ = std::fs::copy(&src, doc_dir.join("wordsett.log"));
+                }
+            }
+
             // 划词收录（v0.7.9）：先预载隐藏小窗，再注册全局热键。
             // 两者失败都只记日志、不 panic——热键注册失败会由 STARTUP_ERROR
             // 转成主窗顶部的一次性提示条，其余功能不受影响（spec §5.6）。
