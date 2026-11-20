@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- viewport-fit=cover（v0.8.0 Task 9）：让 iOS 的 env(safe-area-inset-*) 解析出真实值，
+         刘海 / 挖孔 / 手势条的安全区才有数可让；各外壳按需把 inset 加进高度或内边距。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Wordsett</title>
     <script>
       // 首屏主题兜底（v0.7.3）：模块脚本加载完成前先按已持久化的设置把 data-theme 打上，

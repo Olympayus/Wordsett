@@ -105,12 +105,24 @@ export default function AppShell({ tablet = false }: AppShellProps) {
   // 统一页内查找：注册全局 Ctrl+F（spec §4b，FindBar 单实例）
   useEffect(() => registerFindKeyHandler(), [])
 
+  // 安全区（v0.8.0 Task 9）：顶 / 底两处 inset 都在这里出——顶栏的 `paddingTop` 让刘海不压
+  // 顶栏控件，根节点的 `paddingBottom` 让手势条不压内容。桌面与 Android 上 env() 为 0，
+  // 渲染结果逐字不变（只多两个值为 0 的 style 属性）。
+  //
+  // **缩放二次放大（spec §7.3）**：这两个 inset 都在 `IndexPage` 的 `zoom` 宿主**内部**，
+  // `zoom` 会把它们一起缩小（zoom < 1 时 inset 变小）。首次 iPad 真机验证时若发现 inset 不够
+  // ——手势条压内容、或顶栏仍贴刘海——备选是把这两条 padding 上移到缩放宿主**外侧**（未缩放层，
+  // 即 `IndexPage` 那个包 `<AppShell tablet />` 的 div），并把宿主高度改为
+  // `calc((100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) / ${zoom})`：
+  // 外层已让开安全区、内层不再重复让，inset 也就不经过 zoom。本轮 iPad 无真机，先记在这里。
   return (
     <div
       className={tablet ? 'flex flex-col' : 'h-screen flex flex-col'}
-      style={tablet
-        ? { background: 'var(--color-canvas)', height: '100%' }
-        : { background: 'var(--color-canvas)' }}
+      style={{
+        background: 'var(--color-canvas)',
+        ...(tablet ? { height: '100%' } : {}),
+        paddingBottom: 'env(safe-area-inset-bottom)',
+      }}
     >
       {/* 平板返回栈（v0.7.10 Task 4）：只在 `android-tablet` 挂载，手机在 `MobileShell` 里挂。
           桌面因此不受任何影响（不订阅返回键、不读编辑态）。 */}
@@ -120,8 +132,10 @@ export default function AppShell({ tablet = false }: AppShellProps) {
           是桌面命令，平板（Android）构建里根本没有它。一次性读取，可关闭。 */}
       {platform === 'desktop' && <CollectBanner />}
 
-      {/* 全局顶栏：始终可见，不随侧边栏折叠（规格 §2） */}
-      <header className="shrink-0">
+      {/* 全局顶栏：始终可见，不随侧边栏折叠（规格 §2）。
+          顶部安全区（v0.8.0 Task 9）：刘海 / 挖孔下的 iPad 顶栏控件不被压住。`header` 没有
+          固定高度，paddingTop 只是把内容整体下移 inset；桌面为 0，逐字不变。 */}
+      <header className="shrink-0" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
         <TopBar />
       </header>
 
