@@ -1,0 +1,11 @@
+# 生成工程的构建产物与资源副本（与 gen/android/.gitignore 同模式）。
+# 词典由 `npm run build:dictionaries` 在构建时生成、由 Tauri CLI 复制进 assets/：
+# 入库会把 ~134MB 的 SQLite 塞进仓库，且每次构建都会重新填充。
+assets/
+Externals/
+build/
+Pods/
+Podfile.lock
+xcuserdata/
+*.xcuserstate
+.DS_Store
