@@ -46,7 +46,9 @@ jobs:
           path: src-tauri/gen/apple
           if-no-files-found: error
       - name: Attach to GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        # 只挂正式版本 tag（v0.8.0）；测试 tag（v0.8.0-ios1 这类带连字符的）只留 artifact，
+        # 免得每次调试都在 Releases 页留下一份半成品。
+        if: startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-')
         uses: softprops/action-gh-release@v2
         with:
           files: src-tauri/gen/apple/build/**/*.ipa
