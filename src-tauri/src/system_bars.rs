@@ -10,8 +10,9 @@
 //! 句柄，可以带回 IPC 线程），再用 `exec` 把闭包送回**主循环线程**执行——JNIEnv 不可跨线程。
 //! `exec` 是异步投递，必须等回调把结果送回来（5 秒上限）。
 //!
-//! 非 Android 端命令为空操作：桌面既没有系统栏也不该有行为变化，但命令仍注册在命令表里，
-//! 前端可以无差别 invoke（失败静默由调用方负责）。
+//! iOS 端经 Swift 桥（`TtsBridge.swift` 的 `wordsett_set_status_bar_style`）设置窗口的
+//! `overrideUserInterfaceStyle`，失败静默（降级为系统默认样式，见 spec §7.7）。桌面既没有
+//! 系统栏也不该有行为变化，命令仍注册在命令表里，前端可以无差别 invoke（失败静默由调用方负责）。
 //!
 //! `should_use_light_icons` 刻意**不带 android cfg**：它把「深色主题 ⇒ 亮色图标」这条
 //! 判据钉在宿主机（Windows 上的 `cargo test`）里——安卓专用测试在本环境永远跑不起来。
@@ -92,8 +93,26 @@ pub fn set_system_bars_theme(app: tauri::AppHandle, dark: bool) -> Result<(), St
     }
 }
 
-/// 非安卓端：无操作。桌面没有系统栏，命令仍注册以便前端无差别调用。
-#[cfg(not(target_os = "android"))]
+/// iOS：经 Swift 桥把 `dark` 交给窗口的 `overrideUserInterfaceStyle`。
+///
+/// Swift 侧在 `DispatchQueue.main.async` 里落 UI、FFI 调用本身立即返回；桥失败无从上报
+/// （静默降级为系统默认样式），因此这里恒返回 `Ok`。命令名 / 参数与 Android 分支相同。
+#[cfg(target_os = "ios")]
+extern "C" {
+    /// `TtsBridge.swift` 导出的 `@_cdecl("wordsett_set_status_bar_style")`。
+    fn wordsett_set_status_bar_style(dark: bool);
+}
+
+#[cfg(target_os = "ios")]
+#[tauri::command]
+pub fn set_system_bars_theme(dark: bool) -> Result<(), String> {
+    // SAFETY: Swift 侧只把工作投递到主队列后立即返回，不持有本调用栈上的任何指针。
+    unsafe { wordsett_set_status_bar_style(dark) };
+    Ok(())
+}
+
+/// 其余平台：无操作。桌面没有系统栏，命令仍注册以便前端无差别调用。
+#[cfg(not(any(target_os = "android", target_os = "ios")))]
 #[tauri::command]
 pub fn set_system_bars_theme(dark: bool) -> Result<(), String> {
     let _ = dark;
