@@ -93,13 +93,14 @@ pub fn set_system_bars_theme(app: tauri::AppHandle, dark: bool) -> Result<(), St
     }
 }
 
-/// iOS：经 Swift 桥把 `dark` 交给窗口的 `overrideUserInterfaceStyle`。
-///
-/// Swift 侧在 `DispatchQueue.main.async` 里落 UI、FFI 调用本身立即返回；桥失败无从上报
-/// （静默降级为系统默认样式），因此这里恒返回 `Ok`。命令名 / 参数与 Android 分支相同。
+// iOS：经 Swift 桥把 `dark` 交给窗口的 `overrideUserInterfaceStyle`。
+//
+// Swift 侧在 `DispatchQueue.main.async` 里落 UI、FFI 调用本身立即返回；桥失败无从上报
+// （静默降级为系统默认样式），因此这里恒返回 `Ok`。命令名 / 参数与 Android 分支相同。
 #[cfg(target_os = "ios")]
 extern "C" {
-    /// `TtsBridge.swift` 导出的 `@_cdecl("wordsett_set_status_bar_style")`。
+    // `TtsBridge.swift` 导出的 `@_cdecl("wordsett_set_status_bar_style")`。文档注释
+    // 不能挂在 extern 块上（rustdoc 会告 unused doc comment），故用普通注释。
     fn wordsett_set_status_bar_style(dark: bool);
 }
 

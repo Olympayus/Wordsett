@@ -27,5 +27,15 @@ fn main() {
   if parts.len() == 2 {
     println!("cargo:rustc-env=WORDSETT_DICT_MARKER={}", parts.join("|"));
   }
+
+  // iOS：`crate-type` 里的 `cdylib` 会让 cargo 额外链接一份 `libapp.dylib`，而
+  // `tts_ios.rs` / `system_bars.rs` 引用的 `wordsett_tts_*` / `wordsett_set_status_bar_style`
+  // 由 `TtsBridge.swift` 提供、只在 xcodebuild 的最终 App 链接时才存在，cdylib 链接期
+  // 报 undefined symbols。`-undefined dynamic_lookup` 让这些引用留到加载期解析；
+  // 真正被链接进 App 的是 `libapp.a`（静态库不解析符号），最终链接仍由 xcodebuild 完成。
+  if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("ios") {
+    println!("cargo:rustc-link-arg-cdylib=-Wl,-undefined,dynamic_lookup");
+  }
+
   tauri_build::build()
 }
