@@ -4,7 +4,7 @@
 
 Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查询**、**词汇语义网络**与**结构化词汇管理**合二为一：搜索并合并 ECDICT / WordNet 的权威释义，借助 WordNet 语义关系构建词汇网络，再用分层字段、分类系统把你自己的理解沉淀成长期可复用的知识。
 
-![version](https://img.shields.io/badge/version-0.7.10-4A6FA5)
+![version](https://img.shields.io/badge/version-0.8.0-4A6FA5)
 ![platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 ![offline](https://img.shields.io/badge/offline-first-yes-6B8E7F)
 ![license](https://img.shields.io/badge/license-MIT-4A6FA5)
@@ -105,16 +105,16 @@ Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查
 
 ## 更新内容
 
-本次更新对 Android 手机与平板的交互层做了一轮打磨，也为即将到来的 iOS 版铺路；桌面行为除下列条目外不变。
+本版把应用带到 **iPhone 与 iPad**（部署目标 iOS 14.0，15.4+ 为完整体验），并补上 iOS 朗读与真机诊断通道；桌面行为除下列条目外不变。
 
-- **拖拽看得懂**：拖动时能放 / 不能放 / 无目标三态可见，组末尾与整页末尾都有落点区，松手后有一小段收敛动画；判定与落库规则未变。
-- **提示与选择**：全站原生悬停提示换成自绘提示——鼠标停留片刻才出现、贴在按钮旁；手机上点按开合。原生下拉全部换自绘，手机上打开底部动作表。
-- **触摸标准**：移动端输入框字号与高度按触摸标准放大（聚焦不缩放页面），可点控件命中区不小于 44dp，隐藏的悬停按钮在触摸端常显。
-- **页内查找**：手机在工作台 / 储藏库的「⋯」菜单、平板在导航条按钮，都能做页内查找并逐个跳转。
-- **平板对齐**：不再显示桌面窗口按钮；设置页剔除 Android 上不适用的项；返回键逐级后退；顶栏加高，搜索框上下恢复留白。
-- **复习**：「全库随机 / 今日队列重练」补齐内容块（工作区词数、近 7 天题数与记得率、熟悉度分布、今日到期与未来 7 天分布），「开始练习 / 开始复习」统一到左侧控制台下方；手机补齐统计与结算项。
-- **搜索**：手机搜索的命中段与桌面一致，改为陶土橙文字。
-- **细节**：提示面板贴合按钮并沿交叉轴居中、窗口控制键的提示改到下方、数量速选选中态更醒目、设置项文案与恢复默认补齐；修正了自由练习范围卡片被点过后残留黑边的问题。
+- **iOS 安装**：未签名 IPA 随 Release 发布，iPhone 与 iPad 共用同一个包；在 Windows 上用 Sideloadly 侧载，见下文「iOS 安装」。
+- **iPhone 外壳**：底栏五入口、整屏抽屉、逐级返回栈；左缘右滑即可后退，浮层 → 页面 → 模块逐级收拢。
+- **iPad 布局**：复用桌面三栏并随触摸语义放大命中区；桌面窗口按钮、拖拽区与桌面专属设置项不再出现。
+- **安全区与键盘**：刘海、手势条不再压住顶底栏；键盘弹出时自动把聚焦输入框滚进可视区，输入框 16px 聚焦不缩放页面。
+- **iOS 朗读**：使用系统语音合成，语速档位映射到系统默认速率；iPhone 固定系统默认音色，iPad 可选英文音色，遵循系统静音开关。
+- **词典与文件**：首启自动把内置词典复制到应用目录；导入走副本；导出无法写入选定位置时回退到「文件」App 里可见的应用文件夹。
+- **诊断与更新**：关于页新增「查看日志」，白屏 / 朗读无声时可据此定位；iOS / Android 仍只检查版本并跳转 GitHub 下载。
+- **一处移动端变化**：输入框内的长按与右键菜单改由系统提供（所有平台一致），输入框之外仍由应用拦截。
 
 ## 截图
 
@@ -174,11 +174,11 @@ Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查
 
 | 系统 | 安装包 |
 |------|--------|
-| **Windows** | `Wordsett_0.7.10_x64-setup.exe`（当前发布提供；MSI 暂未随包） |
-| **macOS** | `Wordsett_0.7.10_aarch64.dmg`（Apple 芯片；Intel 机型为 `Wordsett_0.7.10_x64.dmg`） |
-| **Linux** | `Wordsett_0.7.10_x86_64.AppImage` / `.deb`（在 Linux 上构建；暂未提供） |
-| **Android** | `Wordsett_0.7.10_android-universal.apk`（通用包，含 arm64-v8a 与 armeabi-v7a） |
-| **iOS** | 未签名 `.ipa`（需在 Windows 上侧载，见下） |
+| **Windows** | `Wordsett_0.8.0_x64-setup.exe`（当前发布提供；MSI 暂未随包） |
+| **macOS** | `Wordsett_0.8.0_aarch64.dmg`（Apple 芯片；Intel 机型为 `Wordsett_0.8.0_x64.dmg`） |
+| **Linux** | `Wordsett_0.8.0_x86_64.AppImage` / `.deb`（在 Linux 上构建；暂未提供） |
+| **Android** | `Wordsett_0.8.0_android-universal.apk`（通用包，含 arm64-v8a 与 armeabi-v7a） |
+| **iOS** | `Wordsett.ipa`（未签名；iPhone 与 iPad 通用，需在 Windows 上侧载，见下） |
 
 下载后**双击运行安装程序**，跟随向导即可完成安装；开始菜单会出现 **Wordsett** 图标。
 
@@ -186,7 +186,7 @@ Wordsett 是一款个人词汇知识管理桌面应用。它把**离线词典查
 
 Android 版以 **universal APK** 发布（同一个包同时含 arm64-v8a 与 armeabi-v7a）：
 
-1. 在 [GitHub Releases](https://github.com/Olympayus/Wordsett/releases) 的对应版本里下载 `Wordsett_0.7.10_android-universal.apk`；
+1. 在 [GitHub Releases](https://github.com/Olympayus/Wordsett/releases) 的对应版本里下载 `Wordsett_0.8.0_android-universal.apk`；
 2. 在手机上打开安装包，按系统提示允许该来源**安装未知应用**，然后继续安装；
 3. **覆盖升级**直接安装新版即可，无需先卸载：本应用每次发布都用**同一把签名密钥**签名，新版能覆盖旧版并保留数据；
 4. **手机与电脑的数据彼此独立**，不会自动同步；换机或与桌面互搬时，用 **设置 → 关于 → 数据** 的导出 / 导入备份搬运；

@@ -3,8 +3,8 @@
 Personal vocabulary knowledge management desktop app.
 Tauri 2 + React + TypeScript + SQLite.
 
-> **当前状态（v0.8.0）**：开发分支 `v0.8.0`，代码侧已提交、尚未合并到 `main`（本地 merge 与 push 由用户亲自执行）。本版是 **iOS / iPad 移植**：零 schema 改动（`SCHEMA_VERSION` 维持 7），四处版本号在发行时按 `release-workflow` 统一升到 0.8.0；开发期 `latest.json` 刻意不动。设计与计划在 `docs/superpowers/`（本地文件、不入 git）。
-> **待完成的外部步骤**：`gen/apple` 与 `TtsBridge.swift`（含状态栏桥）已入库，CI 构建通过（tag `v0.8.0-ios3`，run 44972216435）；未签名 IPA 实测 **≈119 MiB（124 MB）**——二进制 67.5 MB + 词典 ecdict 99 MB / wordnet 41 MB。**iPhone 13 Pro 真机十项验收未执行**；**iPad 全部待设备验证**（同一 IPA）。调试构建用带连字符的 tag（如 `v0.8.0-ios3`）触发 `ios.yml`（`workflow_dispatch` 需等合并进 `main` 后才可用）；`release.yml` 与 Release 挂载对带连字符的测试 tag 已跳过。
+> **当前状态（v0.8.0 发布就绪）**：本版是 **iOS / iPad 移植**，零 schema 改动（`SCHEMA_VERSION` 维持 7）。四处版本号已统一升至 **0.8.0**（`package.json` / `src-tauri/Cargo.toml` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.lock`），README 与 `docs/releases/v0.8.0.md` 已同步；`latest.json` 在发布步骤按构建产物重新生成。分支 `v0.8.0` 待用户合并 `main`、push、打 tag `v0.8.0` 并发 Release（merge / push / `gh release` 由用户亲自执行）。设计与计划在 `docs/superpowers/`（本地文件、不入 git）。
+> **验收与产物**：iPhone 13 Pro 真机十项验收已通过（用户确认）；**iPad 未设备验证**（布局由 Android 平板模拟器覆盖）。tag `v0.8.0-ios3`（run 44972216435）的未签名 IPA 实测 **≈119 MiB（124 MB）**——二进制 67.5 MB + 词典 ecdict 99 MB / wordnet 41 MB，正式 tag 构建会重新出包并附到 Release。调试构建用带连字符的 tag（如 `v0.8.0-ios4`）触发 `ios.yml`（`workflow_dispatch` 需合并进 `main` 后可用）；`release.yml` 与 Release 挂载对带连字符的测试 tag 跳过。
 > **生成工程**：`gen/android` / `gen/apple` 重新生成后的人工恢复清单见 `release-workflow` 技能。
 > **版本历史**：逐版本变更记录见 `git log`、GitHub Releases 与 `docs/`，本文件不再保留。
 
